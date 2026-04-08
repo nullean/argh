@@ -5,15 +5,21 @@ using Nullean.Argh;
 namespace Nullean.Argh.Hosting;
 
 /// <summary>
-/// Runs the CLI entry (<see cref="ArghRuntime.RunAsync"/> or a substitute supplied to <c>AddArgh</c>) after the host has started, then stops the host when the run completes.
+/// Runs the CLI entry (<see cref="ArghRuntime.RunAsync"/> or a substitute supplied to <c>AddArgh</c>) in
+/// <see cref="IHostedService.StartAsync"/>, then ends the process with <see cref="Environment.Exit(int)"/> so generic-host lifetime
+/// / shutdown messages do not appear after the CLI run.
 /// </summary>
+/// <remarks>
+/// Hosted services registered after <c>AddArgh</c> never get <see cref="IHostedService.StartAsync"/> because the process exits.
+/// Register <c>AddArgh</c> before other hosted services so the CLI (including <c>--help</c>) runs first. Services registered before
+/// <c>AddArgh</c> still start first. <see cref="Environment.Exit(int)"/> does not invoke <see cref="IHostedService.StopAsync"/>.
+/// </remarks>
 internal sealed class ArghCliHostedService : IHostedService
 {
 	private readonly Func<Task<int>> _runCliAsync;
 	private readonly IHostApplicationLifetime _lifetime;
 	private readonly IServiceProvider _services;
 	private readonly ILogger<ArghCliHostedService>? _logger;
-	private Task? _runTask;
 
 	public ArghCliHostedService(
 		Func<Task<int>> runCliAsync,
@@ -27,39 +33,38 @@ internal sealed class ArghCliHostedService : IHostedService
 		_logger = logger;
 	}
 
-	public Task StartAsync(CancellationToken cancellationToken)
+	public async Task StartAsync(CancellationToken cancellationToken)
 	{
-		// Run after the host has completed startup so logging and other services are ready; avoids StopApplication racing "started".
-		_lifetime.ApplicationStarted.Register(() => { _runTask = RunCliAndStopHostAsync(); });
-		return Task.CompletedTask;
-	}
-
-	private async Task RunCliAndStopHostAsync()
-	{
+		// Run during IHostedService startup (before ApplicationStarted) so help and normal commands run without host "started" noise first.
 		ArghHostRuntime.ApplicationStopping = _lifetime.ApplicationStopping;
 		ArghServices.ServiceProvider = _services;
+		int exitCode;
 		try
 		{
-			var exitCode = await _runCliAsync().ConfigureAwait(false);
-			Environment.ExitCode = exitCode;
+			exitCode = await _runCliAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
 			_logger?.LogError(ex, "Unhandled exception while running the CLI.");
-			Environment.ExitCode = 1;
+			exitCode = 1;
 		}
 		finally
 		{
 			ArghHostRuntime.ApplicationStopping = null;
 			ArghServices.ServiceProvider = null;
-			_lifetime.StopApplication();
 		}
+
+		try
+		{
+			Console.Out.Flush();
+			Console.Error.Flush();
+		}
+		catch
+		{
+		}
+
+		Environment.Exit(exitCode);
 	}
 
-	public async Task StopAsync(CancellationToken cancellationToken)
-	{
-		var t = _runTask;
-		if (t is not null)
-			await t.ConfigureAwait(false);
-	}
+	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

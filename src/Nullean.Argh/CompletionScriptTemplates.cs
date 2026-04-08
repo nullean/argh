@@ -1,8 +1,24 @@
 namespace Nullean.Argh;
 
 /// <summary>
+/// Shells for which static completion script templates are provided (<see cref="CompletionScriptTemplates"/>).
+/// </summary>
+public enum CompletionShell
+{
+	/// <summary>Bourne-again shell (<c>bash</c>).</summary>
+	Bash = 0,
+
+	/// <summary>Z shell (<c>zsh</c>).</summary>
+	Zsh = 1,
+
+	/// <summary>Friendly interactive shell (<c>fish</c>).</summary>
+	Fish = 2,
+}
+
+/// <summary>
 /// Shell completion script templates. Each template is a single string containing <c>{0}</c> placeholders for the application executable name. Prefer <c>template.Replace("{0}", appName)</c> (or escape literal braces as <c>{{</c>/<c>}}</c> if you use <see cref="string.Format(string, object?)"/>), because shell syntax includes braces that would confuse <c>string.Format</c>. Wiring to a <c>--completions</c> flag can be added separately.
 /// </summary>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public static class CompletionScriptTemplates
 {
 	/// <summary>
@@ -40,18 +56,4 @@ public static class CompletionScriptTemplates
 	public static string GetFish() =>
 		"# Generated completion — replace {0} with your executable name.\n" +
 		"complete -c {0} -f -a \"({0} __complete fish -- (commandline -ct))\"\n";
-
-	/// <summary>
-	/// Returns the template for the given <paramref name="shell"/>.
-	/// </summary>
-	/// <param name="shell">Target shell.</param>
-	/// <returns>The same strings as <see cref="GetBash"/>, <see cref="GetZsh"/>, or <see cref="GetFish"/>.</returns>
-	public static string Get(CompletionShell shell) =>
-		shell switch
-		{
-			CompletionShell.Bash => GetBash(),
-			CompletionShell.Zsh => GetZsh(),
-			CompletionShell.Fish => GetFish(),
-			_ => throw new ArgumentOutOfRangeException(nameof(shell)),
-		};
 }

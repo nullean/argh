@@ -78,7 +78,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	private static readonly DiagnosticDescriptor AsParametersEmptyType = new(
 		"AGH0009",
 		"AsParameters type has no bindable members",
-		"Type '{0}' must expose public primary constructor parameters or init-only properties for [AsParameters] binding.",
+		"Type '{0}' must expose public primary constructor parameters and/or public settable properties (including inherited) for [AsParameters] binding.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
@@ -900,6 +900,16 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		return set.IsInitOnly;
 	}
 
+	/// <summary>Properties eligible for [AsParameters] object-initializer binding (init or normal setter).</summary>
+	private static bool IsSettableForAsParameters(IPropertySymbol prop)
+	{
+		if (prop.IsStatic)
+			return false;
+		if (prop.GetMethod is null)
+			return false;
+		return prop.SetMethod is not null;
+	}
+
 	private static void ReportDuplicateCliNames(SourceProductionContext context, Location location, ImmutableArray<ParameterModel> parameters)
 	{
 		var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -983,26 +993,37 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			}
 		}
 
-		foreach (ISymbol member in type.GetMembers())
-		{
-			if (member is not IPropertySymbol prop)
-				continue;
-			if (prop.DeclaredAccessibility != Accessibility.Public || prop.IsStatic)
-				continue;
-			if (prop.IsIndexer)
-				continue;
-			if (!IsInitOnlySettable(prop))
-				continue;
-			if (ctorNames.Contains(prop.Name))
-				continue;
+		var chain = new List<INamedTypeSymbol>();
+		for (INamedTypeSymbol? t = type; t is not null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)
+			chain.Add(t);
 
-			list.Add(ParameterModel.FromAsParametersInitProperty(
-				methodParamName: owner,
-				typeFq,
-				prop,
-				pfx,
-				order++,
-				parseOptions));
+		var seenPropNames = new HashSet<string>(StringComparer.Ordinal);
+		for (int i = chain.Count - 1; i >= 0; i--)
+		{
+			INamedTypeSymbol tt = chain[i];
+			foreach (ISymbol member in tt.GetMembers())
+			{
+				if (member is not IPropertySymbol prop)
+					continue;
+				if (prop.DeclaredAccessibility != Accessibility.Public || prop.IsStatic)
+					continue;
+				if (prop.IsIndexer)
+					continue;
+				if (!IsSettableForAsParameters(prop))
+					continue;
+				if (ctorNames.Contains(prop.Name))
+					continue;
+				if (!seenPropNames.Add(prop.Name))
+					continue;
+
+				list.Add(ParameterModel.FromAsParametersInitProperty(
+					methodParamName: owner,
+					typeFq,
+					prop,
+					pfx,
+					order++,
+					parseOptions));
+			}
 		}
 
 		if (list.Count == 0)
@@ -1626,10 +1647,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
-		EmitPrintRootHelpFlat(sb, commands);
+		EmitPrintRootHelpFlat(sb, commands, entryAssemblyName);
 		sb.AppendLine();
 		foreach (CommandModel cmd in commands)
-			EmitCommandHelpPrinter(sb, cmd);
+			EmitCommandHelpPrinter(sb, cmd, app, entryAssemblyName);
 
 		sb.AppendLine();
 		sb.AppendLine("\t\tprivate static void PrintVersion()");
@@ -1665,11 +1686,12 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		context.AddSource("ArghGenerated.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
 	}
 
-	private static void EmitPrintRootHelpFlat(StringBuilder sb, ImmutableArray<CommandModel> commands)
+	private static void EmitPrintRootHelpFlat(StringBuilder sb, ImmutableArray<CommandModel> commands, string entryAssemblyName)
 	{
 		sb.AppendLine("\t\tprivate static void PrintRootHelp()");
 		sb.AppendLine("\t\t{");
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"<app>\") + \" <command> [options]\");");
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" <command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Commands:\"));");
 		foreach (CommandModel c in commands)
@@ -1709,13 +1731,13 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		AppendRunWithCancellationAsyncMethod(sb);
 		EmitRunCoreHierarchical(sb, app, entryAssemblyName);
 		sb.AppendLine();
-		EmitPrintRootHelpHierarchical(sb, app);
+		EmitPrintRootHelpHierarchical(sb, app, entryAssemblyName);
 		sb.AppendLine();
 		foreach ((RegistryNode node, ImmutableArray<string> path) in EnumerateGroupNodesWithPath(app.Root, ImmutableArray<string>.Empty))
-			EmitGroupHelpPrinter(sb, path, node, app);
+			EmitGroupHelpPrinter(sb, path, node, app, entryAssemblyName);
 
 		foreach (CommandModel cmd in app.AllCommands)
-			EmitCommandHelpPrinter(sb, cmd);
+			EmitCommandHelpPrinter(sb, cmd, app, entryAssemblyName);
 
 		sb.AppendLine("\t\tprivate static void PrintVersion()");
 		sb.AppendLine("\t\t{");
@@ -1825,11 +1847,12 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t}");
 	}
 
-	private static void EmitPrintRootHelpHierarchical(StringBuilder sb, AppEmitModel app)
+	private static void EmitPrintRootHelpHierarchical(StringBuilder sb, AppEmitModel app, string entryAssemblyName)
 	{
 		sb.AppendLine("\t\tprivate static void PrintRootHelp()");
 		sb.AppendLine("\t\t{");
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"<app>\") + \" [global options] <group|command> [options]\");");
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" <group|command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (app.Root.Commands.Count > 0)
 		{
@@ -1870,14 +1893,14 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t}");
 	}
 
-	private static void EmitGroupHelpPrinter(StringBuilder sb, ImmutableArray<string> path, RegistryNode node, AppEmitModel app)
+	private static void EmitGroupHelpPrinter(StringBuilder sb, ImmutableArray<string> path, RegistryNode node, AppEmitModel app, string entryAssemblyName)
 	{
 		string key = GroupPathKey(path);
 		string usagePrefix = string.Join(" ", path);
 		sb.AppendLine($"\t\tprivate static void PrintHelp_Group_{key}()");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine(
-			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"<app>\") + \" {Escape(usagePrefix)} <command> [options]\");");
+			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" {Escape(usagePrefix)} <command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (node.Commands.Count > 0)
 		{
@@ -2682,10 +2705,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine("\t\t\t}");
 			}
 			else
-			{
 				sb.AppendLine($"\t\t\t\t{p.LocalVarName}Text = null;");
-				sb.AppendLine("\t\t\t}");
-			}
 
 			EmitParseAndAssign(sb, p, p.LocalVarName + "Text", p.LocalVarName, failureExit, helpMethodName);
 		}
@@ -3466,15 +3486,125 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void EmitCommandHelpPrinter(StringBuilder sb, CommandModel cmd)
+	private static IEnumerable<ParameterModel> EnumerateFlagMembers(OptionsTypeModel? model)
+	{
+		if (model is null)
+			yield break;
+
+		foreach (ParameterModel p in model.Members)
+		{
+			if (p.Kind == ParameterKind.Flag)
+				yield return p;
+		}
+	}
+
+	private static void AddCliKeys(IEnumerable<ParameterModel> flags, HashSet<string> keys)
+	{
+		foreach (ParameterModel p in flags)
+		{
+			keys.Add(p.CliLongName);
+			foreach (string a in p.Aliases)
+			{
+				if (!string.IsNullOrEmpty(a))
+					keys.Add(a);
+			}
+		}
+	}
+
+	private static List<(string Segment, OptionsTypeModel Model)> GetGroupOptionChain(AppEmitModel app, ImmutableArray<string> routePrefix)
+	{
+		var list = new List<(string, OptionsTypeModel)>();
+		RegistryNode current = app.Root;
+		foreach (string seg in routePrefix)
+		{
+			RegistryNode.NamedGroupChild? found = null;
+			foreach (RegistryNode.NamedGroupChild c in current.Children)
+			{
+				if (string.Equals(c.Segment, seg, StringComparison.OrdinalIgnoreCase))
+				{
+					found = c;
+					break;
+				}
+			}
+
+			if (found is null)
+				break;
+
+			current = found.Node;
+			if (current.GroupOptionsModel is { Members: { Length: > 0 } } gom)
+				list.Add((seg, gom));
+		}
+
+		return list;
+	}
+
+	private static bool CommandFlagMatchesScopedKeys(ParameterModel p, HashSet<string> scopedKeys)
+	{
+		if (scopedKeys.Contains(p.CliLongName))
+			return true;
+
+		foreach (string a in p.Aliases)
+		{
+			if (!string.IsNullOrEmpty(a) && scopedKeys.Contains(a))
+				return true;
+		}
+
+		return false;
+	}
+
+	private static void EmitHelpOptionRows(StringBuilder sb, IReadOnlyList<ParameterModel> rows, int maxOptWidth)
+	{
+		foreach (ParameterModel p in rows)
+		{
+			string left = HelpLayout.FormatOptionLeftCell(p).PadRight(maxOptWidth);
+			string desc = BuildDescriptionSuffix(p, forPositional: false);
+			sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)}\");");
+		}
+	}
+
+	private static void EmitCommandHelpPrinter(StringBuilder sb, CommandModel cmd, AppEmitModel app, string entryAssemblyName)
 	{
 		string routeUsage = cmd.RoutePrefix.IsDefaultOrEmpty
 			? ""
 			: string.Join(" ", cmd.RoutePrefix) + " ";
+
+		List<ParameterModel> globalFlagMembers = EnumerateFlagMembers(app.GlobalOptionsModel).ToList();
+		List<(string Segment, List<ParameterModel> Rows)> groupSections = new();
+		List<(string Segment, OptionsTypeModel Model)> groupChain = GetGroupOptionChain(app, cmd.RoutePrefix);
+		var suppressedForGroupDisplay = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		AddCliKeys(globalFlagMembers, suppressedForGroupDisplay);
+		foreach ((string seg, OptionsTypeModel gom) in groupChain)
+		{
+			List<ParameterModel> allInGroup = EnumerateFlagMembers(gom).ToList();
+			List<ParameterModel> rows = allInGroup.Where(p => !suppressedForGroupDisplay.Contains(p.CliLongName)).ToList();
+			AddCliKeys(allInGroup, suppressedForGroupDisplay);
+			if (rows.Count > 0)
+				groupSections.Add((seg, rows));
+		}
+
+		var scopedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		AddCliKeys(globalFlagMembers, scopedKeys);
+		foreach ((_, OptionsTypeModel gom) in groupChain)
+			AddCliKeys(EnumerateFlagMembers(gom), scopedKeys);
+
+		List<ParameterModel> commandOnlyFlags = cmd.Parameters
+			.Where(p => p.Kind == ParameterKind.Flag && !CommandFlagMatchesScopedKeys(p, scopedKeys))
+			.ToList();
+
+		var widthCandidates = new List<int> { "--help, -h".Length, "--version".Length };
+		widthCandidates.AddRange(globalFlagMembers.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		foreach ((_, List<ParameterModel> rows) in groupSections)
+			widthCandidates.AddRange(rows.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+
+		widthCandidates.AddRange(commandOnlyFlags.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		int maxOptWidth = Math.Min(widthCandidates.Max(), 40);
+		maxOptWidth = Math.Max(maxOptWidth, "--help, -h".Length);
+
 		sb.AppendLine($"\t\tprivate static void PrintHelp_{cmd.RunMethodName}()");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine(
-			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"<app>\") + \" {Escape(routeUsage)}{Escape(cmd.CommandName)} {Escape(cmd.UsageHints)}\");");
+			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" {Escape(routeUsage)}{Escape(cmd.CommandName)} {Escape(cmd.UsageHints)}\");");
+
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
 		string descToShow = string.IsNullOrWhiteSpace(cmd.RemarksRendered) ? cmd.SummaryOneLiner : cmd.RemarksRendered;
@@ -3524,27 +3654,26 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		}
 
-		int maxOptWidth = cmd.Parameters
-			.Where(p => p.Kind == ParameterKind.Flag)
-			.Select(p => HelpLayout.FormatOptionLeftCell(p).Length)
-			.DefaultIfEmpty(0).Max();
-		maxOptWidth = Math.Min(maxOptWidth, 40);
-		// Also account for --help, -h
-		maxOptWidth = Math.Max(maxOptWidth, "--help, -h".Length);
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
+		EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
+		string globalHelpLeft = "--help, -h".PadRight(maxOptWidth);
+		sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(globalHelpLeft)}\") + \"  Show help.\");");
+		string globalVerLeft = "--version".PadRight(maxOptWidth);
+		sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(globalVerLeft)}\") + \"  Show version.\");");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Options:\"));");
-		foreach (ParameterModel p in cmd.Parameters)
+		foreach ((string segment, List<ParameterModel> gRows) in groupSections)
 		{
-			if (p.Kind != ParameterKind.Flag)
-				continue;
-
-			string left = HelpLayout.FormatOptionLeftCell(p).PadRight(maxOptWidth);
-			string desc = BuildDescriptionSuffix(p, forPositional: false);
-			sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)}\");");
+			sb.AppendLine($"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"'{Escape(segment)}' options:\"));");
+			EmitHelpOptionRows(sb, gRows, maxOptWidth);
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		}
 
-		string helpLeft = "--help, -h".PadRight(maxOptWidth);
-		sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(helpLeft)}\") + \"  Show help.\");");
+		if (commandOnlyFlags.Count > 0)
+		{
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Options:\"));");
+			EmitHelpOptionRows(sb, commandOnlyFlags, maxOptWidth);
+		}
 
 		if (!string.IsNullOrWhiteSpace(cmd.ExamplesRendered))
 		{
@@ -4945,9 +5074,12 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 	private static class UsageSynopsis
 	{
+		/// <summary>Minimal usage tail: required flags and positionals explicitly; optional switches and flags fold into a single <c>[options]</c>.</summary>
 		public static string Build(ImmutableArray<ParameterModel> parameters)
 		{
 			var parts = new List<string>();
+			bool needsOptions = false;
+
 			foreach (ParameterModel p in parameters)
 			{
 				if (p.Kind == ParameterKind.Injected)
@@ -4960,40 +5092,44 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					continue;
 				}
 
+				if (p.Kind != ParameterKind.Flag)
+					continue;
+
 				if (p.Special == BoolSpecialKind.Bool)
 				{
-					parts.Add($"[--{p.CliLongName}]");
+					needsOptions = true;
 					continue;
 				}
 
 				if (p.Special == BoolSpecialKind.NullableBool)
 				{
-					parts.Add($"[--{p.CliLongName}/--no-{p.CliLongName}]");
+					needsOptions = true;
 					continue;
 				}
 
-				string typeHint = HelpLayout.TypeHint(p);
-
-				if (p.IsRequired)
-					parts.Add($"--{p.CliLongName} {typeHint}");
-				// optional flags collapsed to [options] in synopsis — keep minimal: still list required-looking
-			}
-
-			bool anyOptionalFlags = false;
-			foreach (ParameterModel p in parameters)
-			{
-				if (p.Kind != ParameterKind.Flag)
-					continue;
-				if (p.Special != BoolSpecialKind.None)
-					continue;
-				if (!p.IsRequired)
+				if (p.IsCollection)
 				{
-					anyOptionalFlags = true;
-					break;
+					if (p.IsRequired)
+					{
+						string typeHint = HelpLayout.TypeHint(p);
+						parts.Add($"--{p.CliLongName} {typeHint}");
+					}
+					else
+					{
+						needsOptions = true;
+					}
+
+					continue;
 				}
+
+				string typeHintScalar = HelpLayout.TypeHint(p);
+				if (p.IsRequired)
+					parts.Add($"--{p.CliLongName} {typeHintScalar}");
+				else
+					needsOptions = true;
 			}
 
-			if (anyOptionalFlags)
+			if (needsOptions)
 				parts.Add("[options]");
 
 			return string.Join(" ", parts);

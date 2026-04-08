@@ -3,6 +3,7 @@ namespace Nullean.Argh;
 /// <summary>
 /// ANSI styling for CLI help output. Disabled when <c>NO_COLOR</c> is set or stdout is redirected (non-interactive).
 /// </summary>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public static class CliHelpFormatting
 {
 	/// <summary>Returns true when ANSI escape sequences may be written.</summary>
@@ -18,9 +19,6 @@ public static class CliHelpFormatting
 
 	/// <summary>Placeholders such as <c>&lt;env&gt;</c> and type hints.</summary>
 	public static string Placeholder(string text) => Wrap(text, "\x1b[33m");
-
-	/// <summary>Muted secondary text.</summary>
-	public static string Muted(string text) => Wrap(text, "\x1b[90m");
 
 	private static string Wrap(string text, string open) =>
 		string.IsNullOrEmpty(text) || !UseAnsiColors ? text : open + text + "\x1b[0m";

@@ -3,6 +3,7 @@ namespace Nullean.Argh;
 /// <summary>
 /// Edit-distance helpers for suggesting close matches (e.g. unknown command names). Uses the Levenshtein metric; no external dependencies.
 /// </summary>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public static class FuzzyMatch
 {
 	/// <summary>

@@ -57,10 +57,14 @@ internal sealed class HostedStorageCommands(ILogger<HostedStorageCommands> logge
 
 	public sealed class BlobCommands(ILogger<BlobCommands> log)
 	{
-		public void Upload([AsParameters]HostedStorageGroupOptions options)
+		/// <summary>
+		/// Binds flags from the command argv tail into <see cref="UploadOptions"/>
+		/// (inherits group/global flags plus command-specific <see cref="UploadOptions.Target"/>).
+		/// </summary>
+		public void Upload([AsParameters] UploadOptions options)
 		{
 			log.LogInformation("blob upload");
-			Console.WriteLine("storage:blob:upload");
+			Console.WriteLine($"storage:blob:upload verbose={options.Verbose} prefix={options.Prefix} target={options.Target}");
 		}
 	}
 }

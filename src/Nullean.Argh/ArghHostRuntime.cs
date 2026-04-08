@@ -5,6 +5,7 @@ namespace Nullean.Argh;
 /// <summary>
 /// Host integration for the source-generated CLI entry. Set by <c>Nullean.Argh.Hosting</c> for the duration of a hosted run.
 /// </summary>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public static class ArghHostRuntime
 {
 	/// <summary>
@@ -25,6 +26,7 @@ public static class ArghHostRuntime
 /// Native AOT / trimming: register command and filter types in DI so required constructors are preserved; non-registered types fall back to parameterless construction.
 /// </para>
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public static class ArghServices
 {
 	/// <summary>Root service provider for the current CLI invocation, or <c>null</c> when not running under a configured host.</summary>
