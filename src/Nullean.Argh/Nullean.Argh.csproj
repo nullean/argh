@@ -23,10 +23,11 @@
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-
-    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-    <IsRoslynComponent>true</IsRoslynComponent>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Memory" />
+  </ItemGroup>
 
   <ItemGroup>
     <Content Include="..\..\README.md" Pack="true" PackagePath="README.md" CopyToOutputDirectory="PreserveNewest">
@@ -40,8 +41,34 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="System.Threading.Tasks.Extensions" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Ship the Roslyn component inside the same NuGet as the runtime library. -->
+  <Target Name="BuildArghGeneratorForPack" BeforeTargets="GenerateNuspec">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+  </Target>
+
+  <Target Name="IncludeArghAnalyzerInNuGetPackage" BeforeTargets="_GetPackageFiles" DependsOnTargets="BuildArghGeneratorForPack">
+    <PropertyGroup>
+      <_ArghGeneratorDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\Nullean.Argh.Generator\bin\$(Configuration)\netstandard2.0'))</_ArghGeneratorDir>
+      <_ArghGeneratorDll>$(_ArghGeneratorDir)\Nullean.Argh.Generator.dll</_ArghGeneratorDll>
+      <_ArghGeneratorDll Condition="!Exists('$(_ArghGeneratorDll)')">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\Nullean.Argh.Generator\bin\Debug\netstandard2.0\Nullean.Argh.Generator.dll'))</_ArghGeneratorDll>
+      <_ArghGeneratorPdb>$([System.IO.Path]::GetDirectoryName('$(_ArghGeneratorDll)'))\Nullean.Argh.Generator.pdb</_ArghGeneratorPdb>
+    </PropertyGroup>
+    <ItemGroup>
+      <None Include="$(_ArghGeneratorDll)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+      <None Include="$(_ArghGeneratorPdb)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"
+              Condition="Exists('$(_ArghGeneratorPdb)')" />
+    </ItemGroup>
+  </Target>
 
 </Project>
