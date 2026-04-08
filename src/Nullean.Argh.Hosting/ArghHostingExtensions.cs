@@ -10,7 +10,7 @@ namespace Nullean.Argh.Hosting;
 public static class ArghHostingExtensions
 {
 	/// <summary>
-	/// Records the <see cref="ArghApp"/> model, registers <see cref="ArghCliHostContext"/>, and adds a hosted service that
+	/// Records the <see cref="ArghApp"/> model, registers <see cref="ArghHostingContext"/>, and adds a hosted service that
 	/// invokes <see cref="ArghRuntime.RunAsync"/> for the application assembly (registered by the source generator).
 	/// After the CLI task completes, the process terminates via <see cref="Environment.Exit(int)"/> so host lifetime output stays out of the way.
 	/// </summary>
@@ -43,18 +43,18 @@ public static class ArghHostingExtensions
 
 		configure(new ArghHostingBuilder(services));
 
-		services.AddSingleton(sp => new ArghCliHostContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
-		services.AddSingleton<IHostedService>(sp => new ArghCliHostedService(
+		services.AddSingleton(sp => new ArghHostingContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
+		services.AddSingleton<IHostedService>(sp => new ArghHostingCliService(
 			() => ArghRuntime.RunAsync(args),
 			sp.GetRequiredService<IHostApplicationLifetime>(),
 			sp,
-			sp.GetService<ILogger<ArghCliHostedService>>()));
+			sp.GetService<ILogger<ArghHostingCliService>>()));
 
 		return services;
 	}
 
 	/// <summary>
-	/// Records the <see cref="ArghApp"/> model, registers <see cref="ArghCliHostContext"/>, and adds a hosted service that
+	/// Records the <see cref="ArghApp"/> model, registers <see cref="ArghHostingContext"/>, and adds a hosted service that
 	/// invokes <paramref name="runCliAsync"/>. When the CLI task completes, the process exits via <see cref="Environment.Exit(int)"/>.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -93,12 +93,12 @@ public static class ArghHostingExtensions
 
 		configure(new ArghHostingBuilder(services));
 
-		services.AddSingleton(sp => new ArghCliHostContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
-		services.AddSingleton<IHostedService>(sp => new ArghCliHostedService(
+		services.AddSingleton(sp => new ArghHostingContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
+		services.AddSingleton<IHostedService>(sp => new ArghHostingCliService(
 			runCliAsync,
 			sp.GetRequiredService<IHostApplicationLifetime>(),
 			sp,
-			sp.GetService<ILogger<ArghCliHostedService>>()));
+			sp.GetService<ILogger<ArghHostingCliService>>()));
 
 		return services;
 	}

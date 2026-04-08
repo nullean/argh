@@ -12,10 +12,10 @@ namespace Nullean.Argh.Hosting;
 /// This property exposes the same host shutdown token for application code outside the generated parser.
 /// </para>
 /// </remarks>
-public sealed class ArghCliHostContext
+public sealed class ArghHostingContext
 {
 	/// <summary>Creates a new context.</summary>
-	public ArghCliHostContext(string[] args, IHostApplicationLifetime hostLifetime)
+	public ArghHostingContext(string[] args, IHostApplicationLifetime hostLifetime)
 	{
 		Args = args ?? throw new ArgumentNullException(nameof(args));
 		if (hostLifetime is null)

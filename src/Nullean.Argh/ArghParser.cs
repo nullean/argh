@@ -31,13 +31,13 @@ public readonly struct RouteMatch(string commandPath, string[] remainingArgs)
 public static class ArghParser
 {
 	/// <summary>
-	/// Routes a command line string to a registered command without invoking handlers. Uses the same splitting rules as <see cref="ArghCli.SplitCommandLine"/> and the same routing rules as <c>ArghGenerated.RunAsync</c>, then delegates to <see cref="ArghRuntime.Route"/> (registered from generated code).
+	/// Routes argv to a registered command without invoking handlers. Uses the same routing rules as <c>ArghGenerated.RunAsync</c>, then delegates to <see cref="ArghRuntime.Route"/> (registered from generated code).
 	/// </summary>
 	/// <returns>The matched command path and remaining arguments, or <see langword="null"/> when no command is matched.</returns>
-	public static RouteMatch? Route(string commandLine)
+	public static RouteMatch? Route(string[] args)
 	{
-		if (commandLine is null)
-			throw new ArgumentNullException(nameof(commandLine));
-		return ArghRuntime.Route(commandLine);
+		if (args is null)
+			throw new ArgumentNullException(nameof(args));
+		return ArghRuntime.Route(args);
 	}
 }

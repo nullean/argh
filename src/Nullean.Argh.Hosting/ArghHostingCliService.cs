@@ -13,18 +13,18 @@ namespace Nullean.Argh.Hosting;
 /// Register <c>AddArgh</c> before other hosted services so the CLI (including <c>--help</c>) runs first. Services registered before
 /// <c>AddArgh</c> still start first. <see cref="Environment.Exit(int)"/> does not invoke <see cref="IHostedService.StopAsync"/>.
 /// </remarks>
-internal sealed class ArghCliHostedService : IHostedService
+internal sealed class ArghHostingCliService : IHostedService
 {
 	private readonly Func<Task<int>> _runCliAsync;
 	private readonly IHostApplicationLifetime _lifetime;
 	private readonly IServiceProvider _services;
-	private readonly ILogger<ArghCliHostedService>? _logger;
+	private readonly ILogger<ArghHostingCliService>? _logger;
 
-	public ArghCliHostedService(
+	public ArghHostingCliService(
 		Func<Task<int>> runCliAsync,
 		IHostApplicationLifetime lifetime,
 		IServiceProvider services,
-		ILogger<ArghCliHostedService>? logger = null)
+		ILogger<ArghHostingCliService>? logger = null)
 	{
 		_runCliAsync = runCliAsync ?? throw new ArgumentNullException(nameof(runCliAsync));
 		_lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));

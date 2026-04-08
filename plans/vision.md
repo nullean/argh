@@ -316,15 +316,14 @@ var cmd = new DeployCommands(mockService);
 await cmd.Deploy("production", 3);
 ```
 
-Base package exposes routing and capture helpers for CLI-layer tests. **Binding** for `[AsParameters]`, global options, and group options is **source-generated** into `ArghGenerated` (same idea as [ConsoleAppFramework PR #237](https://github.com/Cysharp/ConsoleAppFramework/pull/237)): there is no reflection-based `Bind<T>()` for arbitrary types.
+Base package exposes **argv-based routing** (`ArghParser.Route` / `ArghRuntime.Route`) for CLI-layer tests without running handlers. **Binding** for `[AsParameters]`, global options, and group options is **source-generated** into `ArghGenerated` (same idea as [ConsoleAppFramework PR #237](https://github.com/Cysharp/ConsoleAppFramework/pull/237)): there is no reflection-based `Bind<T>()` for arbitrary types.
 
 ```csharp
 // Route only (no handler): same rules as RunAsync
-var match = ArghParser.Route("deploy --env production --replicas 3");
+var match = ArghParser.Route(["deploy", "--env", "production", "--replicas", "3"]);
 
-// Full CLI with captured stdout/stderr
-var result = await ArghCli.RunWithCaptureAsync(args, ArghGenerated.RunAsync);
-result.ExitCode.Should().Be(0);
+// Full CLI runs in-process via ArghRuntime.RunAsync(args); integration tests that need a subprocess
+// use Proc against a dedicated host executable (see test project).
 ```
 
 ---

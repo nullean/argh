@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace Nullean.Argh;
 
 /// <summary>
@@ -18,7 +20,7 @@ public enum CompletionShell
 /// <summary>
 /// Shell completion script templates. Each template is a single string containing <c>{0}</c> placeholders for the application executable name. Prefer <c>template.Replace("{0}", appName)</c> (or escape literal braces as <c>{{</c>/<c>}}</c> if you use <see cref="string.Format(string, object?)"/>), because shell syntax includes braces that would confuse <c>string.Format</c>. Wiring to a <c>--completions</c> flag can be added separately.
 /// </summary>
-[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+[EditorBrowsable(EditorBrowsableState.Never)]
 public static class CompletionScriptTemplates
 {
 	/// <summary>

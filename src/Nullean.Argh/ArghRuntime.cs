@@ -7,7 +7,7 @@ namespace Nullean.Argh;
 public static class ArghRuntime
 {
 	private static Func<string[], Task<int>>? _runAsyncFunc;
-	private static Func<string, RouteMatch?>? _routeFunc;
+	private static Func<string[], RouteMatch?>? _routeFunc;
 
 	/// <summary>
 	/// Registers the generated CLI runner. Called from emitted module initialization; not intended for app code.
@@ -18,7 +18,7 @@ public static class ArghRuntime
 	/// <summary>
 	/// Registers the generated route helper. Called from emitted module initialization; not intended for app code.
 	/// </summary>
-	public static void RegisterRoute(Func<string, RouteMatch?> route) =>
+	public static void RegisterRoute(Func<string[], RouteMatch?> route) =>
 		_routeFunc = route ?? throw new ArgumentNullException(nameof(route));
 
 	/// <summary>
@@ -34,14 +34,17 @@ public static class ArghRuntime
 	}
 
 	/// <summary>
-	/// Routes a command line string using the same rules as <see cref="RunAsync"/> without invoking handlers.
+	/// Routes argv using the same rules as <see cref="RunAsync"/> without invoking handlers.
 	/// </summary>
-	public static RouteMatch? Route(string commandLine)
+	public static RouteMatch? Route(string[] args)
 	{
 		if (_routeFunc is null)
 			throw new InvalidOperationException(
 				"CLI route delegate is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so ArghGenerated is emitted in this assembly.");
 
-		return _routeFunc(commandLine);
+		if (args is null)
+			throw new ArgumentNullException(nameof(args));
+
+		return _routeFunc(args);
 	}
 }

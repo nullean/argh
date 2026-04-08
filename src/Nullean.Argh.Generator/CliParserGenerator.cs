@@ -1061,11 +1061,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 						return false;
 					}
 
-					public static global::Nullean.Argh.RouteMatch? Route(string commandLine)
+					public static global::Nullean.Argh.RouteMatch? Route(string[] args)
 					{
-						if (commandLine is null)
-							throw new ArgumentNullException(nameof(commandLine));
-						var args = global::Nullean.Argh.ArghCli.SplitCommandLine(commandLine);
+						if (args is null)
+							throw new ArgumentNullException(nameof(args));
 						if (!TryParseRoute(args, out var m))
 							return null;
 						return m;
@@ -1678,7 +1677,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
 		EmitFlatTryParseRoute(sb, commands);
-		EmitArghGeneratedRouteStringMethod(sb);
+		EmitArghGeneratedRouteArgsMethod(sb);
 		EmitDtoBindingMethods(sb, dtoTargets);
 		sb.AppendLine("\t}");
 		AppendArghRuntimeModuleInitializer(sb);
@@ -2048,13 +2047,12 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		return string.Join(" ", prefix) + " " + segment;
 	}
 
-	private static void EmitArghGeneratedRouteStringMethod(StringBuilder sb)
+	private static void EmitArghGeneratedRouteArgsMethod(StringBuilder sb)
 	{
-		sb.AppendLine("\t\tpublic static global::Nullean.Argh.RouteMatch? Route(string commandLine)");
+		sb.AppendLine("\t\tpublic static global::Nullean.Argh.RouteMatch? Route(string[] args)");
 		sb.AppendLine("\t\t{");
-		sb.AppendLine("\t\t\tif (commandLine is null)");
-		sb.AppendLine("\t\t\t\tthrow new ArgumentNullException(nameof(commandLine));");
-		sb.AppendLine("\t\t\tvar args = global::Nullean.Argh.ArghCli.SplitCommandLine(commandLine);");
+		sb.AppendLine("\t\t\tif (args is null)");
+		sb.AppendLine("\t\t\t\tthrow new ArgumentNullException(nameof(args));");
 		sb.AppendLine("\t\t\tif (!TryParseRoute(args, out var m))");
 		sb.AppendLine("\t\t\t\treturn null;");
 		sb.AppendLine("\t\t\treturn m;");
@@ -2106,7 +2104,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
 		EmitTryParseRouteForNode(sb, app, app.Root, ImmutableArray<string>.Empty, "TryParseRouteRoot", isRoot: true);
-		EmitArghGeneratedRouteStringMethod(sb);
+		EmitArghGeneratedRouteArgsMethod(sb);
 	}
 
 	private static void EmitTryParseRouteForNode(
@@ -2124,30 +2122,36 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\t\tif (!{CommandNamespaceOptionsParseMethodName(path)}(args, idx)) return false;");
 		sb.AppendLine("\t\t\tif (idx[0] >= args.Length) return false;");
 		sb.AppendLine("\t\t\tif (args[idx[0]] == \"--help\" || args[idx[0]] == \"-h\") return false;");
-		sb.AppendLine("\t\t\tvar tok = args[idx[0]];");
+		sb.AppendLine("\t\t\tvar tokKey = args[idx[0]].ToLowerInvariant();");
+		sb.AppendLine("\t\t\tswitch (tokKey)");
+		sb.AppendLine("\t\t\t{");
 		foreach (CommandModel cmd in node.Commands)
 		{
 			string routePath = Escape(GetCommandRoutePath(cmd));
-			sb.AppendLine($"\t\t\tif (string.Equals(tok, \"{Escape(cmd.CommandName)}\", StringComparison.OrdinalIgnoreCase))");
-			sb.AppendLine("\t\t\t{");
-			sb.AppendLine("\t\t\t\tidx[0]++;");
-			sb.AppendLine($"\t\t\t\tmatch = new global::Nullean.Argh.RouteMatch(\"{routePath}\", TailFrom(args, idx[0]));");
-			sb.AppendLine("\t\t\t\treturn true;");
-			sb.AppendLine("\t\t\t}");
+			string caseLabel = Escape(cmd.CommandName.ToLowerInvariant());
+			sb.AppendLine($"\t\t\t\tcase \"{caseLabel}\":");
+			sb.AppendLine("\t\t\t\t{");
+			sb.AppendLine("\t\t\t\t\tidx[0]++;");
+			sb.AppendLine($"\t\t\t\t\tmatch = new global::Nullean.Argh.RouteMatch(\"{routePath}\", TailFrom(args, idx[0]));");
+			sb.AppendLine("\t\t\t\t\treturn true;");
+			sb.AppendLine("\t\t\t\t}");
 		}
 
 		foreach (RegistryNode.NamedCommandNamespaceChild ch in node.Children)
 		{
 			ImmutableArray<string> childPath = AppendSegment(path, ch.Segment);
 			string childMethod = "TryParseRouteCommandNamespace_" + CommandNamespacePathKey(childPath);
-			sb.AppendLine($"\t\t\tif (string.Equals(tok, \"{Escape(ch.Segment)}\", StringComparison.OrdinalIgnoreCase))");
-			sb.AppendLine("\t\t\t{");
-			sb.AppendLine("\t\t\t\tidx[0]++;");
-			sb.AppendLine($"\t\t\t\treturn {childMethod}(args, idx, out match);");
-			sb.AppendLine("\t\t\t}");
+			string caseLabel = Escape(ch.Segment.ToLowerInvariant());
+			sb.AppendLine($"\t\t\t\tcase \"{caseLabel}\":");
+			sb.AppendLine("\t\t\t\t{");
+			sb.AppendLine("\t\t\t\t\tidx[0]++;");
+			sb.AppendLine($"\t\t\t\t\treturn {childMethod}(args, idx, out match);");
+			sb.AppendLine("\t\t\t\t}");
 		}
 
-		sb.AppendLine("\t\t\treturn false;");
+		sb.AppendLine("\t\t\t\tdefault:");
+		sb.AppendLine("\t\t\t\t\treturn false;");
+		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
 		foreach (RegistryNode.NamedCommandNamespaceChild ch in node.Children)

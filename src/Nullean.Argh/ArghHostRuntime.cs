@@ -3,6 +3,10 @@ namespace Nullean.Argh;
 /// <summary>
 /// Host integration for the source-generated CLI entry. Set by <c>Nullean.Argh.Hosting</c> for the duration of a hosted run.
 /// </summary>
+/// <remarks>
+/// This type lives in <c>Nullean.Argh</c> (not <c>Nullean.Argh.Hosting</c>) because source-generated <c>ArghGenerated</c> references it
+/// without requiring a package reference to Hosting. The Hosting package assigns <see cref="ApplicationStopping"/> during a hosted run.
+/// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public static class ArghHostRuntime
 {
@@ -18,7 +22,7 @@ public static class ArghHostRuntime
 /// <remarks>
 /// <para>
 /// For <c>app.Add&lt;T&gt;()</c> instance methods and <c>UseFilter&lt;T&gt;()</c> / <c>[Filter&lt;T&gt;]</c>, generated code resolves
-/// <c>T</c> with <c>GetService<c>T</c> with <c>GetService(typeof(T))</c> (non-generic) when this provider is non-null; otherwise it uses <c>new T()</c>.lt;T<c>T</c> with <c>GetService(typeof(T))</c> (non-generic) when this provider is non-null; otherwise it uses <c>new T()</c>.gt;()</c> when this provider is non-null; otherwise it uses <c>new T()</c>.
+/// <c>T</c> with <c>GetService(typeof(T))</c> (non-generic) when this provider is non-null; otherwise it uses <c>new T()</c>.
 /// </para>
 /// <para>
 /// Native AOT / trimming: register command and filter types in DI so required constructors are preserved; non-registered types fall back to parameterless construction.

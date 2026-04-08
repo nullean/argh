@@ -293,14 +293,13 @@ internal static partial class ArghGenerated
 
 ## Phase 14: Parse/Bind Test Helpers
 
-**Goal:** Users can write integration tests against the CLI parsing layer without spawning a process.
+**Goal:** Users can test routing without running handlers; full CLI integration tests can run out-of-process when needed.
 
 ### Tasks
 
 - [x] **No** generic `ArghParser.Bind<TParams>()` — not AOT-safe (would imply reflection or a runtime registry). **DTO / global / group binding** is **pregenerated** in `ArghGenerated` per registered types, aligned with [Cysharp ConsoleAppFramework PR #237](https://github.com/Cysharp/ConsoleAppFramework/pull/237).
-- [x] `ArghParser.Route(string)` → delegates to generated route (command path + remaining args)
-- [x] `ArghCli.RunWithCaptureAsync` / string overloads → `RunResult { ExitCode, Stdout, Stderr }`
-- [x] `RunResult` captures console output written during execution
+- [x] `ArghParser.Route(string[])` / `ArghRuntime.Route(string[])` → delegates to generated route (command path + remaining args).
+- [x] Integration tests that need a real process exit code and captured stdout/stderr use **Proc** (NuGet) against a small **CliHost** executable, not in-process console capture.
 - [x] Document: for pure unit testing, instantiate the command class directly; for `[AsParameters]` shapes, rely on generated construction inside `ArghGenerated` (or test the handler with a manually built DTO)
 
 ---
