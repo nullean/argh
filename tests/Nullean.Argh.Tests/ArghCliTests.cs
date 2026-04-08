@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Nullean.Argh;
 using Xunit;
 
 namespace Nullean.Argh.Tests;

@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Nullean.Argh;
 using Nullean.Argh.Tests.Fixtures;
 using Xunit;
 
@@ -180,9 +179,9 @@ public class CliIntegrationTests
 	}
 
 	[Fact]
-	public void ArghTryParse_static_on_group_options_binds_inherited_and_group_flags()
+	public void ArghTryParse_static_on_command_namespace_options_binds_inherited_and_namespace_flags()
 	{
-		var ok = TestStorageCliOptions.ArghTryParse(
+		var ok = TestStorageCommandNamespaceOptions.ArghTryParse(
 			["--verbose", "--prefix", "pre"],
 			out var s);
 		ok.Should().BeTrue();

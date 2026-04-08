@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using Nullean.Argh;
 using Nullean.Argh.Tests.Fixtures;
 
 namespace Nullean.Argh.Tests;
@@ -24,9 +23,9 @@ internal static class CliRegistrationModule
 		app.Add("point-cmd", CliTestHandlers.PointCmd);
 		app.Add("lambda-cmd", (string msg) => Console.Out.WriteLine($"lambda:{msg}"));
 		app.Add<DiProbeCommands>();
-		app.Group("storage", g =>
+		app.AddNamespace("storage", g =>
 		{
-			g.GroupOptions<TestStorageCliOptions>();
+			g.CommandNamespaceOptions<TestStorageCommandNamespaceOptions>();
 			g.Add<StorageCliCommands>();
 		});
 	}

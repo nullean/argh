@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Nullean.Argh;
 
 namespace Nullean.Argh.Hosting;
 
@@ -8,7 +7,7 @@ namespace Nullean.Argh.Hosting;
 /// </summary>
 public interface IArghHostingBuilder : IArghBuilder
 {
-	/// <summary>Registers command handlers from <typeparamref name="T"/> as transient services (same as <see cref="IArghBuilder.Add{T}"/> on the hosting builder).</summary>
+	/// <summary>Registers command handlers from <typeparamref name="T"/> as transient services (default lifetime).</summary>
 	new IArghHostingBuilder Add<T>() where T : class;
 
 	/// <summary>Registers command handlers from <typeparamref name="T"/> with an explicit lifetime.</summary>
@@ -17,4 +16,7 @@ public interface IArghHostingBuilder : IArghBuilder
 	IArghHostingBuilder AddTransient<T>() where T : class;
 	IArghHostingBuilder AddScoped<T>() where T : class;
 	IArghHostingBuilder AddSingleton<T>() where T : class;
+
+	/// <inheritdoc cref="IArghBuilder.AddNamespace"/>
+	new IArghHostingBuilder AddNamespace(string name, Action<IArghBuilder> configure);
 }

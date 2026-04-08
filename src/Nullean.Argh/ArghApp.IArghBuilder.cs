@@ -20,15 +20,15 @@ public sealed partial class ArghApp
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.Group(string name, Action<ArghApp> configure)
+	IArghBuilder IArghBuilder.AddNamespace(string name, Action<IArghBuilder> configure)
 	{
-		_ = Group(name, configure);
+		_ = AddNamespace(name, configure);
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.GroupOptions<T>() where T : class
+	IArghBuilder IArghBuilder.CommandNamespaceOptions<T>() where T : class
 	{
-		_ = GroupOptions<T>();
+		_ = CommandNamespaceOptions<T>();
 		return this;
 	}
 

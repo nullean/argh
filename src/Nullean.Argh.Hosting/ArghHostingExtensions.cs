@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Nullean.Argh;
 
 namespace Nullean.Argh.Hosting;
 
@@ -35,14 +34,14 @@ public static class ArghHostingExtensions
 	/// did start.
 	/// </para>
 	/// </remarks>
-	public static IServiceCollection AddArgh(this IServiceCollection services, string[] args, Action<IArghBuilder> configure)
+	public static IServiceCollection AddArgh(this IServiceCollection services, string[] args, Action<IArghHostingBuilder> configure)
 	{
 		if (services is null)
 			throw new ArgumentNullException(nameof(services));
 		if (configure is null)
 			throw new ArgumentNullException(nameof(configure));
 
-		configure(new ArghBuilder());
+		configure(new ArghHostingBuilder(services));
 
 		services.AddSingleton(sp => new ArghCliHostContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
 		services.AddSingleton<IHostedService>(sp => new ArghCliHostedService(
@@ -82,7 +81,7 @@ public static class ArghHostingExtensions
 	public static IServiceCollection AddArgh(
 		this IServiceCollection services,
 		string[] args,
-		Action<IArghBuilder> configure,
+		Action<IArghHostingBuilder> configure,
 		Func<Task<int>> runCliAsync)
 	{
 		if (services is null)
@@ -92,7 +91,7 @@ public static class ArghHostingExtensions
 		if (runCliAsync is null)
 			throw new ArgumentNullException(nameof(runCliAsync));
 
-		configure(new ArghBuilder());
+		configure(new ArghHostingBuilder(services));
 
 		services.AddSingleton(sp => new ArghCliHostContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
 		services.AddSingleton<IHostedService>(sp => new ArghCliHostedService(

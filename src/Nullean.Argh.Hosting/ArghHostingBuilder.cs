@@ -1,15 +1,26 @@
 using Microsoft.Extensions.DependencyInjection;
-using Nullean.Argh;
 
 namespace Nullean.Argh.Hosting;
 
 /// <summary>
 /// Bridges fluent CLI registration (<see cref="ArghApp"/> analysis for the source generator) with <see cref="IServiceCollection"/> so command handler types are available to DI.
 /// </summary>
-public sealed class ArghHostingBuilder(IServiceCollection services) : IArghHostingBuilder
+public sealed class ArghHostingBuilder : IArghHostingBuilder
 {
-	private readonly IServiceCollection _services = services ?? throw new ArgumentNullException(nameof(services));
-	private readonly ArghBuilder _inner = new();
+	private readonly IServiceCollection _services;
+	private readonly ArghBuilder _inner;
+
+	public ArghHostingBuilder(IServiceCollection services)
+	{
+		_services = services ?? throw new ArgumentNullException(nameof(services));
+		_inner = new ArghBuilder();
+	}
+
+	private ArghHostingBuilder(IServiceCollection services, ArghApp app)
+	{
+		_services = services ?? throw new ArgumentNullException(nameof(services));
+		_inner = new ArghBuilder(app);
+	}
 
 	public IArghHostingBuilder Add<T>() where T : class =>
 		Add<T>(ServiceLifetime.Transient);
@@ -30,6 +41,13 @@ public sealed class ArghHostingBuilder(IServiceCollection services) : IArghHosti
 	public IArghHostingBuilder AddSingleton<T>() where T : class =>
 		Add<T>(ServiceLifetime.Singleton);
 
+	public IArghHostingBuilder AddNamespace(string name, Action<IArghBuilder> configure)
+	{
+		var childApp = _inner.App.CreateChildApp(name);
+		configure(new ArghHostingBuilder(_services, childApp));
+		return this;
+	}
+
 	IArghBuilder IArghBuilder.GlobalOptions<T>() where T : class
 	{
 		_ = _inner.GlobalOptions<T>();
@@ -45,15 +63,12 @@ public sealed class ArghHostingBuilder(IServiceCollection services) : IArghHosti
 	IArghBuilder IArghBuilder.Add<T>() where T : class =>
 		Add<T>();
 
-	IArghBuilder IArghBuilder.Group(string name, Action<ArghApp> configure)
-	{
-		_ = _inner.Group(name, configure);
-		return this;
-	}
+	IArghBuilder IArghBuilder.AddNamespace(string name, Action<IArghBuilder> configure) =>
+		AddNamespace(name, configure);
 
-	IArghBuilder IArghBuilder.GroupOptions<T>() where T : class
+	IArghBuilder IArghBuilder.CommandNamespaceOptions<T>() where T : class
 	{
-		_ = _inner.GroupOptions<T>();
+		_ = _inner.CommandNamespaceOptions<T>();
 		return this;
 	}
 
@@ -72,4 +87,3 @@ public sealed class ArghHostingBuilder(IServiceCollection services) : IArghHosti
 	/// <inheritdoc cref="ArghApp.RunAsync"/>
 	public Task<int> RunAsync(string[] args) => ArghRuntime.RunAsync(args);
 }
-

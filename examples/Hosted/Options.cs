@@ -7,14 +7,14 @@ public class HostedGlobalCliOptions
 	public bool Verbose { get; set; }
 }
 
-/// <summary>Group options for <c>storage</c>; inherits global options.</summary>
-public class HostedStorageGroupOptions : HostedGlobalCliOptions
+/// <summary>Command namespace options for <c>storage</c>; inherits global options.</summary>
+public class HostedStorageCommandNamespaceOptions : HostedGlobalCliOptions
 {
 	/// <summary>Optional key prefix.</summary>
 	public string Prefix { get; set; } = "";
 }
 
-public sealed class UploadOptions : HostedStorageGroupOptions
+public sealed class UploadOptions : HostedStorageCommandNamespaceOptions
 {
 	/// <summary> The target to upload to. </summary>
 	public string? Target { get; set; }

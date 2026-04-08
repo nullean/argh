@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Nullean.Argh;
 using Xunit;
 
 namespace Nullean.Argh.Tests;
@@ -172,7 +171,7 @@ public class CliMoreTests
         result.Stdout.Should().Contain("hello");
     }
 
-    // ── Group help boundary tests ────────────────────────────────────────────
+    // ── Namespace help boundary tests ────────────────────────────────────────────
 
     [Fact]
     public async Task StorageHelp_contains_list_command()

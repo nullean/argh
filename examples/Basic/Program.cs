@@ -14,9 +14,9 @@ app.Add("hello", CommandHandlers.Hello);
 app.Add("status", CommandHandlers.Status);
 app.Add("deploy", CommandHandlers.Deploy);
 app.Add("labels", CommandHandlers.Labels);
-app.Group("storage", g =>
+app.AddNamespace("storage", g =>
 {
-	g.GroupOptions<StorageGroupOptions>();
+	g.CommandNamespaceOptions<StorageCommandNamespaceOptions>();
 	g.Add<StorageCommands>();
 });
 

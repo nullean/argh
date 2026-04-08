@@ -6,33 +6,31 @@ namespace Nullean.Argh;
 /// </summary>
 public static class ArghRuntime
 {
-	private static Func<string[], Task<int>>? s_runAsync;
-	private static Func<string, RouteMatch?>? s_route;
+	private static Func<string[], Task<int>>? _runAsyncFunc;
+	private static Func<string, RouteMatch?>? _routeFunc;
 
 	/// <summary>
 	/// Registers the generated CLI runner. Called from emitted module initialization; not intended for app code.
 	/// </summary>
 	public static void RegisterRunner(Func<string[], Task<int>> runAsync) =>
-		s_runAsync = runAsync ?? throw new ArgumentNullException(nameof(runAsync));
+		_runAsyncFunc = runAsync ?? throw new ArgumentNullException(nameof(runAsync));
 
 	/// <summary>
 	/// Registers the generated route helper. Called from emitted module initialization; not intended for app code.
 	/// </summary>
 	public static void RegisterRoute(Func<string, RouteMatch?> route) =>
-		s_route = route ?? throw new ArgumentNullException(nameof(route));
+		_routeFunc = route ?? throw new ArgumentNullException(nameof(route));
 
 	/// <summary>
 	/// Runs the source-generated CLI for the application assembly (same behavior as <c>ArghGenerated.RunAsync</c>).
 	/// </summary>
 	public static Task<int> RunAsync(string[] args)
 	{
-		if (s_runAsync is null)
-		{
+		if (_runAsyncFunc is null)
 			throw new InvalidOperationException(
 				"CLI runner is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so ArghGenerated is emitted in this assembly.");
-		}
 
-		return s_runAsync(args);
+		return _runAsyncFunc(args);
 	}
 
 	/// <summary>
@@ -40,12 +38,10 @@ public static class ArghRuntime
 	/// </summary>
 	public static RouteMatch? Route(string commandLine)
 	{
-		if (s_route is null)
-		{
+		if (_routeFunc is null)
 			throw new InvalidOperationException(
 				"CLI route delegate is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so ArghGenerated is emitted in this assembly.");
-		}
 
-		return s_route(commandLine);
+		return _routeFunc(commandLine);
 	}
 }

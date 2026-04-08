@@ -19,18 +19,18 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	private const string IArghBuilderMetadataName = "Nullean.Argh.IArghBuilder";
 	private const string ArghBuilderMetadataName = "Nullean.Argh.ArghBuilder";
 
-	private static readonly DiagnosticDescriptor GroupOptionsMustExtendParent = new(
+	private static readonly DiagnosticDescriptor CommandNamespaceOptionsMustExtendParent = new(
 		"AGH0004",
-		"Group options type must extend the parent options type",
-		"'{0}' must inherit or implement '{1}' for this GroupOptions<> registration.",
+		"Command namespace options type must extend the parent options type",
+		"'{0}' must inherit or implement '{1}' for this CommandNamespaceOptions<> registration.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
-	private static readonly DiagnosticDescriptor GroupOptionsRequiresParent = new(
+	private static readonly DiagnosticDescriptor CommandNamespaceOptionsRequiresParent = new(
 		"AGH0005",
-		"Group options require a parent options type",
-		"Register GlobalOptions<T>() before GroupOptions<{0}>(), or ensure the parent group declares a compatible base options type.",
+		"Command namespace options require a parent options type",
+		"Register GlobalOptions<T>() before CommandNamespaceOptions<{0}>(), or ensure the parent namespace declares a compatible base options type.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
@@ -90,7 +90,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				static (node, _) => node is InvocationExpressionSyntax
 				{
 					Expression: MemberAccessExpressionSyntax { Name: SimpleNameSyntax name }
-				} && name.Identifier.Text is "Add" or "Group" or "GlobalOptions" or "GroupOptions" or "UseFilter",
+				} && name.Identifier.Text is "Add" or "AddNamespace" or "GlobalOptions" or "CommandNamespaceOptions" or "UseFilter",
 				static (ctx, _) => (InvocationExpressionSyntax)ctx.Node);
 
 		IncrementalValueProvider<(Compilation Compilation, ImmutableArray<InvocationExpressionSyntax> Invocations)> combined =
@@ -136,7 +136,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			if (receiver is null || !IsArghRegistrationReceiver(receiver, arghApp, iArghBuilder, arghBuilderType))
 				continue;
 
-			if (method.Name is not ("Add" or "Group" or "GlobalOptions" or "GroupOptions" or "UseFilter"))
+			if (method.Name is not ("Add" or "AddNamespace" or "GlobalOptions" or "CommandNamespaceOptions" or "UseFilter"))
 				continue;
 
 			filtered.Add(invocation);
@@ -215,12 +215,12 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	private sealed class RegistryNode
 	{
 		public readonly List<CommandModel> Commands = new();
-		public readonly List<NamedGroupChild> Children = new();
-		public INamedTypeSymbol? GroupOptionsType;
-		public Location? GroupOptionsLocation;
-		public OptionsTypeModel? GroupOptionsModel;
+		public readonly List<NamedCommandNamespaceChild> Children = new();
+		public INamedTypeSymbol? CommandNamespaceOptionsType;
+		public Location? CommandNamespaceOptionsLocation;
+		public OptionsTypeModel? CommandNamespaceOptionsModel;
 
-		public sealed class NamedGroupChild
+		public sealed class NamedCommandNamespaceChild
 		{
 			public string Segment = "";
 			public RegistryNode Node = null!;
@@ -250,7 +250,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		var rootInvocations = new List<InvocationExpressionSyntax>();
 		foreach (InvocationExpressionSyntax inv in allInvocations)
 		{
-			if (FindParentGroupInvocation(inv) is null)
+			if (FindParentAddNamespaceInvocation(inv) is null)
 				rootInvocations.Add(inv);
 		}
 
@@ -261,9 +261,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		ProcessInvocationsForNode(context, compilation, allInvocations, rootInvocations, app.Root, ImmutableArray<string>.Empty, app,
 			isRoot: true);
 
-		ValidateGroupOptionsChain(context, app.Root, parentEffectiveOptions: app.GlobalOptionsType);
+		ValidateCommandNamespaceOptionsChain(context, app.Root, parentEffectiveOptions: app.GlobalOptionsType);
 
-		AttachGroupOptionsModels(app.Root, context);
+		AttachCommandNamespaceOptionsModels(app.Root, context);
 
 		var flat = new List<CommandModel>();
 		CollectCommands(app.Root, flat);
@@ -285,42 +285,42 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		return true;
 	}
 
-	private static void AttachGroupOptionsModels(RegistryNode node, SourceProductionContext context)
+	private static void AttachCommandNamespaceOptionsModels(RegistryNode node, SourceProductionContext context)
 	{
-		if (node.GroupOptionsType is not null)
-			node.GroupOptionsModel = BuildOptionsTypeModel(context, node.GroupOptionsType);
+		if (node.CommandNamespaceOptionsType is not null)
+			node.CommandNamespaceOptionsModel = BuildOptionsTypeModel(context, node.CommandNamespaceOptionsType);
 
-		foreach (RegistryNode.NamedGroupChild ch in node.Children)
-			AttachGroupOptionsModels(ch.Node, context);
+		foreach (RegistryNode.NamedCommandNamespaceChild ch in node.Children)
+			AttachCommandNamespaceOptionsModels(ch.Node, context);
 	}
 
-	private static void ValidateGroupOptionsChain(
+	private static void ValidateCommandNamespaceOptionsChain(
 		SourceProductionContext context,
 		RegistryNode node,
 		INamedTypeSymbol? parentEffectiveOptions)
 	{
-		if (node.GroupOptionsType is not null)
+		if (node.CommandNamespaceOptionsType is not null)
 		{
 			if (parentEffectiveOptions is null)
 			{
 				context.ReportDiagnostic(Diagnostic.Create(
-					GroupOptionsRequiresParent,
-					node.GroupOptionsLocation ?? Location.None,
-					node.GroupOptionsType.Name));
+					CommandNamespaceOptionsRequiresParent,
+					node.CommandNamespaceOptionsLocation ?? Location.None,
+					node.CommandNamespaceOptionsType.Name));
 			}
-			else if (!TypeInheritsFromOrImplements(node.GroupOptionsType, parentEffectiveOptions))
+			else if (!TypeInheritsFromOrImplements(node.CommandNamespaceOptionsType, parentEffectiveOptions))
 			{
 				context.ReportDiagnostic(Diagnostic.Create(
-					GroupOptionsMustExtendParent,
-					node.GroupOptionsLocation ?? Location.None,
-					node.GroupOptionsType.Name,
+					CommandNamespaceOptionsMustExtendParent,
+					node.CommandNamespaceOptionsLocation ?? Location.None,
+					node.CommandNamespaceOptionsType.Name,
 					parentEffectiveOptions.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat)));
 			}
 		}
 
-		INamedTypeSymbol? nextParent = node.GroupOptionsType ?? parentEffectiveOptions;
-		foreach (RegistryNode.NamedGroupChild child in node.Children)
-			ValidateGroupOptionsChain(context, child.Node, nextParent);
+		INamedTypeSymbol? nextParent = node.CommandNamespaceOptionsType ?? parentEffectiveOptions;
+		foreach (RegistryNode.NamedCommandNamespaceChild child in node.Children)
+			ValidateCommandNamespaceOptionsChain(context, child.Node, nextParent);
 	}
 
 	private static bool TypeInheritsFromOrImplements(INamedTypeSymbol type, INamedTypeSymbol baseOrInterface)
@@ -345,7 +345,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	private static void CollectCommands(RegistryNode node, List<CommandModel> sink)
 	{
 		sink.AddRange(node.Commands);
-		foreach (RegistryNode.NamedGroupChild child in node.Children)
+		foreach (RegistryNode.NamedCommandNamespaceChild child in node.Children)
 			CollectCommands(child.Node, sink);
 	}
 
@@ -379,30 +379,30 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				}
 				case "GlobalOptions" when !isRoot:
 					context.ReportDiagnostic(Diagnostic.Create(
-						GroupOptionsRequiresParent,
+						CommandNamespaceOptionsRequiresParent,
 						invocation.GetLocation(),
 						method.TypeArguments.Length > 0 ? method.TypeArguments[0].Name : "T"));
 					break;
-				case "GroupOptions" when isRoot:
+				case "CommandNamespaceOptions" when isRoot:
 					context.ReportDiagnostic(Diagnostic.Create(
-						GroupOptionsRequiresParent,
+						CommandNamespaceOptionsRequiresParent,
 						invocation.GetLocation(),
 						method is { IsGenericMethod: true, TypeArguments.Length: > 0 }
 							? method.TypeArguments[0].Name
 							: "T"));
 					break;
-				case "GroupOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
+				case "CommandNamespaceOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
 				{
 					if (method.TypeArguments[0] is INamedTypeSymbol gt && gt.TypeKind != TypeKind.Error)
 					{
-						node.GroupOptionsType = gt;
-						node.GroupOptionsLocation = invocation.GetLocation();
+						node.CommandNamespaceOptionsType = gt;
+						node.CommandNamespaceOptionsLocation = invocation.GetLocation();
 					}
 
 					break;
 				}
-				case "Group":
-					ProcessGroupInvocation(context, compilation, allInvocations, invocation, node, currentPath, app);
+				case "AddNamespace":
+					ProcessAddNamespaceInvocation(context, compilation, allInvocations, invocation, node, currentPath, app);
 					break;
 				case "Add" when method.IsGenericMethod:
 				{
@@ -427,27 +427,27 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void ProcessGroupInvocation(
+	private static void ProcessAddNamespaceInvocation(
 		SourceProductionContext context,
 		Compilation compilation,
 		List<InvocationExpressionSyntax> allInvocations,
-		InvocationExpressionSyntax groupInvocation,
+		InvocationExpressionSyntax addNamespaceInvocation,
 		RegistryNode parentNode,
 		ImmutableArray<string> parentPath,
 		AppEmitModel app)
 	{
-		if (groupInvocation.ArgumentList.Arguments.Count < 2)
+		if (addNamespaceInvocation.ArgumentList.Arguments.Count < 2)
 			return;
 
-		string? groupName = TryGetStringLiteral(groupInvocation.ArgumentList.Arguments[0].Expression);
-		if (string.IsNullOrWhiteSpace(groupName))
+		string? segmentName = TryGetStringLiteral(addNamespaceInvocation.ArgumentList.Arguments[0].Expression);
+		if (string.IsNullOrWhiteSpace(segmentName))
 			return;
 
 		var childNode = new RegistryNode();
 		var childInvocations = new List<InvocationExpressionSyntax>();
 		foreach (InvocationExpressionSyntax inv in allInvocations)
 		{
-			if (FindParentGroupInvocation(inv) is { } p && ReferenceEquals(p, groupInvocation))
+			if (FindParentAddNamespaceInvocation(inv) is { } p && ReferenceEquals(p, addNamespaceInvocation))
 				childInvocations.Add(inv);
 		}
 
@@ -461,35 +461,35 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			return a.Span.Start.CompareTo(b.Span.Start);
 		});
 
-		ImmutableArray<string> childPath = AppendSegment(parentPath, groupName!);
+		ImmutableArray<string> childPath = AppendSegment(parentPath, segmentName!);
 		ProcessInvocationsForNode(context, compilation, allInvocations, childInvocations, childNode, childPath, app,
 			isRoot: false);
-		parentNode.Children.Add(new RegistryNode.NamedGroupChild { Segment = groupName!, Node = childNode });
+		parentNode.Children.Add(new RegistryNode.NamedCommandNamespaceChild { Segment = segmentName!, Node = childNode });
 	}
 
-	private static InvocationExpressionSyntax? FindParentGroupInvocation(InvocationExpressionSyntax invocation)
+	private static InvocationExpressionSyntax? FindParentAddNamespaceInvocation(InvocationExpressionSyntax invocation)
 	{
 		for (SyntaxNode? n = invocation.Parent; n != null; n = n.Parent)
 		{
-			if (n is LambdaExpressionSyntax lambda && IsSecondArgOfGroupLambda(lambda, out InvocationExpressionSyntax groupInv))
-				return groupInv;
+			if (n is LambdaExpressionSyntax lambda && IsSecondArgOfAddNamespaceLambda(lambda, out InvocationExpressionSyntax addNamespaceInv))
+				return addNamespaceInv;
 		}
 
 		return null;
 	}
 
-	private static bool IsSecondArgOfGroupLambda(LambdaExpressionSyntax lambda, out InvocationExpressionSyntax groupInv)
+	private static bool IsSecondArgOfAddNamespaceLambda(LambdaExpressionSyntax lambda, out InvocationExpressionSyntax addNamespaceInv)
 	{
-		groupInv = null!;
+		addNamespaceInv = null!;
 		if (lambda.Parent is not ArgumentSyntax { Parent: ArgumentListSyntax al })
 			return false;
 		if (al.Parent is not InvocationExpressionSyntax inv)
 			return false;
-		if (inv.Expression is not MemberAccessExpressionSyntax ma || ma.Name.Identifier.Text != "Group")
+		if (inv.Expression is not MemberAccessExpressionSyntax ma || ma.Name.Identifier.Text != "AddNamespace")
 			return false;
 		if (al.Arguments.Count < 2 || !ReferenceEquals(al.Arguments[1].Expression, lambda))
 			return false;
-		groupInv = inv;
+		addNamespaceInv = inv;
 		return true;
 	}
 
@@ -552,7 +552,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (invokeMethod is null)
 			return;
 
-		// Build the storage key: "group/name" for nested, "name" for root
+		// Build the storage key: "namespace/name" for nested, "name" for root
 		string storageKey = routePrefix.IsDefaultOrEmpty
 			? commandName
 			: string.Join("/", routePrefix) + "/" + commandName;
@@ -625,7 +625,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				var childNode = new RegistryNode();
 				ImmutableArray<string> nestedPrefix = AppendSegment(routePrefix, seg);
 				ExpandTypeRegistration(context, invocation, nested, nestedPrefix, mergeOuterTypeSegment: true, childNode, parseOpts);
-				attachTo.Children.Add(new RegistryNode.NamedGroupChild { Segment = seg, Node = childNode });
+				attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild { Segment = seg, Node = childNode });
 			}
 		}
 		else
@@ -634,7 +634,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			var wrapper = new RegistryNode();
 			ImmutableArray<string> outerPrefix = AppendSegment(routePrefix, seg);
 			ExpandTypeRegistration(context, invocation, type, outerPrefix, mergeOuterTypeSegment: true, wrapper, parseOpts);
-			attachTo.Children.Add(new RegistryNode.NamedGroupChild { Segment = seg, Node = wrapper });
+			attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild { Segment = seg, Node = wrapper });
 		}
 	}
 
@@ -1245,11 +1245,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		var entries = new List<(string Name, string Summary, string HelpPrinter)>();
 		foreach (CommandModel cmd in node.Commands)
 			entries.Add((cmd.CommandName, cmd.SummaryOneLiner, $"PrintHelp_{cmd.RunMethodName}"));
-		foreach (RegistryNode.NamedGroupChild ch in node.Children)
+		foreach (RegistryNode.NamedCommandNamespaceChild ch in node.Children)
 		{
 			ImmutableArray<string> childPath = AppendSegment(path, ch.Segment);
-			string gk = GroupPathKey(childPath);
-			entries.Add((ch.Segment, "", $"PrintHelp_Group_{gk}"));
+			string gk = CommandNamespacePathKey(childPath);
+			entries.Add((ch.Segment, "", $"PrintHelp_CommandNamespace_{gk}"));
 		}
 
 		List<(string Name, string Summary, string HelpPrinter)> sorted =
@@ -1267,7 +1267,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine(" };");
 		sb.AppendLine($"\t\t\t\tvar __matches = global::Nullean.Argh.FuzzyMatch.FindClosest(__tok, __cands, {FuzzyMaxDistance});");
-		const string kind = "command or group";
+		const string kind = "command or namespace";
 		sb.AppendLine("\t\t\t\tif (__matches.Count == 0)");
 		sb.AppendLine("\t\t\t\t{");
 		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown {kind} '{{__tok}}'.\");");
@@ -1410,14 +1410,14 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				map[app.GlobalOptionsType] = new DtoBindingTarget(app.GlobalOptionsType, m, IsOptionsDto: true);
 		}
 
-		foreach ((RegistryNode node, _) in EnumerateGroupNodesWithPath(app.Root, ImmutableArray<string>.Empty))
+		foreach ((RegistryNode node, _) in EnumerateCommandNamespaceNodesWithPath(app.Root, ImmutableArray<string>.Empty))
 		{
-			if (node.GroupOptionsType is null)
+			if (node.CommandNamespaceOptionsType is null)
 				continue;
 
-			ImmutableArray<ParameterModel> gm = BuildFlattenedOptionsMembers(node.GroupOptionsType);
+			ImmutableArray<ParameterModel> gm = BuildFlattenedOptionsMembers(node.CommandNamespaceOptionsType);
 			if (gm.Length > 0)
-				map[node.GroupOptionsType] = new DtoBindingTarget(node.GroupOptionsType, gm, IsOptionsDto: true);
+				map[node.CommandNamespaceOptionsType] = new DtoBindingTarget(node.CommandNamespaceOptionsType, gm, IsOptionsDto: true);
 		}
 
 		foreach (CommandModel cmd in app.AllCommands)
@@ -1564,7 +1564,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 
 		sb.AppendLine(
-			"\t\t\tthrow new InvalidOperationException(\"No pregenerated Argh DTO parser for \" + typeof(T).FullName + \". Register the type as GlobalOptions/GroupOptions or use it with [AsParameters] on a command.\");");
+			"\t\t\tthrow new InvalidOperationException(\"No pregenerated Argh DTO parser for \" + typeof(T).FullName + \". Register the type as GlobalOptions/CommandNamespaceOptions or use it with [AsParameters] on a command.\");");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
 
@@ -1733,8 +1733,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine();
 		EmitPrintRootHelpHierarchical(sb, app, entryAssemblyName);
 		sb.AppendLine();
-		foreach ((RegistryNode node, ImmutableArray<string> path) in EnumerateGroupNodesWithPath(app.Root, ImmutableArray<string>.Empty))
-			EmitGroupHelpPrinter(sb, path, node, app, entryAssemblyName);
+		foreach ((RegistryNode node, ImmutableArray<string> path) in EnumerateCommandNamespaceNodesWithPath(app.Root, ImmutableArray<string>.Empty))
+			EmitCommandNamespaceHelpPrinter(sb, path, node, app, entryAssemblyName);
 
 		foreach (CommandModel cmd in app.AllCommands)
 			EmitCommandHelpPrinter(sb, cmd, app, entryAssemblyName);
@@ -1751,10 +1751,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (app.GlobalOptionsModel is { Members: { Length: > 0 } })
 			EmitOptionsTryParse(sb, "TryParseGlobalOptions", app.GlobalOptionsModel.Members);
 
-		foreach ((RegistryNode node, ImmutableArray<string> path) in EnumerateGroupNodesWithPath(app.Root, ImmutableArray<string>.Empty))
+		foreach ((RegistryNode node, ImmutableArray<string> path) in EnumerateCommandNamespaceNodesWithPath(app.Root, ImmutableArray<string>.Empty))
 		{
-			if (node.GroupOptionsModel is OptionsTypeModel gopt && gopt.Members.Length > 0)
-				EmitOptionsTryParse(sb, GroupOptionsParseMethodName(path), gopt.Members);
+			if (node.CommandNamespaceOptionsModel is OptionsTypeModel gopt && gopt.Members.Length > 0)
+				EmitOptionsTryParse(sb, CommandNamespaceOptionsParseMethodName(path), gopt.Members);
 		}
 
 		EmitTryParseRouteHierarchical(sb, app);
@@ -1781,20 +1781,20 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		context.AddSource("ArghGenerated.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
 	}
 
-	private static IEnumerable<(RegistryNode node, ImmutableArray<string> path)> EnumerateGroupNodesWithPath(
+	private static IEnumerable<(RegistryNode node, ImmutableArray<string> path)> EnumerateCommandNamespaceNodesWithPath(
 		RegistryNode root,
 		ImmutableArray<string> prefix)
 	{
-		foreach (RegistryNode.NamedGroupChild ch in root.Children)
+		foreach (RegistryNode.NamedCommandNamespaceChild ch in root.Children)
 		{
 			ImmutableArray<string> p = AppendSegment(prefix, ch.Segment);
 			yield return (ch.Node, p);
-			foreach ((RegistryNode node, ImmutableArray<string> sub) in EnumerateGroupNodesWithPath(ch.Node, p))
+			foreach ((RegistryNode node, ImmutableArray<string> sub) in EnumerateCommandNamespaceNodesWithPath(ch.Node, p))
 				yield return (node, sub);
 		}
 	}
 
-	private static string GroupPathKey(ImmutableArray<string> path)
+	private static string CommandNamespacePathKey(ImmutableArray<string> path)
 	{
 		if (path.IsDefaultOrEmpty)
 			return "Root";
@@ -1810,8 +1810,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		return sb.ToString();
 	}
 
-	private static string GroupOptionsParseMethodName(ImmutableArray<string> path) =>
-		"TryParseGroupOptions_" + GroupPathKey(path);
+	private static string CommandNamespaceOptionsParseMethodName(ImmutableArray<string> path) =>
+		"TryParseCommandNamespaceOptions_" + CommandNamespacePathKey(path);
 
 	private static void EmitRunCoreHierarchical(StringBuilder sb, AppEmitModel app, string entryAssemblyName)
 	{
@@ -1852,8 +1852,17 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\tprivate static void PrintRootHelp()");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine(
-			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" <group|command> [options]\");");
+			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" <namespace|command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+		if (app.Root.Children.Count > 0)
+		{
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Namespaces:\"));");
+			foreach (RegistryNode.NamedCommandNamespaceChild ch in app.Root.Children)
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(ch.Segment)}\")}}\");");
+
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+		}
+
 		if (app.Root.Commands.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Commands:\"));");
@@ -1862,15 +1871,6 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				string summary = Escape(c.SummaryOneLiner);
 				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(c.CommandName)}\")}}    {summary}\");");
 			}
-
-			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
-		}
-
-		if (app.Root.Children.Count > 0)
-		{
-			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Groups:\"));");
-			foreach (RegistryNode.NamedGroupChild ch in app.Root.Children)
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(ch.Segment)}\")}}\");");
 
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		}
@@ -1893,52 +1893,77 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t}");
 	}
 
-	private static void EmitGroupHelpPrinter(StringBuilder sb, ImmutableArray<string> path, RegistryNode node, AppEmitModel app, string entryAssemblyName)
+	private static void EmitCommandNamespaceHelpPrinter(StringBuilder sb, ImmutableArray<string> path, RegistryNode node, AppEmitModel app, string entryAssemblyName)
 	{
-		string key = GroupPathKey(path);
+		string key = CommandNamespacePathKey(path);
 		string usagePrefix = string.Join(" ", path);
-		sb.AppendLine($"\t\tprivate static void PrintHelp_Group_{key}()");
+
+		List<ParameterModel> globalFlagMembers = EnumerateFlagMembers(app.GlobalOptionsModel).ToList();
+		List<(string Segment, List<ParameterModel> Rows)> namespaceOptionSections = new();
+		List<(string Segment, OptionsTypeModel Model)> namespaceOptionChain = GetCommandNamespaceOptionChain(app, path);
+		var suppressedForNamespaceDisplay = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		AddCliKeys(globalFlagMembers, suppressedForNamespaceDisplay);
+		foreach ((string seg, OptionsTypeModel gom) in namespaceOptionChain)
+		{
+			List<ParameterModel> allInNamespace = EnumerateFlagMembers(gom).ToList();
+			List<ParameterModel> rows = allInNamespace.Where(p => !suppressedForNamespaceDisplay.Contains(p.CliLongName)).ToList();
+			AddCliKeys(allInNamespace, suppressedForNamespaceDisplay);
+			if (rows.Count > 0)
+				namespaceOptionSections.Add((seg, rows));
+		}
+
+		var widthCandidates = new List<int> { "--help, -h".Length };
+		widthCandidates.AddRange(globalFlagMembers.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		foreach ((_, List<ParameterModel> rows) in namespaceOptionSections)
+			widthCandidates.AddRange(rows.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		int maxOptWidth = Math.Min(widthCandidates.Max(), 40);
+		maxOptWidth = Math.Max(maxOptWidth, "--help, -h".Length);
+
+		sb.AppendLine($"\t\tprivate static void PrintHelp_CommandNamespace_{key}()");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine(
 			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" {Escape(usagePrefix)} <command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+
+		if (node.Children.Count > 0)
+		{
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Namespaces:\"));");
+			foreach (RegistryNode.NamedCommandNamespaceChild ch in node.Children)
+			{
+				string fullNs = FormatQualifiedCliPath(path, ch.Segment);
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(fullNs)}\")}}\");");
+			}
+
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+		}
+
 		if (node.Commands.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Commands:\"));");
 			foreach (CommandModel c in node.Commands)
 			{
+				string fullCmd = FormatQualifiedCliPath(path, c.CommandName);
 				string summary = Escape(c.SummaryOneLiner);
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(c.CommandName)}\")}}    {summary}\");");
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(fullCmd)}\")}}    {summary}\");");
 			}
 
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		}
 
-		if (node.Children.Count > 0)
-		{
-			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Groups:\"));");
-			foreach (RegistryNode.NamedGroupChild ch in node.Children)
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(ch.Segment)}\")}}\");");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
+		if (globalFlagMembers.Count > 0)
+			EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
+		string globalHelpLeft = "--help, -h".PadRight(maxOptWidth);
+		sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(globalHelpLeft)}\") + \"  Show help.\");");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
+		foreach ((string segment, List<ParameterModel> gRows) in namespaceOptionSections)
+		{
+			sb.AppendLine($"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"'{Escape(segment)}' options:\"));");
+			EmitHelpOptionRows(sb, gRows, maxOptWidth);
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		}
 
-		if (node.GroupOptionsModel is OptionsTypeModel gom2 && gom2.Members.Length > 0)
-		{
-			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Group options:\"));");
-			foreach (ParameterModel p in gom2.Members)
-			{
-				if (p.Kind != ParameterKind.Flag)
-					continue;
-				string left = HelpLayout.FormatOptionLeftCell(p);
-				string desc = BuildDescriptionSuffix(p, forPositional: false);
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)}\");");
-			}
-
-			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
-		}
-
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"--help, -h\") + \"  Show help.\");");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
 	}
@@ -1954,15 +1979,15 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	{
 		sb.AppendLine($"\t\tprivate static async Task<int> {methodName}(string[] args, int[] idx, CancellationToken ct)");
 		sb.AppendLine("\t\t{");
-		if (!isRoot && node.GroupOptionsModel is { Members: { Length: > 0 } })
-			sb.AppendLine($"\t\t\tif (!{GroupOptionsParseMethodName(path)}(args, idx)) return 2;");
+		if (!isRoot && node.CommandNamespaceOptionsModel is { Members: { Length: > 0 } })
+			sb.AppendLine($"\t\t\tif (!{CommandNamespaceOptionsParseMethodName(path)}(args, idx)) return 2;");
 
 		sb.AppendLine("\t\t\tif (idx[0] >= args.Length)");
 		sb.AppendLine("\t\t\t{");
 		if (isRoot)
 			sb.AppendLine("\t\t\t\tPrintRootHelp();");
 		else
-			sb.AppendLine($"\t\t\t\tPrintHelp_Group_{GroupPathKey(path)}();");
+			sb.AppendLine($"\t\t\t\tPrintHelp_CommandNamespace_{CommandNamespacePathKey(path)}();");
 
 		sb.AppendLine("\t\t\t\treturn 0;");
 		sb.AppendLine("\t\t\t}");
@@ -1971,7 +1996,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (isRoot)
 			sb.AppendLine("\t\t\t\tPrintRootHelp();");
 		else
-			sb.AppendLine($"\t\t\t\tPrintHelp_Group_{GroupPathKey(path)}();");
+			sb.AppendLine($"\t\t\t\tPrintHelp_CommandNamespace_{CommandNamespacePathKey(path)}();");
 
 		sb.AppendLine("\t\t\t\treturn 0;");
 		sb.AppendLine("\t\t\t}");
@@ -1985,10 +2010,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\t}");
 		}
 
-		foreach (RegistryNode.NamedGroupChild ch in node.Children)
+		foreach (RegistryNode.NamedCommandNamespaceChild ch in node.Children)
 		{
 			ImmutableArray<string> childPath = AppendSegment(path, ch.Segment);
-			string childMethod = "DispatchGroup_" + GroupPathKey(childPath);
+			string childMethod = "DispatchCommandNamespace_" + CommandNamespacePathKey(childPath);
 			sb.AppendLine($"\t\t\tif (string.Equals(tok, \"{Escape(ch.Segment)}\", StringComparison.OrdinalIgnoreCase))");
 			sb.AppendLine("\t\t\t{");
 			sb.AppendLine("\t\t\t\tidx[0]++;");
@@ -2001,10 +2026,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
-		foreach (RegistryNode.NamedGroupChild ch in node.Children)
+		foreach (RegistryNode.NamedCommandNamespaceChild ch in node.Children)
 		{
 			ImmutableArray<string> childPath = AppendSegment(path, ch.Segment);
-			EmitDispatchForNode(sb, app, ch.Node, childPath, "DispatchGroup_" + GroupPathKey(childPath), isRoot: false, entryAssemblyName);
+			EmitDispatchForNode(sb, app, ch.Node, childPath, "DispatchCommandNamespace_" + CommandNamespacePathKey(childPath), isRoot: false, entryAssemblyName);
 		}
 	}
 
@@ -2013,6 +2038,14 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (cmd.RoutePrefix.IsDefaultOrEmpty)
 			return cmd.CommandName;
 		return string.Join("/", cmd.RoutePrefix) + "/" + cmd.CommandName;
+	}
+
+	/// <summary>Space-separated CLI path for help listings (e.g. <c>storage blob upload</c>).</summary>
+	private static string FormatQualifiedCliPath(ImmutableArray<string> prefix, string segment)
+	{
+		if (prefix.IsDefaultOrEmpty)
+			return segment;
+		return string.Join(" ", prefix) + " " + segment;
 	}
 
 	private static void EmitArghGeneratedRouteStringMethod(StringBuilder sb)
@@ -2087,8 +2120,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine($"\t\tprivate static bool {methodName}(string[] args, int[] idx, out global::Nullean.Argh.RouteMatch match)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tmatch = default;");
-		if (!isRoot && node.GroupOptionsModel is { Members: { Length: > 0 } })
-			sb.AppendLine($"\t\t\tif (!{GroupOptionsParseMethodName(path)}(args, idx)) return false;");
+		if (!isRoot && node.CommandNamespaceOptionsModel is { Members: { Length: > 0 } })
+			sb.AppendLine($"\t\t\tif (!{CommandNamespaceOptionsParseMethodName(path)}(args, idx)) return false;");
 		sb.AppendLine("\t\t\tif (idx[0] >= args.Length) return false;");
 		sb.AppendLine("\t\t\tif (args[idx[0]] == \"--help\" || args[idx[0]] == \"-h\") return false;");
 		sb.AppendLine("\t\t\tvar tok = args[idx[0]];");
@@ -2103,10 +2136,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\t}");
 		}
 
-		foreach (RegistryNode.NamedGroupChild ch in node.Children)
+		foreach (RegistryNode.NamedCommandNamespaceChild ch in node.Children)
 		{
 			ImmutableArray<string> childPath = AppendSegment(path, ch.Segment);
-			string childMethod = "TryParseRouteGroup_" + GroupPathKey(childPath);
+			string childMethod = "TryParseRouteCommandNamespace_" + CommandNamespacePathKey(childPath);
 			sb.AppendLine($"\t\t\tif (string.Equals(tok, \"{Escape(ch.Segment)}\", StringComparison.OrdinalIgnoreCase))");
 			sb.AppendLine("\t\t\t{");
 			sb.AppendLine("\t\t\t\tidx[0]++;");
@@ -2117,10 +2150,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\treturn false;");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
-		foreach (RegistryNode.NamedGroupChild ch in node.Children)
+		foreach (RegistryNode.NamedCommandNamespaceChild ch in node.Children)
 		{
 			ImmutableArray<string> childPath = AppendSegment(path, ch.Segment);
-			EmitTryParseRouteForNode(sb, app, ch.Node, childPath, "TryParseRouteGroup_" + GroupPathKey(childPath), isRoot: false);
+			EmitTryParseRouteForNode(sb, app, ch.Node, childPath, "TryParseRouteCommandNamespace_" + CommandNamespacePathKey(childPath), isRoot: false);
 		}
 	}
 
@@ -3511,14 +3544,14 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static List<(string Segment, OptionsTypeModel Model)> GetGroupOptionChain(AppEmitModel app, ImmutableArray<string> routePrefix)
+	private static List<(string Segment, OptionsTypeModel Model)> GetCommandNamespaceOptionChain(AppEmitModel app, ImmutableArray<string> routePrefix)
 	{
 		var list = new List<(string, OptionsTypeModel)>();
 		RegistryNode current = app.Root;
 		foreach (string seg in routePrefix)
 		{
-			RegistryNode.NamedGroupChild? found = null;
-			foreach (RegistryNode.NamedGroupChild c in current.Children)
+			RegistryNode.NamedCommandNamespaceChild? found = null;
+			foreach (RegistryNode.NamedCommandNamespaceChild c in current.Children)
 			{
 				if (string.Equals(c.Segment, seg, StringComparison.OrdinalIgnoreCase))
 				{
@@ -3531,7 +3564,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				break;
 
 			current = found.Node;
-			if (current.GroupOptionsModel is { Members: { Length: > 0 } } gom)
+			if (current.CommandNamespaceOptionsModel is { Members: { Length: > 0 } } gom)
 				list.Add((seg, gom));
 		}
 
@@ -3569,31 +3602,31 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			: string.Join(" ", cmd.RoutePrefix) + " ";
 
 		List<ParameterModel> globalFlagMembers = EnumerateFlagMembers(app.GlobalOptionsModel).ToList();
-		List<(string Segment, List<ParameterModel> Rows)> groupSections = new();
-		List<(string Segment, OptionsTypeModel Model)> groupChain = GetGroupOptionChain(app, cmd.RoutePrefix);
-		var suppressedForGroupDisplay = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddCliKeys(globalFlagMembers, suppressedForGroupDisplay);
-		foreach ((string seg, OptionsTypeModel gom) in groupChain)
+		List<(string Segment, List<ParameterModel> Rows)> namespaceOptionSections = new();
+		List<(string Segment, OptionsTypeModel Model)> namespaceOptionChain = GetCommandNamespaceOptionChain(app, cmd.RoutePrefix);
+		var suppressedForNamespaceDisplay = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		AddCliKeys(globalFlagMembers, suppressedForNamespaceDisplay);
+		foreach ((string seg, OptionsTypeModel gom) in namespaceOptionChain)
 		{
-			List<ParameterModel> allInGroup = EnumerateFlagMembers(gom).ToList();
-			List<ParameterModel> rows = allInGroup.Where(p => !suppressedForGroupDisplay.Contains(p.CliLongName)).ToList();
-			AddCliKeys(allInGroup, suppressedForGroupDisplay);
+			List<ParameterModel> allInNamespace = EnumerateFlagMembers(gom).ToList();
+			List<ParameterModel> rows = allInNamespace.Where(p => !suppressedForNamespaceDisplay.Contains(p.CliLongName)).ToList();
+			AddCliKeys(allInNamespace, suppressedForNamespaceDisplay);
 			if (rows.Count > 0)
-				groupSections.Add((seg, rows));
+				namespaceOptionSections.Add((seg, rows));
 		}
 
 		var scopedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		AddCliKeys(globalFlagMembers, scopedKeys);
-		foreach ((_, OptionsTypeModel gom) in groupChain)
+		foreach ((_, OptionsTypeModel gom) in namespaceOptionChain)
 			AddCliKeys(EnumerateFlagMembers(gom), scopedKeys);
 
 		List<ParameterModel> commandOnlyFlags = cmd.Parameters
 			.Where(p => p.Kind == ParameterKind.Flag && !CommandFlagMatchesScopedKeys(p, scopedKeys))
 			.ToList();
 
-		var widthCandidates = new List<int> { "--help, -h".Length, "--version".Length };
+		var widthCandidates = new List<int> { "--help, -h".Length };
 		widthCandidates.AddRange(globalFlagMembers.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
-		foreach ((_, List<ParameterModel> rows) in groupSections)
+		foreach ((_, List<ParameterModel> rows) in namespaceOptionSections)
 			widthCandidates.AddRange(rows.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
 
 		widthCandidates.AddRange(commandOnlyFlags.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
@@ -3658,11 +3691,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
 		string globalHelpLeft = "--help, -h".PadRight(maxOptWidth);
 		sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(globalHelpLeft)}\") + \"  Show help.\");");
-		string globalVerLeft = "--version".PadRight(maxOptWidth);
-		sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(globalVerLeft)}\") + \"  Show version.\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
-		foreach ((string segment, List<ParameterModel> gRows) in groupSections)
+		foreach ((string segment, List<ParameterModel> gRows) in namespaceOptionSections)
 		{
 			sb.AppendLine($"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"'{Escape(segment)}' options:\"));");
 			EmitHelpOptionRows(sb, gRows, maxOptWidth);
