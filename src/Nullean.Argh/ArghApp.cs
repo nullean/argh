@@ -19,4 +19,8 @@ public sealed partial class ArghApp : IArghBuilder
 
 	/// <summary>Typed options for the current group; <typeparamref name="T"/> must inherit the parent options type (enforced at compile time).</summary>
 	public ArghApp GroupOptions<T>() where T : class => this;
+
+	/// <summary>Runs the source-generated CLI for this application (see <see cref="ArghRuntime.RunAsync"/>).</summary>
+	public Task<int> RunAsync(string[] args) => ArghRuntime.RunAsync(args);
 }
+

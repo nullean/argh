@@ -43,4 +43,7 @@ public sealed partial class ArghApp
 		_ = UseFilter<TFilter>();
 		return this;
 	}
+
+	Task<int> IArghBuilder.RunAsync(string[] args) => RunAsync(args);
 }
+

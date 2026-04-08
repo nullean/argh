@@ -26,4 +26,8 @@ public interface IArghBuilder
 
 	/// <inheritdoc cref="ArghApp.UseFilter{TFilter}"/>
 	IArghBuilder UseFilter<TFilter>() where TFilter : ICommandFilter;
+
+	/// <inheritdoc cref="ArghApp.RunAsync"/>
+	Task<int> RunAsync(string[] args);
 }
+

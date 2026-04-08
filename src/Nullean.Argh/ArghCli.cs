@@ -14,7 +14,7 @@ public static class ArghCli
 	/// <summary>
 	/// Runs <paramref name="runAsync"/> with standard output and error redirected to in-memory writers, then restores the previous console writers.
 	/// </summary>
-	/// <param name="runAsync">Typically a call to generated code such as <c>() => ArghGenerated.RunAsync(args)</c>.</param>
+	/// <param name="runAsync">Typically <c>() => ArghRuntime.RunAsync(args)</c> or <c>() => ArghGenerated.RunAsync(args)</c>.</param>
 	public static async Task<RunResult> RunWithCaptureAsync(Func<Task<int>> runAsync)
 	{
 		if (runAsync is null)
@@ -42,7 +42,7 @@ public static class ArghCli
 	/// Runs <paramref name="runner"/> with the given arguments and standard streams captured.
 	/// </summary>
 	/// <param name="args">Arguments passed to <paramref name="runner"/>.</param>
-	/// <param name="runner">Typically generated code such as <c>ArghGenerated.RunAsync</c>.</param>
+	/// <param name="runner">Typically <see cref="ArghRuntime.RunAsync"/> or <c>ArghGenerated.RunAsync</c>.</param>
 	public static Task<RunResult> RunWithCaptureAsync(string[] args, Func<string[], Task<int>> runner)
 	{
 		if (args is null)
@@ -56,7 +56,7 @@ public static class ArghCli
 	/// Parses <paramref name="commandLine"/> with minimal quote-aware splitting, then runs <paramref name="runner"/> with captured output.
 	/// </summary>
 	/// <param name="commandLine">Whitespace-separated tokens; substrings in double quotes are kept as single arguments.</param>
-	/// <param name="runner">Typically generated code such as <c>ArghGenerated.RunAsync</c>.</param>
+	/// <param name="runner">Typically <see cref="ArghRuntime.RunAsync"/> or <c>ArghGenerated.RunAsync</c>.</param>
 	public static Task<RunResult> RunWithCaptureAsync(string commandLine, Func<string[], Task<int>> runner)
 	{
 		if (commandLine is null)

@@ -22,12 +22,6 @@ public static class CliHelpFormatting
 	/// <summary>Muted secondary text.</summary>
 	public static string Muted(string text) => Wrap(text, "\x1b[90m");
 
-	private static string Wrap(string text, string open)
-	{
-		if (string.IsNullOrEmpty(text))
-			return text;
-		if (!UseAnsiColors)
-			return text;
-		return open + text + "\x1b[0m";
-	}
+	private static string Wrap(string text, string open) =>
+		string.IsNullOrEmpty(text) || !UseAnsiColors ? text : open + text + "\x1b[0m";
 }

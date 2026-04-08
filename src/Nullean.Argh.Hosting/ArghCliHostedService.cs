@@ -5,7 +5,7 @@ using Nullean.Argh;
 namespace Nullean.Argh.Hosting;
 
 /// <summary>
-/// Runs the generated CLI entry (<c>ArghGenerated.RunAsync</c>) after the host has started, then stops the host when the run completes.
+/// Runs the CLI entry (<see cref="ArghRuntime.RunAsync"/> or a substitute supplied to <c>AddArgh</c>) after the host has started, then stops the host when the run completes.
 /// </summary>
 internal sealed class ArghCliHostedService : IHostedService
 {

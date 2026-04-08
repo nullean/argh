@@ -7,10 +7,7 @@ namespace Nullean.Argh.Tests;
 public class FuzzyMatchTests
 {
 	[Fact]
-	public void LevenshteinDistance_empty_strings_is_zero()
-	{
-		FuzzyMatch.LevenshteinDistance("", "").Should().Be(0);
-	}
+	public void LevenshteinDistance_empty_strings_is_zero() => FuzzyMatch.LevenshteinDistance("", "").Should().Be(0);
 
 	[Fact]
 	public void LevenshteinDistance_empty_to_non_empty_is_length()
@@ -20,16 +17,10 @@ public class FuzzyMatchTests
 	}
 
 	[Fact]
-	public void LevenshteinDistance_equal_strings_is_zero()
-	{
-		FuzzyMatch.LevenshteinDistance("hello", "hello").Should().Be(0);
-	}
+	public void LevenshteinDistance_equal_strings_is_zero() => FuzzyMatch.LevenshteinDistance("hello", "hello").Should().Be(0);
 
 	[Fact]
-	public void LevenshteinDistance_kitten_sitting_is_three()
-	{
-		FuzzyMatch.LevenshteinDistance("kitten", "sitting").Should().Be(3);
-	}
+	public void LevenshteinDistance_kitten_sitting_is_three() => FuzzyMatch.LevenshteinDistance("kitten", "sitting").Should().Be(3);
 
 	[Fact]
 	public void LevenshteinDistance_null_a_throws()

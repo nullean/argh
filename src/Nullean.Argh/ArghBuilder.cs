@@ -48,4 +48,8 @@ public sealed class ArghBuilder : IArghBuilder
 		_ = _app.UseFilter<TFilter>();
 		return this;
 	}
+
+	/// <inheritdoc cref="ArghApp.RunAsync"/>
+	public Task<int> RunAsync(string[] args) => ArghRuntime.RunAsync(args);
 }
+

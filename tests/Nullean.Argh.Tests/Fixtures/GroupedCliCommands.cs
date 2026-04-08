@@ -15,17 +15,11 @@ internal sealed class TestStorageCliOptions : TestGlobalCliOptions
 /// <summary>Commands under <c>storage</c>; nested class becomes <c>storage blob</c> subgroup.</summary>
 internal sealed class StorageCliCommands
 {
-	public static void List()
-	{
-		System.Console.Out.WriteLine("storage-list");
-	}
+	public static void List() => Console.Out.WriteLine("storage-list");
 
 	public sealed class BlobCommands
 	{
-		public static void Upload()
-		{
-			System.Console.Out.WriteLine("blob-upload");
-		}
+		public static void Upload() => Console.Out.WriteLine("blob-upload");
 	}
 }
 
@@ -40,12 +34,8 @@ internal sealed class DiProbeService : IDiProbeService
 }
 
 /// <summary>Instance command type for DI resolution tests (<c>ArghServices.ServiceProvider</c>).</summary>
-internal sealed class DiProbeCommands
+internal sealed class DiProbeCommands(IDiProbeService svc)
 {
-	private readonly IDiProbeService _svc;
-
-	public DiProbeCommands(IDiProbeService svc) => _svc = svc;
-
 	public void Ping() =>
-		System.Console.Out.WriteLine($"probe:{_svc.Marker}");
+		Console.Out.WriteLine($"probe:{svc.Marker}");
 }

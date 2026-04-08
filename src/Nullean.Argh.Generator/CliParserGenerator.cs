@@ -156,7 +156,17 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			return;
 		}
 
-		EmitApp(context, appModel);
+		CSharpParseOptions parseOpts = CSharpParseOptions.Default;
+		foreach (SyntaxTree st in compilation.SyntaxTrees)
+		{
+			if (st.Options is CSharpParseOptions po)
+			{
+				parseOpts = po;
+				break;
+			}
+		}
+
+		EmitApp(context, appModel, parseOpts);
 	}
 
 	private static ITypeSymbol? GetReceiverType(SemanticModel model, InvocationExpressionSyntax invocation)
@@ -988,9 +998,34 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 						System.Console.Out.WriteLine(v?.ToString() ?? "0.0.0.0");
 					}
 				}
+
+				internal static class ArghGeneratedRuntimeRegistration
+				{
+					[System.Runtime.CompilerServices.ModuleInitializer]
+					internal static void RegisterArghRuntime()
+					{
+						global::Nullean.Argh.ArghRuntime.RegisterRunner(ArghGenerated.RunAsync);
+						global::Nullean.Argh.ArghRuntime.RegisterRoute(ArghGenerated.Route);
+					}
+				}
 			}
 			""";
 		context.AddSource("ArghGenerated.g.cs", SourceText.From(source, Encoding.UTF8));
+	}
+
+
+	private static void AppendArghRuntimeModuleInitializer(StringBuilder sb)
+	{
+		sb.AppendLine();
+		sb.AppendLine("\tinternal static class ArghGeneratedRuntimeRegistration");
+		sb.AppendLine("\t{");
+		sb.AppendLine("\t\t[System.Runtime.CompilerServices.ModuleInitializer]");
+		sb.AppendLine("\t\tinternal static void RegisterArghRuntime()");
+		sb.AppendLine("\t\t{");
+		sb.AppendLine("\t\t\tglobal::Nullean.Argh.ArghRuntime.RegisterRunner(ArghGenerated.RunAsync);");
+		sb.AppendLine("\t\t\tglobal::Nullean.Argh.ArghRuntime.RegisterRoute(ArghGenerated.Route);");
+		sb.AppendLine("\t\t}");
+		sb.AppendLine("\t}");
 	}
 
 	private const int FuzzyMaxDistance = 2;
@@ -1217,18 +1252,216 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			$"((ArghServices.ServiceProvider?.GetService(typeof({fullyQualifiedType})) as {fullyQualifiedType}) ?? throw new global::System.InvalidOperationException(\"Register the type in DI for hosted execution, or add a public parameterless constructor for standalone CLI.\"))";
 	}
 
-	private static void EmitApp(SourceProductionContext context, AppEmitModel app)
+	private static void EmitApp(SourceProductionContext context, AppEmitModel app, CSharpParseOptions parseOptions)
 	{
+		ImmutableArray<DtoBindingTarget> dtoTargets = CollectDtoBindingTargets(context, app, parseOptions);
 		if (IsFlatCli(app))
 		{
-			EmitFlat(context, app);
+			EmitFlat(context, app, dtoTargets);
+			EmitDtoTypeExtensions(context, dtoTargets);
 			return;
 		}
 
-		EmitHierarchical(context, app);
+		EmitHierarchical(context, app, dtoTargets);
+		EmitDtoTypeExtensions(context, dtoTargets);
 	}
 
-	private static void EmitFlat(SourceProductionContext context, AppEmitModel app)
+	private sealed record DtoBindingTarget(INamedTypeSymbol TypeSymbol, ImmutableArray<ParameterModel> Members, bool IsOptionsDto);
+
+	private static ImmutableArray<DtoBindingTarget> CollectDtoBindingTargets(
+		SourceProductionContext context,
+		AppEmitModel app,
+		CSharpParseOptions parseOptions)
+	{
+		var map = new Dictionary<INamedTypeSymbol, DtoBindingTarget>(SymbolEqualityComparer.Default);
+
+		if (app.GlobalOptionsType is not null)
+		{
+			ImmutableArray<ParameterModel> m = BuildFlattenedOptionsMembers(app.GlobalOptionsType);
+			if (m.Length > 0)
+				map[app.GlobalOptionsType] = new DtoBindingTarget(app.GlobalOptionsType, m, IsOptionsDto: true);
+		}
+
+		foreach ((RegistryNode node, _) in EnumerateGroupNodesWithPath(app.Root, ImmutableArray<string>.Empty))
+		{
+			if (node.GroupOptionsType is null)
+				continue;
+
+			ImmutableArray<ParameterModel> gm = BuildFlattenedOptionsMembers(node.GroupOptionsType);
+			if (gm.Length > 0)
+				map[node.GroupOptionsType] = new DtoBindingTarget(node.GroupOptionsType, gm, IsOptionsDto: true);
+		}
+
+		foreach (CommandModel cmd in app.AllCommands)
+		{
+			if (cmd.HandlerMethod is null)
+				continue;
+
+			foreach (IParameterSymbol p in cmd.HandlerMethod.Parameters)
+			{
+				if (!HasAsParametersAttribute(p))
+					continue;
+
+				if (p.Type is not INamedTypeSymbol nt || nt.TypeKind == TypeKind.Error)
+					continue;
+
+				if (map.ContainsKey(nt))
+					continue;
+
+				ImmutableArray<ParameterModel> flat = FlattenAsParametersType(
+					context,
+					Location.None,
+					p,
+					nt,
+					GetAsParametersPrefix(p),
+					parseOptions);
+				if (flat.Length > 0)
+					map[nt] = new DtoBindingTarget(nt, flat, IsOptionsDto: false);
+			}
+		}
+
+		return map.Values
+			.OrderBy(t => t.TypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), StringComparer.Ordinal)
+			.ToImmutableArray();
+	}
+
+	private static ImmutableArray<ParameterModel> BuildFlattenedOptionsMembers(INamedTypeSymbol type)
+	{
+		var chain = new List<INamedTypeSymbol>();
+		for (INamedTypeSymbol? t = type; t is not null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)
+			chain.Add(t);
+
+		var members = ImmutableArray.CreateBuilder<ParameterModel>();
+		var seen = new HashSet<string>(StringComparer.Ordinal);
+		for (int i = chain.Count - 1; i >= 0; i--)
+		{
+			INamedTypeSymbol tt = chain[i];
+			foreach (ISymbol member in tt.GetMembers())
+			{
+				switch (member)
+				{
+					case IPropertySymbol prop when prop.DeclaredAccessibility == Accessibility.Public && !prop.IsStatic:
+					{
+						if (prop.IsIndexer)
+							continue;
+						if (prop.GetMethod is null || prop.SetMethod is null)
+							continue;
+						if (!seen.Add(prop.Name))
+							continue;
+
+						members.Add(ParameterModel.FromOptionsProperty(prop));
+						break;
+					}
+					case IFieldSymbol field when field.DeclaredAccessibility == Accessibility.Public && !field.IsStatic:
+					{
+						if (!seen.Add(field.Name))
+							continue;
+
+						members.Add(ParameterModel.FromOptionsField(field));
+						break;
+					}
+				}
+			}
+		}
+
+		return members.ToImmutable();
+	}
+
+	private static string DtoMethodSuffix(INamedTypeSymbol type)
+	{
+		string fq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		if (fq.StartsWith("global::", StringComparison.Ordinal))
+			fq = fq.Substring(8);
+
+		var sb = new StringBuilder();
+		foreach (char c in fq)
+		{
+			if (char.IsLetterOrDigit(c))
+				sb.Append(c);
+			else
+				sb.Append('_');
+		}
+
+		return sb.Length == 0 ? "Dto" : sb.ToString();
+	}
+
+	private static void EmitDtoBindingMethods(StringBuilder sb, ImmutableArray<DtoBindingTarget> targets)
+	{
+		foreach (DtoBindingTarget t in targets)
+		{
+			string methodName = "TryParseDto_" + DtoMethodSuffix(t.TypeSymbol);
+			string resultFq = t.TypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			CommandModel syn = SyntheticOptionsCommand(t.Members, methodName);
+			EmitCommandRunner(
+				sb,
+				syn,
+				ImmutableArray<GlobalFilterRegistration>.Empty,
+				emitDtoTryParse: true,
+				dtoMethodName: methodName,
+				dtoResultTypeFq: resultFq,
+				dtoOptionsType: t.IsOptionsDto ? t.TypeSymbol : null);
+		}
+	}
+
+	private static void EmitDtoTypeExtensions(SourceProductionContext context, ImmutableArray<DtoBindingTarget> targets)
+	{
+		if (targets.IsEmpty)
+			return;
+
+		var sb = new StringBuilder();
+		sb.AppendLine("// <auto-generated/>");
+		sb.AppendLine("#nullable enable");
+		sb.AppendLine("using System;");
+		sb.AppendLine();
+		sb.AppendLine("namespace Nullean.Argh");
+		sb.AppendLine("{");
+		sb.AppendLine("\t/// <summary>Source-generated DTO parsers. Uses C# 14 extension members (static extensions on each DTO type) plus a <see cref=\"Type\"/>-based overload for generic dispatch.</summary>");
+		sb.AppendLine("\tpublic static class ArghTypeBindingExtensions");
+		sb.AppendLine("\t{");
+		sb.AppendLine("\t\tpublic static bool ArghTryParse<T>(this Type type, string[] args, out T? value) where T : class");
+		sb.AppendLine("\t\t{");
+		sb.AppendLine("\t\t\tvalue = null;");
+		sb.AppendLine("\t\t\tif (!ReferenceEquals(type, typeof(T)))");
+		sb.AppendLine("\t\t\t\tthrow new ArgumentException(\"The receiver must be typeof(T).\", nameof(type));");
+		foreach (DtoBindingTarget t in targets)
+		{
+			string fq = t.TypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			string method = "TryParseDto_" + DtoMethodSuffix(t.TypeSymbol);
+			sb.AppendLine($"\t\t\tif (typeof(T) == typeof({fq}))");
+			sb.AppendLine("\t\t\t{");
+			sb.AppendLine($"\t\t\t\tvar ok = ArghGenerated.{method}(args, out var v);");
+			sb.AppendLine("\t\t\t\tvalue = (T?)(object?)v;");
+			sb.AppendLine("\t\t\t\treturn ok;");
+			sb.AppendLine("\t\t\t}");
+		}
+
+		sb.AppendLine(
+			"\t\t\tthrow new InvalidOperationException(\"No pregenerated Argh DTO parser for \" + typeof(T).FullName + \". Register the type as GlobalOptions/GroupOptions or use it with [AsParameters] on a command.\");");
+		sb.AppendLine("\t\t}");
+		sb.AppendLine();
+
+		foreach (DtoBindingTarget t in targets)
+		{
+			if (t.TypeSymbol.TypeParameters.Length > 0)
+				continue;
+
+			string fq = t.TypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			string method = "TryParseDto_" + DtoMethodSuffix(t.TypeSymbol);
+			string vis = t.TypeSymbol.DeclaredAccessibility == Accessibility.Public ? "public" : "internal";
+			sb.AppendLine($"\t\textension({fq})");
+			sb.AppendLine("\t\t{");
+			sb.AppendLine($"\t\t\t{vis} static bool ArghTryParse(string[] args, out {fq}? value) =>");
+			sb.AppendLine($"\t\t\t\tglobal::Nullean.Argh.ArghGenerated.{method}(args, out value);");
+			sb.AppendLine("\t\t}");
+			sb.AppendLine();
+		}
+
+		sb.AppendLine("\t}");
+		sb.AppendLine("}");
+		context.AddSource("ArghTypeBindingExtensions.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+	}
+
+	private static void EmitFlat(SourceProductionContext context, AppEmitModel app, ImmutableArray<DtoBindingTarget> dtoTargets)
 	{
 		ImmutableArray<CommandModel> commands = app.AllCommands;
 		var sb = new StringBuilder();
@@ -1321,7 +1554,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine();
 		EmitFlatTryParseRoute(sb, commands);
 		EmitArghGeneratedRouteStringMethod(sb);
+		EmitDtoBindingMethods(sb, dtoTargets);
 		sb.AppendLine("\t}");
+		AppendArghRuntimeModuleInitializer(sb);
 		sb.AppendLine("}");
 		context.AddSource("ArghGenerated.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
 	}
@@ -1346,7 +1581,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t}");
 	}
 
-	private static void EmitHierarchical(SourceProductionContext context, AppEmitModel app)
+	private static void EmitHierarchical(SourceProductionContext context, AppEmitModel app, ImmutableArray<DtoBindingTarget> dtoTargets)
 	{
 		var sb = new StringBuilder();
 		sb.AppendLine("// <auto-generated/>");
@@ -1416,7 +1651,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tArray.Copy(args, start, r, 0, n);");
 		sb.AppendLine("\t\t\treturn r;");
 		sb.AppendLine("\t\t}");
+		EmitDtoBindingMethods(sb, dtoTargets);
 		sb.AppendLine("\t}");
+		AppendArghRuntimeModuleInitializer(sb);
 		sb.AppendLine("}");
 		context.AddSource("ArghGenerated.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
 	}
@@ -1930,7 +2167,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t};");
 	}
 
-	private static void EmitBindCollectionParameter(StringBuilder sb, ParameterModel p, bool multiFlagsAvailable)
+	private static void EmitBindCollectionParameter(StringBuilder sb, ParameterModel p, bool multiFlagsAvailable, string failureExit = "return 2")
 	{
 		string flagKey = Escape(p.CliLongName);
 		string acc = p.LocalVarName + "_acc";
@@ -1942,7 +2179,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			{
 				sb.AppendLine("\t\t\t{");
 				sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
-				sb.AppendLine("\t\t\t\treturn 2;");
+				sb.AppendLine($"\t\t\t\t{failureExit};");
 				sb.AppendLine("\t\t\t}");
 			}
 			else
@@ -1957,7 +2194,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\t\t\tforeach (var __part in {p.LocalVarName}Joined.Split(__sep_{p.LocalVarName}, StringSplitOptions.None))");
 			sb.AppendLine("\t\t\t\t{");
 			sb.AppendLine("\t\t\t\t\tif (string.IsNullOrEmpty(__part)) continue;");
-			EmitParseFromString(sb, elemModel, "__part", "__ce_" + p.LocalVarName, indentExtra: "\t\t", outVarKeyword: true);
+			EmitParseFromString(sb, elemModel, "__part", "__ce_" + p.LocalVarName, indentExtra: "\t\t", outVarKeyword: true, failureExit: failureExit);
 			sb.AppendLine($"\t\t\t\t\t{acc}.Add(__ce_{p.LocalVarName});");
 			sb.AppendLine("\t\t\t\t}");
 			sb.AppendLine("\t\t\t}");
@@ -1971,7 +2208,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\t\t\t__rawList_{p.LocalVarName} = new List<string>();");
 			sb.AppendLine($"\t\t\tforeach (var __raw in __rawList_{p.LocalVarName})");
 			sb.AppendLine("\t\t\t{");
-			EmitParseFromString(sb, elemModel, "__raw", "__ce_" + p.LocalVarName, indentExtra: "\t", outVarKeyword: true);
+			EmitParseFromString(sb, elemModel, "__raw", "__ce_" + p.LocalVarName, indentExtra: "\t", outVarKeyword: true, failureExit: failureExit);
 			sb.AppendLine($"\t\t\t\t{acc}.Add(__ce_{p.LocalVarName});");
 			sb.AppendLine("\t\t\t}");
 			if (p.IsRequired)
@@ -1979,7 +2216,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine($"\t\t\tif ({acc}.Count == 0)");
 				sb.AppendLine("\t\t\t{");
 				sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
-				sb.AppendLine("\t\t\t\treturn 2;");
+				sb.AppendLine($"\t\t\t\t{failureExit};");
 				sb.AppendLine("\t\t\t}");
 			}
 		}
@@ -2039,25 +2276,135 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
+	private static void EmitAsParametersConstructionForDto(StringBuilder sb, CommandModel cmd)
+	{
+		ParameterModel[] group = cmd.Parameters
+			.Where(static p => p.AsParametersOwnerParamName is not null)
+			.OrderBy(static p => p.AsParametersMemberOrder)
+			.ToArray();
+		if (group.Length == 0)
+		{
+			sb.AppendLine("\t\t\treturn false;");
+			return;
+		}
+
+		string? typeFq = group[0].AsParametersTypeFq;
+		if (typeFq is null)
+		{
+			sb.AppendLine("\t\t\treturn false;");
+			return;
+		}
+
+		ParameterModel[] ctor = group.Where(static p => !p.AsParametersUseInit).ToArray();
+		ParameterModel[] init = group.Where(static p => p.AsParametersUseInit).ToArray();
+		sb.Append("\t\t\tvar __dto = new ").Append(typeFq).Append("(");
+		for (int i = 0; i < ctor.Length; i++)
+		{
+			if (i > 0)
+				sb.Append(", ");
+			sb.Append(ctor[i].LocalVarName);
+		}
+
+		sb.Append(")");
+		if (init.Length > 0)
+		{
+			sb.AppendLine();
+			sb.AppendLine("\t\t\t{");
+			foreach (ParameterModel ip in init)
+				sb.AppendLine($"\t\t\t\t{ip.AsParametersClrName} = {ip.LocalVarName},");
+			sb.AppendLine("\t\t\t};");
+		}
+		else
+		{
+			sb.AppendLine(";");
+		}
+
+		sb.AppendLine("\t\t\tvalue = __dto;");
+		sb.AppendLine("\t\t\treturn true;");
+	}
+
+	private static void EmitOptionsDtoConstructionAndReturn(StringBuilder sb, INamedTypeSymbol type, ImmutableArray<ParameterModel> members)
+	{
+		string fq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		var byName = members.ToDictionary(static m => m.SymbolName, StringComparer.OrdinalIgnoreCase);
+
+		IMethodSymbol? bestCtor = null;
+		foreach (IMethodSymbol ctor in type.InstanceConstructors)
+		{
+			if (ctor.DeclaredAccessibility != Accessibility.Public)
+				continue;
+			if (ctor.Parameters.Length == 0)
+				continue;
+			if (!ctor.Parameters.All(p => byName.ContainsKey(p.Name)))
+				continue;
+			if (bestCtor is null || ctor.Parameters.Length > bestCtor.Parameters.Length)
+				bestCtor = ctor;
+		}
+
+		if (bestCtor is not null && bestCtor.Parameters.Length > 0 && bestCtor.Parameters.Length == members.Length)
+		{
+			sb.Append("\t\t\tvalue = new ").Append(fq).Append("(");
+			for (int i = 0; i < bestCtor.Parameters.Length; i++)
+			{
+				if (i > 0)
+					sb.Append(", ");
+				IParameterSymbol ps = bestCtor.Parameters[i];
+				sb.Append(byName[ps.Name].LocalVarName);
+			}
+
+			sb.AppendLine(");");
+			sb.AppendLine("\t\t\treturn true;");
+			return;
+		}
+
+		sb.AppendLine($"\t\t\tvar __dto = new {fq}();");
+		foreach (ParameterModel m in members)
+			sb.AppendLine($"\t\t\t__dto.{m.SymbolName} = {m.LocalVarName};");
+
+		sb.AppendLine("\t\t\tvalue = __dto;");
+		sb.AppendLine("\t\t\treturn true;");
+	}
+
 	private static string AsParametersConstructedVarName(string methodParameterName) =>
 		"__as_" + Naming.SanitizeIdentifier(methodParameterName);
 
-	private static void EmitCommandRunner(StringBuilder sb, CommandModel cmd, ImmutableArray<GlobalFilterRegistration> globalFilters)
+	private static void EmitCommandRunner(
+		StringBuilder sb,
+		CommandModel cmd,
+		ImmutableArray<GlobalFilterRegistration> globalFilters,
+		bool emitDtoTryParse = false,
+		string? dtoMethodName = null,
+		string? dtoResultTypeFq = null,
+		INamedTypeSymbol? dtoOptionsType = null)
 	{
 		bool anyRepeatedCollection = cmd.Parameters.Any(static p =>
 			p is { IsCollection: true, Kind: ParameterKind.Flag } && p.CollectionSeparator is null);
 
-		sb.AppendLine($"\t\tprivate static async Task<int> {cmd.RunMethodName}(string[] args, CancellationToken ct)");
-		sb.AppendLine("\t\t{");
-		sb.AppendLine("\t\t\tfor (var i = 0; i < args.Length; i++)");
-		sb.AppendLine("\t\t\t{");
-		sb.AppendLine("\t\t\t\tif (args[i] == \"--help\" || args[i] == \"-h\")");
-		sb.AppendLine("\t\t\t\t{");
-		sb.AppendLine($"\t\t\t\t\tPrintHelp_{cmd.RunMethodName}();");
-		sb.AppendLine("\t\t\t\t\treturn 0;");
-		sb.AppendLine("\t\t\t\t}");
-		sb.AppendLine("\t\t\t}");
-		sb.AppendLine();
+		string failureExit = emitDtoTryParse ? "return false" : "return 2";
+
+		if (emitDtoTryParse)
+		{
+			if (dtoMethodName is null || dtoResultTypeFq is null)
+				throw new InvalidOperationException("DTO try-parse requires method name and result type.");
+
+			sb.AppendLine($"\t\tinternal static bool {dtoMethodName}(string[] args, out {dtoResultTypeFq}? value)");
+			sb.AppendLine("\t\t{");
+			sb.AppendLine("\t\t\tvalue = null;");
+		}
+		else
+		{
+			sb.AppendLine($"\t\tprivate static async Task<int> {cmd.RunMethodName}(string[] args, CancellationToken ct)");
+			sb.AppendLine("\t\t{");
+			sb.AppendLine("\t\t\tfor (var i = 0; i < args.Length; i++)");
+			sb.AppendLine("\t\t\t{");
+			sb.AppendLine("\t\t\t\tif (args[i] == \"--help\" || args[i] == \"-h\")");
+			sb.AppendLine("\t\t\t\t{");
+			sb.AppendLine($"\t\t\t\t\tPrintHelp_{cmd.RunMethodName}();");
+			sb.AppendLine("\t\t\t\t\treturn 0;");
+			sb.AppendLine("\t\t\t\t}");
+			sb.AppendLine("\t\t\t}");
+			sb.AppendLine();
+		}
 
 		EmitCliValueDeclarations(sb, cmd);
 
@@ -2117,7 +2464,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\t\tif (i + 1 >= args.Length)");
 		sb.AppendLine("\t\t\t\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: missing value for flag --{flagName}.\");");
-		sb.AppendLine("\t\t\t\t\t\t\t\treturn 2;");
+		sb.AppendLine($"\t\t\t\t\t\t\t\t{failureExit};");
 		sb.AppendLine("\t\t\t\t\t\t\t}");
 		if (anyRepeatedCollection)
 		{
@@ -2142,10 +2489,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\tif (shortKey.Length != 1)");
 		sb.AppendLine("\t\t\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine(\"Error: short options must be a single letter (e.g. -e=value).\");");
-		sb.AppendLine("\t\t\t\t\t\t\treturn 2;");
+		sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
 		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tif (!TryApplyShortFlag(shortKey[0], a.Substring(eqs + 1)))");
-		sb.AppendLine("\t\t\t\t\t\t\treturn 2;");
+		sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
 		sb.AppendLine("\t\t\t\t\t\ti++;");
 		sb.AppendLine("\t\t\t\t\t\tcontinue;");
 		sb.AppendLine("\t\t\t\t\t}");
@@ -2155,22 +2502,22 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\tif (IsShortBoolChar(sc))");
 		sb.AppendLine("\t\t\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\t\t\tif (!TryApplyShortFlag(sc, \"true\"))");
-		sb.AppendLine("\t\t\t\t\t\t\t\treturn 2;");
+		sb.AppendLine($"\t\t\t\t\t\t\t\t{failureExit};");
 		sb.AppendLine("\t\t\t\t\t\t\ti++;");
 		sb.AppendLine("\t\t\t\t\t\t\tcontinue;");
 		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tif (i + 1 >= args.Length)");
 		sb.AppendLine("\t\t\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: missing value for short flag '-{sc}'.\");");
-		sb.AppendLine("\t\t\t\t\t\t\treturn 2;");
+		sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
 		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tif (!TryApplyShortFlag(sc, args[i + 1]))");
-		sb.AppendLine("\t\t\t\t\t\t\treturn 2;");
+		sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
 		sb.AppendLine("\t\t\t\t\t\ti += 2;");
 		sb.AppendLine("\t\t\t\t\t\tcontinue;");
 		sb.AppendLine("\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine(\"Error: combined short flags (e.g. -abc) are not supported.\");");
-		sb.AppendLine("\t\t\t\t\treturn 2;");
+		sb.AppendLine($"\t\t\t\t\t{failureExit};");
 		sb.AppendLine("\t\t\t\t}");
 		sb.AppendLine("\t\t\t\tpositionals.Add(a);");
 		sb.AppendLine("\t\t\t\ti++;");
@@ -2203,7 +2550,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 			if (p.IsCollection && p.Kind == ParameterKind.Flag)
 			{
-				EmitBindCollectionParameter(sb, p, anyRepeatedCollection);
+				EmitBindCollectionParameter(sb, p, anyRepeatedCollection, failureExit);
 				continue;
 			}
 
@@ -2213,7 +2560,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			{
 				sb.AppendLine("\t\t\t{");
 				sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
-				sb.AppendLine("\t\t\t\treturn 2;");
+				sb.AppendLine($"\t\t\t\t{failureExit};");
 				sb.AppendLine("\t\t\t}");
 			}
 			else
@@ -2222,7 +2569,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine("\t\t\t}");
 			}
 
-			EmitParseAndAssign(sb, p, p.LocalVarName + "Text", p.LocalVarName);
+			EmitParseAndAssign(sb, p, p.LocalVarName + "Text", p.LocalVarName, failureExit);
 		}
 
 		int posIndex = 0;
@@ -2236,11 +2583,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine($"\t\t\tif (positionals.Count <= {posIndex})");
 				sb.AppendLine("\t\t\t{");
 				sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: missing required argument <{Escape(p.CliLongName)}>.\");");
-				sb.AppendLine("\t\t\t\treturn 2;");
+				sb.AppendLine($"\t\t\t\t{failureExit};");
 				sb.AppendLine("\t\t\t}");
 				sb.AppendLine("\t\t\telse");
 				sb.AppendLine("\t\t\t{");
-				EmitParseFromString(sb, p, $"positionals[{posIndex}]", p.LocalVarName, indentExtra: "\t");
+				EmitParseFromString(sb, p, $"positionals[{posIndex}]", p.LocalVarName, indentExtra: "\t", failureExit: failureExit);
 				sb.AppendLine("\t\t\t}");
 			}
 			else
@@ -2250,11 +2597,23 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine($"\t\t\t\t{p.LocalVarName} = {fallback};");
 				sb.AppendLine("\t\t\telse");
 				sb.AppendLine("\t\t\t{");
-				EmitParseFromString(sb, p, $"positionals[{posIndex}]", p.LocalVarName, indentExtra: "\t");
+				EmitParseFromString(sb, p, $"positionals[{posIndex}]", p.LocalVarName, indentExtra: "\t", failureExit: failureExit);
 				sb.AppendLine("\t\t\t}");
 			}
 
 			posIndex++;
+		}
+
+		if (emitDtoTryParse)
+		{
+			if (dtoOptionsType is not null)
+				EmitOptionsDtoConstructionAndReturn(sb, dtoOptionsType, cmd.Parameters);
+			else
+				EmitAsParametersConstructionForDto(sb, cmd);
+
+			sb.AppendLine("\t\t}");
+			sb.AppendLine();
+			return;
 		}
 
 		EmitAsParametersConstruction(sb, cmd);
@@ -2578,7 +2937,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t};");
 	}
 
-	private static void EmitParseAndAssign(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar)
+	private static void EmitParseAndAssign(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string failureExit = "return 2")
 	{
 		if (!p.IsRequired && p.DefaultValueLiteral is not null)
 		{
@@ -2586,15 +2945,15 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\t\t\t{targetVar} = {p.DefaultValueLiteral};");
 			sb.AppendLine("\t\t\telse");
 			sb.AppendLine("\t\t\t{");
-			EmitParseFromString(sb, p, rawExpr, targetVar, indentExtra: "\t");
+			EmitParseFromString(sb, p, rawExpr, targetVar, indentExtra: "\t", outVarKeyword: false, failureExit: failureExit);
 			sb.AppendLine("\t\t\t}");
 		}
 		else
-			EmitParseFromString(sb, p, rawExpr, targetVar);
+			EmitParseFromString(sb, p, rawExpr, targetVar, failureExit: failureExit);
 	}
 
 	private static void EmitParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string indentExtra = "",
-		bool outVarKeyword = false)
+		bool outVarKeyword = false, string failureExit = "return 2")
 	{
 		string ind = "\t\t\t" + indentExtra;
 		string e = Escape(p.CliLongName);
@@ -2605,7 +2964,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"{ind}if (!global::System.Enum.TryParse<{p.EnumTypeFq}>({rawExpr}, true, out var __ev) || !global::System.Enum.IsDefined(typeof({p.EnumTypeFq}), __ev))");
 			sb.AppendLine($"{ind}{{");
 			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}: '{{{rawExpr}}}'.\");");
-			sb.AppendLine($"{ind}\treturn 2;");
+			sb.AppendLine($"{ind}\t{failureExit};");
 			sb.AppendLine($"{ind}}}");
 			if (outVarKeyword)
 				sb.AppendLine($"{ind}var {targetVar} = __ev;");
@@ -2637,7 +2996,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"{ind}if (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
 			sb.AppendLine($"{ind}{{");
 			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
-			sb.AppendLine($"{ind}\treturn 2;");
+			sb.AppendLine($"{ind}\t{failureExit};");
 			sb.AppendLine($"{ind}}}");
 			if (outVarKeyword)
 				sb.AppendLine($"{ind}var {targetVar} = __uri;");
@@ -2652,7 +3011,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"{ind}if (!__parser.TryParse({rawExpr}, out var __pv))");
 			sb.AppendLine($"{ind}{{");
 			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}.\");");
-			sb.AppendLine($"{ind}\treturn 2;");
+			sb.AppendLine($"{ind}\t{failureExit};");
 			sb.AppendLine($"{ind}}}");
 			if (outVarKeyword)
 				sb.AppendLine($"{ind}var {targetVar} = __pv;");
@@ -2680,7 +3039,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!int.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid int for --{e}: '{{{rawExpr}}}'.\");");
-				sb.AppendLine($"{ind}\treturn 2;");
+				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				break;
 			case BoolSpecialKind.None when p.TypeName == "long":
@@ -2688,7 +3047,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!long.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid long for --{e}: '{{{rawExpr}}}'.\");");
-				sb.AppendLine($"{ind}\treturn 2;");
+				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				break;
 			case BoolSpecialKind.None when p.TypeName == "float":
@@ -2696,7 +3055,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!float.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid float for --{e}: '{{{rawExpr}}}'.\");");
-				sb.AppendLine($"{ind}\treturn 2;");
+				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				break;
 			case BoolSpecialKind.None when p.TypeName == "double":
@@ -2704,7 +3063,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!double.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid double for --{e}: '{{{rawExpr}}}'.\");");
-				sb.AppendLine($"{ind}\treturn 2;");
+				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				break;
 			case BoolSpecialKind.None when p.TypeName == "decimal":
@@ -2712,7 +3071,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!decimal.TryParse({rawExpr}, NumberStyles.Number, CultureInfo.InvariantCulture, {Out(targetVar)}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid decimal for --{e}: '{{{rawExpr}}}'.\");");
-				sb.AppendLine($"{ind}\treturn 2;");
+				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				break;
 			case BoolSpecialKind.None when p.TypeName == "bool":

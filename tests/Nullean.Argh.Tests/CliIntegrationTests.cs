@@ -11,14 +11,14 @@ public class CliIntegrationTests
 	[Fact]
 	public async Task RunAsync_invokes_named_command_with_flag()
 	{
-		var code = await ArghGenerated.RunAsync(["hello", "--name", "test"]);
+		var code = await ArghRuntime.RunAsync(["hello", "--name", "test"]);
 		code.Should().Be(0);
 	}
 
 	[Fact]
 	public async Task RunAsync_unknown_command_returns_2()
 	{
-		var code = await ArghGenerated.RunAsync(["nope"]);
+		var code = await ArghRuntime.RunAsync(["nope"]);
 		code.Should().Be(2);
 	}
 
@@ -27,7 +27,7 @@ public class CliIntegrationTests
 	{
 		TestsGlobalFilter.InvokeCount = 0;
 		TestsPerCommandFilter.InvokeCount = 0;
-		var code = await ArghGenerated.RunAsync(["hello", "--name", "t"]);
+		var code = await ArghRuntime.RunAsync(["hello", "--name", "t"]);
 		code.Should().Be(0);
 		TestsGlobalFilter.InvokeCount.Should().Be(1);
 		TestsPerCommandFilter.InvokeCount.Should().Be(1);
@@ -41,7 +41,7 @@ public class CliIntegrationTests
 		try
 		{
 			Console.SetOut(sw);
-			var code = await ArghGenerated.RunAsync(["--completions", "bash"]);
+			var code = await ArghRuntime.RunAsync(["--completions", "bash"]);
 			code.Should().Be(0);
 			sw.ToString().Should().Contain("complete");
 		}
@@ -54,35 +54,35 @@ public class CliIntegrationTests
 	[Fact]
 	public async Task RunAsync_parses_enum_flags()
 	{
-		var code = await ArghGenerated.RunAsync(["enum-cmd", "--color", "red", "--name", "x"]);
+		var code = await ArghRuntime.RunAsync(["enum-cmd", "--color", "red", "--name", "x"]);
 		code.Should().Be(0);
 	}
 
 	[Fact]
 	public async Task RunAsync_parses_enum_case_insensitive()
 	{
-		var code = await ArghGenerated.RunAsync(["enum-cmd", "--color", "Blue", "--name", "y"]);
+		var code = await ArghRuntime.RunAsync(["enum-cmd", "--color", "Blue", "--name", "y"]);
 		code.Should().Be(0);
 	}
 
 	[Fact]
 	public async Task RunAsync_grouped_storage_list_routes()
 	{
-		var code = await ArghGenerated.RunAsync(["storage", "list"]);
+		var code = await ArghRuntime.RunAsync(["storage", "list"]);
 		code.Should().Be(0);
 	}
 
 	[Fact]
 	public async Task RunAsync_grouped_nested_blob_upload_routes()
 	{
-		var code = await ArghGenerated.RunAsync(["storage", "blob", "upload"]);
+		var code = await ArghRuntime.RunAsync(["storage", "blob", "upload"]);
 		code.Should().Be(0);
 	}
 
 	[Fact]
 	public async Task RunAsync_global_then_group_options_parse_order()
 	{
-		var code = await ArghGenerated.RunAsync(["--verbose", "storage", "--prefix", "p", "list"]);
+		var code = await ArghRuntime.RunAsync(["--verbose", "storage", "--prefix", "p", "list"]);
 		code.Should().Be(0);
 	}
 
@@ -94,7 +94,7 @@ public class CliIntegrationTests
 		try
 		{
 			Console.SetOut(sw);
-			var code = await ArghGenerated.RunAsync(["deploy", "--app-env", "prod", "--app-port", "8080"]);
+			var code = await ArghRuntime.RunAsync(["deploy", "--app-env", "prod", "--app-port", "8080"]);
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("deploy:prod:8080");
 		}
@@ -112,7 +112,7 @@ public class CliIntegrationTests
 		try
 		{
 			Console.SetOut(sw);
-			var code = await ArghGenerated.RunAsync(["tags", "--tags", "a", "--tags", "b"]);
+			var code = await ArghRuntime.RunAsync(["tags", "--tags", "a", "--tags", "b"]);
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("tags:a,b");
 		}
@@ -125,7 +125,7 @@ public class CliIntegrationTests
 	[Fact]
 	public async Task RunAsync_unknown_group_returns_2()
 	{
-		var code = await ArghGenerated.RunAsync(["nope-group", "x"]);
+		var code = await ArghRuntime.RunAsync(["nope-group", "x"]);
 		code.Should().Be(2);
 	}
 
@@ -139,7 +139,7 @@ public class CliIntegrationTests
 		{
 			Environment.SetEnvironmentVariable("NO_COLOR", "1");
 			Console.SetOut(stdout);
-			var code = await ArghGenerated.RunAsync(["hello", "--help"]);
+			var code = await ArghRuntime.RunAsync(["hello", "--help"]);
 			code.Should().Be(0);
 			stdout.ToString().Should().NotContain("\x1b");
 		}
@@ -159,7 +159,7 @@ public class CliIntegrationTests
 		try
 		{
 			Console.SetOut(sw);
-			var code = await ArghGenerated.RunAsync(["di-probe", "ping"]);
+			var code = await ArghRuntime.RunAsync(["di-probe", "ping"]);
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("probe:from-di");
 		}
@@ -168,6 +168,47 @@ public class CliIntegrationTests
 			Console.SetOut(prevOut);
 			ArghServices.ServiceProvider = null;
 		}
+	}
+
+	[Fact]
+	public void ArghTryParse_static_on_options_type_binds_global_flags()
+	{
+		var ok = TestGlobalCliOptions.ArghTryParse(["--verbose"], out var o);
+		ok.Should().BeTrue();
+		o.Should().NotBeNull();
+		o!.Verbose.Should().BeTrue();
+	}
+
+	[Fact]
+	public void ArghTryParse_static_on_group_options_binds_inherited_and_group_flags()
+	{
+		var ok = TestStorageCliOptions.ArghTryParse(
+			["--verbose", "--prefix", "pre"],
+			out var s);
+		ok.Should().BeTrue();
+		s.Should().NotBeNull();
+		s!.Verbose.Should().BeTrue();
+		s.Prefix.Should().Be("pre");
+	}
+
+	[Fact]
+	public void ArghTryParse_static_on_AsParameters_record_binds_prefixed_flags()
+	{
+		var ok = DeployCliArgs.ArghTryParse(
+			["--app-env", "prod", "--app-port", "8080"],
+			out var d);
+		ok.Should().BeTrue();
+		d.Should().NotBeNull();
+		d!.Env.Should().Be("prod");
+		d.Port.Should().Be(8080);
+	}
+
+	[Fact]
+	public void ArghTryParse_Type_extension_still_works_for_generic_dispatch()
+	{
+		var ok = typeof(TestGlobalCliOptions).ArghTryParse<TestGlobalCliOptions>(["--verbose"], out var o);
+		ok.Should().BeTrue();
+		o!.Verbose.Should().BeTrue();
 	}
 }
 

@@ -10,7 +10,7 @@ public class ArghParserRouteTests
 	[Fact]
 	public void Route_resolves_flat_command_and_remaining_arguments()
 	{
-		RouteMatch? r = ArghParser.Route("hello --name x");
+		var r = ArghParser.Route("hello --name x");
 		r.Should().NotBeNull();
 		r!.Value.CommandPath.Should().Be("hello");
 		r.Value.RemainingArgs.Should().Equal("--name", "x");
@@ -19,7 +19,7 @@ public class ArghParserRouteTests
 	[Fact]
 	public void Route_resolves_group_command_and_remaining_arguments()
 	{
-		RouteMatch? r = ArghParser.Route("storage list --verbose");
+		var r = ArghParser.Route("storage list --verbose");
 		r.Should().NotBeNull();
 		r!.Value.CommandPath.Should().Be("storage/list");
 		r.Value.RemainingArgs.Should().Equal("--verbose");
@@ -28,15 +28,12 @@ public class ArghParserRouteTests
 	[Fact]
 	public void Route_resolves_nested_group_command_path()
 	{
-		RouteMatch? r = ArghParser.Route("storage blob upload");
+		var r = ArghParser.Route("storage blob upload");
 		r.Should().NotBeNull();
 		r!.Value.CommandPath.Should().Be("storage/blob/upload");
 		r.Value.RemainingArgs.Should().BeEmpty();
 	}
 
 	[Fact]
-	public void Route_returns_null_for_root_help()
-	{
-		ArghParser.Route("--help").Should().BeNull();
-	}
+	public void Route_returns_null_for_root_help() => ArghParser.Route("--help").Should().BeNull();
 }

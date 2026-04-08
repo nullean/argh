@@ -11,8 +11,22 @@ namespace Nullean.Argh.Hosting;
 public static class ArghHostingExtensions
 {
 	/// <summary>
-	/// Records the in-memory <see cref="ArghApp"/> model for source generation (analyzed at compile time). Does not register a hosted CLI runner.
+	/// Records the <see cref="ArghApp"/> model, registers <see cref="ArghCliHostContext"/>, and adds a hosted service that
+	/// invokes <see cref="ArghRuntime.RunAsync"/> for the application assembly (registered by the source generator).
+	/// When the CLI task completes, <see cref="IHostApplicationLifetime.StopApplication"/> is called so the process can exit.
 	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="args">Arguments for source analysis and for forwarding to the generated runner.</param>
+	/// <param name="configure">Fluent registration; must mirror commands passed to the generated <c>ArghGenerated</c> entry.</param>
+	/// <remarks>
+	/// <para>
+	/// Requires a generic host (e.g. <c>Host.CreateApplicationBuilder</c>) so <see cref="IHostApplicationLifetime"/> is available.
+	/// </para>
+	/// <para>
+	/// Command <see cref="System.Threading.CancellationToken"/> parameters use a token linked from console cancellation and
+	/// <see cref="Nullean.Argh.ArghHostRuntime.ApplicationStopping"/> (set from <see cref="IHostApplicationLifetime.ApplicationStopping"/> for this run).
+	/// </para>
+	/// </remarks>
 	public static IServiceCollection AddArgh(this IServiceCollection services, string[] args, Action<IArghBuilder> configure)
 	{
 		if (services is null)
@@ -20,20 +34,27 @@ public static class ArghHostingExtensions
 		if (configure is null)
 			throw new ArgumentNullException(nameof(configure));
 
-		_ = args;
 		configure(new ArghBuilder());
+
+		services.AddSingleton(sp => new ArghCliHostContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
+		services.AddSingleton<IHostedService>(sp => new ArghCliHostedService(
+			() => ArghRuntime.RunAsync(args),
+			sp.GetRequiredService<IHostApplicationLifetime>(),
+			sp,
+			sp.GetService<ILogger<ArghCliHostedService>>()));
+
 		return services;
 	}
 
 	/// <summary>
 	/// Records the <see cref="ArghApp"/> model, registers <see cref="ArghCliHostContext"/>, and adds a hosted service that
-	/// invokes <paramref name="runCliAsync"/> (typically <c>() =&gt; ArghGenerated.RunAsync(args)</c>). When the CLI task completes,
+	/// invokes <paramref name="runCliAsync"/>. When the CLI task completes,
 	/// <see cref="IHostApplicationLifetime.StopApplication"/> is called so the process can exit.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
-	/// <param name="args">Arguments for source analysis and for forwarding to the generated runner.</param>
+	/// <param name="args">Arguments for source analysis and for forwarding to the runner.</param>
 	/// <param name="configure">Fluent registration; must mirror commands passed to the generated <c>ArghGenerated</c> entry.</param>
-	/// <param name="runCliAsync">Delegates to the app assembly’s generated <c>ArghGenerated.RunAsync</c> (or a test substitute).</param>
+	/// <param name="runCliAsync">Custom CLI entry (e.g. tests); prefer the overload without this parameter that uses <see cref="ArghRuntime.RunAsync"/>.</param>
 	/// <remarks>
 	/// <para>
 	/// Requires a generic host (e.g. <c>Host.CreateApplicationBuilder</c>) so <see cref="IHostApplicationLifetime"/> is available.

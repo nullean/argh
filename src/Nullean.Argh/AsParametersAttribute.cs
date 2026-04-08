@@ -10,13 +10,7 @@ public sealed class AsParametersAttribute : Attribute
 	/// <summary>Optional kebab-case prefix applied to every generated long name (e.g. <c>app</c> → <c>--app-name</c>).</summary>
 	public string? Prefix { get; }
 
-	public AsParametersAttribute()
-	{
-		Prefix = null;
-	}
+	public AsParametersAttribute() => Prefix = null;
 
-	public AsParametersAttribute(string prefix)
-	{
-		Prefix = prefix;
-	}
+	public AsParametersAttribute(string prefix) => Prefix = prefix;
 }

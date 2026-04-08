@@ -40,9 +40,7 @@ public static class FuzzyMatch
 				current[j] = del < ins ? (del < sub ? del : sub) : (ins < sub ? ins : sub);
 			}
 
-			var tmp = previous;
-			previous = current;
-			current = tmp;
+			(previous, current) = (current, previous);
 		}
 
 		return previous[b.Length];
@@ -83,9 +81,7 @@ public static class FuzzyMatch
 				best.Add(candidate);
 			}
 			else if (d == bestDistance)
-			{
 				best.Add(candidate);
-			}
 		}
 
 		return best;

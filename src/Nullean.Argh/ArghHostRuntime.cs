@@ -8,13 +8,13 @@ namespace Nullean.Argh;
 public static class ArghHostRuntime
 {
 	/// <summary>
-	/// When set, <see cref="ArghGenerated.RunAsync"/> links this token with console cancellation. Cleared after the CLI task completes.
+	/// When set, the generated CLI runner links this token with console cancellation. Cleared after the CLI task completes.
 	/// </summary>
 	public static CancellationToken? ApplicationStopping { get; set; }
 }
 
 /// <summary>
-/// Dependency injection hook for generated command and filter instantiation. Set by the generic host immediately before <see cref="ArghGenerated.RunAsync"/>.
+/// Dependency injection hook for generated command and filter instantiation. Set by the generic host immediately before the generated CLI run.
 /// </summary>
 /// <remarks>
 /// <para>
