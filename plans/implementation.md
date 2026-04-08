@@ -21,7 +21,7 @@ See `plans/vision.md` for design decisions behind each choice.
   - Reference `Microsoft.Extensions.Hosting`, `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Logging`, `Microsoft.Extensions.Options`
 - [ ] Set up `tests/Nullean.Argh.Tests/` (xunit, FluentAssertions — already present)
 - [ ] Confirm `IIncrementalGenerator` skeleton wires up correctly (empty Initialize)
-- [ ] Add a sample console app under `samples/` to validate end-to-end from the start
+- [ ] Add a sample console app under `examples/` to validate end-to-end from the start
 
 ### Notes
 

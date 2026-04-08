@@ -16,9 +16,9 @@
     <Project Path="src/Nullean.Argh/Nullean.Argh.csproj" />
     <Project Path="src/Nullean.Argh.Hosting/Nullean.Argh.Hosting.csproj" />
   </Folder>
-  <Folder Name="/samples/">
-    <Project Path="samples/SampleCli/SampleCli.csproj" />
-    <Project Path="samples/SampleHosted/SampleHosted.csproj" />
+  <Folder Name="/examples/">
+    <Project Path="examples/Basic/Basic.csproj" />
+    <Project Path="examples/Hosted/Hosted.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <File Path="tests/Directory.Build.props" />
