@@ -28,3 +28,24 @@ internal sealed class StorageCliCommands
 		}
 	}
 }
+
+internal interface IDiProbeService
+{
+	string Marker { get; }
+}
+
+internal sealed class DiProbeService : IDiProbeService
+{
+	public string Marker => "from-di";
+}
+
+/// <summary>Instance command type for DI resolution tests (<c>ArghServices.ServiceProvider</c>).</summary>
+internal sealed class DiProbeCommands
+{
+	private readonly IDiProbeService _svc;
+
+	public DiProbeCommands(IDiProbeService svc) => _svc = svc;
+
+	public void Ping() =>
+		System.Console.Out.WriteLine($"probe:{_svc.Marker}");
+}

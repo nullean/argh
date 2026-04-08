@@ -9,13 +9,14 @@ internal static class CliRegistrationModule
 	[ModuleInitializer]
 	internal static void RegisterCommands()
 	{
-		var app = new ArghApp();
+		IArghBuilder app = new ArghBuilder();
 		app.UseFilter<TestsGlobalFilter>();
 		app.GlobalOptions<TestGlobalCliOptions>();
 		app.Add("hello", CliTestHandlers.Hello);
 		app.Add("enum-cmd", CliTestHandlers.EnumCmd);
 		app.Add("deploy", CliTestHandlers.Deploy);
 		app.Add("tags", CliTestHandlers.Tags);
+		app.Add<DiProbeCommands>();
 		app.Group("storage", g =>
 		{
 			g.GroupOptions<TestStorageCliOptions>();

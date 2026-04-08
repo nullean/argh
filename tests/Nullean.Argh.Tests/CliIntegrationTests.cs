@@ -149,4 +149,36 @@ public class CliIntegrationTests
 			Environment.SetEnvironmentVariable("NO_COLOR", prev);
 		}
 	}
+
+	[Fact]
+	public async Task RunAsync_resolves_AddT_instance_from_ArghServices()
+	{
+		var prevOut = Console.Out;
+		var sw = new StringWriter();
+		ArghServices.ServiceProvider = new DiProbeServiceProvider();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghGenerated.RunAsync(["di-probe", "ping"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("probe:from-di");
+		}
+		finally
+		{
+			Console.SetOut(prevOut);
+			ArghServices.ServiceProvider = null;
+		}
+	}
+}
+
+internal sealed class DiProbeServiceProvider : IServiceProvider
+{
+	public object? GetService(Type serviceType)
+	{
+		if (serviceType == typeof(DiProbeCommands))
+			return new DiProbeCommands(new DiProbeService());
+		if (serviceType == typeof(IDiProbeService))
+			return new DiProbeService();
+		return null;
+	}
 }

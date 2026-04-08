@@ -1,19 +1,35 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Nullean.Argh;
 using Nullean.Argh.Hosting;
 
 var builder = Host.CreateApplicationBuilder(args);
 
+builder.Services.AddLogging();
+builder.Services.AddTransient<HostedSampleCommands>();
+
 builder.Services.AddArgh(
 	args,
-	app => app.Add("hello", Handlers.Hello),
+	(IArghBuilder app) => app.Add<HostedSampleCommands>(),
 	() => ArghGenerated.RunAsync(args));
 
 using var host = builder.Build();
 await host.RunAsync();
 
-/// <summary>Says hello to someone.</summary>
-internal static class Handlers
+/// <summary>Sample commands with constructor injection when running under the generic host.</summary>
+internal sealed class HostedSampleCommands
 {
-	public static void Hello(string name) => Console.WriteLine($"Hello, {name}!");
+	private readonly ILogger<HostedSampleCommands> _logger;
+
+	public HostedSampleCommands(ILogger<HostedSampleCommands> logger) =>
+		_logger = logger;
+
+	/// <summary>Greets by name.</summary>
+	/// <param name="name">-n,--name, Who to greet</param>
+	public void Greet(string name)
+	{
+		_logger.LogInformation("Greet invoked");
+		Console.WriteLine($"Hello, {name}!");
+	}
 }

@@ -13,7 +13,7 @@ public static class ArghHostingExtensions
 	/// <summary>
 	/// Records the in-memory <see cref="ArghApp"/> model for source generation (analyzed at compile time). Does not register a hosted CLI runner.
 	/// </summary>
-	public static IServiceCollection AddArgh(this IServiceCollection services, string[] args, Action<ArghApp> configure)
+	public static IServiceCollection AddArgh(this IServiceCollection services, string[] args, Action<IArghBuilder> configure)
 	{
 		if (services is null)
 			throw new ArgumentNullException(nameof(services));
@@ -21,7 +21,7 @@ public static class ArghHostingExtensions
 			throw new ArgumentNullException(nameof(configure));
 
 		_ = args;
-		configure(new ArghApp());
+		configure(new ArghBuilder());
 		return services;
 	}
 
@@ -39,15 +39,14 @@ public static class ArghHostingExtensions
 	/// Requires a generic host (e.g. <c>Host.CreateApplicationBuilder</c>) so <see cref="IHostApplicationLifetime"/> is available.
 	/// </para>
 	/// <para>
-	/// Command <see cref="System.Threading.CancellationToken"/> parameters in generated code are still driven by console cancellation
-	/// unless the generator is updated to prefer a host token; <see cref="ArghCliHostContext.ApplicationStopping"/> exposes the host
-	/// shutdown token for application-level use until that unification exists.
+	/// Command <see cref="System.Threading.CancellationToken"/> parameters use a token linked from console cancellation and
+	/// <see cref="Nullean.Argh.ArghHostRuntime.ApplicationStopping"/> (set from <see cref="IHostApplicationLifetime.ApplicationStopping"/> for this run).
 	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddArgh(
 		this IServiceCollection services,
 		string[] args,
-		Action<ArghApp> configure,
+		Action<IArghBuilder> configure,
 		Func<Task<int>> runCliAsync)
 	{
 		if (services is null)
@@ -57,12 +56,13 @@ public static class ArghHostingExtensions
 		if (runCliAsync is null)
 			throw new ArgumentNullException(nameof(runCliAsync));
 
-		configure(new ArghApp());
+		configure(new ArghBuilder());
 
 		services.AddSingleton(sp => new ArghCliHostContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
 		services.AddSingleton<IHostedService>(sp => new ArghCliHostedService(
 			runCliAsync,
 			sp.GetRequiredService<IHostApplicationLifetime>(),
+			sp,
 			sp.GetService<ILogger<ArghCliHostedService>>()));
 
 		return services;

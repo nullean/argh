@@ -52,4 +52,19 @@ public class ArghCliTests
 		result.ExitCode.Should().Be(0);
 		result.Stdout.Trim().Should().Be("one|two three|four");
 	}
+
+	[Fact]
+	public async Task RunAsync_string_overload_matches_RunWithCaptureAsync()
+	{
+		var result = await ArghCli.RunAsync(
+			"a b",
+			args =>
+			{
+				Console.WriteLine(string.Join(",", args));
+				return Task.FromResult(7);
+			});
+
+		result.ExitCode.Should().Be(7);
+		result.Stdout.Trim().Should().Be("a,b");
+	}
 }

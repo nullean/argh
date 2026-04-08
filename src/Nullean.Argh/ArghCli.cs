@@ -63,9 +63,20 @@ public static class ArghCli
 			throw new ArgumentNullException(nameof(commandLine));
 		if (runner is null)
 			throw new ArgumentNullException(nameof(runner));
-		var args = ParseArgs(commandLine);
+		var args = SplitCommandLine(commandLine);
 		return RunWithCaptureAsync(args, runner);
 	}
+
+	/// <summary>
+	/// Same as <see cref="RunWithCaptureAsync(string, Func{string[], Task{int}})"/> — alias for callers who prefer the name <c>RunAsync</c>.
+	/// </summary>
+	public static Task<RunResult> RunAsync(string commandLine, Func<string[], Task<int>> runner) =>
+		RunWithCaptureAsync(commandLine, runner);
+
+	/// <summary>
+	/// Splits <paramref name="commandLine"/> on whitespace; characters inside a pair of double quotes are preserved as one token (quotes are not included in the token).
+	/// </summary>
+	public static string[] SplitCommandLine(string commandLine) => ParseArgs(commandLine);
 
 	/// <summary>
 	/// Splits <paramref name="commandLine"/> on whitespace; characters inside a pair of double quotes are preserved as one token (quotes are not included in the token).

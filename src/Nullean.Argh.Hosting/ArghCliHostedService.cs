@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Nullean.Argh;
 
 namespace Nullean.Argh.Hosting;
 
@@ -10,16 +11,19 @@ internal sealed class ArghCliHostedService : IHostedService
 {
 	private readonly Func<Task<int>> _runCliAsync;
 	private readonly IHostApplicationLifetime _lifetime;
+	private readonly IServiceProvider _services;
 	private readonly ILogger<ArghCliHostedService>? _logger;
 	private Task? _runTask;
 
 	public ArghCliHostedService(
 		Func<Task<int>> runCliAsync,
 		IHostApplicationLifetime lifetime,
+		IServiceProvider services,
 		ILogger<ArghCliHostedService>? logger = null)
 	{
 		_runCliAsync = runCliAsync ?? throw new ArgumentNullException(nameof(runCliAsync));
 		_lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+		_services = services ?? throw new ArgumentNullException(nameof(services));
 		_logger = logger;
 	}
 
@@ -32,6 +36,8 @@ internal sealed class ArghCliHostedService : IHostedService
 
 	private async Task RunCliAndStopHostAsync()
 	{
+		ArghHostRuntime.ApplicationStopping = _lifetime.ApplicationStopping;
+		ArghServices.ServiceProvider = _services;
 		try
 		{
 			var exitCode = await _runCliAsync().ConfigureAwait(false);
@@ -44,6 +50,8 @@ internal sealed class ArghCliHostedService : IHostedService
 		}
 		finally
 		{
+			ArghHostRuntime.ApplicationStopping = null;
+			ArghServices.ServiceProvider = null;
 			_lifetime.StopApplication();
 		}
 	}
