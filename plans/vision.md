@@ -316,15 +316,14 @@ var cmd = new DeployCommands(mockService);
 await cmd.Deploy("production", 3);
 ```
 
-Base package exposes parse/bind helpers for CLI-layer tests:
+Base package exposes routing and capture helpers for CLI-layer tests. **Binding** for `[AsParameters]`, global options, and group options is **source-generated** into `ArghGenerated` (same idea as [ConsoleAppFramework PR #237](https://github.com/Cysharp/ConsoleAppFramework/pull/237)): there is no reflection-based `Bind<T>()` for arbitrary types.
 
 ```csharp
-// Bind args to a parameter record
-var bound = ArghParser.Bind<DeployConfig>("--env production --replicas 3");
-bound.Env.Should().Be("production");
+// Route only (no handler): same rules as RunAsync
+var match = ArghParser.Route("deploy --env production --replicas 3");
 
-// Full route + execute
-var result = await app.RunAsync("deploy --env production");
+// Full CLI with captured stdout/stderr
+var result = await ArghCli.RunWithCaptureAsync(args, ArghGenerated.RunAsync);
 result.ExitCode.Should().Be(0);
 ```
 
@@ -332,6 +331,7 @@ result.ExitCode.Should().Be(0);
 
 ## Explicit Non-Features (v1)
 
+- No reflection-based `Bind<T>()` for arbitrary DTOs — binding is **source-generated** per registered global/group/`[AsParameters]` types (see [ConsoleAppFramework PR #237](https://github.com/Cysharp/ConsoleAppFramework/pull/237) for the same design direction).
 - No JSON parsing of complex types
 - No response files (`@file.txt`)
 - No env var → flag magic (users handle via `IOptions` + DI)

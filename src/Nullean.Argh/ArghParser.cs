@@ -1,8 +1,21 @@
 namespace Nullean.Argh;
 
 /// <summary>
-/// High-level parse/bind entry points. Routing delegates to source-generated <c>ArghGenerated</c>; DTO binding is not provided for arbitrary types.
+/// Routing helpers that delegate to source-generated code in the application assembly.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Parameter binding for global options, group options, and <c>[AsParameters]</c> types is implemented as
+/// <b>pregenerated C#</b> in <c>ArghGenerated</c> (no reflection, AOT-safe), following the same idea as
+/// <see href="https://github.com/Cysharp/ConsoleAppFramework/pull/237">ConsoleAppFramework PR #237</see>:
+/// the generator emits parsers and object construction (<c>new T(...)</c>) for each registered shape.
+/// </para>
+/// <para>
+/// There is no generic <c>Bind&lt;T&gt;()</c> that parses arbitrary <typeparamref name="T"/> at runtime; that would
+/// require reflection or a non–AOT-safe registry. Tests should call generated entry points, use
+/// <see cref="ArghCli.RunWithCaptureAsync(System.Func{System.Threading.Tasks.Task{int}})"/>, or invoke handlers/DTO constructors directly.
+/// </para>
+/// </remarks>
 public static class ArghParser
 {
 	/// <summary>
@@ -14,31 +27,5 @@ public static class ArghParser
 		if (commandLine is null)
 			throw new ArgumentNullException(nameof(commandLine));
 		return ArghGeneratedRouteInvoker.Route(commandLine);
-	}
-
-	/// <summary>
-	/// Parses CLI arguments and binds them to <typeparamref name="T"/>. Not supported: the generator does not emit standalone DTO parsers; use command handlers and tests that call handler code directly.
-	/// </summary>
-	/// <typeparam name="T">CLI options or command DTO type.</typeparam>
-	/// <param name="args">Full command line as a single string (shell-style splitting is not performed here).</param>
-	/// <exception cref="NotSupportedException">Always thrown.</exception>
-	public static T Bind<T>(string args)
-	{
-		if (args is null)
-			throw new ArgumentNullException(nameof(args));
-		throw new NotSupportedException(
-			"ArghParser.Bind<T> is not supported. The source generator does not emit standalone parsers for arbitrary types '" + typeof(T).FullName + "'. Use ArghGenerated.RunAsync, ArghGenerated.TryParseRoute, or invoke your command handler from tests.");
-	}
-
-	/// <summary>
-	/// Parses CLI arguments from a character span and binds them to <typeparamref name="T"/>. Not supported for the same reasons as <see cref="Bind{T}(string)"/>.
-	/// </summary>
-	/// <typeparam name="T">CLI options or command DTO type.</typeparam>
-	/// <param name="args">Raw command-line text.</param>
-	/// <exception cref="NotSupportedException">Always thrown.</exception>
-	public static T Bind<T>(ReadOnlySpan<char> args)
-	{
-		throw new NotSupportedException(
-			"ArghParser.Bind<T> is not supported. The source generator does not emit standalone parsers for arbitrary types '" + typeof(T).FullName + "'. Use ArghGenerated.RunAsync, ArghGenerated.TryParseRoute, or invoke your command handler from tests.");
 	}
 }

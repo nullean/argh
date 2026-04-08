@@ -18,18 +18,13 @@ using var host = builder.Build();
 await host.RunAsync();
 
 /// <summary>Sample commands with constructor injection when running under the generic host.</summary>
-internal sealed class HostedSampleCommands
+internal sealed class HostedSampleCommands(ILogger<HostedSampleCommands> logger)
 {
-	private readonly ILogger<HostedSampleCommands> _logger;
-
-	public HostedSampleCommands(ILogger<HostedSampleCommands> logger) =>
-		_logger = logger;
-
 	/// <summary>Greets by name.</summary>
 	/// <param name="name">-n,--name, Who to greet</param>
 	public void Greet(string name)
 	{
-		_logger.LogInformation("Greet invoked");
+		logger.LogInformation("Greet invoked");
 		Console.WriteLine($"Hello, {name}!");
 	}
 }

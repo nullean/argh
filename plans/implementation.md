@@ -196,7 +196,7 @@ internal static partial class ArghGenerated
 
 ## Phase 8: [AsParameters] — Class-Based Binding
 
-**Goal:** Record/class parameter binding works, including prefix support and interaction with positional args.
+**Goal:** Record/class parameter binding works, including prefix support and interaction with positional args. Implementation is **pregenerated C#** in `ArghGenerated` (no runtime `Bind<T>()`), in line with [ConsoleAppFramework PR #237](https://github.com/Cysharp/ConsoleAppFramework/pull/237).
 
 ### Tasks
 
@@ -297,11 +297,11 @@ internal static partial class ArghGenerated
 
 ### Tasks
 
-- [ ] `ArghParser.Bind<TParams>(string args)` → parses args string into the parameter record/type
-- [ ] `ArghParser.Route(string args)` → returns matched command name + unmatched args
-- [ ] `app.RunAsync(string args)` overload → splits string, runs, returns `RunResult { ExitCode, Stdout, Stderr }`
-- [ ] `RunResult` captures console output written during execution
-- [ ] Document: for pure unit testing, just instantiate the command class directly
+- [x] **No** generic `ArghParser.Bind<TParams>()` — not AOT-safe (would imply reflection or a runtime registry). **DTO / global / group binding** is **pregenerated** in `ArghGenerated` per registered types, aligned with [Cysharp ConsoleAppFramework PR #237](https://github.com/Cysharp/ConsoleAppFramework/pull/237).
+- [x] `ArghParser.Route(string)` → delegates to generated route (command path + remaining args)
+- [x] `ArghCli.RunWithCaptureAsync` / string overloads → `RunResult { ExitCode, Stdout, Stderr }`
+- [x] `RunResult` captures console output written during execution
+- [x] Document: for pure unit testing, instantiate the command class directly; for `[AsParameters]` shapes, rely on generated construction inside `ArghGenerated` (or test the handler with a manually built DTO)
 
 ---
 
