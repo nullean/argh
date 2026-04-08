@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace Nullean.Argh;
+namespace Nullean.Argh.Matching;
 
 /// <summary>
 /// Edit-distance helpers for suggesting close matches (e.g. unknown command names). Uses the Levenshtein metric; no external dependencies.

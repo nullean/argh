@@ -1,4 +1,7 @@
-namespace Nullean.Argh;
+using Nullean.Argh.Filters;
+using Nullean.Argh.Runtime;
+
+namespace Nullean.Argh.Builder;
 
 /// <summary>
 /// Default <see cref="IArghBuilder"/> implementation; holds an <see cref="ArghApp"/> for source generator analysis.
@@ -61,4 +64,3 @@ public sealed class ArghBuilder : IArghBuilder
 	/// <inheritdoc cref="ArghApp.RunAsync"/>
 	public Task<int> RunAsync(string[] args) => ArghRuntime.RunAsync(args);
 }
-

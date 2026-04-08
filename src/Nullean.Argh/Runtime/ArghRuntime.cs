@@ -1,7 +1,7 @@
-namespace Nullean.Argh;
+namespace Nullean.Argh.Runtime;
 
 /// <summary>
-/// Holds delegates to the application assembly's source-generated <see cref="ArghGenerated"/> entry points,
+/// Holds delegates to the application assembly's source-generated <see cref="Nullean.Argh.ArghGenerated"/> entry points,
 /// registered by a module initializer emitted with the generator (AOT-safe, no reflection).
 /// </summary>
 public static class ArghRuntime

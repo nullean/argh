@@ -6,6 +6,7 @@
 
 using Basic;
 using Nullean.Argh;
+using Nullean.Argh.Builder;
 
 var app = new ArghApp();
 app.UseFilter<GlobalExampleFilter>();

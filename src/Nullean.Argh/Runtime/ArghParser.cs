@@ -1,4 +1,4 @@
-namespace Nullean.Argh;
+namespace Nullean.Argh.Runtime;
 
 /// <summary>
 /// Result of routing a command line to a registered command without invoking handlers.

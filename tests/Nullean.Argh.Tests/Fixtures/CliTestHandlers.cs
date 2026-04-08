@@ -1,3 +1,6 @@
+using Nullean.Argh;
+using Nullean.Argh.Parsing;
+
 namespace Nullean.Argh.Tests.Fixtures;
 
 internal enum TestColor

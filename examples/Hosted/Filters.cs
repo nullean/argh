@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Nullean.Argh;
+using Nullean.Argh.Filters;
 
 namespace Hosted;
 

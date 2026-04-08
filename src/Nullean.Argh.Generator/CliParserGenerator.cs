@@ -15,9 +15,9 @@ namespace Nullean.Argh;
 [Generator]
 public sealed class CliParserGenerator : IIncrementalGenerator
 {
-	private const string ArghAppMetadataName = "Nullean.Argh.ArghApp";
-	private const string IArghBuilderMetadataName = "Nullean.Argh.IArghBuilder";
-	private const string ArghBuilderMetadataName = "Nullean.Argh.ArghBuilder";
+	private const string ArghAppMetadataName = "Nullean.Argh.Builder.ArghApp";
+	private const string IArghBuilderMetadataName = "Nullean.Argh.Builder.IArghBuilder";
+	private const string ArghBuilderMetadataName = "Nullean.Argh.Builder.ArghBuilder";
 
 	private static readonly DiagnosticDescriptor CommandNamespaceOptionsMustExtendParent = new(
 		"AGH0004",
@@ -1046,22 +1046,27 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			#nullable enable
 			using System;
 			using System.Threading.Tasks;
+			using Nullean.Argh.Builder;
+			using Nullean.Argh.Filters;
+			using Nullean.Argh.Help;
+			using Nullean.Argh.Matching;
+			using Nullean.Argh.Runtime;
 
 			namespace Nullean.Argh
 			{
-				/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>--completions bash|zsh|fish</c> prints a shell script from <see cref="CompletionScriptTemplates"/>.</summary>
+				/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>--completions bash|zsh|fish</c> prints a shell script from <see cref="global::Nullean.Argh.Help.CompletionScriptTemplates"/>.</summary>
 				public static class ArghGenerated
 				{
 					public static Task<int> RunAsync(string[] args) =>
 						Task.FromResult(Run(args));
 
-					public static bool TryParseRoute(string[] args, out global::Nullean.Argh.RouteMatch match)
+					public static bool TryParseRoute(string[] args, out RouteMatch match)
 					{
 						match = default;
 						return false;
 					}
 
-					public static global::Nullean.Argh.RouteMatch? Route(string[] args)
+					public static RouteMatch? Route(string[] args)
 					{
 						if (args is null)
 							throw new ArgumentNullException(nameof(args));
@@ -1122,8 +1127,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					[System.Runtime.CompilerServices.ModuleInitializer]
 					internal static void RegisterArghRuntime()
 					{
-						global::Nullean.Argh.ArghRuntime.RegisterRunner(ArghGenerated.RunAsync);
-						global::Nullean.Argh.ArghRuntime.RegisterRoute(ArghGenerated.Route);
+						ArghRuntime.RegisterRunner(ArghGenerated.RunAsync);
+						ArghRuntime.RegisterRoute(ArghGenerated.Route);
 					}
 				}
 			}
@@ -1143,8 +1148,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t[System.Runtime.CompilerServices.ModuleInitializer]");
 		sb.AppendLine("\t\tinternal static void RegisterArghRuntime()");
 		sb.AppendLine("\t\t{");
-		sb.AppendLine("\t\t\tglobal::Nullean.Argh.ArghRuntime.RegisterRunner(ArghGenerated.RunAsync);");
-		sb.AppendLine("\t\t\tglobal::Nullean.Argh.ArghRuntime.RegisterRoute(ArghGenerated.Route);");
+		sb.AppendLine("\t\t\tArghRuntime.RegisterRunner(ArghGenerated.RunAsync);");
+		sb.AppendLine("\t\t\tArghRuntime.RegisterRoute(ArghGenerated.Route);");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine("\t}");
 	}
@@ -1159,17 +1164,17 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine(indent + "\tvar __entry = \"" + Escape(entryAssemblyName) + "\";");
 		sb.AppendLine(indent + "\tif (string.Equals(__shell, \"bash\", StringComparison.OrdinalIgnoreCase))");
 		sb.AppendLine(indent + "\t{");
-		sb.AppendLine(indent + "\t\tConsole.Out.Write(global::Nullean.Argh.CompletionScriptTemplates.GetBash().Replace(\"{0}\", __entry));");
+		sb.AppendLine(indent + "\t\tConsole.Out.Write(CompletionScriptTemplates.GetBash().Replace(\"{0}\", __entry));");
 		sb.AppendLine(indent + "\t\treturn 0;");
 		sb.AppendLine(indent + "\t}");
 		sb.AppendLine(indent + "\tif (string.Equals(__shell, \"zsh\", StringComparison.OrdinalIgnoreCase))");
 		sb.AppendLine(indent + "\t{");
-		sb.AppendLine(indent + "\t\tConsole.Out.Write(global::Nullean.Argh.CompletionScriptTemplates.GetZsh().Replace(\"{0}\", __entry));");
+		sb.AppendLine(indent + "\t\tConsole.Out.Write(CompletionScriptTemplates.GetZsh().Replace(\"{0}\", __entry));");
 		sb.AppendLine(indent + "\t\treturn 0;");
 		sb.AppendLine(indent + "\t}");
 		sb.AppendLine(indent + "\tif (string.Equals(__shell, \"fish\", StringComparison.OrdinalIgnoreCase))");
 		sb.AppendLine(indent + "\t{");
-		sb.AppendLine(indent + "\t\tConsole.Out.Write(global::Nullean.Argh.CompletionScriptTemplates.GetFish().Replace(\"{0}\", __entry));");
+		sb.AppendLine(indent + "\t\tConsole.Out.Write(CompletionScriptTemplates.GetFish().Replace(\"{0}\", __entry));");
 		sb.AppendLine(indent + "\t\treturn 0;");
 		sb.AppendLine(indent + "\t}");
 		sb.AppendLine(indent + "\tConsole.Error.WriteLine($\"Error: unsupported shell '{__shell}' for --completions (expected bash, zsh, or fish).\");");
@@ -1192,7 +1197,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 
 		sb.AppendLine(" };");
-		sb.AppendLine($"\t\t\t\tvar __matches = global::Nullean.Argh.FuzzyMatch.FindClosest(__tok, __cands, {FuzzyMaxDistance});");
+		sb.AppendLine($"\t\t\t\tvar __matches = FuzzyMatch.FindClosest(__tok, __cands, {FuzzyMaxDistance});");
 		sb.AppendLine("\t\t\t\tif (__matches.Count == 0)");
 		sb.AppendLine("\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown command '{__tok}'.\");");
@@ -1265,7 +1270,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 
 		sb.AppendLine(" };");
-		sb.AppendLine($"\t\t\t\tvar __matches = global::Nullean.Argh.FuzzyMatch.FindClosest(__tok, __cands, {FuzzyMaxDistance});");
+		sb.AppendLine($"\t\t\t\tvar __matches = FuzzyMatch.FindClosest(__tok, __cands, {FuzzyMaxDistance});");
 		const string kind = "command or namespace";
 		sb.AppendLine("\t\t\t\tif (__matches.Count == 0)");
 		sb.AppendLine("\t\t\t\t{");
@@ -1601,10 +1606,15 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("using System.Linq;");
 		sb.AppendLine("using System.Threading;");
 		sb.AppendLine("using System.Threading.Tasks;");
+		sb.AppendLine("using Nullean.Argh.Builder;");
+		sb.AppendLine("using Nullean.Argh.Filters;");
+		sb.AppendLine("using Nullean.Argh.Help;");
+		sb.AppendLine("using Nullean.Argh.Matching;");
+		sb.AppendLine("using Nullean.Argh.Runtime;");
 		sb.AppendLine();
 		sb.AppendLine("namespace Nullean.Argh");
 		sb.AppendLine("{");
-		sb.AppendLine("\t/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>--completions bash|zsh|fish</c> prints a shell script from <see cref=\"CompletionScriptTemplates\"/>; each <c>{0}</c> in the template is replaced with the entry assembly name (same effect as <c>string.Format</c>, but substitution uses <c>Replace</c> so shell scripts can contain literal braces).</summary>");
+		sb.AppendLine("\t/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>--completions bash|zsh|fish</c> prints a shell script from <see cref=\"global::Nullean.Argh.Help.CompletionScriptTemplates\"/>; each <c>{0}</c> in the template is replaced with the entry assembly name (same effect as <c>string.Format</c>, but substitution uses <c>Replace</c> so shell scripts can contain literal braces).</summary>");
 		sb.AppendLine("\tpublic static class ArghGenerated");
 		sb.AppendLine("\t{");
 		sb.AppendLine("\t\tpublic static Task<int> RunAsync(string[] args) =>");
@@ -1718,10 +1728,15 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("using System.Linq;");
 		sb.AppendLine("using System.Threading;");
 		sb.AppendLine("using System.Threading.Tasks;");
+		sb.AppendLine("using Nullean.Argh.Builder;");
+		sb.AppendLine("using Nullean.Argh.Filters;");
+		sb.AppendLine("using Nullean.Argh.Help;");
+		sb.AppendLine("using Nullean.Argh.Matching;");
+		sb.AppendLine("using Nullean.Argh.Runtime;");
 		sb.AppendLine();
 		sb.AppendLine("namespace Nullean.Argh");
 		sb.AppendLine("{");
-		sb.AppendLine("\t/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>--completions bash|zsh|fish</c> prints a shell script from <see cref=\"CompletionScriptTemplates\"/>; each <c>{0}</c> in the template is replaced with the entry assembly name (same effect as <c>string.Format</c>, but substitution uses <c>Replace</c> so shell scripts can contain literal braces).</summary>");
+		sb.AppendLine("\t/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>--completions bash|zsh|fish</c> prints a shell script from <see cref=\"global::Nullean.Argh.Help.CompletionScriptTemplates\"/>; each <c>{0}</c> in the template is replaced with the entry assembly name (same effect as <c>string.Format</c>, but substitution uses <c>Replace</c> so shell scripts can contain literal braces).</summary>");
 		sb.AppendLine("\tpublic static class ArghGenerated");
 		sb.AppendLine("\t{");
 		sb.AppendLine("\t\tpublic static Task<int> RunAsync(string[] args) =>");
@@ -2049,7 +2064,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 	private static void EmitArghGeneratedRouteArgsMethod(StringBuilder sb)
 	{
-		sb.AppendLine("\t\tpublic static global::Nullean.Argh.RouteMatch? Route(string[] args)");
+		sb.AppendLine("\t\tpublic static RouteMatch? Route(string[] args)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tif (args is null)");
 		sb.AppendLine("\t\t\t\tthrow new ArgumentNullException(nameof(args));");
@@ -2062,7 +2077,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 	private static void EmitFlatTryParseRoute(StringBuilder sb, ImmutableArray<CommandModel> commands)
 	{
-		sb.AppendLine("\t\tpublic static bool TryParseRoute(string[] args, out global::Nullean.Argh.RouteMatch match)");
+		sb.AppendLine("\t\tpublic static bool TryParseRoute(string[] args, out RouteMatch match)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tmatch = default;");
 		sb.AppendLine("\t\t\tif (args.Length >= 2 && args[0] == \"--completions\") return false;");
@@ -2075,7 +2090,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		{
 			string path = Escape(GetCommandRoutePath(cmd));
 			sb.AppendLine($"\t\t\t\tcase \"{Escape(cmd.CommandName)}\":");
-			sb.AppendLine($"\t\t\t\t\tmatch = new global::Nullean.Argh.RouteMatch(\"{path}\", Tail(args));");
+			sb.AppendLine($"\t\t\t\t\tmatch = new RouteMatch(\"{path}\", Tail(args));");
 			sb.AppendLine("\t\t\t\t\treturn true;");
 		}
 
@@ -2089,7 +2104,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	private static void EmitTryParseRouteHierarchical(StringBuilder sb, AppEmitModel app)
 	{
 		bool hasGlobal = app.GlobalOptionsModel is { Members: { Length: > 0 } };
-		sb.AppendLine("\t\tpublic static bool TryParseRoute(string[] args, out global::Nullean.Argh.RouteMatch match)");
+		sb.AppendLine("\t\tpublic static bool TryParseRoute(string[] args, out RouteMatch match)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tmatch = default;");
 		sb.AppendLine("\t\t\tif (args.Length >= 2 && args[0] == \"--completions\") return false;");
@@ -2115,7 +2130,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		string methodName,
 		bool isRoot)
 	{
-		sb.AppendLine($"\t\tprivate static bool {methodName}(string[] args, int[] idx, out global::Nullean.Argh.RouteMatch match)");
+		sb.AppendLine($"\t\tprivate static bool {methodName}(string[] args, int[] idx, out RouteMatch match)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tmatch = default;");
 		if (!isRoot && node.CommandNamespaceOptionsModel is { Members: { Length: > 0 } })
@@ -2132,7 +2147,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\t\t\tcase \"{caseLabel}\":");
 			sb.AppendLine("\t\t\t\t{");
 			sb.AppendLine("\t\t\t\t\tidx[0]++;");
-			sb.AppendLine($"\t\t\t\t\tmatch = new global::Nullean.Argh.RouteMatch(\"{routePath}\", TailFrom(args, idx[0]));");
+			sb.AppendLine($"\t\t\t\t\tmatch = new RouteMatch(\"{routePath}\", TailFrom(args, idx[0]));");
 			sb.AppendLine("\t\t\t\t\treturn true;");
 			sb.AppendLine("\t\t\t\t}");
 		}
@@ -3481,13 +3496,13 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (castType == "global::System.Delegate")
 		{
 			// Fallback: use DynamicInvoke
-			sb.AppendLine($"{lineIndent}var __lambdaDelegate = global::Nullean.Argh.ArghApp.GetRegisteredLambda(\"{Escape(cmd.LambdaStorageKey)}\");");
+			sb.AppendLine($"{lineIndent}var __lambdaDelegate = ArghApp.GetRegisteredLambda(\"{Escape(cmd.LambdaStorageKey)}\");");
 			sb.AppendLine($"{lineIndent}__lambdaDelegate?.DynamicInvoke({lambdaArgList});");
 			sb.AppendLine(lambdaRet0);
 		}
 		else
 		{
-			sb.AppendLine($"{lineIndent}var __lambdaDelegate = (({castType})global::Nullean.Argh.ArghApp.GetRegisteredLambda(\"{Escape(cmd.LambdaStorageKey)}\")!);");
+			sb.AppendLine($"{lineIndent}var __lambdaDelegate = (({castType})ArghApp.GetRegisteredLambda(\"{Escape(cmd.LambdaStorageKey)}\")!);");
 			string lambdaRetFq = lambdaRetType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
 			if (lambdaRetFq == "global::System.Threading.Tasks.Task" ||
 			    (lambdaRetFq.StartsWith("global::System.Threading.Tasks.Task<", System.StringComparison.Ordinal) && !lambdaIsTaskOfInt))

@@ -1,4 +1,4 @@
-namespace Nullean.Argh;
+namespace Nullean.Argh.Filters;
 
 /// <summary>
 /// Per-invocation context for command execution and filters. Populated by generated code when the filter pipeline is wired up.

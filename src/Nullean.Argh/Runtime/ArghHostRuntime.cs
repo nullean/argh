@@ -1,10 +1,10 @@
-namespace Nullean.Argh;
+namespace Nullean.Argh.Runtime;
 
 /// <summary>
 /// Host integration for the source-generated CLI entry. Set by <c>Nullean.Argh.Hosting</c> for the duration of a hosted run.
 /// </summary>
 /// <remarks>
-/// This type lives in <c>Nullean.Argh</c> (not <c>Nullean.Argh.Hosting</c>) because source-generated <c>ArghGenerated</c> references it
+/// This type lives in <c>Nullean.Argh.Runtime</c> (not <c>Nullean.Argh.Hosting</c>) because source-generated <c>ArghGenerated</c> references it
 /// without requiring a package reference to Hosting. The Hosting package assigns <see cref="ApplicationStopping"/> during a hosted run.
 /// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]

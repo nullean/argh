@@ -4,7 +4,7 @@ namespace Nullean.Argh;
 [AttributeUsage(AttributeTargets.Parameter)]
 public sealed class ArgumentAttribute : Attribute;
 
-/// <summary>Specifies an <see cref="IArgumentParser{T}"/> implementation used to parse this parameter.</summary>
+/// <summary>Specifies an <see cref="Nullean.Argh.Parsing.IArgumentParser{T}"/> implementation used to parse this parameter.</summary>
 [AttributeUsage(AttributeTargets.Parameter)]
 public sealed class ArgumentParserAttribute : Attribute
 {
@@ -42,6 +42,6 @@ public sealed class CollectionSyntaxAttribute : Attribute
 /// <summary>
 /// Associates a per-command filter with a command method. The source generator reads this metadata; it has no runtime behavior until the generator emits the filter pipeline.
 /// </summary>
-/// <typeparam name="TFilter">A type implementing <see cref="ICommandFilter"/>.</typeparam>
+/// <typeparam name="TFilter">A type implementing <see cref="Nullean.Argh.Filters.ICommandFilter"/>.</typeparam>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
-public sealed class FilterAttribute<TFilter> : Attribute where TFilter : ICommandFilter;
+public sealed class FilterAttribute<TFilter> : Attribute where TFilter : Nullean.Argh.Filters.ICommandFilter;

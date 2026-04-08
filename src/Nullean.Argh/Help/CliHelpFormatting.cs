@@ -1,4 +1,4 @@
-namespace Nullean.Argh;
+namespace Nullean.Argh.Help;
 
 /// <summary>
 /// ANSI styling for CLI help output. Disabled when <c>NO_COLOR</c> is set or stdout is redirected (non-interactive).

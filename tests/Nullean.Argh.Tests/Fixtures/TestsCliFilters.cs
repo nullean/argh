@@ -1,3 +1,5 @@
+using Nullean.Argh.Filters;
+
 namespace Nullean.Argh.Tests.Fixtures;
 
 internal sealed class TestsGlobalFilter : ICommandFilter

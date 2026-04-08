@@ -8,7 +8,7 @@ namespace Nullean.Argh.Hosting;
 /// <remarks>
 /// <para>
 /// Command <see cref="System.Threading.CancellationToken"/> parameters in generated code use a token linked from
-/// <see cref="Console.CancelKeyPress"/> and <see cref="Nullean.Argh.ArghHostRuntime.ApplicationStopping"/> (set for hosted runs).
+/// <see cref="Console.CancelKeyPress"/> and <see cref="Nullean.Argh.Runtime.ArghHostRuntime.ApplicationStopping"/> (set for hosted runs).
 /// This property exposes the same host shutdown token for application code outside the generated parser.
 /// </para>
 /// </remarks>

@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace Nullean.Argh;
+namespace Nullean.Argh.Help;
 
 /// <summary>
 /// Shells for which static completion script templates are provided (<see cref="CompletionScriptTemplates"/>).

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Nullean.Argh.Builder;
 using Nullean.Argh.Tests.Fixtures;
 
 namespace Nullean.Argh.Tests;

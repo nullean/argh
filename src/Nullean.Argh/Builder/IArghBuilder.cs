@@ -1,4 +1,6 @@
-namespace Nullean.Argh;
+using Nullean.Argh.Filters;
+
+namespace Nullean.Argh.Builder;
 
 /// <summary>
 /// Fluent registration surface for CLI commands and namespaces. Call sites are analyzed by the source generator;
@@ -30,4 +32,3 @@ public interface IArghBuilder
 	/// <inheritdoc cref="ArghApp.RunAsync"/>
 	Task<int> RunAsync(string[] args);
 }
-

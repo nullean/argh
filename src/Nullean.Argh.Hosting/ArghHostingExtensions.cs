@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Nullean.Argh.Builder;
+using Nullean.Argh.Runtime;
 
 namespace Nullean.Argh.Hosting;
 
@@ -23,7 +25,7 @@ public static class ArghHostingExtensions
 	/// </para>
 	/// <para>
 	/// Command <see cref="System.Threading.CancellationToken"/> parameters use a token linked from console cancellation and
-	/// <see cref="Nullean.Argh.ArghHostRuntime.ApplicationStopping"/> (set from <see cref="IHostApplicationLifetime.ApplicationStopping"/> for this run).
+	/// <see cref="Nullean.Argh.Runtime.ArghHostRuntime.ApplicationStopping"/> (set from <see cref="IHostApplicationLifetime.ApplicationStopping"/> for this run).
 	/// </para>
 	/// <para>
 	/// <see cref="IHostedService.StartAsync"/> runs in registration order. Prefer calling <c>AddArgh</c> <em>before</em> other
@@ -67,7 +69,7 @@ public static class ArghHostingExtensions
 	/// </para>
 	/// <para>
 	/// Command <see cref="System.Threading.CancellationToken"/> parameters use a token linked from console cancellation and
-	/// <see cref="Nullean.Argh.ArghHostRuntime.ApplicationStopping"/> (set from <see cref="IHostApplicationLifetime.ApplicationStopping"/> for this run).
+	/// <see cref="Nullean.Argh.Runtime.ArghHostRuntime.ApplicationStopping"/> (set from <see cref="IHostApplicationLifetime.ApplicationStopping"/> for this run).
 	/// </para>
 	/// <para>
 	/// <see cref="IHostedService.StartAsync"/> runs in registration order. Prefer calling <c>AddArgh</c> <em>before</em> other

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Nullean.Argh.Builder;
 
 namespace Nullean.Argh.Hosting;
 

@@ -1,4 +1,6 @@
-namespace Nullean.Argh;
+using Nullean.Argh.Filters;
+
+namespace Nullean.Argh.Builder;
 
 public sealed partial class ArghApp
 {

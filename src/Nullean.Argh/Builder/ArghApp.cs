@@ -1,4 +1,6 @@
-namespace Nullean.Argh;
+using Nullean.Argh.Runtime;
+
+namespace Nullean.Argh.Builder;
 
 /// <summary>
 /// Fluent registration surface. Call sites are analyzed by the source generator; these methods are no-ops at runtime.
