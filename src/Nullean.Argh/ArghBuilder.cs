@@ -11,12 +11,10 @@ public sealed class ArghBuilder : IArghBuilder
 	{
 	}
 
-	/// <summary>Advanced: binds to an existing <see cref="ArghApp"/> (e.g. nested hosting registration).</summary>
-	public ArghBuilder(ArghApp app) =>
+	internal ArghBuilder(ArghApp app) =>
 		_app = app ?? throw new ArgumentNullException(nameof(app));
 
-	/// <summary>The underlying app model (source generator analyzes registrations against this instance).</summary>
-	public ArghApp App => _app;
+	internal ArghApp App => _app;
 
 	public IArghBuilder GlobalOptions<T>() where T : class
 	{

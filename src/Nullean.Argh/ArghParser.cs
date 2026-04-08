@@ -25,8 +25,7 @@ public readonly struct RouteMatch(string commandPath, string[] remainingArgs)
 /// </para>
 /// <para>
 /// There is no generic <c>Bind&lt;T&gt;()</c> that parses arbitrary <typeparamref name="T"/> at runtime; that would
-/// require reflection or a non–AOT-safe registry. Tests should call generated entry points, use
-/// <see cref="ArghCli.RunWithCaptureAsync(System.Func{System.Threading.Tasks.Task{int}})"/>, or invoke handlers/DTO constructors directly.
+/// require reflection or a non–AOT-safe registry. Tests should call generated entry points, run an integration host process, or invoke handlers/DTO constructors directly.
 /// </para>
 /// </remarks>
 public static class ArghParser

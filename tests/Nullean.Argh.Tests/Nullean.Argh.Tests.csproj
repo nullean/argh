@@ -13,14 +13,24 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Nullean.Argh\Nullean.Argh.csproj" />
-    <ProjectReference Include="..\..\src\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj"
-                      ReferenceOutputAssembly="false"
-                      OutputItemType="Analyzer"
-                      PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <ProjectReference Include="..\Nullean.Argh.Tests.CliHost\Nullean.Argh.Tests.CliHost.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <!-- Copy CliHost build output next to test assembly so integration tests can `dotnet exec` the same graph as in-proc tests. -->
+  <Target Name="CopyCliHostToTestOutput" AfterTargets="Build">
+    <PropertyGroup>
+      <_CliHostDir>$(MSBuildThisFileDirectory)..\Nullean.Argh.Tests.CliHost\bin\$(Configuration)\$(TargetFramework)\</_CliHostDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CliHostFiles Include="$(_CliHostDir)*.*" Exclude="$(_CliHostDir)*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_CliHostFiles)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(_CliHostFiles)' != ''" />
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Proc" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

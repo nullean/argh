@@ -33,7 +33,7 @@ public sealed partial class ArghApp : IArghBuilder
 	}
 
 	/// <summary>Creates an <see cref="ArghApp"/> for a child namespace segment (same path rules as <see cref="AddNamespace"/>).</summary>
-	public ArghApp CreateChildApp(string name)
+	internal ArghApp CreateChildApp(string name)
 	{
 		var childPath = _commandNamespacePath.Length == 0 ? name : _commandNamespacePath + "/" + name;
 		return new ArghApp(childPath);
