@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Nullean.Argh;
 using Nullean.Argh.Builder;
-using Nullean.Argh.Filters;
+using Nullean.Argh.Middleware;
 using Nullean.Argh.Runtime;
 
 namespace Nullean.Argh.Hosting;
@@ -76,15 +76,15 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.UseFilter(Func<CommandContext, CommandFilterDelegate, ValueTask> filter)
+	IArghBuilder IArghBuilder.UseMiddleware(Func<CommandContext, CommandMiddlewareDelegate, ValueTask> middleware)
 	{
-		_ = _inner.UseFilter(filter);
+		_ = _inner.UseMiddleware(middleware);
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.UseFilter<TFilter>()
+	IArghBuilder IArghBuilder.UseMiddleware<TMiddleware>()
 	{
-		_ = _inner.UseFilter<TFilter>();
+		_ = _inner.UseMiddleware<TMiddleware>();
 		return this;
 	}
 

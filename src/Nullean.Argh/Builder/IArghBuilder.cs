@@ -1,5 +1,5 @@
 using Nullean.Argh;
-using Nullean.Argh.Filters;
+using Nullean.Argh.Middleware;
 
 namespace Nullean.Argh.Builder;
 
@@ -24,11 +24,11 @@ public interface IArghBuilder
 	/// <inheritdoc cref="ArghApp.CommandNamespaceOptions{T}"/>
 	IArghBuilder CommandNamespaceOptions<T>() where T : class;
 
-	/// <inheritdoc cref="ArghApp.UseFilter(System.Func{CommandContext, CommandFilterDelegate, System.Threading.Tasks.ValueTask})"/>
-	IArghBuilder UseFilter(Func<CommandContext, CommandFilterDelegate, ValueTask> filter);
+	/// <inheritdoc cref="ArghApp.UseMiddleware(System.Func{CommandContext, CommandMiddlewareDelegate, System.Threading.Tasks.ValueTask})"/>
+	IArghBuilder UseMiddleware(Func<CommandContext, CommandMiddlewareDelegate, ValueTask> middleware);
 
-	/// <inheritdoc cref="ArghApp.UseFilter{TFilter}"/>
-	IArghBuilder UseFilter<TFilter>() where TFilter : ICommandFilter;
+	/// <inheritdoc cref="ArghApp.UseMiddleware{TMiddleware}"/>
+	IArghBuilder UseMiddleware<TMiddleware>() where TMiddleware : ICommandMiddleware;
 
 	/// <inheritdoc cref="ArghApp.RunAsync"/>
 	Task<int> RunAsync(string[] args);

@@ -21,7 +21,7 @@ internal static class CliTestHandlers
 	/// <summary>Greet someone by name.</summary>
 	/// <example>hello --name world</example>
 	/// <param name="name">The name to greet.</param>
-	[FilterAttribute<TestsPerCommandFilter>]
+	[MiddlewareAttribute<TestsPerCommandMiddleware>]
 	public static void Hello(string name) =>
 		Console.Out.WriteLine($"ok:{name}");
 

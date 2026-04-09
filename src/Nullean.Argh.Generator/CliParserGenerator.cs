@@ -51,10 +51,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
-	private static readonly DiagnosticDescriptor UseFilterDelegateNotSupported = new(
+	private static readonly DiagnosticDescriptor UseMiddlewareDelegateNotSupported = new(
 		"AGH0006",
-		"Inline UseFilter delegate not emitted",
-		"UseFilter requires a type argument (UseFilter<T>()) for source-generated filters; inline delegates are not emitted.",
+		"Inline UseMiddleware delegate not emitted",
+		"UseMiddleware requires a type argument (UseMiddleware<T>()) for source-generated middleware; inline delegates are not emitted.",
 		"Argh",
 		DiagnosticSeverity.Warning,
 		isEnabledByDefault: true);
@@ -90,7 +90,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				static (node, _) => node is InvocationExpressionSyntax
 				{
 					Expression: MemberAccessExpressionSyntax { Name: SimpleNameSyntax name }
-				} && name.Identifier.Text is "Add" or "AddNamespace" or "GlobalOptions" or "CommandNamespaceOptions" or "UseFilter",
+				} && name.Identifier.Text is "Add" or "AddNamespace" or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware",
 				static (ctx, _) => (InvocationExpressionSyntax)ctx.Node);
 
 		IncrementalValueProvider<(Compilation Compilation, ImmutableArray<InvocationExpressionSyntax> Invocations)> combined =
@@ -136,7 +136,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			if (receiver is null || !IsArghRegistrationReceiver(receiver, arghApp, iArghBuilder, arghBuilderType))
 				continue;
 
-			if (method.Name is not ("Add" or "AddNamespace" or "GlobalOptions" or "CommandNamespaceOptions" or "UseFilter"))
+			if (method.Name is not ("Add" or "AddNamespace" or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware"))
 				continue;
 
 			filtered.Add(invocation);
@@ -233,10 +233,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		public OptionsTypeModel? GlobalOptionsModel;
 		public readonly RegistryNode Root = new();
 		public ImmutableArray<CommandModel> AllCommands = ImmutableArray<CommandModel>.Empty;
-		public ImmutableArray<GlobalFilterRegistration> GlobalFilters = ImmutableArray<GlobalFilterRegistration>.Empty;
+		public ImmutableArray<GlobalMiddlewareRegistration> GlobalMiddleware = ImmutableArray<GlobalMiddlewareRegistration>.Empty;
 	}
 
-	private sealed record GlobalFilterRegistration(INamedTypeSymbol FilterType);
+	private sealed record GlobalMiddlewareRegistration(INamedTypeSymbol MiddlewareType);
 
 	private sealed record OptionsTypeModel(INamedTypeSymbol Type, ImmutableArray<ParameterModel> Members);
 
@@ -255,8 +255,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 
 		var app = new AppEmitModel();
-		CollectGlobalFilters(context, compilation, rootInvocations, out ImmutableArray<GlobalFilterRegistration> globalFilters);
-		app.GlobalFilters = globalFilters;
+		CollectGlobalMiddleware(context, compilation, rootInvocations, out ImmutableArray<GlobalMiddlewareRegistration> globalMiddleware);
+		app.GlobalMiddleware = globalMiddleware;
 
 		ProcessInvocationsForNode(context, compilation, allInvocations, rootInvocations, app.Root, ImmutableArray<string>.Empty, app,
 			isRoot: true);
@@ -739,30 +739,30 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		return null;
 	}
 
-	private static void CollectGlobalFilters(
+	private static void CollectGlobalMiddleware(
 		SourceProductionContext context,
 		Compilation compilation,
 		List<InvocationExpressionSyntax> rootInvocations,
-		out ImmutableArray<GlobalFilterRegistration> globalFilters)
+		out ImmutableArray<GlobalMiddlewareRegistration> globalMiddleware)
 	{
-		var b = ImmutableArray.CreateBuilder<GlobalFilterRegistration>();
+		var b = ImmutableArray.CreateBuilder<GlobalMiddlewareRegistration>();
 		foreach (InvocationExpressionSyntax inv in rootInvocations)
 		{
 			SemanticModel model = compilation.GetSemanticModel(inv.SyntaxTree);
-			if (model.GetSymbolInfo(inv).Symbol is not IMethodSymbol method || method.Name != "UseFilter")
+			if (model.GetSymbolInfo(inv).Symbol is not IMethodSymbol method || method.Name != "UseMiddleware")
 				continue;
 
 			if (method.IsGenericMethod && method.TypeArguments.Length == 1 &&
 			    method.TypeArguments[0] is INamedTypeSymbol gft && gft.TypeKind != TypeKind.Error)
 			{
-				b.Add(new GlobalFilterRegistration(gft));
+				b.Add(new GlobalMiddlewareRegistration(gft));
 				continue;
 			}
 
-			context.ReportDiagnostic(Diagnostic.Create(UseFilterDelegateNotSupported, inv.GetLocation()));
+			context.ReportDiagnostic(Diagnostic.Create(UseMiddlewareDelegateNotSupported, inv.GetLocation()));
 		}
 
-		globalFilters = b.ToImmutable();
+		globalMiddleware = b.ToImmutable();
 	}
 
 	private static bool IsInjected(IParameterSymbol p)
@@ -1046,7 +1046,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			#nullable enable
 			using System;
 			using System.Threading.Tasks;
-			using Nullean.Argh.Filters;
+			using Nullean.Argh.Middleware;
 			using Nullean.Argh.Help;
 			using Nullean.Argh.Matching;
 			using Nullean.Argh.Runtime;
@@ -1526,7 +1526,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			EmitCommandRunner(
 				sb,
 				syn,
-				ImmutableArray<GlobalFilterRegistration>.Empty,
+				ImmutableArray<GlobalMiddlewareRegistration>.Empty,
 				emitDtoTryParse: true,
 				dtoMethodName: methodName,
 				dtoResultTypeFq: resultFq,
@@ -1605,7 +1605,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("using System.Linq;");
 		sb.AppendLine("using System.Threading;");
 		sb.AppendLine("using System.Threading.Tasks;");
-		sb.AppendLine("using Nullean.Argh.Filters;");
+		sb.AppendLine("using Nullean.Argh.Middleware;");
 		sb.AppendLine("using Nullean.Argh.Help;");
 		sb.AppendLine("using Nullean.Argh.Matching;");
 		sb.AppendLine("using Nullean.Argh.Runtime;");
@@ -1667,7 +1667,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine();
 
 		foreach (CommandModel cmd in commands)
-			EmitCommandRunner(sb, cmd, app.GlobalFilters);
+			EmitCommandRunner(sb, cmd, app.GlobalMiddleware);
 
 		sb.AppendLine("\t\tprivate static bool? ParseNullableBool(string? raw, bool fromYesSwitch)");
 		sb.AppendLine("\t\t{");
@@ -1726,7 +1726,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("using System.Linq;");
 		sb.AppendLine("using System.Threading;");
 		sb.AppendLine("using System.Threading.Tasks;");
-		sb.AppendLine("using Nullean.Argh.Filters;");
+		sb.AppendLine("using Nullean.Argh.Middleware;");
 		sb.AppendLine("using Nullean.Argh.Help;");
 		sb.AppendLine("using Nullean.Argh.Matching;");
 		sb.AppendLine("using Nullean.Argh.Runtime;");
@@ -1757,7 +1757,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine();
 
 		foreach (CommandModel cmd in app.AllCommands)
-			EmitCommandRunner(sb, cmd, app.GlobalFilters);
+			EmitCommandRunner(sb, cmd, app.GlobalMiddleware);
 
 		if (app.GlobalOptionsModel is { Members: { Length: > 0 } })
 			EmitOptionsTryParse(sb, "TryParseGlobalOptions", app.GlobalOptionsModel.Members);
@@ -2550,7 +2550,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	private static void EmitCommandRunner(
 		StringBuilder sb,
 		CommandModel cmd,
-		ImmutableArray<GlobalFilterRegistration> globalFilters,
+		ImmutableArray<GlobalMiddlewareRegistration> globalMiddleware,
 		bool emitDtoTryParse = false,
 		string? dtoMethodName = null,
 		string? dtoResultTypeFq = null,
@@ -2824,8 +2824,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 
 		sb.AppendLine();
-		bool useFilters = globalFilters.Length > 0 || cmd.CommandFilters.Length > 0;
-		if (!useFilters)
+		bool useMiddleware = globalMiddleware.Length > 0 || cmd.CommandMiddleware.Length > 0;
+		if (!useMiddleware)
 		{
 			sb.Append("\t\t\t");
 			EmitInvocation(sb, cmd);
@@ -2835,24 +2835,24 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		{
 			EmitCommandPathLiteral(sb, cmd);
 			sb.AppendLine("\t\t\tvar ctx = new CommandContext(commandPath, args, ct);");
-			sb.AppendLine("\t\t\tCommandFilterDelegate next = async c =>");
+			sb.AppendLine("\t\t\tCommandMiddlewareDelegate next = async c =>");
 			sb.AppendLine("\t\t\t{");
 			EmitInvocation(sb, cmd, "c.CancellationToken", "c", "\t\t\t\t");
 			sb.AppendLine("\t\t\t};");
 			var cap = 0;
-			for (int i = cmd.CommandFilters.Length - 1; i >= 0; i--)
+			for (int i = cmd.CommandMiddleware.Length - 1; i >= 0; i--)
 			{
-				string fq = cmd.CommandFilters[i].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-				bool filterParamless = HasPublicParameterlessCtor(cmd.CommandFilters[i]);
+				string fq = cmd.CommandMiddleware[i].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				bool middlewareParamless = HasPublicParameterlessCtor(cmd.CommandMiddleware[i]);
 				string name = "__cap" + cap++;
 				sb.AppendLine($"\t\t\tvar {name} = next;");
-				sb.AppendLine($"\t\t\tnext = async c => await {DiResolveOrNew(fq, filterParamless)}.InvokeAsync(c, {name});");
+				sb.AppendLine($"\t\t\tnext = async c => await {DiResolveOrNew(fq, middlewareParamless)}.InvokeAsync(c, {name});");
 			}
 
-			for (int i = globalFilters.Length - 1; i >= 0; i--)
+			for (int i = globalMiddleware.Length - 1; i >= 0; i--)
 			{
-				string gFq = globalFilters[i].FilterType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-				bool gParamless = HasPublicParameterlessCtor(globalFilters[i].FilterType);
+				string gFq = globalMiddleware[i].MiddlewareType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				bool gParamless = HasPublicParameterlessCtor(globalMiddleware[i].MiddlewareType);
 				string name = "__cap" + cap++;
 				sb.AppendLine($"\t\t\tvar {name} = next;");
 				sb.AppendLine($"\t\t\tnext = async c => await {DiResolveOrNew(gFq, gParamless)}.InvokeAsync(c, {name});");
@@ -3807,7 +3807,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		string RemarksRendered,
 		string ExamplesRendered,
 		string UsageHints,
-		ImmutableArray<INamedTypeSymbol> CommandFilters,
+		ImmutableArray<INamedTypeSymbol> CommandMiddleware,
 		bool IsLambda = false,
 		string LambdaStorageKey = "",
 		string LambdaDelegateFq = "")
@@ -3835,7 +3835,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			string usage = UsageSynopsis.Build(withDocs);
 			string runName = BuildRunMethodName(routePrefix, commandName);
 			string containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			ImmutableArray<INamedTypeSymbol> cmdFilters = CollectCommandFilters(method);
+			ImmutableArray<INamedTypeSymbol> cmdMiddleware = CollectCommandMiddleware(method);
 			bool hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt &&
 			                        HasPublicParameterlessCtor(namedCt);
 			return new CommandModel(
@@ -3853,7 +3853,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				docs.RemarksRendered,
 				docs.ExamplesRendered,
 				usage,
-				cmdFilters);
+				cmdMiddleware);
 		}
 
 		private static ImmutableArray<ParameterModel> BuildParameterModels(
@@ -3914,13 +3914,13 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			return b.ToImmutable();
 		}
 
-		private static ImmutableArray<INamedTypeSymbol> CollectCommandFilters(IMethodSymbol method)
+		private static ImmutableArray<INamedTypeSymbol> CollectCommandMiddleware(IMethodSymbol method)
 		{
 			var b = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
 			foreach (AttributeData attr in method.GetAttributes())
 			{
 				INamedTypeSymbol? ac = attr.AttributeClass;
-				if (ac is null || ac.Name != "FilterAttribute" || ac.TypeArguments.Length != 1)
+				if (ac is null || ac.Name != "MiddlewareAttribute" || ac.TypeArguments.Length != 1)
 					continue;
 				if (ac.TypeArguments[0] is INamedTypeSymbol ft && ft.TypeKind != TypeKind.Error)
 					b.Add(ft);

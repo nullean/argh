@@ -17,15 +17,15 @@ public static class ArghHostRuntime
 }
 
 /// <summary>
-/// Dependency injection hook for generated command and filter instantiation. Set by the generic host immediately before the generated CLI run.
+/// Dependency injection hook for generated command and middleware instantiation. Set by the generic host immediately before the generated CLI run.
 /// </summary>
 /// <remarks>
 /// <para>
-/// For <c>app.Add&lt;T&gt;()</c> instance methods and <c>UseFilter&lt;T&gt;()</c> / <c>[Filter&lt;T&gt;]</c>, generated code resolves
+/// For <c>app.Add&lt;T&gt;()</c> instance methods and <c>UseMiddleware&lt;T&gt;()</c> / <c>[Middleware&lt;T&gt;]</c>, generated code resolves
 /// <c>T</c> with <c>GetService(typeof(T))</c> (non-generic) when this provider is non-null; otherwise it uses <c>new T()</c>.
 /// </para>
 /// <para>
-/// Native AOT / trimming: register command and filter types in DI so required constructors are preserved; non-registered types fall back to parameterless construction.
+/// Native AOT / trimming: register command and middleware types in DI so required constructors are preserved; non-registered types fall back to parameterless construction.
 /// </para>
 /// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]

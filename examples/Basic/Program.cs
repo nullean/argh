@@ -13,9 +13,9 @@ using Basic;
 using Nullean.Argh;
 
 var app = new ArghApp();
-// Filters implement the extensible pipeline (middleware): global filters run in registration order, then per-command filters from attributes.
-app.UseFilter<GlobalExampleFilter>();
-app.UseFilter<OrderingDemoFilter>();
+// Middleware: global registrations run in order, then per-command middleware from attributes.
+app.UseMiddleware<GlobalExampleMiddleware>();
+app.UseMiddleware<OrderingDemoMiddleware>();
 app.GlobalOptions<GlobalCliOptions>();
 app.Add("hello", CommandHandlers.Hello);
 app.Add("status", CommandHandlers.Status);

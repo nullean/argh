@@ -10,7 +10,7 @@ internal static class CliRegistrationModule
 	internal static void RegisterCommands()
 	{
 		IArghBuilder app = new ArghBuilder();
-		app.UseFilter<TestsGlobalFilter>();
+		app.UseMiddleware<TestsGlobalMiddleware>();
 		app.GlobalOptions<TestGlobalCliOptions>();
 		app.Add("hello", CliTestHandlers.Hello);
 		app.Add("enum-cmd", CliTestHandlers.EnumCmd);

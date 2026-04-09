@@ -23,7 +23,7 @@ internal sealed class HostedCliCommands
 
 	/// <summary>Greets by name.</summary>
 	/// <param name="name">-n,--name, Name.</param>
-	[FilterAttribute<HostedPerCommandFilter>]
+	[MiddlewareAttribute<HostedPerCommandMiddleware>]
 	public void Hello(string name)
 	{
 		_logger.LogInformation("Hello invoked");

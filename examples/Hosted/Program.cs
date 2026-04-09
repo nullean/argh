@@ -16,16 +16,16 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddLogging(c => c.AddConsole().SetMinimumLevel(LogLevel.Information));
 
-builder.Services.AddSingleton<HostedGlobalFilter>();
-builder.Services.AddSingleton<HostedOrderingDemoFilter>();
-builder.Services.AddSingleton<HostedPerCommandFilter>();
+builder.Services.AddSingleton<HostedGlobalMiddleware>();
+builder.Services.AddSingleton<HostedOrderingDemoMiddleware>();
+builder.Services.AddSingleton<HostedPerCommandMiddleware>();
 
 builder.Services.AddArgh(
 	args,
 	app =>
 	{
-		app.UseFilter<HostedGlobalFilter>();
-		app.UseFilter<HostedOrderingDemoFilter>();
+		app.UseMiddleware<HostedGlobalMiddleware>();
+		app.UseMiddleware<HostedOrderingDemoMiddleware>();
 		app.GlobalOptions<HostedGlobalCliOptions>();
 		app.Add<HostedCliCommands>();
 		app.Add("doc-echo", HostedLocalHandlers.DocEcho);

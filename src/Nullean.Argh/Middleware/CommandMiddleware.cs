@@ -1,8 +1,11 @@
-namespace Nullean.Argh.Filters;
+namespace Nullean.Argh.Middleware;
 
 /// <summary>
-/// Per-invocation context for command execution and filters. Populated by generated code when the filter pipeline is wired up.
+/// Per-invocation context for command execution and middleware. Populated by generated code when the middleware pipeline is wired up.
 /// </summary>
+/// <remarks>
+/// Middleware does not run for root <c>--help</c>, <c>--version</c>, <c>--completions</c>, or when printing command help (<c>--help</c>/<c>-h</c>) before the handler runs.
+/// </remarks>
 public sealed class CommandContext
 {
 	/// <param name="commandPath">Segments from the app root to the matched command (e.g. group then command).</param>
@@ -24,7 +27,7 @@ public sealed class CommandContext
 	/// <summary>Leaf command name, or <see cref="string.Empty"/> when <see cref="CommandPath"/> is empty.</summary>
 	public string CommandName => CommandPath.Length == 0 ? string.Empty : CommandPath[CommandPath.Length - 1];
 
-	/// <summary>Process exit code after the command and filters complete; filters may read or assign this value.</summary>
+	/// <summary>Process exit code after the command and middleware complete; middleware may read or assign this value.</summary>
 	public int ExitCode { get; set; }
 
 	/// <summary>Cancellation token for this invocation.</summary>
@@ -32,18 +35,21 @@ public sealed class CommandContext
 }
 
 /// <summary>
-/// Represents the next stage in the command filter pipeline (following the same pattern as <c>RequestDelegate</c>).
+/// Represents the next stage in the command middleware pipeline (following the same pattern as <c>RequestDelegate</c>).
 /// </summary>
-/// <param name="context">The command context; pass through unchanged unless the filter replaces invocation state.</param>
-public delegate ValueTask CommandFilterDelegate(CommandContext context);
+/// <param name="context">The command context; pass through unchanged unless the middleware replaces invocation state.</param>
+public delegate ValueTask CommandMiddlewareDelegate(CommandContext context);
 
 /// <summary>
-/// A filter that runs after routing, around command execution.
+/// Middleware that runs after routing, around command execution.
 /// </summary>
-public interface ICommandFilter
+/// <remarks>
+/// Middleware does not run for root <c>--help</c>, <c>--version</c>, <c>--completions</c>, or when printing command help (<c>--help</c>/<c>-h</c>) before the handler runs.
+/// </remarks>
+public interface ICommandMiddleware
 {
 	/// <summary>
-	/// Invokes the filter. Call <paramref name="next"/> with <paramref name="context"/> to continue the pipeline.
+	/// Invokes the middleware. Call <paramref name="next"/> with <paramref name="context"/> to continue the pipeline.
 	/// </summary>
-	ValueTask InvokeAsync(CommandContext context, CommandFilterDelegate next);
+	ValueTask InvokeAsync(CommandContext context, CommandMiddlewareDelegate next);
 }

@@ -20,7 +20,7 @@ internal static class CommandHandlers
 {
 	/// <summary>Greets someone by name.</summary>
 	/// <param name="name">-n,--name, Name to greet.</param>
-	[FilterAttribute<PerCommandExampleFilter>]
+	[MiddlewareAttribute<PerCommandExampleMiddleware>]
 	public static void Hello(string name) =>
 		Console.WriteLine($"basic:hello:{name}");
 

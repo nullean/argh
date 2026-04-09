@@ -22,7 +22,7 @@
     <Compile Include="..\Nullean.Argh.Tests\CliRegistrationModule.cs" Link="CliRegistrationModule.cs" />
     <Compile Include="..\Nullean.Argh.Tests\Fixtures\CliTestHandlers.cs" Link="Fixtures\CliTestHandlers.cs" />
     <Compile Include="..\Nullean.Argh.Tests\Fixtures\GroupedCliCommands.cs" Link="Fixtures\GroupedCliCommands.cs" />
-    <Compile Include="..\Nullean.Argh.Tests\Fixtures\TestsCliFilters.cs" Link="Fixtures\TestsCliFilters.cs" />
+    <Compile Include="..\Nullean.Argh.Tests\Fixtures\TestsCliMiddleware.cs" Link="Fixtures\TestsCliMiddleware.cs" />
   </ItemGroup>
 
 </Project>

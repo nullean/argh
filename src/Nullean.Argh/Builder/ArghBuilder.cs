@@ -1,5 +1,5 @@
 using Nullean.Argh;
-using Nullean.Argh.Filters;
+using Nullean.Argh.Middleware;
 using Nullean.Argh.Runtime;
 
 namespace Nullean.Argh.Builder;
@@ -50,15 +50,15 @@ public sealed class ArghBuilder : IArghBuilder
 		return this;
 	}
 
-	public IArghBuilder UseFilter(Func<CommandContext, CommandFilterDelegate, ValueTask> filter)
+	public IArghBuilder UseMiddleware(Func<CommandContext, CommandMiddlewareDelegate, ValueTask> middleware)
 	{
-		_ = _app.UseFilter(filter);
+		_ = _app.UseMiddleware(middleware);
 		return this;
 	}
 
-	public IArghBuilder UseFilter<TFilter>() where TFilter : ICommandFilter
+	public IArghBuilder UseMiddleware<TMiddleware>() where TMiddleware : ICommandMiddleware
 	{
-		_ = _app.UseFilter<TFilter>();
+		_ = _app.UseMiddleware<TMiddleware>();
 		return this;
 	}
 

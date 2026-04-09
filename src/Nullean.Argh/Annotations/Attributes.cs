@@ -40,8 +40,8 @@ public sealed class CollectionSyntaxAttribute : Attribute
 }
 
 /// <summary>
-/// Associates a per-command filter with a command method. The source generator reads this metadata; it has no runtime behavior until the generator emits the filter pipeline.
+/// Associates per-command middleware with a command method. The source generator reads this metadata; it has no runtime behavior until the generator emits the middleware pipeline.
 /// </summary>
-/// <typeparam name="TFilter">A type implementing <see cref="Nullean.Argh.Filters.ICommandFilter"/>.</typeparam>
+/// <typeparam name="TMiddleware">A type implementing <see cref="Nullean.Argh.Middleware.ICommandMiddleware"/>.</typeparam>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
-public sealed class FilterAttribute<TFilter> : Attribute where TFilter : Nullean.Argh.Filters.ICommandFilter;
+public sealed class MiddlewareAttribute<TMiddleware> : Attribute where TMiddleware : Nullean.Argh.Middleware.ICommandMiddleware;
