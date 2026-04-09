@@ -12,6 +12,7 @@ internal static class CliRegistrationModule
 		IArghBuilder app = new ArghBuilder();
 		app.UseMiddleware<TestsGlobalMiddleware>();
 		app.GlobalOptions<TestGlobalCliOptions>();
+		app.AddRootCommand(CliRootDefault);
 		app.Add("hello", CliTestHandlers.Hello);
 		app.Add("enum-cmd", CliTestHandlers.EnumCmd);
 		app.Add("deploy", CliTestHandlers.Deploy);
@@ -26,10 +27,10 @@ internal static class CliRegistrationModule
 		// Anonymous lambdas have no XML docs; use a named handler (e.g. DocLambdaEcho) for help text.
 		app.Add("lambda-cmd", (string msg) => Console.Out.WriteLine($"lambda:{msg}"));
 		app.Add<DiProbeCommands>();
-		app.AddNamespace("storage", g =>
+		app.AddNamespace<StorageCliCommands>("storage", g =>
 		{
 			g.CommandNamespaceOptions<TestStorageCommandNamespaceOptions>();
-			g.Add<StorageCliCommands>();
+			g.AddNamespaceRootCommand(StorageNamespaceRoot);
 		});
 	}
 
@@ -38,5 +39,15 @@ internal static class CliRegistrationModule
 	/// <example>doc-lambda --line hi</example>
 	internal static void DocLambdaEcho(string line) =>
 		Console.Out.WriteLine($"doc-lambda:{line}");
+
+	/// <summary>Integration-test default when no subcommand is given at the app root.</summary>
+	/// <remarks>Root default remarks for help layout tests.</remarks>
+	internal static void CliRootDefault() =>
+		Console.Out.WriteLine("marker:root-default");
+
+	/// <summary>Integration-test default when only the <c>storage</c> namespace is selected.</summary>
+	/// <remarks>Namespace default remarks for help layout tests.</remarks>
+	internal static void StorageNamespaceRoot() =>
+		Console.Out.WriteLine("marker:storage-ns-root");
 }
 

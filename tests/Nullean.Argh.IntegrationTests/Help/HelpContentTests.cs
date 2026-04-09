@@ -19,6 +19,8 @@ public class HelpContentTests
 		var expected = ($"""
 			Usage: {CliHostPaths.CliHostAssemblyName} hello --name <string>
 
+			   Greet someone by name.
+
 			Global options:
 			  --verbose        
 			  --help, -h       Show help.
@@ -40,6 +42,8 @@ public class HelpContentTests
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		var expected = ($"""
 			Usage: {CliHostPaths.CliHostAssemblyName} doc-lambda --line <string>
+
+			   Documented handler for lambda-style Add (XML appears in help).
 
 			Global options:
 			  --verbose        

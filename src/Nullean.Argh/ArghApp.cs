@@ -28,8 +28,43 @@ public sealed partial class ArghApp : IArghBuilder
 	/// <summary>Registers every public method on <typeparamref name="T"/> as a command.</summary>
 	public ArghApp Add<T>() where T : class => this;
 
-	/// <summary>Creates a nested command namespace (ASP.NET <c>MapGroup</c> style).</summary>
-	public ArghApp AddNamespace(string name, Action<IArghBuilder> configure)
+	/// <summary>
+	/// Registers a default handler when no subcommand or namespace segment is given (e.g. <c>app</c> or <c>app --verbose</c> with only global options).
+	/// Only valid on the root <see cref="ArghApp"/>; analyzed by the source generator.
+	/// </summary>
+	public ArghApp AddRootCommand(Delegate handler)
+	{
+		if (_commandNamespacePath.Length == 0)
+			Lambdas["__argh_root"] = handler;
+		return this;
+	}
+
+	/// <summary>
+	/// Registers a default handler for the current namespace when no deeper subcommand is given (e.g. <c>app group</c> after namespace options).
+	/// Only valid inside <see cref="AddNamespace"/> configuration; analyzed by the source generator.
+	/// </summary>
+	public ArghApp AddNamespaceRootCommand(Delegate handler)
+	{
+		if (_commandNamespacePath.Length > 0)
+			Lambdas[_commandNamespacePath + "/__argh_root"] = handler;
+		return this;
+	}
+
+	/// <summary>
+	/// Creates a nested command namespace (ASP.NET <c>MapGroup</c> style). The description is shown in root/namespace <c>--help</c> listings; use <see cref="string.Empty"/> when you want no prose.
+	/// </summary>
+	public ArghApp AddNamespace(string name, string description, Action<IArghBuilder> configure)
+	{
+		_ = description;
+		configure(new ArghBuilder(CreateChildApp(name)));
+		return this;
+	}
+
+	/// <summary>
+	/// Creates a nested namespace; the listing description is taken from the XML <c>&lt;summary&gt;</c> on <typeparamref name="T"/>.
+	/// Public commands on <typeparamref name="T"/> (and nested handler classes) are registered automatically—do not call <c>Add&lt;T&gt;()</c> again inside the configure callback.
+	/// </summary>
+	public ArghApp AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
 	{
 		configure(new ArghBuilder(CreateChildApp(name)));
 		return this;

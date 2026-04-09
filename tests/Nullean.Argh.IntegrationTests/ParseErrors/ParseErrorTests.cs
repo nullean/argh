@@ -25,6 +25,8 @@ public class ParseErrorTests
 		var expectedOut = ($"""
 			Usage: {CliHostPaths.CliHostAssemblyName} hello --name <string>
 
+			   Greet someone by name.
+
 			Global options:
 			  --verbose        
 			  --help, -h       Show help.

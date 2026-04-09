@@ -19,6 +19,7 @@
   <Folder Name="/examples/">
     <Project Path="examples/Basic/Basic.csproj" />
     <Project Path="examples/Hosted/Hosted.csproj" />
+    <Project Path="examples/HostedRoot/HostedRoot.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <File Path="tests/Directory.Build.props" />

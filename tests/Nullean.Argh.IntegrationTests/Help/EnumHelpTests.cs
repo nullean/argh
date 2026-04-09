@@ -18,6 +18,8 @@ public class EnumHelpTests
 		var expected = ($"""
 			Usage: {CliHostPaths.CliHostAssemblyName} enum-cmd --color <string> --name <string>
 
+			   Enum and short options.
+
 			Global options:
 			  --verbose         
 			  --help, -h        Show help.

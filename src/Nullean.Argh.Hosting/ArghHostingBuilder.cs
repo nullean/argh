@@ -45,8 +45,19 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 	public IArghHostingBuilder AddSingleton<T>() where T : class =>
 		Add<T>(ServiceLifetime.Singleton);
 
-	public IArghHostingBuilder AddNamespace(string name, Action<IArghBuilder> configure)
+	public IArghHostingBuilder AddNamespace(string name, string description, Action<IArghBuilder> configure)
 	{
+		_ = description;
+		var childApp = _inner.App.CreateChildApp(name);
+		configure(new ArghHostingBuilder(_services, childApp));
+		return this;
+	}
+
+	/// <inheritdoc cref="IArghBuilder.AddNamespace{T}(string, Action{IArghBuilder})"/>
+	/// <remarks>Registers <typeparamref name="T"/> with the same default lifetime as <see cref="Add{T}()"/> so handler instances resolve from DI without a separate <c>Add&lt;T&gt;()</c> inside the callback.</remarks>
+	public IArghHostingBuilder AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
+	{
+		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), ServiceLifetime.Transient));
 		var childApp = _inner.App.CreateChildApp(name);
 		configure(new ArghHostingBuilder(_services, childApp));
 		return this;
@@ -67,8 +78,23 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 	IArghBuilder IArghBuilder.Add<T>() where T : class =>
 		Add<T>();
 
-	IArghBuilder IArghBuilder.AddNamespace(string name, Action<IArghBuilder> configure) =>
-		AddNamespace(name, configure);
+	IArghBuilder IArghBuilder.AddRootCommand(Delegate handler)
+	{
+		_ = _inner.AddRootCommand(handler);
+		return this;
+	}
+
+	IArghBuilder IArghBuilder.AddNamespaceRootCommand(Delegate handler)
+	{
+		_ = _inner.AddNamespaceRootCommand(handler);
+		return this;
+	}
+
+	IArghBuilder IArghBuilder.AddNamespace(string name, string description, Action<IArghBuilder> configure) =>
+		AddNamespace(name, description, configure);
+
+	IArghBuilder IArghBuilder.AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class =>
+		AddNamespace<T>(name, configure);
 
 	IArghBuilder IArghBuilder.CommandNamespaceOptions<T>() where T : class
 	{

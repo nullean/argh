@@ -18,6 +18,9 @@ public interface IArghHostingBuilder : IArghBuilder
 	IArghHostingBuilder AddScoped<T>() where T : class;
 	IArghHostingBuilder AddSingleton<T>() where T : class;
 
-	/// <inheritdoc cref="IArghBuilder.AddNamespace"/>
-	new IArghHostingBuilder AddNamespace(string name, Action<IArghBuilder> configure);
+	/// <inheritdoc cref="IArghBuilder.AddNamespace(string, string, Action{IArghBuilder})"/>
+	new IArghHostingBuilder AddNamespace(string name, string description, Action<IArghBuilder> configure);
+
+	/// <inheritdoc cref="IArghBuilder.AddNamespace{T}(string, Action{IArghBuilder})"/>
+	new IArghHostingBuilder AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class;
 }

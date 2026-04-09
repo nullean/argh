@@ -17,31 +17,38 @@ public class RootAndNamespaceHelpTests
 		var expected = ($"""
 			Usage: {CliHostPaths.CliHostAssemblyName} <namespace|command> [options]
 
+			 (default command)
+			   Integration-test default when no subcommand is given at the app root.
+			   Root default remarks for help layout tests.
+
 			Global options:
-			  --verbose  
+			  --verbose   
 			  --help, -h  Show help.
-			  --version  Show version.
+			  --version   Show version.
 
 			Namespaces:
-			  di-probe
-			  storage
+			  di-probe  Instance command type for DI resolution tests
+			            (ArghServices.ServiceProvider).
+			  storage   Commands under storage; nested class becomes storage blob nested
+			            namespace.
 
 			Commands:
-			  hello    
-			  enum-cmd    
-			  deploy    
-			  tags    
-			  dry-run-cmd    
-			  count-cmd    
-			  file-cmd    
+			  hello        Greet someone by name.
+			  enum-cmd     Enum and short options.
+			  deploy     
+			  tags       
+			  dry-run-cmd
+			  count-cmd  
+			  file-cmd   
 			  dir-cmd    
 			  uri-cmd    
-			  point-cmd    
-			  doc-lambda    
-			  lambda-cmd    
+			  point-cmd  
+			  doc-lambda   Documented handler for lambda-style Add (XML appears in help).
+			  lambda-cmd 
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
-		text.Should().NotContain("blob");
+		var fromCommands = text.Substring(text.IndexOf("Commands:", StringComparison.Ordinal));
+		fromCommands.Should().NotContain("blob");
 	}
 
 	[Fact]
@@ -56,6 +63,10 @@ public class RootAndNamespaceHelpTests
 		var expected = ($"""
 			Usage: {CliHostPaths.CliHostAssemblyName} storage <command> [options]
 
+			 (default command)
+			   Integration-test default when only the storage namespace is selected.
+			   Namespace default remarks for help layout tests.
+
 			Global options:
 			  --verbose          
 			  --help, -h         Show help.
@@ -67,7 +78,7 @@ public class RootAndNamespaceHelpTests
 			  storage blob
 
 			Commands:
-			  storage list    
+			  storage list
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
 		text.Should().NotContain("hello");

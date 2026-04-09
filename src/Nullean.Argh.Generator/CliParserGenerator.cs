@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -83,6 +84,62 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor DuplicateRootCommand = new(
+		"AGH0010",
+		"Duplicate root command",
+		"Only one AddRootCommand or AddNamespaceRootCommand is allowed per registration scope.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor AddRootCommandOnlyAtAppRoot = new(
+		"AGH0011",
+		"AddRootCommand only on the root app",
+		"Use AddRootCommand on the root ArghApp only (not inside AddNamespace). For a namespace default handler, use AddNamespaceRootCommand.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor AddNamespaceRootCommandOnlyInNamespace = new(
+		"AGH0012",
+		"AddNamespaceRootCommand only inside a namespace",
+		"Use AddNamespaceRootCommand inside AddNamespace configuration. For the top-level default, use AddRootCommand.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor ReservedCommandNameRoot = new(
+		"AGH0013",
+		"Reserved command name",
+		"The name '{0}' is reserved for root default commands; choose a different command name.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor AddNamespaceRequiresExplicitDescriptionOrType = new(
+		"AGH0014",
+		"AddNamespace requires a description or entry type",
+		"Use AddNamespace(string name, string description, Action<IArghBuilder> configure) with an explicit description (may be empty), or AddNamespace<T>(string name, Action<IArghBuilder> configure) to use type T's XML summary for the namespace listing.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor AddNamespaceDescriptionNotConstant = new(
+		"AGH0015",
+		"AddNamespace description not a compile-time string",
+		"The description argument must be a string literal or const string so the generator can emit namespace help text.",
+		"Argh",
+		DiagnosticSeverity.Warning,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor RedundantAddInsideAddNamespaceT = new(
+		"AGH0016",
+		"Redundant Add<T> inside AddNamespace<T>",
+		"AddNamespace<{0}> already registers public commands from that type; remove the inner Add<{0}> call.",
+		"Argh",
+		DiagnosticSeverity.Warning,
+		isEnabledByDefault: true);
+
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		IncrementalValuesProvider<InvocationExpressionSyntax> invocations = context.SyntaxProvider
@@ -90,7 +147,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				static (node, _) => node is InvocationExpressionSyntax
 				{
 					Expression: MemberAccessExpressionSyntax { Name: SimpleNameSyntax name }
-				} && name.Identifier.Text is "Add" or "AddNamespace" or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware",
+				} && name.Identifier.Text is "Add" or "AddNamespace" or "AddRootCommand" or "AddNamespaceRootCommand" or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware",
 				static (ctx, _) => (InvocationExpressionSyntax)ctx.Node);
 
 		IncrementalValueProvider<(Compilation Compilation, ImmutableArray<InvocationExpressionSyntax> Invocations)> combined =
@@ -136,7 +193,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			if (receiver is null || !IsArghRegistrationReceiver(receiver, arghApp, iArghBuilder, arghBuilderType))
 				continue;
 
-			if (method.Name is not ("Add" or "AddNamespace" or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware"))
+			if (method.Name is not ("Add" or "AddNamespace" or "AddRootCommand" or "AddNamespaceRootCommand" or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware"))
 				continue;
 
 			filtered.Add(invocation);
@@ -214,6 +271,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 	private sealed class RegistryNode
 	{
+		public CommandModel? RootCommand;
 		public readonly List<CommandModel> Commands = new();
 		public readonly List<NamedCommandNamespaceChild> Children = new();
 		public INamedTypeSymbol? CommandNamespaceOptionsType;
@@ -224,6 +282,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		{
 			public string Segment = "";
 			public RegistryNode Node = null!;
+			/// <summary>First non-empty XML summary from the first generic <c>Add</c> handler type in this namespace block.</summary>
+			public string SummaryOneLiner = "";
 		}
 	}
 
@@ -344,6 +404,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 	private static void CollectCommands(RegistryNode node, List<CommandModel> sink)
 	{
+		if (node.RootCommand is { } rc)
+			sink.Add(rc);
 		sink.AddRange(node.Commands);
 		foreach (RegistryNode.NamedCommandNamespaceChild child in node.Children)
 			CollectCommands(child.Node, sink);
@@ -404,6 +466,24 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				case "AddNamespace":
 					ProcessAddNamespaceInvocation(context, compilation, allInvocations, invocation, node, currentPath, app);
 					break;
+				case "AddRootCommand":
+					if (!isRoot)
+					{
+						context.ReportDiagnostic(Diagnostic.Create(AddRootCommandOnlyAtAppRoot, invocation.GetLocation()));
+						break;
+					}
+
+					ExpandAddRootCommand(context, GetModel(invocation), invocation, currentPath, node);
+					break;
+				case "AddNamespaceRootCommand":
+					if (isRoot)
+					{
+						context.ReportDiagnostic(Diagnostic.Create(AddNamespaceRootCommandOnlyInNamespace, invocation.GetLocation()));
+						break;
+					}
+
+					ExpandAddRootCommand(context, GetModel(invocation), invocation, currentPath, node);
+					break;
 				case "Add" when method.IsGenericMethod:
 				{
 					ITypeSymbol? typeArg = method.TypeArguments.Length > 0 ? method.TypeArguments[0] : null;
@@ -443,12 +523,61 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (string.IsNullOrWhiteSpace(segmentName))
 			return;
 
+		SemanticModel model = compilation.GetSemanticModel(addNamespaceInvocation.SyntaxTree);
+		if (model.GetSymbolInfo(addNamespaceInvocation).Symbol is not IMethodSymbol addNsMethod ||
+		    addNsMethod.Name != "AddNamespace")
+			return;
+
+		string nsSummary = "";
+		bool genericEntry = addNsMethod.IsGenericMethod && addNsMethod.TypeArguments.Length == 1;
+		int argCount = addNamespaceInvocation.ArgumentList.Arguments.Count;
+		INamedTypeSymbol? namespaceEntryType = null;
+
+		if (genericEntry && argCount == 2)
+		{
+			if (addNsMethod.TypeArguments[0] is INamedTypeSymbol entryType && entryType.TypeKind != TypeKind.Error)
+			{
+				namespaceEntryType = entryType;
+				nsSummary = GetTypeListingSummaryOneLiner(entryType);
+			}
+		}
+		else if (argCount >= 3)
+		{
+			string? desc = TryGetStringConstant(model, addNamespaceInvocation.ArgumentList.Arguments[1].Expression);
+			if (desc is null)
+			{
+				context.ReportDiagnostic(Diagnostic.Create(
+					AddNamespaceDescriptionNotConstant,
+					addNamespaceInvocation.ArgumentList.Arguments[1].GetLocation()));
+			}
+			else
+				nsSummary = desc;
+		}
+		else
+		{
+			context.ReportDiagnostic(Diagnostic.Create(
+				AddNamespaceRequiresExplicitDescriptionOrType,
+				addNamespaceInvocation.GetLocation()));
+			return;
+		}
+
 		var childNode = new RegistryNode();
 		var childInvocations = new List<InvocationExpressionSyntax>();
 		foreach (InvocationExpressionSyntax inv in allInvocations)
 		{
-			if (FindParentAddNamespaceInvocation(inv) is { } p && ReferenceEquals(p, addNamespaceInvocation))
-				childInvocations.Add(inv);
+			if (FindParentAddNamespaceInvocation(inv) is not { } p || !ReferenceEquals(p, addNamespaceInvocation))
+				continue;
+			if (namespaceEntryType is not null &&
+			    IsRedundantGenericAddForNamespaceEntry(inv, namespaceEntryType, compilation))
+			{
+				context.ReportDiagnostic(Diagnostic.Create(
+					RedundantAddInsideAddNamespaceT,
+					inv.GetLocation(),
+					namespaceEntryType.Name));
+				continue;
+			}
+
+			childInvocations.Add(inv);
 		}
 
 		childInvocations.Sort(static (a, b) =>
@@ -464,33 +593,62 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		ImmutableArray<string> childPath = AppendSegment(parentPath, segmentName!);
 		ProcessInvocationsForNode(context, compilation, allInvocations, childInvocations, childNode, childPath, app,
 			isRoot: false);
-		parentNode.Children.Add(new RegistryNode.NamedCommandNamespaceChild { Segment = segmentName!, Node = childNode });
+		if (namespaceEntryType is not null)
+		{
+			CSharpParseOptions parseOpts = addNamespaceInvocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
+			ExpandTypeRegistration(context, addNamespaceInvocation, namespaceEntryType, childPath, mergeOuterTypeSegment: true,
+				childNode, parseOpts);
+		}
+
+		parentNode.Children.Add(new RegistryNode.NamedCommandNamespaceChild
+		{
+			Segment = segmentName!,
+			Node = childNode,
+			SummaryOneLiner = nsSummary
+		});
 	}
 
 	private static InvocationExpressionSyntax? FindParentAddNamespaceInvocation(InvocationExpressionSyntax invocation)
 	{
 		for (SyntaxNode? n = invocation.Parent; n != null; n = n.Parent)
 		{
-			if (n is LambdaExpressionSyntax lambda && IsSecondArgOfAddNamespaceLambda(lambda, out InvocationExpressionSyntax addNamespaceInv))
+			if (n is LambdaExpressionSyntax lambda && IsAddNamespaceConfigureLambda(lambda, out InvocationExpressionSyntax addNamespaceInv))
 				return addNamespaceInv;
 		}
 
 		return null;
 	}
 
-	private static bool IsSecondArgOfAddNamespaceLambda(LambdaExpressionSyntax lambda, out InvocationExpressionSyntax addNamespaceInv)
+	private static bool IsAddNamespaceConfigureLambda(LambdaExpressionSyntax lambda, out InvocationExpressionSyntax addNamespaceInv)
 	{
 		addNamespaceInv = null!;
 		if (lambda.Parent is not ArgumentSyntax { Parent: ArgumentListSyntax al })
 			return false;
 		if (al.Parent is not InvocationExpressionSyntax inv)
 			return false;
-		if (inv.Expression is not MemberAccessExpressionSyntax ma || ma.Name.Identifier.Text != "AddNamespace")
+		if (inv.Expression is not MemberAccessExpressionSyntax ma || ma.Name is not SimpleNameSyntax sns ||
+		    sns.Identifier.Text != "AddNamespace")
 			return false;
-		if (al.Arguments.Count < 2 || !ReferenceEquals(al.Arguments[1].Expression, lambda))
+		int last = al.Arguments.Count - 1;
+		if (last < 1 || !ReferenceEquals(al.Arguments[last].Expression, lambda))
 			return false;
 		addNamespaceInv = inv;
 		return true;
+	}
+
+	private static bool IsRedundantGenericAddForNamespaceEntry(
+		InvocationExpressionSyntax inv,
+		INamedTypeSymbol namespaceEntryType,
+		Compilation compilation)
+	{
+		SemanticModel model = compilation.GetSemanticModel(inv.SyntaxTree);
+		if (model.GetSymbolInfo(inv).Symbol is not IMethodSymbol method || method.Name != "Add" || !method.IsGenericMethod)
+			return false;
+		if (method.TypeArguments.Length != 1)
+			return false;
+		if (method.TypeArguments[0] is not INamedTypeSymbol addType || addType.TypeKind == TypeKind.Error)
+			return false;
+		return SymbolEqualityComparer.Default.Equals(addType, namespaceEntryType);
 	}
 
 	private static void ExpandAddStringDelegate(
@@ -506,6 +664,12 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		string? commandName = TryGetStringLiteral(nameExpr);
 		if (commandName is null || string.IsNullOrWhiteSpace(commandName))
 			return;
+
+		if (commandName.Equals("__argh_root", StringComparison.OrdinalIgnoreCase))
+		{
+			context.ReportDiagnostic(Diagnostic.Create(ReservedCommandNameRoot, nameExpr.GetLocation(), commandName));
+			return;
+		}
 
 		// Detect lambda expressions — handle them as stored-delegate commands
 		if (handlerExpr is LambdaExpressionSyntax)
@@ -607,6 +771,98 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		targetNode.Commands.Add(cmd);
 	}
 
+	private const string RootDefaultInternalCommandName = "__argh_root";
+
+	private static void ExpandAddRootCommand(
+		SourceProductionContext context,
+		SemanticModel model,
+		InvocationExpressionSyntax invocation,
+		ImmutableArray<string> routePrefix,
+		RegistryNode targetNode)
+	{
+		if (targetNode.RootCommand is not null)
+		{
+			context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, invocation.GetLocation()));
+			return;
+		}
+
+		if (invocation.ArgumentList.Arguments.Count < 1)
+			return;
+
+		ExpressionSyntax handlerExpr = invocation.ArgumentList.Arguments[0].Expression;
+		if (handlerExpr is LambdaExpressionSyntax)
+		{
+			TryExpandLambdaRootCommand(context, model, invocation, handlerExpr, routePrefix, targetNode);
+			return;
+		}
+
+		IMethodSymbol? handler = ResolveHandlerMethod(model, handlerExpr, context, invocation);
+		if (handler is null)
+			return;
+
+		CSharpParseOptions parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
+		targetNode.RootCommand = CommandModel.FromRootMethod(handler, parseOpts, routePrefix, context, invocation.GetLocation());
+	}
+
+	private static void TryExpandLambdaRootCommand(
+		SourceProductionContext context,
+		SemanticModel model,
+		InvocationExpressionSyntax invocation,
+		ExpressionSyntax handlerExpr,
+		ImmutableArray<string> routePrefix,
+		RegistryNode targetNode)
+	{
+		IOperation? op = model.GetOperation(handlerExpr);
+		while (op is IConversionOperation conv)
+			op = conv.Operand;
+
+		if (op is not IAnonymousFunctionOperation anonFunc)
+			return;
+
+		IMethodSymbol? invokeMethod = anonFunc.Symbol;
+		IOperation? parent = model.GetOperation(handlerExpr);
+		INamedTypeSymbol? delegateType = null;
+		if (parent is IConversionOperation parentConv && parentConv.Type is INamedTypeSymbol dt)
+			delegateType = dt;
+
+		if (invokeMethod is null)
+			return;
+
+		string storageKey = routePrefix.IsDefaultOrEmpty
+			? "__argh_root"
+			: string.Join("/", routePrefix) + "/__argh_root";
+		string delegateFq = delegateType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "global::System.Delegate";
+		CSharpParseOptions parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
+		var paramBuilder = ImmutableArray.CreateBuilder<ParameterModel>();
+		foreach (IParameterSymbol p in invokeMethod.Parameters)
+			paramBuilder.Add(ParameterModel.From(p));
+		ImmutableArray<ParameterModel> parameters = paramBuilder.ToImmutable();
+		string usage = UsageSynopsis.Build(parameters);
+		string runName = CommandModel.BuildRootDefaultRunMethodName(routePrefix);
+		INamedTypeSymbol? returnType = invokeMethod.ReturnType as INamedTypeSymbol;
+		var cmd = new CommandModel(
+			routePrefix,
+			RootDefaultInternalCommandName,
+			runName,
+			"object",
+			"__lambda",
+			false,
+			false,
+			returnType,
+			parameters,
+			null,
+			"",
+			"",
+			"",
+			usage,
+			ImmutableArray<INamedTypeSymbol>.Empty,
+			IsRootDefault: true,
+			IsLambda: true,
+			LambdaStorageKey: storageKey,
+			LambdaDelegateFq: delegateFq);
+		targetNode.RootCommand = cmd;
+	}
+
 	private static void ExpandTypeRegistration(
 		SourceProductionContext context,
 		InvocationExpressionSyntax invocation,
@@ -625,7 +881,12 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				var childNode = new RegistryNode();
 				ImmutableArray<string> nestedPrefix = AppendSegment(routePrefix, seg);
 				ExpandTypeRegistration(context, invocation, nested, nestedPrefix, mergeOuterTypeSegment: true, childNode, parseOpts);
-				attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild { Segment = seg, Node = childNode });
+				attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild
+				{
+					Segment = seg,
+					Node = childNode,
+					SummaryOneLiner = GetTypeListingSummaryOneLiner(nested)
+				});
 			}
 		}
 		else
@@ -634,7 +895,12 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			var wrapper = new RegistryNode();
 			ImmutableArray<string> outerPrefix = AppendSegment(routePrefix, seg);
 			ExpandTypeRegistration(context, invocation, type, outerPrefix, mergeOuterTypeSegment: true, wrapper, parseOpts);
-			attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild { Segment = seg, Node = wrapper });
+			attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild
+			{
+				Segment = seg,
+				Node = wrapper,
+				SummaryOneLiner = GetTypeListingSummaryOneLiner(type)
+			});
 		}
 	}
 
@@ -1039,6 +1305,17 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			_ => null
 		};
 
+	private static string? TryGetStringConstant(SemanticModel model, ExpressionSyntax expr)
+	{
+		string? lit = TryGetStringLiteral(expr);
+		if (lit is not null)
+			return lit;
+		Optional<object?> cv = model.GetConstantValue(expr);
+		if (cv.HasValue && cv.Value is string s)
+			return s;
+		return null;
+	}
+
 	private static void EmitEmpty(SourceProductionContext context, string assemblyName, string assemblyVersion)
 	{
 		const string source = """
@@ -1184,7 +1461,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 	private static void EmitFuzzyFlatSwitchDefault(StringBuilder sb, ImmutableArray<CommandModel> commands, string entryAssemblyName)
 	{
-		List<CommandModel> sorted = commands.OrderBy(c => c.CommandName, StringComparer.Ordinal).ToList();
+		List<CommandModel> sorted = commands.Where(static c => !c.IsRootDefault).OrderBy(c => c.CommandName, StringComparer.Ordinal).ToList();
 		sb.AppendLine("\t\t\t\tvar __tok = args[0];");
 		sb.AppendLine("\t\t\t\tvar __app = \"" + Escape(entryAssemblyName) + "\";");
 		sb.Append("\t\t\t\tvar __cands = new string[] { ");
@@ -1624,8 +1901,14 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		EmitRootCompletionsBlock(sb, "\t\t\t", entryAssemblyName);
 		sb.AppendLine("\t\t\tif (args.Length == 0)");
 		sb.AppendLine("\t\t\t{");
-		sb.AppendLine("\t\t\t\tPrintRootHelp();");
-		sb.AppendLine("\t\t\t\treturn 0;");
+		if (app.Root.RootCommand is { } flatRoot)
+			sb.AppendLine($"\t\t\t\treturn await {flatRoot.RunMethodName}(Array.Empty<string>(), ct).ConfigureAwait(false);");
+		else
+		{
+			sb.AppendLine("\t\t\t\tPrintRootHelp();");
+			sb.AppendLine("\t\t\t\treturn 0;");
+		}
+
 		sb.AppendLine("\t\t\t}");
 		sb.AppendLine();
 		sb.AppendLine("\t\t\tif (args[0] == \"--help\" || args[0] == \"-h\")");
@@ -1645,6 +1928,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		foreach (CommandModel cmd in commands)
 		{
+			if (cmd.IsRootDefault)
+				continue;
 			sb.AppendLine($"\t\t\t\tcase \"{Escape(cmd.CommandName)}\":");
 			sb.AppendLine($"\t\t\t\t\treturn await {cmd.RunMethodName}(Tail(args), ct).ConfigureAwait(false);");
 		}
@@ -1654,7 +1939,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
-		EmitPrintRootHelpFlat(sb, commands, entryAssemblyName);
+		EmitPrintRootHelpFlat(sb, app, entryAssemblyName);
 		sb.AppendLine();
 		foreach (CommandModel cmd in commands)
 			EmitCommandHelpPrinter(sb, cmd, app, entryAssemblyName);
@@ -1684,7 +1969,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\treturn tail;");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
-		EmitFlatTryParseRoute(sb, commands);
+		EmitFlatTryParseRoute(sb, commands, app.Root.RootCommand);
 		EmitArghGeneratedRouteArgsMethod(sb);
 		EmitDtoBindingMethods(sb, dtoTargets);
 		sb.AppendLine("\t}");
@@ -1693,22 +1978,58 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		context.AddSource("ArghGenerated.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
 	}
 
-	private static void EmitPrintRootHelpFlat(StringBuilder sb, ImmutableArray<CommandModel> commands, string entryAssemblyName)
+	private static void EmitPrintRootHelpFlat(StringBuilder sb, AppEmitModel app, string entryAssemblyName)
 	{
+		ImmutableArray<CommandModel> commands = app.AllCommands;
+		var flatGlobalFlags = new List<ParameterModel>();
+		if (app.Root.RootCommand is not null && app.GlobalOptionsModel is OptionsTypeModel gomFlat && gomFlat.Members.Length > 0)
+		{
+			foreach (ParameterModel p in gomFlat.Members)
+			{
+				if (p.Kind == ParameterKind.Flag)
+					flatGlobalFlags.Add(p);
+			}
+		}
+
+		var widthCandidatesFlat = new List<int> { "--help, -h".Length, "--version".Length };
+		widthCandidatesFlat.AddRange(flatGlobalFlags.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		int maxOptWidthFlat = Math.Min(widthCandidatesFlat.Max(), 40);
+		maxOptWidthFlat = Math.Max(maxOptWidthFlat, "--help, -h".Length);
+
+		int maxFlatCmdW = 0;
+		foreach (CommandModel c in commands)
+		{
+			if (c.IsRootDefault)
+				continue;
+			if (c.CommandName.Length > maxFlatCmdW)
+				maxFlatCmdW = c.CommandName.Length;
+		}
+
 		sb.AppendLine("\t\tprivate static void PrintRootHelp()");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine(
 			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" <command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+		if (app.Root.RootCommand is { } flatRootOverview)
+			EmitRootCommandHelpOverview(sb, flatRootOverview, "\t\t\t");
+
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  --help, -h    Show help.\");");
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  --version     Show version.\");");
+		EmitHelpOptionRows(sb, flatGlobalFlags, maxOptWidthFlat);
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape("--help, -h".PadRight(maxOptWidthFlat))}\") + \"  Show help.\");");
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape("--version".PadRight(maxOptWidthFlat))}\") + \"  Show version.\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Commands:\"));");
 		foreach (CommandModel c in commands)
 		{
-			string summary = Escape(c.SummaryOneLiner);
-			sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(c.CommandName)}\")}}    {summary}\");");
+			if (c.IsRootDefault)
+				continue;
+			string sumArg = string.IsNullOrWhiteSpace(c.SummaryOneLiner)
+				? "null"
+				: $"\"{Escape(c.SummaryOneLiner)}\"";
+			sb.AppendLine(
+				$"\t\t\tCliHelpFormatting.WriteHelpListNameAndDescription(false, \"{Escape(c.CommandName)}\", {sumArg}, {maxFlatCmdW});");
 		}
 
 		sb.AppendLine("\t\t}");
@@ -1834,11 +2155,6 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (hasGlobal)
 			sb.AppendLine("\t\t\tif (!TryParseGlobalOptions(args, idx)) return 2;");
 
-		sb.AppendLine("\t\t\tif (args.Length == 0)");
-		sb.AppendLine("\t\t\t{");
-		sb.AppendLine("\t\t\t\tPrintRootHelp();");
-		sb.AppendLine("\t\t\t\treturn 0;");
-		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t\tif (idx[0] < args.Length && (args[idx[0]] == \"--help\" || args[idx[0]] == \"-h\"))");
 		sb.AppendLine("\t\t\t{");
 		sb.AppendLine("\t\t\t\tPrintRootHelp();");
@@ -1851,8 +2167,14 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t\tif (idx[0] >= args.Length)");
 		sb.AppendLine("\t\t\t{");
-		sb.AppendLine("\t\t\t\tPrintRootHelp();");
-		sb.AppendLine("\t\t\t\treturn 0;");
+		if (app.Root.RootCommand is { } runCoreRoot)
+			sb.AppendLine($"\t\t\t\treturn await {runCoreRoot.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
+		else
+		{
+			sb.AppendLine("\t\t\t\tPrintRootHelp();");
+			sb.AppendLine("\t\t\t\treturn 0;");
+		}
+
 		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t\treturn await DispatchRoot(args, idx, ct).ConfigureAwait(false);");
 		sb.AppendLine("\t\t}");
@@ -1860,32 +2182,50 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 	private static void EmitPrintRootHelpHierarchical(StringBuilder sb, AppEmitModel app, string entryAssemblyName)
 	{
+		var rootGlobalFlags = new List<ParameterModel>();
+		if (app.Root.RootCommand is not null && app.GlobalOptionsModel is OptionsTypeModel gomH && gomH.Members.Length > 0)
+		{
+			foreach (ParameterModel p in gomH.Members)
+			{
+				if (p.Kind == ParameterKind.Flag)
+					rootGlobalFlags.Add(p);
+			}
+		}
+
+		var widthCandidatesRoot = new List<int> { "--help, -h".Length, "--version".Length };
+		widthCandidatesRoot.AddRange(rootGlobalFlags.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		int maxOptWidthRoot = Math.Min(widthCandidatesRoot.Max(), 40);
+		maxOptWidthRoot = Math.Max(maxOptWidthRoot, "--help, -h".Length);
+
+		int maxNsListingW = app.Root.Children.Count == 0 ? 0 : app.Root.Children.Max(ch => ch.Segment.Length);
+		int maxCmdListingW = app.Root.Commands.Count == 0 ? 0 : app.Root.Commands.Max(c => c.CommandName.Length);
+
 		sb.AppendLine("\t\tprivate static void PrintRootHelp()");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine(
 			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" <namespace|command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
-		if (app.GlobalOptionsModel is OptionsTypeModel gom && gom.Members.Length > 0)
-		{
-			foreach (ParameterModel p in gom.Members)
-			{
-				if (p.Kind != ParameterKind.Flag)
-					continue;
-				string left = HelpLayout.FormatOptionLeftCell(p);
-				string desc = BuildDescriptionSuffix(p, forPositional: false);
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)}\");");
-			}
-		}
+		if (app.Root.RootCommand is { } rootOverview)
+			EmitRootCommandHelpOverview(sb, rootOverview, "\t\t\t");
 
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"--help, -h\") + \"  Show help.\");");
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"--version\") + \"  Show version.\");");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
+		EmitHelpOptionRows(sb, rootGlobalFlags, maxOptWidthRoot);
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape("--help, -h".PadRight(maxOptWidthRoot))}\") + \"  Show help.\");");
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape("--version".PadRight(maxOptWidthRoot))}\") + \"  Show version.\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (app.Root.Children.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Namespaces:\"));");
 			foreach (RegistryNode.NamedCommandNamespaceChild ch in app.Root.Children)
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(ch.Segment)}\")}}\");");
+			{
+				string sumArg = string.IsNullOrWhiteSpace(ch.SummaryOneLiner)
+					? "null"
+					: $"\"{Escape(ch.SummaryOneLiner)}\"";
+				sb.AppendLine(
+					$"\t\t\tCliHelpFormatting.WriteHelpListNameAndDescription(true, \"{Escape(ch.Segment)}\", {sumArg}, {maxNsListingW});");
+			}
 
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		}
@@ -1895,8 +2235,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Commands:\"));");
 			foreach (CommandModel c in app.Root.Commands)
 			{
-				string summary = Escape(c.SummaryOneLiner);
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(c.CommandName)}\")}}    {summary}\");");
+				string sumArg = string.IsNullOrWhiteSpace(c.SummaryOneLiner)
+					? "null"
+					: $"\"{Escape(c.SummaryOneLiner)}\"";
+				sb.AppendLine(
+					$"\t\t\tCliHelpFormatting.WriteHelpListNameAndDescription(false, \"{Escape(c.CommandName)}\", {sumArg}, {maxCmdListingW});");
 			}
 		}
 
@@ -1929,14 +2272,24 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		int maxOptWidth = Math.Min(widthCandidates.Max(), 40);
 		maxOptWidth = Math.Max(maxOptWidth, "--help, -h".Length);
 
+		int maxChildNsListingW = 0;
+		if (node.Children.Count > 0)
+			maxChildNsListingW = node.Children.Max(ch => FormatQualifiedCliPath(path, ch.Segment).Length);
+		int maxChildCmdListingW = 0;
+		if (node.Commands.Count > 0)
+			maxChildCmdListingW = node.Commands.Max(c => FormatQualifiedCliPath(path, c.CommandName).Length);
+
 		sb.AppendLine($"\t\tprivate static void PrintHelp_CommandNamespace_{key}()");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine(
 			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" {Escape(usagePrefix)} <command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+		if (node.RootCommand is { } nsRootOverview)
+			EmitRootCommandHelpOverview(sb, nsRootOverview, "\t\t\t");
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
-		if (globalFlagMembers.Count > 0)
+		bool showGlobalFlagsInNs = node.RootCommand is not null && globalFlagMembers.Count > 0;
+		if (showGlobalFlagsInNs)
 			EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
 		string globalHelpLeft = "--help, -h".PadRight(maxOptWidth);
 		sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(globalHelpLeft)}\") + \"  Show help.\");");
@@ -1955,7 +2308,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			foreach (RegistryNode.NamedCommandNamespaceChild ch in node.Children)
 			{
 				string fullNs = FormatQualifiedCliPath(path, ch.Segment);
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(fullNs)}\")}}\");");
+				string sumArg = string.IsNullOrWhiteSpace(ch.SummaryOneLiner)
+					? "null"
+					: $"\"{Escape(ch.SummaryOneLiner)}\"";
+				sb.AppendLine(
+					$"\t\t\tCliHelpFormatting.WriteHelpListNameAndDescription(true, \"{Escape(fullNs)}\", {sumArg}, {maxChildNsListingW});");
 			}
 
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
@@ -1967,8 +2324,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			foreach (CommandModel c in node.Commands)
 			{
 				string fullCmd = FormatQualifiedCliPath(path, c.CommandName);
-				string summary = Escape(c.SummaryOneLiner);
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(fullCmd)}\")}}    {summary}\");");
+				string sumArg = string.IsNullOrWhiteSpace(c.SummaryOneLiner)
+					? "null"
+					: $"\"{Escape(c.SummaryOneLiner)}\"";
+				sb.AppendLine(
+					$"\t\t\tCliHelpFormatting.WriteHelpListNameAndDescription(false, \"{Escape(fullCmd)}\", {sumArg}, {maxChildCmdListingW});");
 			}
 		}
 
@@ -1992,12 +2352,18 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine("\t\t\tif (idx[0] >= args.Length)");
 		sb.AppendLine("\t\t\t{");
-		if (isRoot)
-			sb.AppendLine("\t\t\t\tPrintRootHelp();");
+		if (node.RootCommand is { } dispatchRoot)
+			sb.AppendLine($"\t\t\t\treturn await {dispatchRoot.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
 		else
-			sb.AppendLine($"\t\t\t\tPrintHelp_CommandNamespace_{CommandNamespacePathKey(path)}();");
+		{
+			if (isRoot)
+				sb.AppendLine("\t\t\t\tPrintRootHelp();");
+			else
+				sb.AppendLine($"\t\t\t\tPrintHelp_CommandNamespace_{CommandNamespacePathKey(path)}();");
 
-		sb.AppendLine("\t\t\t\treturn 0;");
+			sb.AppendLine("\t\t\t\treturn 0;");
+		}
+
 		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t\tif (args[idx[0]] == \"--help\" || args[idx[0]] == \"-h\")");
 		sb.AppendLine("\t\t\t{");
@@ -2041,11 +2407,244 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
+	/// <summary>When <see cref="IMethodSymbol.GetDocumentationCommentXml"/> is empty (e.g. linked sources), recover <c>&lt;summary&gt;</c> from leading doc trivia.</summary>
+	private static string TryExtractSummaryDocumentationFragmentFromTrivia(IMethodSymbol method)
+	{
+		foreach (SyntaxReference sr in method.DeclaringSyntaxReferences)
+		{
+			if (sr.GetSyntax() is not MethodDeclarationSyntax m)
+				continue;
+			foreach (SyntaxTrivia trivia in m.GetLeadingTrivia())
+			{
+				if (!trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) &&
+				    !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
+					continue;
+				string full = trivia.ToFullString();
+				Match match = Regex.Match(full, @"<summary>\s*([\s\S]*?)\s*</summary>");
+				if (!match.Success)
+					continue;
+				string inner = match.Groups[1].Value;
+				inner = Regex.Replace(inner, @"^\s*///\s?", "", RegexOptions.Multiline).Trim();
+				if (inner.Length == 0)
+					continue;
+				return "<summary>" + inner + "</summary>";
+			}
+		}
+
+		return "";
+	}
+
+	private static string TryExtractRemarksDocumentationFragmentFromTrivia(IMethodSymbol method)
+	{
+		foreach (SyntaxReference sr in method.DeclaringSyntaxReferences)
+		{
+			if (sr.GetSyntax() is not MethodDeclarationSyntax m)
+				continue;
+			foreach (SyntaxTrivia trivia in m.GetLeadingTrivia())
+			{
+				if (!trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) &&
+				    !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
+					continue;
+				string full = trivia.ToFullString();
+				Match match = Regex.Match(full, @"<remarks>\s*([\s\S]*?)\s*</remarks>");
+				if (!match.Success)
+					continue;
+				string inner = match.Groups[1].Value;
+				inner = Regex.Replace(inner, @"^\s*///\s?", "", RegexOptions.Multiline).Trim();
+				if (inner.Length == 0)
+					continue;
+				return "<remarks>" + inner + "</remarks>";
+			}
+		}
+
+		return "";
+	}
+
+	private static string TryExtractTypeSummaryFromTrivia(INamedTypeSymbol type)
+	{
+		foreach (SyntaxReference sr in type.DeclaringSyntaxReferences)
+		{
+			if (sr.GetSyntax() is not BaseTypeDeclarationSyntax typeDecl)
+				continue;
+			foreach (SyntaxTrivia trivia in typeDecl.GetLeadingTrivia())
+			{
+				if (!trivia.HasStructure || trivia.GetStructure() is not DocumentationCommentTriviaSyntax doc)
+					continue;
+				foreach (XmlNodeSyntax xml in doc.Content)
+				{
+					if (xml is XmlElementSyntax xe && xe.StartTag.Name.LocalName.ValueText == "summary")
+					{
+						string s = FlattenXmlSummaryElementText(xe).Trim();
+						if (s.Length > 0)
+							return s;
+					}
+				}
+			}
+		}
+
+		return "";
+	}
+
+	private static string FlattenXmlSummaryElementText(XmlElementSyntax xe)
+	{
+		var sb = new StringBuilder();
+		foreach (XmlNodeSyntax n in xe.Content)
+		{
+			switch (n)
+			{
+				case XmlTextSyntax txt:
+					foreach (SyntaxToken t in txt.TextTokens)
+						sb.Append(t.ValueText);
+					break;
+				case XmlElementSyntax inner:
+					sb.Append(FlattenXmlSummaryElementText(inner));
+					break;
+				case XmlEmptyElementSyntax:
+					break;
+			}
+		}
+
+		return sb.ToString();
+	}
+
+	private static string GetTypeListingSummaryOneLiner(INamedTypeSymbol type)
+	{
+		string fromXml = Documentation.GetTypeSummaryLine(type.GetDocumentationCommentXml());
+		if (!string.IsNullOrWhiteSpace(fromXml))
+			return fromXml.Trim();
+
+		string trivia = TryExtractTypeSummaryFromTrivia(type);
+		return string.IsNullOrWhiteSpace(trivia) ? "" : trivia.Trim();
+	}
+
+	private static MethodDocumentation MergeMethodDocumentationFromTrivia(
+		IMethodSymbol method,
+		MethodDocumentation docs,
+		CSharpParseOptions parseOptions)
+	{
+		if (string.IsNullOrWhiteSpace(docs.SummaryOneLiner))
+		{
+			string frag = TryExtractSummaryDocumentationFragmentFromTrivia(method);
+			if (frag.Length > 0)
+			{
+				MethodDocumentation fromTrivia = Documentation.ParseMethod(frag, parseOptions);
+				if (!string.IsNullOrWhiteSpace(fromTrivia.SummaryOneLiner))
+				{
+					docs = new MethodDocumentation(
+						fromTrivia.SummaryOneLiner,
+						docs.RemarksRendered,
+						docs.ExamplesRendered,
+						docs.ParamDocsRaw,
+						docs.ParamSeparators);
+				}
+			}
+		}
+
+		if (string.IsNullOrWhiteSpace(docs.RemarksRendered))
+		{
+			string rem = TryExtractRemarksDocumentationFragmentFromTrivia(method);
+			if (rem.Length > 0)
+			{
+				MethodDocumentation fromTriviaRem = Documentation.ParseMethod(rem, parseOptions);
+				if (!string.IsNullOrWhiteSpace(fromTriviaRem.RemarksRendered))
+				{
+					docs = new MethodDocumentation(
+						docs.SummaryOneLiner,
+						fromTriviaRem.RemarksRendered,
+						docs.ExamplesRendered,
+						docs.ParamDocsRaw,
+						docs.ParamSeparators);
+				}
+			}
+		}
+
+		return docs;
+	}
+
 	private static string GetCommandRoutePath(CommandModel cmd)
 	{
+		if (cmd.IsRootDefault)
+		{
+			if (cmd.RoutePrefix.IsDefaultOrEmpty)
+				return "<root>";
+			return string.Join("/", cmd.RoutePrefix) + "/<root>";
+		}
+
 		if (cmd.RoutePrefix.IsDefaultOrEmpty)
 			return cmd.CommandName;
 		return string.Join("/", cmd.RoutePrefix) + "/" + cmd.CommandName;
+	}
+
+	/// <summary>Help printer invoked from generated command runners for default/root handlers (overview lives in root or namespace overview).</summary>
+	private static string HelpPrinterMethodForCommand(CommandModel cmd)
+	{
+		if (cmd.IsRootDefault)
+		{
+			if (cmd.RoutePrefix.IsDefaultOrEmpty)
+				return "PrintRootHelp";
+			return "PrintHelp_CommandNamespace_" + CommandNamespacePathKey(cmd.RoutePrefix);
+		}
+
+		return "PrintHelp_" + cmd.RunMethodName;
+	}
+
+	/// <summary>Indented body lines for default-handler summary/remarks (one indent step less than before).</summary>
+	private static void EmitRootDefaultDocumentationLines(StringBuilder sb, string indent, string? block)
+	{
+		if (string.IsNullOrWhiteSpace(block))
+			return;
+		string text = block!;
+		foreach (string part in text.Replace("\r\n", "\n").Split('\n'))
+		{
+			string line = part.TrimEnd('\r');
+			if (string.IsNullOrWhiteSpace(line))
+				sb.AppendLine($"{indent}Console.Out.WriteLine();");
+			else
+				sb.AppendLine($"{indent}Console.Out.WriteLine(\"   \" + \"{Escape(line.Trim())}\");");
+		}
+	}
+
+	/// <summary>Summary (white) and remarks (gray) below usage for per-command help; same indent as default-handler doc lines, without the yellow label.</summary>
+	private static void EmitCommandHelpDocPrologue(StringBuilder sb, string indent, string? block, bool remarks)
+	{
+		if (string.IsNullOrWhiteSpace(block))
+			return;
+		string text = block!;
+		string styler = remarks ? "CliHelpFormatting.DocRemarksLine" : "CliHelpFormatting.DocSummaryLine";
+		foreach (string part in text.Replace("\r\n", "\n").Split('\n'))
+		{
+			string line = part.TrimEnd('\r');
+			if (string.IsNullOrWhiteSpace(line))
+				sb.AppendLine($"{indent}Console.Out.WriteLine();");
+			else
+				sb.AppendLine($"{indent}Console.Out.WriteLine(\"   \" + {styler}(\"{Escape(line.Trim())}\"));");
+		}
+	}
+
+	private static void EmitRootCommandHelpOverview(StringBuilder sb, CommandModel rootCmd, string indent)
+	{
+		// "(default command)" is not an argv token — labels the opt-in default handler; summary/remarks from XML on the handler.
+		sb.AppendLine($"{indent}Console.Out.WriteLine(\" \" + CliHelpFormatting.DefaultCommandLabel(\"(default command)\"));");
+		EmitRootDefaultDocumentationLines(sb, indent, rootCmd.SummaryOneLiner);
+		EmitRootDefaultDocumentationLines(sb, indent, rootCmd.RemarksRendered);
+		List<ParameterModel> rootFlags = rootCmd.Parameters.Where(static p => p.Kind == ParameterKind.Flag).ToList();
+		if (rootFlags.Count > 0)
+		{
+			int mw = Math.Min(
+				Math.Max(rootFlags.Max(p => HelpLayout.FormatOptionLeftCell(p).Length), "--help, -h".Length),
+				40);
+			sb.AppendLine($"{indent}Console.Out.WriteLine();");
+			sb.AppendLine($"{indent}Console.Out.WriteLine(CliHelpFormatting.Section(\"Options for this default:\"));");
+			foreach (ParameterModel p in rootFlags)
+			{
+				string left = HelpLayout.FormatOptionLeftCell(p).PadRight(mw);
+				string desc = BuildDescriptionSuffix(p, forPositional: false);
+				sb.AppendLine(
+					$"{indent}Console.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)}\");");
+			}
+		}
+
+		sb.AppendLine($"{indent}Console.Out.WriteLine();");
 	}
 
 	/// <summary>Space-separated CLI path for help listings (e.g. <c>storage blob upload</c>).</summary>
@@ -2069,13 +2668,26 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void EmitFlatTryParseRoute(StringBuilder sb, ImmutableArray<CommandModel> commands)
+	private static void EmitFlatTryParseRoute(StringBuilder sb, ImmutableArray<CommandModel> commands, CommandModel? rootDefault)
 	{
 		sb.AppendLine("\t\tpublic static bool TryParseRoute(string[] args, out RouteMatch match)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tmatch = default;");
 		sb.AppendLine("\t\t\tif (args.Length >= 2 && args[0] == \"--completions\") return false;");
-		sb.AppendLine("\t\t\tif (args.Length == 0) return false;");
+		sb.AppendLine("\t\t\tif (args.Length == 0)");
+		sb.AppendLine("\t\t\t{");
+		if (rootDefault is not null)
+		{
+			string rp = Escape(GetCommandRoutePath(rootDefault));
+			sb.AppendLine($"\t\t\t\tmatch = new RouteMatch(\"{rp}\", Array.Empty<string>());");
+			sb.AppendLine("\t\t\t\treturn true;");
+		}
+		else
+		{
+			sb.AppendLine("\t\t\t\treturn false;");
+		}
+
+		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t\tif (args[0] == \"--help\" || args[0] == \"-h\") return false;");
 		sb.AppendLine("\t\t\tif (args[0] == \"--version\") return false;");
 		sb.AppendLine("\t\t\tswitch (args[0])");
@@ -2108,7 +2720,20 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tif (args.Length == 0) return false;");
 		sb.AppendLine("\t\t\tif (idx[0] < args.Length && (args[idx[0]] == \"--help\" || args[idx[0]] == \"-h\")) return false;");
 		sb.AppendLine("\t\t\tif (idx[0] < args.Length && args[idx[0]] == \"--version\") return false;");
-		sb.AppendLine("\t\t\tif (idx[0] >= args.Length) return false;");
+		sb.AppendLine("\t\t\tif (idx[0] >= args.Length)");
+		sb.AppendLine("\t\t\t{");
+		if (app.Root.RootCommand is { } routeRoot)
+		{
+			string rp = Escape(GetCommandRoutePath(routeRoot));
+			sb.AppendLine($"\t\t\t\tmatch = new RouteMatch(\"{rp}\", TailFrom(args, idx[0]));");
+			sb.AppendLine("\t\t\t\treturn true;");
+		}
+		else
+		{
+			sb.AppendLine("\t\t\t\treturn false;");
+		}
+
+		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t\treturn TryParseRouteRoot(args, idx, out match);");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
@@ -2129,7 +2754,20 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tmatch = default;");
 		if (!isRoot && node.CommandNamespaceOptionsModel is { Members: { Length: > 0 } })
 			sb.AppendLine($"\t\t\tif (!{CommandNamespaceOptionsParseMethodName(path)}(args, idx)) return false;");
-		sb.AppendLine("\t\t\tif (idx[0] >= args.Length) return false;");
+		sb.AppendLine("\t\t\tif (idx[0] >= args.Length)");
+		sb.AppendLine("\t\t\t{");
+		if (node.RootCommand is { } routeNsRoot)
+		{
+			string rnp = Escape(GetCommandRoutePath(routeNsRoot));
+			sb.AppendLine($"\t\t\t\tmatch = new RouteMatch(\"{rnp}\", TailFrom(args, idx[0]));");
+			sb.AppendLine("\t\t\t\treturn true;");
+		}
+		else
+		{
+			sb.AppendLine("\t\t\t\treturn false;");
+		}
+
+		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t\tif (args[idx[0]] == \"--help\" || args[idx[0]] == \"-h\") return false;");
 		sb.AppendLine("\t\t\tvar tokKey = args[idx[0]].ToLowerInvariant();");
 		sb.AppendLine("\t\t\tswitch (tokKey)");
@@ -2557,7 +3195,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			p is { IsCollection: true, Kind: ParameterKind.Flag } && p.CollectionSeparator is null);
 
 		string failureExit = emitDtoTryParse ? "return false" : "return 2";
-		string? helpMethodName = emitDtoTryParse ? null : $"PrintHelp_{cmd.RunMethodName}";
+		string? helpMethodName = emitDtoTryParse ? null : HelpPrinterMethodForCommand(cmd);
 
 		if (emitDtoTryParse)
 		{
@@ -2576,7 +3214,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\t{");
 			sb.AppendLine("\t\t\t\tif (args[i] == \"--help\" || args[i] == \"-h\")");
 			sb.AppendLine("\t\t\t\t{");
-			sb.AppendLine($"\t\t\t\t\tPrintHelp_{cmd.RunMethodName}();");
+			sb.AppendLine($"\t\t\t\t\t{helpMethodName}();");
 			sb.AppendLine("\t\t\t\t\treturn 0;");
 			sb.AppendLine("\t\t\t\t}");
 			sb.AppendLine("\t\t\t}");
@@ -3610,6 +4248,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 	private static void EmitCommandHelpPrinter(StringBuilder sb, CommandModel cmd, AppEmitModel app, string entryAssemblyName)
 	{
+		if (cmd.IsRootDefault)
+			return;
+
 		string routeUsage = cmd.RoutePrefix.IsDefaultOrEmpty
 			? ""
 			: string.Join(" ", cmd.RoutePrefix) + " ";
@@ -3653,20 +4294,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
-		string descToShow = string.IsNullOrWhiteSpace(cmd.RemarksRendered) ? cmd.SummaryOneLiner : cmd.RemarksRendered;
-		if (!string.IsNullOrWhiteSpace(descToShow))
-		{
-			foreach (string line in descToShow.Split('\n'))
-			{
-				string trimmed = line.TrimEnd('\r');
-				if (trimmed.Length == 0)
-					sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
-				else
-					sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"{Escape(trimmed)}\");");
-			}
-
+		EmitCommandHelpDocPrologue(sb, "\t\t\t", cmd.SummaryOneLiner, remarks: false);
+		EmitCommandHelpDocPrologue(sb, "\t\t\t", cmd.RemarksRendered, remarks: true);
+		if (!string.IsNullOrWhiteSpace(cmd.SummaryOneLiner) || !string.IsNullOrWhiteSpace(cmd.RemarksRendered))
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
-		}
 
 		bool hasArgs = false;
 		foreach (ParameterModel p in cmd.Parameters)
@@ -3805,10 +4436,59 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		string ExamplesRendered,
 		string UsageHints,
 		ImmutableArray<INamedTypeSymbol> CommandMiddleware,
+		bool IsRootDefault = false,
 		bool IsLambda = false,
 		string LambdaStorageKey = "",
 		string LambdaDelegateFq = "")
 	{
+		public static CommandModel FromRootMethod(
+			IMethodSymbol method,
+			CSharpParseOptions parseOptions,
+			ImmutableArray<string> routePrefix,
+			SourceProductionContext context,
+			Location diagnosticLocation)
+		{
+			ImmutableArray<ParameterModel> parameters = BuildParameterModels(method, parseOptions, context, diagnosticLocation);
+			ReportDuplicateCliNames(context, diagnosticLocation, parameters);
+			ValidateExpandedParameterLayout(context, diagnosticLocation, parameters);
+			foreach (ParameterModel p in parameters)
+			{
+				if (p.IsCollection && p.Kind == ParameterKind.Positional)
+					context.ReportDiagnostic(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
+			}
+
+			MethodDocumentation docs = MergeMethodDocumentationFromTrivia(
+				method,
+				Documentation.ParseMethod(method.GetDocumentationCommentXml(), parseOptions),
+				parseOptions);
+
+			ImmutableArray<ParameterModel> withDocs = ApplyParamDocumentation(parameters, method, docs.ParamDocsRaw);
+			withDocs = ApplyCollectionSeparatorsFromDocumentation(withDocs, method, docs.ParamSeparators);
+			string usage = UsageSynopsis.Build(withDocs);
+			string runName = BuildRootDefaultRunMethodName(routePrefix);
+			string containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			ImmutableArray<INamedTypeSymbol> cmdMiddleware = CollectCommandMiddleware(method);
+			bool hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt &&
+			                        HasPublicParameterlessCtor(namedCt);
+			return new CommandModel(
+				routePrefix,
+				RootDefaultInternalCommandName,
+				runName,
+				containingFq,
+				method.Name,
+				!method.IsStatic,
+				hasParamlessCtor,
+				method.ReturnType as INamedTypeSymbol,
+				withDocs,
+				method,
+				docs.SummaryOneLiner,
+				docs.RemarksRendered,
+				docs.ExamplesRendered,
+				usage,
+				cmdMiddleware,
+				IsRootDefault: true);
+		}
+
 		public static CommandModel FromMethod(
 			string commandName,
 			IMethodSymbol method,
@@ -3826,7 +4506,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					context.ReportDiagnostic(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
 			}
 
-			MethodDocumentation docs = Documentation.ParseMethod(method.GetDocumentationCommentXml(), parseOptions);
+			MethodDocumentation docs = MergeMethodDocumentationFromTrivia(
+				method,
+				Documentation.ParseMethod(method.GetDocumentationCommentXml(), parseOptions),
+				parseOptions);
 			ImmutableArray<ParameterModel> withDocs = ApplyParamDocumentation(parameters, method, docs.ParamDocsRaw);
 			withDocs = ApplyCollectionSeparatorsFromDocumentation(withDocs, method, docs.ParamSeparators);
 			string usage = UsageSynopsis.Build(withDocs);
@@ -3943,6 +4626,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.Append(Naming.SanitizeIdentifier(commandName));
 			return sb.ToString();
 		}
+
+		/// <summary>Visible to <see cref="CliParserGenerator"/> for lambda root commands (same naming as <see cref="FromRootMethod"/>).</summary>
+		internal static string BuildRootDefaultRunMethodName(ImmutableArray<string> routePrefix) =>
+			BuildRunMethodName(routePrefix, "RootDefault");
 
 		private static ImmutableArray<ParameterModel> ApplyParamDocumentation(
 			ImmutableArray<ParameterModel> parameters,
@@ -5026,6 +5713,40 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				if (root is null)
 					return "";
 				return FlattenBlock(root.Element("summary")).Replace("\r\n", "\n").Trim();
+			}
+			catch
+			{
+				return "";
+			}
+		}
+
+		/// <summary>First line of <c>&lt;summary&gt;</c> for a type symbol (handles <c>&lt;member&gt;</c>-wrapped XML from Roslyn).</summary>
+		public static string GetTypeSummaryLine(string? xml)
+		{
+			if (string.IsNullOrWhiteSpace(xml))
+				return "";
+			try
+			{
+				var doc = XDocument.Parse("<root>" + xml + "</root>", LoadOptions.PreserveWhitespace);
+				XElement? root = doc.Root;
+				if (root is null)
+					return "";
+				XElement? sum = root.Element("summary");
+				if (sum is null)
+				{
+					foreach (XElement e in root.Descendants())
+					{
+						if (e.Name.LocalName == "summary")
+						{
+							sum = e;
+							break;
+						}
+					}
+				}
+
+				if (sum is null)
+					return "";
+				return FlattenBlock(sum).Replace("\r\n", "\n").Trim();
 			}
 			catch
 			{

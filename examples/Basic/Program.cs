@@ -25,15 +25,13 @@ app.Add("labels", CommandHandlers.Labels);
 app.Add("doc-echo", LocalCliHandlers.DocEcho);
 // Anonymous lambda: no XML on the delegate; use DocEcho-style handlers when you want rich --help.
 app.Add("quick-echo", (string msg) => Console.WriteLine($"basic:quick:{msg}"));
-app.AddNamespace("storage", g =>
+app.AddNamespace<StorageCommands>("storage", g =>
 {
 	g.CommandNamespaceOptions<StorageCommandNamespaceOptions>();
-	g.Add<StorageCommands>();
 });
-app.AddNamespace("api", g =>
+app.AddNamespace<ApiCommands>("api", g =>
 {
 	g.CommandNamespaceOptions<ApiNamespaceOptions>();
-	g.Add<ApiCommands>();
 });
 
 return await app.RunAsync(args);

@@ -30,15 +30,13 @@ builder.Services.AddArgh(
 		app.Add<HostedCliCommands>();
 		app.Add("doc-echo", HostedLocalHandlers.DocEcho);
 		app.Add("quick-echo", (string msg) => Console.WriteLine($"hosted:quick:{msg}"));
-		app.AddNamespace("storage", g =>
+		app.AddNamespace<HostedStorageCommands>("storage", g =>
 		{
 			g.CommandNamespaceOptions<HostedStorageCommandNamespaceOptions>();
-			g.Add<HostedStorageCommands>();
 		});
-		app.AddNamespace("api", g =>
+		app.AddNamespace<HostedApiCommands>("api", g =>
 		{
 			g.CommandNamespaceOptions<HostedApiNamespaceOptions>();
-			g.Add<HostedApiCommands>();
 		});
 	});
 
