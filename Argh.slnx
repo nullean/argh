@@ -23,6 +23,7 @@
   <Folder Name="/tests/">
     <File Path="tests/Directory.Build.props" />
     <Project Path="tests/Nullean.Argh.Tests.CliHost/Nullean.Argh.Tests.CliHost.csproj" />
+    <Project Path="tests/Nullean.Argh.IntegrationTests/Nullean.Argh.IntegrationTests.csproj" />
     <Project Path="tests/Nullean.Argh.Tests/Nullean.Argh.Tests.csproj" />
   </Folder>
 </Solution>

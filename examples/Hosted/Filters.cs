@@ -17,6 +17,16 @@ internal sealed class HostedGlobalFilter : ICommandFilter
 	}
 }
 
+internal sealed class HostedOrderingDemoFilter : ICommandFilter
+{
+	public async ValueTask InvokeAsync(CommandContext context, CommandFilterDelegate next)
+	{
+		Console.Error.WriteLine("[hosted:filter:ordering] enter");
+		await next(context);
+		Console.Error.WriteLine("[hosted:filter:ordering] leave");
+	}
+}
+
 internal sealed class HostedPerCommandFilter : ICommandFilter
 {
 	public async ValueTask InvokeAsync(CommandContext context, CommandFilterDelegate next)

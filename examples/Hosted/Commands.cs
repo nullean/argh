@@ -27,7 +27,7 @@ internal sealed class HostedCliCommands
 	public void Hello(string name)
 	{
 		_logger.LogInformation("Hello invoked");
-		Console.WriteLine($"Hello, {name}!");
+		Console.WriteLine($"hosted:hello:{name}");
 	}
 
 	/// <summary>Status with enum.</summary>
@@ -66,5 +66,16 @@ internal sealed class HostedStorageCommands(ILogger<HostedStorageCommands> logge
 			log.LogInformation("blob upload");
 			Console.WriteLine($"storage:blob:upload verbose={options.Verbose} prefix={options.Prefix} target={options.Target}");
 		}
+	}
+}
+
+/// <summary><c>api</c> grouped commands (DI).</summary>
+internal sealed class HostedApiCommands(ILogger<HostedApiCommands> log)
+{
+	/// <summary>Print API version.</summary>
+	public void Version()
+	{
+		log.LogInformation("api version");
+		Console.WriteLine("hosted:api:version:1");
 	}
 }

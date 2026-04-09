@@ -2,7 +2,7 @@ using FluentAssertions;
 using Nullean.Argh.Matching;
 using Xunit;
 
-namespace Nullean.Argh.Tests;
+namespace Nullean.Argh.Tests.Unit.Matching;
 
 public class FuzzyMatchTests
 {

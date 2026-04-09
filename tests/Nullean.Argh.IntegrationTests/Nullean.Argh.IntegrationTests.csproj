@@ -2,22 +2,18 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <AssemblyName>Nullean.Argh.Tests</AssemblyName>
-    <RootNamespace>Nullean.Argh.Tests</RootNamespace>
+    <AssemblyName>Nullean.Argh.IntegrationTests</AssemblyName>
+    <RootNamespace>Nullean.Argh.IntegrationTests</RootNamespace>
     <IsPackable>false</IsPackable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Nullean.Argh\Nullean.Argh.csproj" />
-    <ProjectReference Include="..\..\src\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
     <ProjectReference Include="..\Nullean.Argh.Tests.CliHost\Nullean.Argh.Tests.CliHost.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <Target Name="CopyCliHostToTestOutput" AfterTargets="Build">
+  <Target Name="CopyCliHostToIntegrationTestOutput" AfterTargets="Build">
     <PropertyGroup>
       <_CliHostDir>$(MSBuildThisFileDirectory)..\Nullean.Argh.Tests.CliHost\bin\$(Configuration)\$(TargetFramework)\</_CliHostDir>
     </PropertyGroup>
@@ -29,6 +25,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Proc" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

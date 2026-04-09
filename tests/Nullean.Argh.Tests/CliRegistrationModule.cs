@@ -22,6 +22,8 @@ internal static class CliRegistrationModule
 		app.Add("dir-cmd", CliTestHandlers.DirCmd);
 		app.Add("uri-cmd", CliTestHandlers.UriCmd);
 		app.Add("point-cmd", CliTestHandlers.PointCmd);
+		app.Add("doc-lambda", DocLambdaEcho);
+		// Anonymous lambdas have no XML docs; use a named handler (e.g. DocLambdaEcho) for help text.
 		app.Add("lambda-cmd", (string msg) => Console.Out.WriteLine($"lambda:{msg}"));
 		app.Add<DiProbeCommands>();
 		app.AddNamespace("storage", g =>
@@ -30,4 +32,11 @@ internal static class CliRegistrationModule
 			g.Add<StorageCliCommands>();
 		});
 	}
+
+	/// <summary>Documented handler for lambda-style <c>Add</c> (XML appears in help).</summary>
+	/// <param name="line">-l,--line, Text line to echo.</param>
+	/// <example>doc-lambda --line hi</example>
+	internal static void DocLambdaEcho(string line) =>
+		Console.Out.WriteLine($"doc-lambda:{line}");
 }
+

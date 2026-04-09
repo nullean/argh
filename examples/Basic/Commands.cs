@@ -22,35 +22,47 @@ internal static class CommandHandlers
 	/// <param name="name">-n,--name, Name to greet.</param>
 	[FilterAttribute<PerCommandExampleFilter>]
 	public static void Hello(string name) =>
-		Console.WriteLine($"Hello, {name}!");
+		Console.WriteLine($"basic:hello:{name}");
 
 	/// <summary>Prints a colored status line.</summary>
 	/// <param name="color">-c,--color, Accent color.</param>
 	/// <param name="label">-l,--label, Short label.</param>
 	public static void Status(ExampleColor color, string label) =>
-		Console.WriteLine($"status:{color}:{label}");
+		Console.WriteLine($"basic:status:{color}:{label}");
 
 	/// <summary>Deploy using a prefixed <c>app</c> parameter object.</summary>
 	public static void Deploy([AsParameters("app")] DeployAppArgs app) =>
-		Console.WriteLine($"deploy env={app.Env} port={app.Port}");
+		Console.WriteLine($"basic:deploy:{app.Env}:{app.Port}");
 
 	/// <summary>Repeated <c>--label</c> flags build a list.</summary>
 	/// <param name="labels">--label, Labels to print.</param>
 	public static void Labels(List<string> labels) =>
-		Console.WriteLine("labels: " + string.Join(", ", labels));
+		Console.WriteLine("basic:labels:" + string.Join(",", labels));
 }
 
 /// <summary>Command group <c>storage</c> with a nested <c>blob</c> subgroup.</summary>
 internal sealed class StorageCommands
 {
 	/// <summary>Lists objects under the configured prefix.</summary>
-	public void List() => Console.WriteLine("storage:list (use --verbose and storage --prefix with global/group options)");
+	public void List() => Console.WriteLine("basic:storage:list");
 
 	/// <summary>Nested subgroup mapped to <c>storage blob …</c>.</summary>
 	public sealed class BlobCommands
 	{
 		/// <summary>Upload placeholder.</summary>
 		public void Upload() =>
-			Console.WriteLine("storage:blob:upload");
+			Console.WriteLine("basic:storage:blob:upload");
 	}
+}
+
+/// <summary><c>api</c> namespace: sibling to <c>storage</c> for grouped-command demo.</summary>
+internal sealed class ApiCommands
+{
+	/// <summary>Shows API version string.</summary>
+	public void Version() => Console.WriteLine("basic:api:version:1");
+
+	/// <summary>Health check with optional path.</summary>
+	/// <param name="segment">-s,--segment, Path segment.</param>
+	public void Health(string segment) =>
+		Console.WriteLine($"basic:api:health:{segment}");
 }

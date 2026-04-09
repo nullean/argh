@@ -2,7 +2,7 @@ using FluentAssertions;
 using Nullean.Argh.Runtime;
 using Xunit;
 
-namespace Nullean.Argh.Tests;
+namespace Nullean.Argh.Tests.Unit.Parsing;
 
 [Collection("Console")]
 public class ArghParserRouteTests
@@ -12,7 +12,7 @@ public class ArghParserRouteTests
 	{
 		var r = ArghParser.Route(["hello", "--name", "x"]);
 		r.Should().NotBeNull();
-		r!.Value.CommandPath.Should().Be("hello");
+		r.Value.CommandPath.Should().Be("hello");
 		r.Value.RemainingArgs.Should().Equal("--name", "x");
 	}
 
@@ -21,7 +21,7 @@ public class ArghParserRouteTests
 	{
 		var r = ArghParser.Route(["storage", "list", "--verbose"]);
 		r.Should().NotBeNull();
-		r!.Value.CommandPath.Should().Be("storage/list");
+		r.Value.CommandPath.Should().Be("storage/list");
 		r.Value.RemainingArgs.Should().Equal("--verbose");
 	}
 
@@ -30,7 +30,7 @@ public class ArghParserRouteTests
 	{
 		var r = ArghParser.Route(["storage", "blob", "upload"]);
 		r.Should().NotBeNull();
-		r!.Value.CommandPath.Should().Be("storage/blob/upload");
+		r.Value.CommandPath.Should().Be("storage/blob/upload");
 		r.Value.RemainingArgs.Should().BeEmpty();
 	}
 
