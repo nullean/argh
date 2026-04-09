@@ -7,13 +7,14 @@ namespace Nullean.Argh.IntegrationTests.Help;
 public class EnumHelpTests
 {
 	[Fact]
-	public void Enum_cmd_help_lists_values()
+	public void Enum_cmd_help_matches_expected_text()
 	{
-		var result = CliHostRunner.Run("enum-cmd", "--help");
+		var result = CliHostRunner.Run(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
+			"enum-cmd",
+			"--help");
 		result.ExitCode.Should().Be(0);
-		var o = CliHostRunner.StdoutText(result);
-		o.Should().Contain("Red");
-		o.Should().Contain("Blue");
-		o.Should().Contain("[values: Red, Blue]");
+		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
+		text.Should().Be(CliHostGoldenOutput.EnumCmdHelpNoColor());
 	}
 }

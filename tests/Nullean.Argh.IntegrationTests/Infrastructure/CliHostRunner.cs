@@ -49,9 +49,15 @@ internal static class CliHostRunner
 		return d;
 	}
 
-	internal static string StdoutText(ProcessCaptureResult result) =>
-		string.Concat(result.ConsoleOut.Cast<LineOut>().Where(l => !l.Error).Select(l => l.Line));
+	internal static string StdoutText(ProcessCaptureResult result)
+	{
+		var lines = result.ConsoleOut.Cast<LineOut>().Where(l => !l.Error).Select(l => l.Line).ToArray();
+		return lines.Length == 0 ? "" : string.Join("\n", lines) + "\n";
+	}
 
-	internal static string StderrText(ProcessCaptureResult result) =>
-		string.Concat(result.ConsoleOut.Cast<LineOut>().Where(l => l.Error).Select(l => l.Line));
+	internal static string StderrText(ProcessCaptureResult result)
+	{
+		var lines = result.ConsoleOut.Cast<LineOut>().Where(l => l.Error).Select(l => l.Line).ToArray();
+		return lines.Length == 0 ? "" : string.Join("\n", lines) + "\n";
+	}
 }
