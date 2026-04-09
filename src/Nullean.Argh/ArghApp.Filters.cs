@@ -1,6 +1,6 @@
 using Nullean.Argh.Filters;
 
-namespace Nullean.Argh.Builder;
+namespace Nullean.Argh;
 
 public sealed partial class ArghApp
 {

@@ -15,7 +15,7 @@ namespace Nullean.Argh;
 [Generator]
 public sealed class CliParserGenerator : IIncrementalGenerator
 {
-	private const string ArghAppMetadataName = "Nullean.Argh.Builder.ArghApp";
+	private const string ArghAppMetadataName = "Nullean.Argh.ArghApp";
 	private const string IArghBuilderMetadataName = "Nullean.Argh.Builder.IArghBuilder";
 	private const string ArghBuilderMetadataName = "Nullean.Argh.Builder.ArghBuilder";
 
@@ -1046,7 +1046,6 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			#nullable enable
 			using System;
 			using System.Threading.Tasks;
-			using Nullean.Argh.Builder;
 			using Nullean.Argh.Filters;
 			using Nullean.Argh.Help;
 			using Nullean.Argh.Matching;
@@ -1606,7 +1605,6 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("using System.Linq;");
 		sb.AppendLine("using System.Threading;");
 		sb.AppendLine("using System.Threading.Tasks;");
-		sb.AppendLine("using Nullean.Argh.Builder;");
 		sb.AppendLine("using Nullean.Argh.Filters;");
 		sb.AppendLine("using Nullean.Argh.Help;");
 		sb.AppendLine("using Nullean.Argh.Matching;");
@@ -1728,7 +1726,6 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("using System.Linq;");
 		sb.AppendLine("using System.Threading;");
 		sb.AppendLine("using System.Threading.Tasks;");
-		sb.AppendLine("using Nullean.Argh.Builder;");
 		sb.AppendLine("using Nullean.Argh.Filters;");
 		sb.AppendLine("using Nullean.Argh.Help;");
 		sb.AppendLine("using Nullean.Argh.Matching;");
