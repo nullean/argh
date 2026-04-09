@@ -21,7 +21,17 @@ public class ParseErrorTests
 		var result = CliHostRunner.Run(
 			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
 			"hello");
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(result)).Should().Be(CliHostGoldenOutput.HelloMissingRequiredFlagStderr());
-		ConsoleOutput.Normalize(CliHostRunner.StdoutText(result)).Should().Be(CliHostGoldenOutput.HelloMissingRequiredFlagStdout());
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(result)).Should().Be("Error: missing required flag --name.\n");
+		var expectedOut = ($"""
+			Usage: {CliHostPaths.CliHostAssemblyName} hello --name <string>
+
+			Global options:
+			  --verbose        
+			  --help, -h       Show help.
+
+			Options:
+			  --name <string>  [required]
+			""").ReplaceLineEndings("\n").TrimEnd() + "\n";
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(result)).Should().Be(expectedOut);
 	}
 }

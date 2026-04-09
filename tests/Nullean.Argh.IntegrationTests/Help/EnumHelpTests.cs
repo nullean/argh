@@ -15,6 +15,17 @@ public class EnumHelpTests
 			"--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
-		text.Should().Be(CliHostGoldenOutput.EnumCmdHelpNoColor());
+		var expected = ($"""
+			Usage: {CliHostPaths.CliHostAssemblyName} enum-cmd --color <string> --name <string>
+
+			Global options:
+			  --verbose         
+			  --help, -h        Show help.
+
+			Options:
+			  --color <string>  [required] [values: Red, Blue]
+			  --name <string>   [required]
+			""").ReplaceLineEndings("\n").TrimEnd() + "\n";
+		text.Should().Be(expected);
 	}
 }

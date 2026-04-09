@@ -15,6 +15,32 @@ public class RootHelpFullTextTests
 			"--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
-		text.Should().Be(CliHostGoldenOutput.RootHelpNoColor());
+		var expected = ($"""
+			Usage: {CliHostPaths.CliHostAssemblyName} <namespace|command> [options]
+
+			Namespaces:
+			  di-probe
+			  storage
+
+			Commands:
+			  hello    
+			  enum-cmd    
+			  deploy    
+			  tags    
+			  dry-run-cmd    
+			  count-cmd    
+			  file-cmd    
+			  dir-cmd    
+			  uri-cmd    
+			  point-cmd    
+			  doc-lambda    
+			  lambda-cmd    
+
+			Global options:
+			  --verbose  
+			  --help, -h  Show help.
+			  --version  Show version.
+			""").ReplaceLineEndings("\n").TrimEnd() + "\n";
+		text.Should().Be(expected);
 	}
 }

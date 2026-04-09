@@ -16,7 +16,17 @@ public class HelpContentTests
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		text.Should().NotContain("\x1b");
-		text.Should().Be(CliHostGoldenOutput.HelloHelpNoColor());
+		var expected = ($"""
+			Usage: {CliHostPaths.CliHostAssemblyName} hello --name <string>
+
+			Global options:
+			  --verbose        
+			  --help, -h       Show help.
+
+			Options:
+			  --name <string>  [required]
+			""").ReplaceLineEndings("\n").TrimEnd() + "\n";
+		text.Should().Be(expected);
 	}
 
 	[Fact]
@@ -28,6 +38,16 @@ public class HelpContentTests
 			"--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
-		text.Should().Be(CliHostGoldenOutput.DocLambdaHelpNoColor());
+		var expected = ($"""
+			Usage: {CliHostPaths.CliHostAssemblyName} doc-lambda --line <string>
+
+			Global options:
+			  --verbose        
+			  --help, -h       Show help.
+
+			Options:
+			  --line <string>  [required]
+			""").ReplaceLineEndings("\n").TrimEnd() + "\n";
+		text.Should().Be(expected);
 	}
 }
