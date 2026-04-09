@@ -25,7 +25,7 @@ public class HelpContentTests
 
 			Options:
 			  --name <string>  [required]
-			""").ReplaceLineEndings("\n").TrimEnd() + "\n";
+			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
 	}
 
@@ -47,7 +47,7 @@ public class HelpContentTests
 
 			Options:
 			  --line <string>  [required]
-			""").ReplaceLineEndings("\n").TrimEnd() + "\n";
+			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
 	}
 }

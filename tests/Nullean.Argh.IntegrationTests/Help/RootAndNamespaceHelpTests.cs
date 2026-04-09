@@ -17,6 +17,11 @@ public class RootAndNamespaceHelpTests
 		var expected = ($"""
 			Usage: {CliHostPaths.CliHostAssemblyName} <namespace|command> [options]
 
+			Global options:
+			  --verbose  
+			  --help, -h  Show help.
+			  --version  Show version.
+
 			Namespaces:
 			  di-probe
 			  storage
@@ -34,12 +39,7 @@ public class RootAndNamespaceHelpTests
 			  point-cmd    
 			  doc-lambda    
 			  lambda-cmd    
-
-			Global options:
-			  --verbose  
-			  --help, -h  Show help.
-			  --version  Show version.
-			""").ReplaceLineEndings("\n").TrimEnd() + "\n";
+			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
 		text.Should().NotContain("blob");
 	}
@@ -56,12 +56,6 @@ public class RootAndNamespaceHelpTests
 		var expected = ($"""
 			Usage: {CliHostPaths.CliHostAssemblyName} storage <command> [options]
 
-			Namespaces:
-			  storage blob
-
-			Commands:
-			  storage list    
-
 			Global options:
 			  --verbose          
 			  --help, -h         Show help.
@@ -69,7 +63,12 @@ public class RootAndNamespaceHelpTests
 			'storage' options:
 			  --prefix <string>  [required]
 
-			""").ReplaceLineEndings("\n").TrimEnd() + "\n\n";
+			Namespaces:
+			  storage blob
+
+			Commands:
+			  storage list    
+			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
 		text.Should().NotContain("hello");
 	}

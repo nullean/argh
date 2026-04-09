@@ -18,6 +18,11 @@ public class RootHelpFullTextTests
 		var expected = ($"""
 			Usage: {CliHostPaths.CliHostAssemblyName} <namespace|command> [options]
 
+			Global options:
+			  --verbose  
+			  --help, -h  Show help.
+			  --version  Show version.
+
 			Namespaces:
 			  di-probe
 			  storage
@@ -35,12 +40,7 @@ public class RootHelpFullTextTests
 			  point-cmd    
 			  doc-lambda    
 			  lambda-cmd    
-
-			Global options:
-			  --verbose  
-			  --help, -h  Show help.
-			  --version  Show version.
-			""").ReplaceLineEndings("\n").TrimEnd() + "\n";
+			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
 	}
 }

@@ -31,7 +31,7 @@ public class ParseErrorTests
 
 			Options:
 			  --name <string>  [required]
-			""").ReplaceLineEndings("\n").TrimEnd() + "\n";
+			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(result)).Should().Be(expectedOut);
 	}
 }

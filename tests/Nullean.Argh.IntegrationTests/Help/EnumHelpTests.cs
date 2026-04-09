@@ -25,7 +25,7 @@ public class EnumHelpTests
 			Options:
 			  --color <string>  [required] [values: Red, Blue]
 			  --name <string>   [required]
-			""").ReplaceLineEndings("\n").TrimEnd() + "\n";
+			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
 	}
 }

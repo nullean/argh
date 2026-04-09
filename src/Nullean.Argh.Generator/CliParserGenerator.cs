@@ -1700,6 +1700,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine(
 			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" <command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  --help, -h    Show help.\");");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  --version     Show version.\");");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Commands:\"));");
 		foreach (CommandModel c in commands)
 		{
@@ -1707,10 +1711,6 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(c.CommandName)}\")}}    {summary}\");");
 		}
 
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  --help, -h    Show help.\");");
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  --version     Show version.\");");
 		sb.AppendLine("\t\t}");
 	}
 
@@ -1865,6 +1865,22 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine(
 			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" <namespace|command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
+		if (app.GlobalOptionsModel is OptionsTypeModel gom && gom.Members.Length > 0)
+		{
+			foreach (ParameterModel p in gom.Members)
+			{
+				if (p.Kind != ParameterKind.Flag)
+					continue;
+				string left = HelpLayout.FormatOptionLeftCell(p);
+				string desc = BuildDescriptionSuffix(p, forPositional: false);
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)}\");");
+			}
+		}
+
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"--help, -h\") + \"  Show help.\");");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"--version\") + \"  Show version.\");");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (app.Root.Children.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Namespaces:\"));");
@@ -1882,25 +1898,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				string summary = Escape(c.SummaryOneLiner);
 				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(c.CommandName)}\")}}    {summary}\");");
 			}
-
-			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		}
 
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
-		if (app.GlobalOptionsModel is OptionsTypeModel gom && gom.Members.Length > 0)
-		{
-			foreach (ParameterModel p in gom.Members)
-			{
-				if (p.Kind != ParameterKind.Flag)
-					continue;
-				string left = HelpLayout.FormatOptionLeftCell(p);
-				string desc = BuildDescriptionSuffix(p, forPositional: false);
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)}\");");
-			}
-		}
-
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"--help, -h\") + \"  Show help.\");");
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"--version\") + \"  Show version.\");");
 		sb.AppendLine("\t\t}");
 	}
 
@@ -1936,6 +1935,20 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" {Escape(usagePrefix)} <command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
+		if (globalFlagMembers.Count > 0)
+			EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
+		string globalHelpLeft = "--help, -h".PadRight(maxOptWidth);
+		sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(globalHelpLeft)}\") + \"  Show help.\");");
+		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+
+		foreach ((string segment, List<ParameterModel> gRows) in namespaceOptionSections)
+		{
+			sb.AppendLine($"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"'{Escape(segment)}' options:\"));");
+			EmitHelpOptionRows(sb, gRows, maxOptWidth);
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+		}
+
 		if (node.Children.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Namespaces:\"));");
@@ -1957,22 +1970,6 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				string summary = Escape(c.SummaryOneLiner);
 				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(fullCmd)}\")}}    {summary}\");");
 			}
-
-			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
-		}
-
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
-		if (globalFlagMembers.Count > 0)
-			EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
-		string globalHelpLeft = "--help, -h".PadRight(maxOptWidth);
-		sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(globalHelpLeft)}\") + \"  Show help.\");");
-		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
-
-		foreach ((string segment, List<ParameterModel> gRows) in namespaceOptionSections)
-		{
-			sb.AppendLine($"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"'{Escape(segment)}' options:\"));");
-			EmitHelpOptionRows(sb, gRows, maxOptWidth);
-			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		}
 
 		sb.AppendLine("\t\t}");
