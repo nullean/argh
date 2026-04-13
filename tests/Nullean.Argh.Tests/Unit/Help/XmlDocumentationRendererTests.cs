@@ -36,16 +36,18 @@ public class XmlDocumentationRendererTests
 	}
 
 	[Fact]
-	public void Example_block_emits_separator_and_code_uses_inverse_when_ansi_enabled()
+	public void Example_block_emits_bold_example_separator_and_plain_code_lines()
 	{
-		if (!CliHelpFormatting.UseAnsiColors)
-			return;
-
 		const string inner = "<example><code>dotnet run --help\n</code></example>";
 		using var sw = new StringWriter();
 		XmlDocumentationRenderer.WriteIndentedDoc(sw, "   ", inner, isRemarks: true);
 		var s = sw.ToString();
-		s.Should().Contain("---");
-		s.Should().Contain("\x1b[7m");
+		s.Should().Contain("--- example ---");
+		s.Should().Contain("dotnet run --help");
+		s.Should().NotContain("\x1b[7m");
+		if (CliHelpFormatting.UseAnsiColors)
+		{
+			s.Should().Contain("\x1b[1mexample\x1b[0m");
+		}
 	}
 }

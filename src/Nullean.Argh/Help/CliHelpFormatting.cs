@@ -72,17 +72,17 @@ public static class CliHelpFormatting
 		return "\x1b[37m" + text + "\x1b[0m";
 	}
 
-	/// <summary>Horizontal rule before &lt;example&gt; blocks in rendered XML doc help.</summary>
-	public static string ExampleSeparator() =>
-		UseAnsiColors ? "\x1b[90m---\x1b[0m" : "---";
-
-	/// <summary>One line of a &lt;code&gt; block: inverse foreground/background when colors enabled.</summary>
-	public static string CodeBlockLine(string line)
+	/// <summary>Rule before &lt;example&gt; blocks: <c>--- example ---</c> with dim dashes and bold label when colors enabled.</summary>
+	public static string ExampleSeparator()
 	{
-		if (string.IsNullOrEmpty(line) || !UseAnsiColors)
-			return line;
-		return "\x1b[7m" + line + "\x1b[0m";
+		if (!UseAnsiColors)
+			return "--- example ---";
+		// Dim gray dashes, bold "example", then dim trailing dashes.
+		return "\x1b[90m--- \x1b[0m\x1b[1mexample\x1b[0m\x1b[90m ---\x1b[0m";
 	}
+
+	/// <summary>One line of a &lt;code&gt; block (indented in the caller; no inverse video).</summary>
+	public static string CodeBlockLine(string line) => line;
 
 	/// <summary>&lt;paramref&gt; / &lt;typeparamref&gt; in rendered doc — magenta, then resume remark/summary base.</summary>
 	public static string DocParamRef(string name, bool forRemarks) => DocStyledSpan(name, "\x1b[35m", forRemarks);
