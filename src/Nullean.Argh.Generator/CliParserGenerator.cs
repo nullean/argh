@@ -2629,7 +2629,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	/// <summary>Summary (white) and remarks (gray) below usage for per-command help; same indent as default-handler doc lines, without the yellow label.</summary>
+	/// <summary>Summary (white) after usage, or remarks (gray) after options; caller emits <c>Description:</c> before remarks when using per-command help.</summary>
 	private static void EmitCommandHelpDocPrologue(StringBuilder sb, string indent, string? innerXml, string? plainFallback, bool remarks)
 	{
 		if (!string.IsNullOrWhiteSpace(innerXml))
@@ -4328,8 +4328,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
 		EmitCommandHelpDocPrologue(sb, "\t\t\t", cmd.SummaryInnerXml, cmd.SummaryOneLiner, false);
-		EmitCommandHelpDocPrologue(sb, "\t\t\t", cmd.RemarksInnerXml, cmd.RemarksRendered, true);
-		if (!string.IsNullOrWhiteSpace(cmd.SummaryOneLiner) || !string.IsNullOrWhiteSpace(cmd.RemarksRendered) || !string.IsNullOrWhiteSpace(cmd.SummaryInnerXml) || !string.IsNullOrWhiteSpace(cmd.RemarksInnerXml))
+		if (!string.IsNullOrWhiteSpace(cmd.SummaryOneLiner) || !string.IsNullOrWhiteSpace(cmd.SummaryInnerXml))
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
 		bool hasArgs = false;
@@ -4384,6 +4383,14 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Options:\"));");
 			EmitHelpOptionRows(sb, commandOnlyFlags, maxOptWidth);
 		}
+
+		bool hasRemarks = !string.IsNullOrWhiteSpace(cmd.RemarksRendered) || !string.IsNullOrWhiteSpace(cmd.RemarksInnerXml);
+		if (hasRemarks)
+		{
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Description:\"));");
+		}
+		EmitCommandHelpDocPrologue(sb, "\t\t\t", cmd.RemarksInnerXml, cmd.RemarksRendered, true);
 
 		if (!string.IsNullOrWhiteSpace(cmd.ExamplesRendered))
 		{

@@ -72,14 +72,8 @@ public static class CliHelpFormatting
 		return "\x1b[37m" + text + "\x1b[0m";
 	}
 
-	/// <summary>Rule before &lt;example&gt; blocks: <c>--- example ---</c> with dim dashes and bold label when colors enabled.</summary>
-	public static string ExampleSeparator()
-	{
-		if (!UseAnsiColors)
-			return "--- example ---";
-		// Dim gray dashes, bold "example", then dim trailing dashes.
-		return "\x1b[90m--- \x1b[0m\x1b[1mexample\x1b[0m\x1b[90m ---\x1b[0m";
-	}
+	/// <summary>Section title for &lt;example&gt; blocks in rendered XML remarks (same style as <see cref="Section"/>).</summary>
+	public static string ExampleSectionTitle() => Section("Example:");
 
 	/// <summary>Extra indent for &lt;code&gt; lines in XML doc help (after the block line indent).</summary>
 	public const string XmlDocCodeLinePrefix = "  ";

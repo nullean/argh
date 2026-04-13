@@ -182,7 +182,7 @@ public static class XmlDocumentationRenderer
 				case XElement e when e.Name.LocalName == "example":
 					if (sb.Length > 0 && sb[sb.Length - 1] != '\n')
 						sb.AppendLine();
-					sb.Append(CliHelpFormatting.ExampleSeparator());
+					sb.Append(CliHelpFormatting.ExampleSectionTitle());
 					sb.AppendLine();
 					FlattenNodes(e.Nodes(), sb, inRemarks);
 					break;
