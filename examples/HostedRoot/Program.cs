@@ -27,10 +27,14 @@ builder.Services.AddArgh(
 		app.GlobalOptions<HostedRootGlobalCliOptions>();
 		app.AddRootCommand(HostedRootDefaults.App);
 		app.Add("hello", HostedRootHello.Run);
-		app.AddNamespace<HostedRootStorageCommands>("storage", g =>
+		app.AddNamespace<HostedRootStorageCommands>(g =>
 		{
 			g.CommandNamespaceOptions<HostedRootStorageNamespaceOptions>();
-			g.AddNamespaceRootCommand(HostedRootDefaults.StorageNamespace);
+			g.AddNamespace<HostedRootStorageCommands.BlobCommands>("blob");
+		});
+		app.AddNamespace("connect", "description", g =>
+		{
+			g.Add("search", static () => Console.WriteLine("search"));
 		});
 	});
 

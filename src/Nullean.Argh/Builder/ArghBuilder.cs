@@ -56,9 +56,27 @@ public sealed class ArghBuilder : IArghBuilder
 		return this;
 	}
 
+	public IArghBuilder AddNamespace<T>(string name) where T : class
+	{
+		_ = _app.AddNamespace<T>(name);
+		return this;
+	}
+
 	public IArghBuilder AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
 	{
 		_ = _app.AddNamespace<T>(name, configure);
+		return this;
+	}
+
+	public IArghBuilder AddNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
+	{
+		_ = _app.AddNamespace<T>(name, configure);
+		return this;
+	}
+
+	public IArghBuilder AddNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class
+	{
+		_ = _app.AddNamespace<T>(configure);
 		return this;
 	}
 

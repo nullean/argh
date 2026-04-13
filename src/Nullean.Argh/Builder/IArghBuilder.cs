@@ -27,8 +27,17 @@ public interface IArghBuilder
 	/// <inheritdoc cref="ArghApp.AddNamespace(string, string, Action{IArghBuilder})"/>
 	IArghBuilder AddNamespace(string name, string description, Action<IArghBuilder> configure);
 
+	/// <inheritdoc cref="ArghApp.AddNamespace{T}(string)"/>
+	IArghBuilder AddNamespace<T>(string name) where T : class;
+
 	/// <inheritdoc cref="ArghApp.AddNamespace{T}(string, Action{IArghBuilder})"/>
 	IArghBuilder AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class;
+
+	/// <inheritdoc cref="ArghApp.AddNamespace{T}(string, Action{IArghNamespaceBuilder})"/>
+	IArghBuilder AddNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class;
+
+	/// <inheritdoc cref="ArghApp.AddNamespace{T}(Action{IArghNamespaceBuilder})"/>
+	IArghBuilder AddNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class;
 
 	/// <inheritdoc cref="ArghApp.CommandNamespaceOptions{T}"/>
 	IArghBuilder CommandNamespaceOptions<T>() where T : class;

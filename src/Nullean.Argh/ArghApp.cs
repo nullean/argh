@@ -61,12 +61,42 @@ public sealed partial class ArghApp : IArghBuilder
 	}
 
 	/// <summary>
+	/// Creates a nested namespace with no configure callback; equivalent to <c>AddNamespace&lt;T&gt;(name, _ =&gt; { })</c>.
+	/// </summary>
+	public ArghApp AddNamespace<T>(string name) where T : class =>
+		AddNamespace<T>(name, static (IArghBuilder _) => { });
+
+	/// <summary>
 	/// Creates a nested namespace; the listing description is taken from the XML <c>&lt;summary&gt;</c> on <typeparamref name="T"/>.
 	/// Public commands on <typeparamref name="T"/> (and nested handler classes) are registered automatically—do not call <c>Add&lt;T&gt;()</c> again inside the configure callback.
 	/// </summary>
 	public ArghApp AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
 	{
 		configure(new ArghBuilder(CreateChildApp(name)));
+		return this;
+	}
+
+	/// <summary>Like <see cref="AddNamespace{T}(string, Action{IArghBuilder})"/> but passes an <see cref="IArghNamespaceBuilder"/> that exposes <see cref="IArghNamespaceBuilder.Segment"/>.</summary>
+	public ArghApp AddNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
+	{
+		configure(new ArghNamespaceBuilder(CreateChildApp(name), name));
+		return this;
+	}
+
+	/// <summary>
+	/// Nested namespace where the segment is resolved at compile time (see <see cref="ArghNamespaceSegmentCodegen"/>).
+	/// Requires the source generator to emit registration for <typeparamref name="T"/>.
+	/// </summary>
+	public ArghApp AddNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class
+	{
+		var seg = ArghNamespaceSegmentCodegen.Get<T>();
+		if (seg is null)
+		{
+			throw new InvalidOperationException(
+				"AddNamespace<" + typeof(T).Name + ">(Action<IArghNamespaceBuilder>) requires the Argh source generator to emit a namespace segment for this type. Use AddNamespace<" + typeof(T).Name + ">(string name, ...) with an explicit segment, or ensure the project references Nullean.Argh.Generator.");
+		}
+
+		configure(new ArghNamespaceBuilder(CreateChildApp(seg), seg));
 		return this;
 	}
 

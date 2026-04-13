@@ -41,9 +41,27 @@ public sealed partial class ArghApp
 		return this;
 	}
 
+	IArghBuilder IArghBuilder.AddNamespace<T>(string name) where T : class
+	{
+		_ = AddNamespace<T>(name);
+		return this;
+	}
+
 	IArghBuilder IArghBuilder.AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
 	{
 		_ = AddNamespace<T>(name, configure);
+		return this;
+	}
+
+	IArghBuilder IArghBuilder.AddNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
+	{
+		_ = AddNamespace<T>(name, configure);
+		return this;
+	}
+
+	IArghBuilder IArghBuilder.AddNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class
+	{
+		_ = AddNamespace<T>(configure);
 		return this;
 	}
 

@@ -41,6 +41,16 @@ public interface IArghHostingBuilder : IArghBuilder
 	/// <inheritdoc cref="IArghBuilder.AddNamespace(string, string, Action{IArghBuilder})"/>
 	new IArghHostingBuilder AddNamespace(string name, string description, Action<IArghBuilder> configure);
 
+	/// <inheritdoc cref="IArghBuilder.AddNamespace{T}(string)"/>
+	new IArghHostingBuilder AddNamespace<T>(string name) where T : class;
+
 	/// <inheritdoc cref="IArghBuilder.AddNamespace{T}(string, Action{IArghBuilder})"/>
 	new IArghHostingBuilder AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class;
+
+	/// <inheritdoc cref="IArghBuilder.AddNamespace{T}(string, Action{IArghNamespaceBuilder})"/>
+	new IArghHostingBuilder AddNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class;
+
+	/// <inheritdoc cref="IArghBuilder.AddNamespace{T}(Action{IArghNamespaceBuilder})"/>
+	new IArghHostingBuilder AddNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class;
+
 }

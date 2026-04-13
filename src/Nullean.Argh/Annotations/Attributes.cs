@@ -1,5 +1,25 @@
 namespace Nullean.Argh;
 
+/// <summary>
+/// On a handler type used with <c>AddNamespace&lt;T&gt;(...)</c>, names the CLI segment when using the
+/// overload of <c>AddNamespace&lt;T&gt;</c> without a <c>string name</c> argument. At runtime, this attribute is required for that overload.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class NamespaceSegmentAttribute : Attribute
+{
+	public NamespaceSegmentAttribute(string segment) => Segment = segment;
+
+	/// <summary>Namespace path segment (e.g. <c>storage</c> for <c>app storage …</c>).</summary>
+	public string Segment { get; }
+}
+
+/// <summary>
+/// Marks a public method on a type registered with <c>Add&lt;T&gt;</c> or <c>AddNamespace&lt;T&gt;</c> as the
+/// default handler when that scope is selected with no deeper subcommand (same role as <c>AddNamespaceRootCommand</c>).
+/// </summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class DefaultCommandAttribute : Attribute;
+
 /// <summary>Marks a parameter as a positional CLI argument (successive positions starting at 0).</summary>
 [AttributeUsage(AttributeTargets.Parameter)]
 public sealed class ArgumentAttribute : Attribute;

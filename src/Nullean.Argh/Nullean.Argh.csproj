@@ -34,6 +34,7 @@
     <Content Include="..\..\README.md" Pack="true" PackagePath="README.md" CopyToOutputDirectory="PreserveNewest">
       <Link>README.md</Link>
     </Content>
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="/" />
     <Content Include="..\..\nuget-icon.png" CopyToOutputDirectory="PreserveNewest">
       <Link>nuget-icon.png</Link>
       <Pack>True</Pack>

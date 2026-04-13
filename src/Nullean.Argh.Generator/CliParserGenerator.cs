@@ -19,6 +19,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	private const string ArghAppMetadataName = "Nullean.Argh.ArghApp";
 	private const string IArghBuilderMetadataName = "Nullean.Argh.Builder.IArghBuilder";
 	private const string ArghBuilderMetadataName = "Nullean.Argh.Builder.ArghBuilder";
+	private const string IArghNamespaceBuilderMetadataName = "Nullean.Argh.Builder.IArghNamespaceBuilder";
+	private const string ArghNamespaceBuilderMetadataName = "Nullean.Argh.Builder.ArghNamespaceBuilder";
 
 	private static readonly DiagnosticDescriptor CommandNamespaceOptionsMustExtendParent = new(
 		"AGH0004",
@@ -86,8 +88,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 	private static readonly DiagnosticDescriptor DuplicateRootCommand = new(
 		"AGH0010",
-		"Duplicate root command",
-		"Only one AddRootCommand or AddNamespaceRootCommand is allowed per registration scope.",
+		"Duplicate default command",
+		"Only one default handler per scope: AddRootCommand, AddNamespaceRootCommand, or [DefaultCommand].",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
@@ -140,6 +142,38 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Warning,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor NamespaceSegmentUnresolved = new(
+		"AGH0017",
+		"Namespace segment could not be resolved",
+		"AddNamespace<{0}>() without a name requires [NamespaceSegment] with a string argument on the type and/or a single <c>segment</c> in the type XML <summary>.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor NamespaceSegmentConflict = new(
+		"AGH0018",
+		"Conflicting namespace segment",
+		"Namespace segment for '{0}' is specified as '{1}' in one place and '{2}' in another; use a single source.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor MultipleDefaultCommandAttributes = new(
+		"AGH0019",
+		"Multiple [DefaultCommand] attributes",
+		"Type '{0}' has more than one method marked [DefaultCommand]; keep at most one.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor VacuousNamespace = new(
+		"AGH0020",
+		"Namespace registers no commands",
+		"This AddNamespace block does not register any commands, nested namespaces, or default handlers.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		IncrementalValuesProvider<InvocationExpressionSyntax> invocations = context.SyntaxProvider
@@ -181,6 +215,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		INamedTypeSymbol? iArghBuilder = compilation.GetTypeByMetadataName(IArghBuilderMetadataName);
 		INamedTypeSymbol? arghBuilderType = compilation.GetTypeByMetadataName(ArghBuilderMetadataName);
+		INamedTypeSymbol? iArghNamespaceBuilder = compilation.GetTypeByMetadataName(IArghNamespaceBuilderMetadataName);
+		INamedTypeSymbol? arghNamespaceBuilderType = compilation.GetTypeByMetadataName(ArghNamespaceBuilderMetadataName);
 
 		var filtered = new List<InvocationExpressionSyntax>();
 		foreach (InvocationExpressionSyntax invocation in invocations)
@@ -190,7 +226,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				continue;
 
 			ITypeSymbol? receiver = GetReceiverType(model, invocation);
-			if (receiver is null || !IsArghRegistrationReceiver(receiver, arghApp, iArghBuilder, arghBuilderType))
+			if (receiver is null || !IsArghRegistrationReceiver(receiver, arghApp, iArghBuilder, arghBuilderType, iArghNamespaceBuilder, arghNamespaceBuilderType))
 				continue;
 
 			if (method.Name is not ("Add" or "AddNamespace" or "AddRootCommand" or "AddNamespaceRootCommand" or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware"))
@@ -215,7 +251,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			return a.Span.Start.CompareTo(b.Span.Start);
 		});
 
-		if (!TryBuildAppEmitModel(context, compilation, filtered, out AppEmitModel? appModel) || appModel is null)
+		bool built = TryBuildAppEmitModel(context, compilation, filtered, out AppEmitModel? appModel);
+		if (appModel is not null)
+			EmitNamespaceSegmentCodegen(context, compilation, appModel);
+
+		if (!built || appModel is null)
 		{
 			EmitEmpty(context, entryAsmName, entryAsmVersion);
 			return;
@@ -246,7 +286,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		ITypeSymbol receiver,
 		INamedTypeSymbol arghApp,
 		INamedTypeSymbol? iArghBuilder,
-		INamedTypeSymbol? arghBuilderType)
+		INamedTypeSymbol? arghBuilderType,
+		INamedTypeSymbol? iArghNamespaceBuilder,
+		INamedTypeSymbol? arghNamespaceBuilderType)
 	{
 		if (SymbolEqualityComparer.Default.Equals(receiver, arghApp))
 			return true;
@@ -257,12 +299,30 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (arghBuilderType is not null && SymbolEqualityComparer.Default.Equals(receiver, arghBuilderType))
 			return true;
 
-		if (iArghBuilder is not null && receiver is INamedTypeSymbol named)
+		if (iArghNamespaceBuilder is not null && SymbolEqualityComparer.Default.Equals(receiver, iArghNamespaceBuilder))
+			return true;
+
+		if (arghNamespaceBuilderType is not null && SymbolEqualityComparer.Default.Equals(receiver, arghNamespaceBuilderType))
+			return true;
+
+		if (receiver is INamedTypeSymbol named)
 		{
-			foreach (INamedTypeSymbol iface in named.AllInterfaces)
+			if (iArghBuilder is not null)
 			{
-				if (SymbolEqualityComparer.Default.Equals(iface, iArghBuilder))
-					return true;
+				foreach (INamedTypeSymbol iface in named.AllInterfaces)
+				{
+					if (SymbolEqualityComparer.Default.Equals(iface, iArghBuilder))
+						return true;
+				}
+			}
+
+			if (iArghNamespaceBuilder is not null)
+			{
+				foreach (INamedTypeSymbol iface in named.AllInterfaces)
+				{
+					if (SymbolEqualityComparer.Default.Equals(iface, iArghNamespaceBuilder))
+						return true;
+				}
 			}
 		}
 
@@ -294,7 +354,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		public readonly RegistryNode Root = new();
 		public ImmutableArray<CommandModel> AllCommands = ImmutableArray<CommandModel>.Empty;
 		public ImmutableArray<GlobalMiddlewareRegistration> GlobalMiddleware = ImmutableArray<GlobalMiddlewareRegistration>.Empty;
+		public readonly List<ArglessNamespaceCodegenEntry> ArglessNamespaceCodegen = new();
 	}
+
+	private sealed record ArglessNamespaceCodegenEntry(INamedTypeSymbol Type, string Segment);
 
 	private sealed record GlobalMiddlewareRegistration(INamedTypeSymbol MiddlewareType);
 
@@ -327,6 +390,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		var flat = new List<CommandModel>();
 		CollectCommands(app.Root, flat);
+		model = app;
 		if (flat.Count == 0)
 			return false;
 
@@ -341,7 +405,6 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (app.GlobalOptionsType is not null)
 			app.GlobalOptionsModel = BuildOptionsTypeModel(context, app.GlobalOptionsType);
 
-		model = app;
 		return true;
 	}
 
@@ -507,6 +570,111 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
+
+	private static bool TryGetNamespaceSegmentAttribute(INamedTypeSymbol type, out string segment)
+	{
+		segment = "";
+		foreach (AttributeData ad in type.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name != "NamespaceSegmentAttribute" ||
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() != "Nullean.Argh")
+				continue;
+			if (ad.ConstructorArguments.Length > 0 && ad.ConstructorArguments[0].Value is string s && !string.IsNullOrWhiteSpace(s))
+			{
+				segment = s;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static bool TryGetFirstCodeInTypeSummary(INamedTypeSymbol type, out string code)
+	{
+		code = "";
+		string? xml = type.GetDocumentationCommentXml();
+		if (string.IsNullOrWhiteSpace(xml))
+			return false;
+		try
+		{
+			var doc = XDocument.Parse("<root>" + xml + "</root>", LoadOptions.PreserveWhitespace);
+			XElement? root = doc.Root;
+			XElement? sum = root?.Descendants().FirstOrDefault(e => e.Name.LocalName == "summary");
+			XElement? c = sum?.Descendants().FirstOrDefault(e => e.Name.LocalName == "c");
+			if (c is null || string.IsNullOrWhiteSpace(c.Value))
+				return false;
+			code = c.Value.Trim();
+			return Regex.IsMatch(code, @"^[a-zA-Z0-9_-]+$");
+		}
+		catch
+		{
+			return false;
+		}
+	}
+
+	private static bool TryResolveNamespaceSegmentForArgless(
+		SourceProductionContext context,
+		INamedTypeSymbol type,
+		Location errorLocation,
+		out string segment)
+	{
+		segment = "";
+		bool hasAttr = TryGetNamespaceSegmentAttribute(type, out string attrSeg);
+		bool hasXml = TryGetFirstCodeInTypeSummary(type, out string xmlSeg);
+		if (!hasAttr && !hasXml)
+		{
+			context.ReportDiagnostic(Diagnostic.Create(NamespaceSegmentUnresolved, errorLocation, type.Name));
+			return false;
+		}
+
+		if (hasAttr && hasXml && !string.Equals(attrSeg, xmlSeg, StringComparison.Ordinal))
+		{
+			context.ReportDiagnostic(Diagnostic.Create(NamespaceSegmentConflict, errorLocation, type.Name, attrSeg, xmlSeg));
+			return false;
+		}
+
+		segment = hasAttr ? attrSeg : xmlSeg;
+		return true;
+	}
+
+	private static void ValidateNamespaceSegmentForExplicitName(
+		SourceProductionContext context,
+		INamedTypeSymbol type,
+		string literalSegment,
+		Location location)
+	{
+		bool hasAttr = TryGetNamespaceSegmentAttribute(type, out string attrSeg);
+		bool hasXml = TryGetFirstCodeInTypeSummary(type, out string xmlSeg);
+		if (hasAttr && hasXml && !string.Equals(attrSeg, xmlSeg, StringComparison.Ordinal))
+			context.ReportDiagnostic(Diagnostic.Create(NamespaceSegmentConflict, location, type.Name, attrSeg, xmlSeg));
+		if (hasAttr && !string.Equals(attrSeg, literalSegment, StringComparison.Ordinal))
+			context.ReportDiagnostic(Diagnostic.Create(NamespaceSegmentConflict, location, type.Name, attrSeg, literalSegment));
+		if (hasXml && !string.Equals(xmlSeg, literalSegment, StringComparison.Ordinal))
+			context.ReportDiagnostic(Diagnostic.Create(NamespaceSegmentConflict, location, type.Name, xmlSeg, literalSegment));
+	}
+
+	private static void RegisterArglessNamespaceCodegen(
+		SourceProductionContext context,
+		AppEmitModel app,
+		INamedTypeSymbol type,
+		string segment,
+		Location location)
+	{
+		foreach (ArglessNamespaceCodegenEntry existing in app.ArglessNamespaceCodegen)
+		{
+			if (!SymbolEqualityComparer.Default.Equals(existing.Type, type))
+				continue;
+			if (!string.Equals(existing.Segment, segment, StringComparison.Ordinal))
+				context.ReportDiagnostic(Diagnostic.Create(NamespaceSegmentConflict, location, type.Name, existing.Segment, segment));
+			return;
+		}
+
+		app.ArglessNamespaceCodegen.Add(new ArglessNamespaceCodegenEntry(type, segment));
+	}
+
+	private static bool IsRegistryNodeVacuous(RegistryNode node) =>
+		node.RootCommand is null && node.Commands.Count == 0 && node.Children.Count == 0;
+
 	private static void ProcessAddNamespaceInvocation(
 		SourceProductionContext context,
 		Compilation compilation,
@@ -516,11 +684,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		ImmutableArray<string> parentPath,
 		AppEmitModel app)
 	{
-		if (addNamespaceInvocation.ArgumentList.Arguments.Count < 2)
-			return;
-
-		string? segmentName = TryGetStringLiteral(addNamespaceInvocation.ArgumentList.Arguments[0].Expression);
-		if (string.IsNullOrWhiteSpace(segmentName))
+		if (addNamespaceInvocation.ArgumentList.Arguments.Count < 1)
 			return;
 
 		SemanticModel model = compilation.GetSemanticModel(addNamespaceInvocation.SyntaxTree);
@@ -528,21 +692,49 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		    addNsMethod.Name != "AddNamespace")
 			return;
 
-		string nsSummary = "";
 		bool genericEntry = addNsMethod.IsGenericMethod && addNsMethod.TypeArguments.Length == 1;
-		int argCount = addNamespaceInvocation.ArgumentList.Arguments.Count;
-		INamedTypeSymbol? namespaceEntryType = null;
+		INamedTypeSymbol? namespaceEntryType = genericEntry && addNsMethod.TypeArguments[0] is INamedTypeSymbol nt && nt.TypeKind != TypeKind.Error
+			? nt
+			: null;
 
-		if (genericEntry && argCount == 2)
+		int argCount = addNamespaceInvocation.ArgumentList.Arguments.Count;
+		string? segmentName = null;
+		string nsSummary = "";
+
+		if (genericEntry && argCount == 1 && namespaceEntryType is not null)
 		{
-			if (addNsMethod.TypeArguments[0] is INamedTypeSymbol entryType && entryType.TypeKind != TypeKind.Error)
+			ExpressionSyntax firstExpr = addNamespaceInvocation.ArgumentList.Arguments[0].Expression;
+			string? strOnly = TryGetStringLiteral(firstExpr) ?? TryGetStringConstant(model, firstExpr);
+			if (strOnly is not null && !string.IsNullOrWhiteSpace(strOnly))
 			{
-				namespaceEntryType = entryType;
-				nsSummary = GetTypeListingSummaryOneLiner(entryType);
+				// AddNamespace<T>("segment") — no configure callback
+				segmentName = strOnly;
+				ValidateNamespaceSegmentForExplicitName(context, namespaceEntryType, segmentName, firstExpr.GetLocation());
+				nsSummary = GetTypeListingSummaryOneLiner(namespaceEntryType);
+			}
+			else
+			{
+				// AddNamespace<T>(Action<IArghNamespaceBuilder>) — segment from attribute/XML + module initializer
+				if (!TryResolveNamespaceSegmentForArgless(context, namespaceEntryType, addNamespaceInvocation.GetLocation(), out string seg))
+					return;
+				segmentName = seg;
+				nsSummary = GetTypeListingSummaryOneLiner(namespaceEntryType);
+				RegisterArglessNamespaceCodegen(context, app, namespaceEntryType, segmentName, addNamespaceInvocation.GetLocation());
 			}
 		}
-		else if (argCount >= 3)
+		else if (genericEntry && argCount >= 2 && namespaceEntryType is not null)
 		{
+			segmentName = TryGetStringLiteral(addNamespaceInvocation.ArgumentList.Arguments[0].Expression);
+			if (string.IsNullOrWhiteSpace(segmentName))
+				return;
+			ValidateNamespaceSegmentForExplicitName(context, namespaceEntryType, segmentName!, addNamespaceInvocation.ArgumentList.Arguments[0].GetLocation());
+			nsSummary = GetTypeListingSummaryOneLiner(namespaceEntryType);
+		}
+		else if (!genericEntry && argCount >= 3)
+		{
+			segmentName = TryGetStringLiteral(addNamespaceInvocation.ArgumentList.Arguments[0].Expression);
+			if (string.IsNullOrWhiteSpace(segmentName))
+				return;
 			string? desc = TryGetStringConstant(model, addNamespaceInvocation.ArgumentList.Arguments[1].Expression);
 			if (desc is null)
 			{
@@ -600,6 +792,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				childNode, parseOpts);
 		}
 
+		if (IsRegistryNodeVacuous(childNode))
+			context.ReportDiagnostic(Diagnostic.Create(VacuousNamespace, addNamespaceInvocation.GetLocation()));
+
 		parentNode.Children.Add(new RegistryNode.NamedCommandNamespaceChild
 		{
 			Segment = segmentName!,
@@ -630,12 +825,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		    sns.Identifier.Text != "AddNamespace")
 			return false;
 		int last = al.Arguments.Count - 1;
-		if (last < 1 || !ReferenceEquals(al.Arguments[last].Expression, lambda))
+		if (last < 0 || !ReferenceEquals(al.Arguments[last].Expression, lambda))
 			return false;
 		addNamespaceInv = inv;
 		return true;
 	}
-
 	private static bool IsRedundantGenericAddForNamespaceEntry(
 		InvocationExpressionSyntax inv,
 		INamedTypeSymbol namespaceEntryType,
@@ -935,6 +1129,37 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		RegistryNode targetNode,
 		CSharpParseOptions parseOpts)
 	{
+		IMethodSymbol? defaultCommand = null;
+		foreach (ISymbol member in type.GetMembers())
+		{
+			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary)
+				continue;
+			if (method.AssociatedSymbol is not null)
+				continue;
+			if (method.DeclaredAccessibility != Accessibility.Public)
+				continue;
+			if (!HasDefaultCommandAttribute(method))
+				continue;
+			if (defaultCommand is not null)
+			{
+				context.ReportDiagnostic(Diagnostic.Create(
+					MultipleDefaultCommandAttributes,
+					method.Locations.FirstOrDefault() ?? invocation.GetLocation(),
+					type.Name));
+				continue;
+			}
+
+			defaultCommand = method;
+		}
+
+		if (defaultCommand is not null)
+		{
+			if (targetNode.RootCommand is not null)
+				context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, invocation.GetLocation()));
+			else
+				targetNode.RootCommand = CommandModel.FromRootMethod(defaultCommand, parseOpts, routePrefix, context, invocation.GetLocation());
+		}
+
 		foreach (ISymbol member in type.GetMembers())
 		{
 			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary)
@@ -946,9 +1171,24 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			if (method.DeclaredAccessibility != Accessibility.Public)
 				continue;
 
+			if (defaultCommand is not null && SymbolEqualityComparer.Default.Equals(method, defaultCommand))
+				continue;
+
 			string cmdName = Naming.ToCommandName(method.Name);
 			targetNode.Commands.Add(CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, context, invocation.GetLocation()));
 		}
+	}
+
+	private static bool HasDefaultCommandAttribute(IMethodSymbol method)
+	{
+		foreach (AttributeData ad in method.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name == "DefaultCommandAttribute" &&
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
+				return true;
+		}
+
+		return false;
 	}
 
 	private static OptionsTypeModel? BuildOptionsTypeModel(SourceProductionContext context, INamedTypeSymbol type)
@@ -1319,6 +1559,33 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			return s;
 		return null;
 	}
+
+	private static void EmitNamespaceSegmentCodegen(SourceProductionContext context, Compilation compilation, AppEmitModel app)
+	{
+		if (app.ArglessNamespaceCodegen.Count == 0)
+			return;
+
+		var sb = new StringBuilder();
+		sb.AppendLine("// <auto-generated />");
+		sb.AppendLine("#nullable enable");
+		sb.AppendLine("using Nullean.Argh;");
+		sb.AppendLine();
+		sb.AppendLine("internal static class ArghNamespaceSegmentInitializer");
+		sb.AppendLine("{");
+		sb.AppendLine("	[System.Runtime.CompilerServices.ModuleInitializer]");
+		sb.AppendLine("	internal static void Init()");
+		sb.AppendLine("	{");
+		foreach (ArglessNamespaceCodegenEntry e in app.ArglessNamespaceCodegen)
+		{
+			string t = e.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			string escaped = e.Segment.Replace("\\", "\\\\").Replace("\"", "\\\"");
+			sb.AppendLine("\t\tglobal::Nullean.Argh.ArghNamespaceSegmentCodegen.Set<" + t + ">(\"" + escaped + "\");");
+		}
+		sb.AppendLine("	}");
+		sb.AppendLine("}");
+		context.AddSource("ArghNamespaceSegmentInitializer.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+	}
+
 
 	private static void EmitEmpty(SourceProductionContext context, string assemblyName, string assemblyVersion)
 	{
