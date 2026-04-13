@@ -762,6 +762,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			"",
 			"",
 			"",
+			"",
+			"",
 			usage,
 			ImmutableArray<INamedTypeSymbol>.Empty,
 			IsLambda: true,
@@ -851,6 +853,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			returnType,
 			parameters,
 			null,
+			"",
+			"",
 			"",
 			"",
 			"",
@@ -2544,6 +2548,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 						fromTrivia.SummaryOneLiner,
 						docs.RemarksRendered,
 						docs.ExamplesRendered,
+						fromTrivia.SummaryInnerXml,
+						docs.RemarksInnerXml,
 						docs.ParamDocsRaw,
 						docs.ParamSeparators);
 				}
@@ -2562,6 +2568,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 						docs.SummaryOneLiner,
 						fromTriviaRem.RemarksRendered,
 						docs.ExamplesRendered,
+						docs.SummaryInnerXml,
+						fromTriviaRem.RemarksInnerXml,
 						docs.ParamDocsRaw,
 						docs.ParamSeparators);
 				}
@@ -2599,11 +2607,18 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	}
 
 	/// <summary>Indented body lines for default-handler summary/remarks (one indent step less than before).</summary>
-	private static void EmitRootDefaultDocumentationLines(StringBuilder sb, string indent, string? block)
+	private static void EmitRootDefaultDocumentationLines(StringBuilder sb, string indent, string? innerXml, string? plainFallback, bool isRemarks)
 	{
-		if (string.IsNullOrWhiteSpace(block))
+		if (!string.IsNullOrWhiteSpace(innerXml))
+		{
+			// Concatenate (do not use $"..." interpolation): inner XML can contain `{`/`}` from generic cref text.
+			sb.AppendLine(indent + "global::Nullean.Argh.Help.XmlDocumentationRenderer.WriteIndentedDoc(Console.Out, \"   \", \"" + EscapeDocXml(innerXml!) + "\", " + (isRemarks ? "true" : "false") + ");");
 			return;
-		string text = block!;
+		}
+
+		if (string.IsNullOrWhiteSpace(plainFallback))
+			return;
+		string text = plainFallback!;
 		foreach (string part in text.Replace("\r\n", "\n").Split('\n'))
 		{
 			string line = part.TrimEnd('\r');
@@ -2615,11 +2630,17 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	}
 
 	/// <summary>Summary (white) and remarks (gray) below usage for per-command help; same indent as default-handler doc lines, without the yellow label.</summary>
-	private static void EmitCommandHelpDocPrologue(StringBuilder sb, string indent, string? block, bool remarks)
+	private static void EmitCommandHelpDocPrologue(StringBuilder sb, string indent, string? innerXml, string? plainFallback, bool remarks)
 	{
-		if (string.IsNullOrWhiteSpace(block))
+		if (!string.IsNullOrWhiteSpace(innerXml))
+		{
+			sb.AppendLine(indent + "global::Nullean.Argh.Help.XmlDocumentationRenderer.WriteIndentedDoc(Console.Out, \"   \", \"" + EscapeDocXml(innerXml!) + "\", " + (remarks ? "true" : "false") + ");");
 			return;
-		string text = block!;
+		}
+
+		if (string.IsNullOrWhiteSpace(plainFallback))
+			return;
+		string text = plainFallback!;
 		string styler = remarks ? "CliHelpFormatting.DocRemarksLine" : "CliHelpFormatting.DocSummaryLine";
 		foreach (string part in text.Replace("\r\n", "\n").Split('\n'))
 		{
@@ -2635,8 +2656,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	{
 		// "(default command)" is not an argv token — labels the opt-in default handler; summary/remarks from XML on the handler.
 		sb.AppendLine($"{indent}Console.Out.WriteLine(\" \" + CliHelpFormatting.DefaultCommandLabel(\"(default command)\"));");
-		EmitRootDefaultDocumentationLines(sb, indent, rootCmd.SummaryOneLiner);
-		EmitRootDefaultDocumentationLines(sb, indent, rootCmd.RemarksRendered);
+		EmitRootDefaultDocumentationLines(sb, indent, rootCmd.SummaryInnerXml, rootCmd.SummaryOneLiner, false);
+		EmitRootDefaultDocumentationLines(sb, indent, rootCmd.RemarksInnerXml, rootCmd.RemarksRendered, true);
 		List<ParameterModel> rootFlags = rootCmd.Parameters.Where(static p => p.Kind == ParameterKind.Flag).ToList();
 		if (rootFlags.Count > 0)
 		{
@@ -2830,6 +2851,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			null,
 			members,
 			null,
+			"",
+			"",
 			"",
 			"",
 			"",
@@ -4304,9 +4327,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
-		EmitCommandHelpDocPrologue(sb, "\t\t\t", cmd.SummaryOneLiner, remarks: false);
-		EmitCommandHelpDocPrologue(sb, "\t\t\t", cmd.RemarksRendered, remarks: true);
-		if (!string.IsNullOrWhiteSpace(cmd.SummaryOneLiner) || !string.IsNullOrWhiteSpace(cmd.RemarksRendered))
+		EmitCommandHelpDocPrologue(sb, "\t\t\t", cmd.SummaryInnerXml, cmd.SummaryOneLiner, false);
+		EmitCommandHelpDocPrologue(sb, "\t\t\t", cmd.RemarksInnerXml, cmd.RemarksRendered, true);
+		if (!string.IsNullOrWhiteSpace(cmd.SummaryOneLiner) || !string.IsNullOrWhiteSpace(cmd.RemarksRendered) || !string.IsNullOrWhiteSpace(cmd.SummaryInnerXml) || !string.IsNullOrWhiteSpace(cmd.RemarksInnerXml))
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
 		bool hasArgs = false;
@@ -4430,7 +4453,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		};
 	}
 
-	private static string Escape(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+	private static string Escape(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
+
+	private static string EscapeDocXml(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
 
 	private sealed record CommandModel(
 		ImmutableArray<string> RoutePrefix,
@@ -4445,6 +4470,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		IMethodSymbol? HandlerMethod,
 		string SummaryOneLiner,
 		string RemarksRendered,
+		string SummaryInnerXml,
+		string RemarksInnerXml,
 		string ExamplesRendered,
 		string UsageHints,
 		ImmutableArray<INamedTypeSymbol> CommandMiddleware,
@@ -4495,6 +4522,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				method,
 				docs.SummaryOneLiner,
 				docs.RemarksRendered,
+				docs.SummaryInnerXml,
+				docs.RemarksInnerXml,
 				docs.ExamplesRendered,
 				usage,
 				cmdMiddleware,
@@ -4543,6 +4572,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				method,
 				docs.SummaryOneLiner,
 				docs.RemarksRendered,
+				docs.SummaryInnerXml,
+				docs.RemarksInnerXml,
 				docs.ExamplesRendered,
 				usage,
 				cmdMiddleware);
@@ -5638,6 +5669,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		string SummaryOneLiner,
 		string RemarksRendered,
 		string ExamplesRendered,
+		string SummaryInnerXml,
+		string RemarksInnerXml,
 		ImmutableDictionary<string, string> ParamDocsRaw,
 		ImmutableDictionary<string, string> ParamSeparators);
 
@@ -5646,7 +5679,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		public static MethodDocumentation ParseMethod(string? xml, CSharpParseOptions parseOptions)
 		{
 			if (string.IsNullOrWhiteSpace(xml))
-				return new MethodDocumentation("", "", "", ImmutableDictionary<string, string>.Empty,
+				return new MethodDocumentation("", "", "", "", "", ImmutableDictionary<string, string>.Empty,
 					ImmutableDictionary<string, string>.Empty);
 
 			try
@@ -5654,11 +5687,13 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				var doc = XDocument.Parse("<root>" + xml + "</root>", LoadOptions.PreserveWhitespace);
 				XElement? root = doc.Root;
 				if (root is null)
-					return new MethodDocumentation("", "", "", ImmutableDictionary<string, string>.Empty,
+					return new MethodDocumentation("", "", "", "", "", ImmutableDictionary<string, string>.Empty,
 						ImmutableDictionary<string, string>.Empty);
 
-				string summary = FlattenBlock(root.Element("summary")).Replace("\r\n", "\n").Trim();
+				string summary = Regex.Replace(FlattenBlock(root.Element("summary")).Replace("\r\n", "\n"), @"\s+", " ").Trim();
 				string remarks = FlattenBlock(root.Element("remarks")).Replace("\r\n", "\n").Trim();
+				string summaryInner = GetElementInnerXml(root.Element("summary"));
+				string remarksInner = GetElementInnerXml(root.Element("remarks"));
 				string examples = string.Join("\n\n", root.Elements("example")
 					.Select(e => FlattenBlock(e).Replace("\r\n", "\n").Trim())
 					.Where(s => !string.IsNullOrWhiteSpace(s)));
@@ -5679,13 +5714,20 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					paramMap[name!] = FlattenParam(pe);
 				}
 
-				return new MethodDocumentation(summary, remarks, examples, paramMap.ToImmutable(), sepMap.ToImmutable());
+				return new MethodDocumentation(summary, remarks, examples, summaryInner, remarksInner, paramMap.ToImmutable(), sepMap.ToImmutable());
 			}
 			catch
 			{
-				return new MethodDocumentation("", "", "", ImmutableDictionary<string, string>.Empty,
+				return new MethodDocumentation("", "", "", "", "", ImmutableDictionary<string, string>.Empty,
 					ImmutableDictionary<string, string>.Empty);
 			}
+		}
+
+		private static string GetElementInnerXml(XElement? el)
+		{
+			if (el is null)
+				return "";
+			return string.Concat(el.Nodes().Select(n => n.ToString()));
 		}
 
 		public static string GetParamDocFromType(INamedTypeSymbol type, string parameterName)
@@ -5804,7 +5846,6 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 						if (sb.Length > 0)
 							sb.AppendLine();
 						FlattenNodes(e.Nodes(), sb);
-						sb.AppendLine();
 						break;
 					case XElement e when e.Name.LocalName == "code":
 						sb.AppendLine();
@@ -5830,22 +5871,73 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 						}
 
 						break;
-					case XElement e when e.Name.LocalName == "see":
+					case XElement e when e.Name.LocalName == "c":
+						sb.Append(e.Value.Trim());
+						break;
+					case XElement e when e.Name.LocalName == "paramref":
 					{
-						string? c = e.Attribute("cref")?.Value;
-						if (c is not null)
-						{
-							int dot = c.LastIndexOf('.');
-							sb.Append(dot >= 0 ? c.Substring(dot + 1) : c);
-						}
-
+						string? pn = e.Attribute("name")?.Value;
+						if (!string.IsNullOrEmpty(pn))
+							sb.Append(pn);
 						break;
 					}
+					case XElement e when e.Name.LocalName == "typeparamref":
+					{
+						string? tn = e.Attribute("name")?.Value;
+						if (!string.IsNullOrEmpty(tn))
+							sb.Append(tn);
+						break;
+					}
+					case XElement e when e.Name.LocalName == "see":
+						AppendSeeForListing(e, sb);
+						break;
 					case XElement e:
 						FlattenNodes(e.Nodes(), sb);
 						break;
 				}
 			}
+		}
+
+		private static void AppendSeeForListing(XElement e, StringBuilder sb)
+		{
+			string? lang = e.Attribute("langword")?.Value;
+			if (!string.IsNullOrEmpty(lang))
+			{
+				sb.Append(lang);
+				return;
+			}
+
+			string? href = e.Attribute("href")?.Value;
+			if (!string.IsNullOrEmpty(href))
+			{
+				string vis = string.IsNullOrWhiteSpace(e.Value) ? href! : e.Value.Trim();
+				sb.Append(vis);
+				return;
+			}
+
+			string? cref = e.Attribute("cref")?.Value;
+			if (!string.IsNullOrEmpty(cref))
+			{
+				string vis = string.IsNullOrWhiteSpace(e.Value) ? CrefShortNameForListing(cref!) : e.Value.Trim();
+				sb.Append(vis);
+				return;
+			}
+
+			FlattenNodes(e.Nodes(), sb);
+		}
+
+		private static string CrefShortNameForListing(string cref)
+		{
+			if (string.IsNullOrEmpty(cref))
+				return "";
+			int colon = cref.IndexOf(':');
+			string tail = colon >= 0 ? cref.Substring(colon + 1) : cref;
+			int dot = tail.LastIndexOf('.');
+			string name = dot >= 0 ? tail.Substring(dot + 1) : tail;
+			int paren = name.IndexOf('(');
+			if (paren >= 0)
+				name = name.Substring(0, paren);
+			return name;
 		}
 	}
 
