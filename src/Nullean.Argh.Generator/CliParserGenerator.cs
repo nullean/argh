@@ -2015,7 +2015,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" <command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (app.Root.RootCommand is { } flatRootOverview)
-			EmitRootCommandHelpOverview(sb, flatRootOverview, "\t\t\t");
+			EmitRootCommandHelpOverview(sb, flatRootOverview, "\t\t\t", app, entryAssemblyName);
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
 		sb.AppendLine(
@@ -2210,7 +2210,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" <namespace|command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (app.Root.RootCommand is { } rootOverview)
-			EmitRootCommandHelpOverview(sb, rootOverview, "\t\t\t");
+			EmitRootCommandHelpOverview(sb, rootOverview, "\t\t\t", app, entryAssemblyName);
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
 		sb.AppendLine(
@@ -2296,7 +2296,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			$"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Usage: \") + CliHelpFormatting.Accent(\"{Escape(entryAssemblyName)}\") + \" {Escape(usagePrefix)} <command> [options]\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (node.RootCommand is { } nsRootOverview)
-			EmitRootCommandHelpOverview(sb, nsRootOverview, "\t\t\t");
+			EmitRootCommandHelpOverview(sb, nsRootOverview, "\t\t\t", app, entryAssemblyName);
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
 		sb.AppendLine(
@@ -2652,12 +2652,13 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void EmitRootCommandHelpOverview(StringBuilder sb, CommandModel rootCmd, string indent)
+	private static void EmitRootCommandHelpOverview(StringBuilder sb, CommandModel rootCmd, string indent, AppEmitModel app, string entryAssemblyName)
 	{
 		// "(default command)" is not an argv token — labels the opt-in default handler; summary/remarks from XML on the handler.
 		sb.AppendLine($"{indent}Console.Out.WriteLine(\" \" + CliHelpFormatting.DefaultCommandLabel(\"(default command)\"));");
 		EmitRootDefaultDocumentationLines(sb, indent, rootCmd.SummaryInnerXml, rootCmd.SummaryOneLiner, false);
-		EmitRootDefaultDocumentationLines(sb, indent, rootCmd.RemarksInnerXml, rootCmd.RemarksRendered, true);
+		string? remarksXml = TransformRemarksInnerXmlForHelp(rootCmd.RemarksInnerXml, rootCmd, app.AllCommands, entryAssemblyName);
+		EmitRootDefaultDocumentationLines(sb, indent, remarksXml, rootCmd.RemarksRendered, true);
 		List<ParameterModel> rootFlags = rootCmd.Parameters.Where(static p => p.Kind == ParameterKind.Flag).ToList();
 		if (rootFlags.Count > 0)
 		{
@@ -4390,7 +4391,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Description:\"));");
 		}
-		EmitCommandHelpDocPrologue(sb, "\t\t\t", cmd.RemarksInnerXml, cmd.RemarksRendered, true);
+		string? remarksXml = TransformRemarksInnerXmlForHelp(cmd.RemarksInnerXml, cmd, app.AllCommands, entryAssemblyName);
+		EmitCommandHelpDocPrologue(sb, "\t\t\t", remarksXml, cmd.RemarksRendered, true);
 
 		if (!string.IsNullOrWhiteSpace(cmd.ExamplesRendered))
 		{
@@ -4463,6 +4465,134 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	private static string Escape(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
 
 	private static string EscapeDocXml(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
+
+	/// <summary>
+	/// Remarks XML only: <c>&lt;paramref name="x"/&gt;</c> for a CLI flag becomes <c>&lt;c&gt;--long-name&lt;/c&gt;</c>;
+	/// <c>&lt;see cref="M:…"/&gt;</c> for another command handler becomes <c>&lt;c&gt;entryAsm route cmd usage-hints&lt;/c&gt;</c> (same tail as the emitted Usage line after the assembly name).
+	/// </summary>
+	private static string? TransformRemarksInnerXmlForHelp(
+		string? innerXml,
+		CommandModel forCommand,
+		ImmutableArray<CommandModel> allCommands,
+		string entryAssemblyName)
+	{
+		if (string.IsNullOrWhiteSpace(innerXml))
+			return innerXml;
+
+		var crefToCommand = new Dictionary<string, CommandModel>(StringComparer.Ordinal);
+		foreach (CommandModel c in allCommands)
+		{
+			if (c.HandlerMethod is null || c.IsLambda)
+				continue;
+			if (c.HandlerMethod.GetDocumentationCommentId() is not { Length: > 0 } docId)
+				continue;
+			if (crefToCommand.ContainsKey(docId))
+				continue;
+			crefToCommand[docId] = c;
+		}
+
+		var flagBySymbol = new Dictionary<string, ParameterModel>(StringComparer.Ordinal);
+		foreach (ParameterModel p in forCommand.Parameters)
+		{
+			if (p.Kind == ParameterKind.Flag)
+				flagBySymbol[p.SymbolName] = p;
+		}
+
+		XElement root;
+		try
+		{
+			root = XElement.Parse("<x>" + innerXml + "</x>", LoadOptions.PreserveWhitespace);
+		}
+		catch
+		{
+			return innerXml;
+		}
+
+		foreach (XElement e in root.Descendants().ToList())
+		{
+			if (e.Name.LocalName == "paramref")
+			{
+				string? nameAttr = e.Attribute("name")?.Value;
+				if (!string.IsNullOrEmpty(nameAttr) &&
+				    flagBySymbol.TryGetValue(nameAttr!, out ParameterModel? pm))
+					e.ReplaceWith(new XElement("c", "--" + pm.CliLongName));
+				continue;
+			}
+
+			if (e.Name.LocalName != "see")
+				continue;
+
+			if (e.Attribute("langword") is not null || e.Attribute("href") is not null)
+				continue;
+
+			string? crefAttr = e.Attribute("cref")?.Value;
+			if (string.IsNullOrEmpty(crefAttr))
+				continue;
+
+			CommandModel? cmd = null;
+			if (crefToCommand.TryGetValue(crefAttr!, out CommandModel? byId))
+				cmd = byId;
+			else
+			{
+				foreach (CommandModel c in allCommands)
+				{
+					if (c.HandlerMethod is null || c.IsLambda)
+						continue;
+					if (!DocumentationCrefMatchesMethod(crefAttr!, c.HandlerMethod))
+						continue;
+					cmd = c;
+					break;
+				}
+			}
+
+			if (cmd is not null)
+				e.ReplaceWith(new XElement("c", BuildCommandUsageSynopsisTail(cmd, entryAssemblyName)));
+		}
+
+		return string.Concat(root.Nodes().Select(n => n.ToString()));
+	}
+
+	private static string BuildCommandUsageSynopsisTail(CommandModel cmd, string entryAssemblyName)
+	{
+		string routeUsage = cmd.RoutePrefix.IsDefaultOrEmpty
+			? ""
+			: string.Join(" ", cmd.RoutePrefix) + " ";
+		return $"{entryAssemblyName} {routeUsage}{cmd.CommandName} {cmd.UsageHints}".TrimEnd();
+	}
+
+	/// <summary>
+	/// <see cref="IMethodSymbol.GetDocumentationCommentId"/> vs XML <c>cref</c>: compiler XML may use the full <c>M:…</c> id or a short form (e.g. <c>Type.Method</c>).
+	/// </summary>
+	private static bool DocumentationCrefMatchesMethod(string cref, IMethodSymbol method)
+	{
+		if (string.IsNullOrEmpty(cref))
+			return false;
+
+		cref = cref.Replace("global::", "");
+
+		if (method.GetDocumentationCommentId() is not { Length: > 0 } fullId)
+			return false;
+
+		fullId = fullId.Replace("global::", "");
+
+		if (string.Equals(cref, fullId, StringComparison.Ordinal))
+			return true;
+
+		if (!fullId.StartsWith("M:", StringComparison.Ordinal) || fullId.Length < 3)
+			return false;
+
+		int sigParen = fullId.IndexOf('(', 2);
+		string qualifiedMember = sigParen >= 2 ? fullId.Substring(2, sigParen - 2) : fullId.Substring(2);
+
+		if (string.Equals(cref, qualifiedMember, StringComparison.Ordinal))
+			return true;
+
+		// e.g. cref "CliRegistrationModule.DocLambdaEcho" or "Demo" for "…DocsCommands.Demo(…)".
+		if (qualifiedMember.EndsWith(cref, StringComparison.Ordinal))
+			return true;
+
+		return false;
+	}
 
 	private sealed record CommandModel(
 		ImmutableArray<string> RoutePrefix,

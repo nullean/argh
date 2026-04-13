@@ -19,6 +19,7 @@ internal sealed record DeployCliArgs(string Env, int Port);
 internal static class CliTestHandlers
 {
 	/// <summary>Greet someone by name.</summary>
+	/// <remarks>See <see cref="CliRegistrationModule.DocLambdaEcho"/>; set <paramref name="name"/>.</remarks>
 	/// <example>hello --name world</example>
 	/// <param name="name">The name to greet.</param>
 	[MiddlewareAttribute<TestsPerCommandMiddleware>]

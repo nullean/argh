@@ -27,6 +27,9 @@ public class HelpContentTests
 
 			Options:
 			  --name <string>  [required]
+
+			Description:
+			   See {CliHostPaths.CliHostAssemblyName} doc-lambda --line <string>; set --name.
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
 	}

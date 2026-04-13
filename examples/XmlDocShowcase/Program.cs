@@ -6,5 +6,6 @@ using XmlDocShowcase;
 
 var app = new ArghApp();
 app.Add("demo", DocsCommands.Demo);
+app.Add("demo-2", DocsCommands.Demo2);
 
 return await app.RunAsync(args);
