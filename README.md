@@ -2,6 +2,10 @@
 
 **Nullean.Argh is a .NET library for building CLIs** from plain C# methods: you register commands on [`ArghApp`](src/Nullean.Argh/ArghApp.cs), and a Roslyn analyzer emits the parser, router, help, and dispatch into your assembly. Binding is **source-generated**, **reflection-free** for your command surface, and **suitable for trimming / native AOT** (no generic runtime `Bind<T>()` over arbitrary types).
 
+![Argh CLI help (XmlDocShowcase example)](docs/assets/xml-doc-showcase-help.gif)
+
+Recorded with [VHS](https://github.com/charmbracelet/vhs); regenerate from the repo root with `vhs < docs/vhs/xml-doc-showcase.tape`. If the image does not appear on nuget.org, use the same file via an absolute URL after merge to `main`: `https://raw.githubusercontent.com/nullean/argh/main/docs/assets/xml-doc-showcase-help.gif`.
+
 **Table of contents**
 
 - [Acknowledgements](#acknowledgements)
