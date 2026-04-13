@@ -60,6 +60,7 @@ build/tools/*
 /dep/Newtonsoft.Json.4.0.2
 !docs/build
 docs/node_modules
+docs/vhs/publish/
 doc/Help
 
 *.ncrunchproject

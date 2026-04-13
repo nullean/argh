@@ -1755,16 +1755,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown command '{__tok}'. Did you mean '{__m}'?\");");
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} {__m} --help' for usage.\");");
-		sb.AppendLine("\t\t\t\t\tConsole.Out.WriteLine();");
-		foreach (CommandModel c in sorted)
-		{
-			sb.AppendLine($"\t\t\t\t\tif (string.Equals(__m, \"{Escape(c.CommandName)}\", StringComparison.OrdinalIgnoreCase))");
-			sb.AppendLine("\t\t\t\t\t{");
-			sb.AppendLine($"\t\t\t\t\t\tPrintHelp_{c.RunMethodName}();");
-			sb.AppendLine("\t\t\t\t\t\treturn 2;");
-			sb.AppendLine("\t\t\t\t\t}");
-		}
-
+		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} --help' for usage.\");");
 		sb.AppendLine("\t\t\t\t}");
 		sb.AppendLine("\t\t\t\telse");
 		sb.AppendLine("\t\t\t\t{");
@@ -1783,6 +1774,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} <command> --help' for usage.\");");
+		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} --help' for usage.\");");
 		sb.AppendLine("\t\t\t\t}");
 		sb.AppendLine("\t\t\t\treturn 2;");
 	}
@@ -1828,17 +1820,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\tvar __m = __matches[0];");
 		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown {kind} '{{__tok}}'. Did you mean '{{__m}}'?\");");
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
-		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} <command> --help' for usage.\");");
-		sb.AppendLine("\t\t\t\t\tConsole.Out.WriteLine();");
-		foreach (var e in sorted)
-		{
-			sb.AppendLine($"\t\t\t\t\tif (string.Equals(__m, \"{Escape(e.Name)}\", StringComparison.OrdinalIgnoreCase))");
-			sb.AppendLine("\t\t\t\t\t{");
-			sb.AppendLine($"\t\t\t\t\t\t{e.HelpPrinter}();");
-			sb.AppendLine("\t\t\t\t\t\treturn 2;");
-			sb.AppendLine("\t\t\t\t\t}");
-		}
-
+		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} {__m} --help' for usage.\");");
+		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} --help' for usage.\");");
 		sb.AppendLine("\t\t\t\t}");
 		sb.AppendLine("\t\t\t\telse");
 		sb.AppendLine("\t\t\t\t{");
@@ -1857,6 +1840,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} <command> --help' for usage.\");");
+		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} --help' for usage.\");");
 		sb.AppendLine("\t\t\t\t}");
 		sb.AppendLine("\t\t\t\treturn 2;");
 	}

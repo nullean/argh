@@ -1,16 +1,23 @@
-# Run from repository root: vhs < docs/vhs/xml-doc-showcase.tape
+# From repo root: publish first, then record:
+#   dotnet publish examples/XmlDocShowcase/XmlDocShowcase.csproj -c Release -o docs/vhs/publish
+#   vhs < docs/vhs/xml-doc-showcase.tape
 Output docs/assets/xml-doc-showcase-help.gif
 
 Set FontSize 15
 Set Width 1100
-Set Height 580
+Set Height 620
 Set Padding 28
 Set Theme "Catppuccin Mocha"
+Set TypingSpeed 25ms
 
-Type "dotnet run --project examples/XmlDocShowcase -- --help"
+Type "./docs/vhs/publish/XmlDocShowcase --help"
 Enter
-Sleep 4s
+Sleep 3s
 
-Type "dotnet run --project examples/XmlDocShowcase -- welcome --help"
+Type "./docs/vhs/publish/XmlDocShowcase docs --help"
 Enter
-Sleep 6s
+Sleep 3s
+
+Type "./docs/vhs/publish/XmlDocShowcase docs cross-refs --help"
+Enter
+Sleep 5s

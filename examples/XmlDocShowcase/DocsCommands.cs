@@ -8,11 +8,9 @@ internal static class DocsCommands
 	/// <paramref name="to"/>, and <b>bold</b> / <i>italic</i> / <u>underline</u>.
 	/// </summary>
 	/// <remarks>
-	/// <para>Use this in onboarding scripts or smoke tests before a deploy. <paramref name="to"/></para>
 	/// <para>Related workflows:</para>
 	/// <list type="bullet">
-	/// <item><description>Run after configuring your profile locally.</description></item>
-	/// <item><description>Compare with <see cref="System.String"/> for simple payloads.</description></item>
+	/// <item><description><paramref name="to"/> is a parameter</description></item>
 	/// <item><see cref="Ping"/></item>
 	/// </list>
 	/// More detail on the next line:<br/>continues here without a new paragraph.
