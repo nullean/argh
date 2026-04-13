@@ -23,7 +23,7 @@ public static class XmlDocumentationRenderer
 			else
 			{
 				// Remarks: avoid stacked blank lines from para/list (para behaves like <br/>, not blank paragraphs).
-				rendered = CollapseBlankRuns(rendered);
+				rendered = CollapseBlankRuns(rendered).TrimEnd('\n', '\r');
 			}
 
 			WriteRenderedLines(writer, lineIndent, rendered, isRemarks);
@@ -34,7 +34,7 @@ public static class XmlDocumentationRenderer
 			if (!isRemarks)
 				fallback = Regex.Replace(fallback, @"\s+", " ").Trim();
 			else
-				fallback = CollapseBlankRuns(fallback);
+				fallback = CollapseBlankRuns(fallback).TrimEnd('\n', '\r');
 			WriteRenderedLines(writer, lineIndent, fallback, isRemarks);
 		}
 	}
@@ -96,7 +96,6 @@ public static class XmlDocumentationRenderer
 					sb.AppendLine();
 					break;
 				case XElement e when e.Name.LocalName == "code":
-					sb.AppendLine();
 					foreach (var c in e.Nodes())
 					{
 						if (c is not XText tx)
@@ -105,7 +104,9 @@ public static class XmlDocumentationRenderer
 						foreach (var seg in raw.Split('\n'))
 						{
 							var trimmed = seg.TrimEnd();
-							sb.Append(CliHelpFormatting.CodeBlockLine("    " + trimmed)).AppendLine();
+							if (trimmed.Length == 0)
+								continue;
+							sb.Append(CliHelpFormatting.CodeBlockLine(CliHelpFormatting.XmlDocCodeLinePrefix + trimmed)).AppendLine();
 						}
 					}
 
@@ -179,7 +180,7 @@ public static class XmlDocumentationRenderer
 					}
 					break;
 				case XElement e when e.Name.LocalName == "example":
-					if (sb.Length > 0)
+					if (sb.Length > 0 && sb[sb.Length - 1] != '\n')
 						sb.AppendLine();
 					sb.Append(CliHelpFormatting.ExampleSeparator());
 					sb.AppendLine();

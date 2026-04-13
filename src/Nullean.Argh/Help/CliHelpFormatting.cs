@@ -81,7 +81,10 @@ public static class CliHelpFormatting
 		return "\x1b[90m--- \x1b[0m\x1b[1mexample\x1b[0m\x1b[90m ---\x1b[0m";
 	}
 
-	/// <summary>One line of a &lt;code&gt; block (indented in the caller; no inverse video).</summary>
+	/// <summary>Extra indent for &lt;code&gt; lines in XML doc help (after the block line indent).</summary>
+	public const string XmlDocCodeLinePrefix = "  ";
+
+	/// <summary>One line of a &lt;code&gt; block (prefix with <see cref="XmlDocCodeLinePrefix"/> in the renderer).</summary>
 	public static string CodeBlockLine(string line) => line;
 
 	/// <summary>&lt;paramref&gt; / &lt;typeparamref&gt; in rendered doc — magenta, then resume remark/summary base.</summary>
