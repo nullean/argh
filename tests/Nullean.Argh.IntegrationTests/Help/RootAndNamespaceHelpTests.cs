@@ -22,9 +22,9 @@ public class RootAndNamespaceHelpTests
 			   Root default remarks for help layout tests.
 
 			Global options:
-			  --verbose   
 			  --help, -h  Show help.
 			  --version   Show version.
+			  --verbose   
 
 			Namespaces:
 			  di-probe  Instance command type for DI resolution tests
@@ -68,8 +68,8 @@ public class RootAndNamespaceHelpTests
 			   Namespace default remarks for help layout tests.
 
 			Global options:
-			  --verbose          
 			  --help, -h         Show help.
+			  --verbose          
 
 			'storage' options:
 			  --prefix <string>  [required]

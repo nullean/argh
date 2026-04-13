@@ -21,8 +21,8 @@ public class EnumHelpTests
 			   Enum and short options.
 
 			Global options:
-			  --verbose         
 			  --help, -h        Show help.
+			  --verbose         
 
 			Options:
 			  --color <string>  [required] [values: Red, Blue]

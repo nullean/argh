@@ -1,8 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Nullean.Argh;
-using Nullean.Argh.Builder;
 using Nullean.Argh.Runtime;
 
 namespace Nullean.Argh.Hosting;
@@ -51,7 +49,8 @@ public static class ArghHostingExtensions
 			() => ArghRuntime.RunAsync(args),
 			sp.GetRequiredService<IHostApplicationLifetime>(),
 			sp,
-			sp.GetService<ILogger<ArghHostingCliService>>()));
+			sp.GetService<ILogger<ArghHostingCliService>>())
+		);
 
 		return services;
 	}
@@ -85,7 +84,8 @@ public static class ArghHostingExtensions
 		this IServiceCollection services,
 		string[] args,
 		Action<IArghHostingBuilder> configure,
-		Func<Task<int>> runCliAsync)
+		Func<Task<int>> runCliAsync
+	)
 	{
 		if (services is null)
 			throw new ArgumentNullException(nameof(services));
@@ -101,7 +101,8 @@ public static class ArghHostingExtensions
 			runCliAsync,
 			sp.GetRequiredService<IHostApplicationLifetime>(),
 			sp,
-			sp.GetService<ILogger<ArghHostingCliService>>()));
+			sp.GetService<ILogger<ArghHostingCliService>>())
+		);
 
 		return services;
 	}

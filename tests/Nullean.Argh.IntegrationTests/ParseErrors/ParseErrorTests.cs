@@ -28,8 +28,8 @@ public class ParseErrorTests
 			   Greet someone by name.
 
 			Global options:
-			  --verbose        
 			  --help, -h       Show help.
+			  --verbose        
 
 			Options:
 			  --name <string>  [required]

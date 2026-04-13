@@ -45,6 +45,26 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 	public IArghHostingBuilder AddSingleton<T>() where T : class =>
 		Add<T>(ServiceLifetime.Singleton);
 
+	public IArghHostingBuilder GlobalOptions<T>() where T : class =>
+		GlobalOptions<T>(ServiceLifetime.Transient);
+
+	public IArghHostingBuilder GlobalOptions<T>(ServiceLifetime lifetime) where T : class
+	{
+		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), lifetime));
+		_ = _inner.GlobalOptions<T>();
+		return this;
+	}
+
+	public IArghHostingBuilder UseMiddleware<TMiddleware>() where TMiddleware : ICommandMiddleware =>
+		UseMiddleware<TMiddleware>(ServiceLifetime.Transient);
+
+	public IArghHostingBuilder UseMiddleware<TMiddleware>(ServiceLifetime lifetime) where TMiddleware : ICommandMiddleware
+	{
+		_services.Add(new ServiceDescriptor(typeof(TMiddleware), typeof(TMiddleware), lifetime));
+		_ = _inner.UseMiddleware<TMiddleware>();
+		return this;
+	}
+
 	public IArghHostingBuilder AddNamespace(string name, string description, Action<IArghBuilder> configure)
 	{
 		_ = description;
@@ -65,7 +85,7 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 
 	IArghBuilder IArghBuilder.GlobalOptions<T>() where T : class
 	{
-		_ = _inner.GlobalOptions<T>();
+		_ = GlobalOptions<T>();
 		return this;
 	}
 
@@ -110,7 +130,7 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 
 	IArghBuilder IArghBuilder.UseMiddleware<TMiddleware>()
 	{
-		_ = _inner.UseMiddleware<TMiddleware>();
+		_ = UseMiddleware<TMiddleware>();
 		return this;
 	}
 

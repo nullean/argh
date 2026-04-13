@@ -22,8 +22,8 @@ public class HelpContentTests
 			   Greet someone by name.
 
 			Global options:
-			  --verbose        
 			  --help, -h       Show help.
+			  --verbose        
 
 			Options:
 			  --name <string>  [required]
@@ -46,8 +46,8 @@ public class HelpContentTests
 			   Documented handler for lambda-style Add (XML appears in help).
 
 			Global options:
-			  --verbose        
 			  --help, -h       Show help.
+			  --verbose        
 
 			Options:
 			  --line <string>  [required]

@@ -14,24 +14,17 @@ namespace Nullean.Argh.Hosting;
 /// Register <c>AddArgh</c> before other hosted services so the CLI (including <c>--help</c>) runs first. Services registered before
 /// <c>AddArgh</c> still start first. <see cref="Environment.Exit(int)"/> does not invoke <see cref="IHostedService.StopAsync"/>.
 /// </remarks>
-internal sealed class ArghHostingCliService : IHostedService
+internal sealed class ArghHostingCliService(
+	Func<Task<int>> runCliAsync,
+	IHostApplicationLifetime lifetime,
+	IServiceProvider services,
+	ILogger<ArghHostingCliService>? logger = null
+)
+	: IHostedService
 {
-	private readonly Func<Task<int>> _runCliAsync;
-	private readonly IHostApplicationLifetime _lifetime;
-	private readonly IServiceProvider _services;
-	private readonly ILogger<ArghHostingCliService>? _logger;
-
-	public ArghHostingCliService(
-		Func<Task<int>> runCliAsync,
-		IHostApplicationLifetime lifetime,
-		IServiceProvider services,
-		ILogger<ArghHostingCliService>? logger = null)
-	{
-		_runCliAsync = runCliAsync ?? throw new ArgumentNullException(nameof(runCliAsync));
-		_lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
-		_services = services ?? throw new ArgumentNullException(nameof(services));
-		_logger = logger;
-	}
+	private readonly Func<Task<int>> _runCliAsync = runCliAsync ?? throw new ArgumentNullException(nameof(runCliAsync));
+	private readonly IHostApplicationLifetime _lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+	private readonly IServiceProvider _services = services ?? throw new ArgumentNullException(nameof(services));
 
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
@@ -45,7 +38,7 @@ internal sealed class ArghHostingCliService : IHostedService
 		}
 		catch (Exception ex)
 		{
-			_logger?.LogError(ex, "Unhandled exception while running the CLI.");
+			logger?.LogError(ex, "Unhandled exception while running the CLI.");
 			exitCode = 1;
 		}
 		finally
@@ -56,8 +49,8 @@ internal sealed class ArghHostingCliService : IHostedService
 
 		try
 		{
-			Console.Out.Flush();
-			Console.Error.Flush();
+			await Console.Out.FlushAsync();
+			await Console.Error.FlushAsync();
 		}
 		catch
 		{

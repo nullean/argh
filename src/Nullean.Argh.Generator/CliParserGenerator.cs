@@ -1991,9 +1991,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			}
 		}
 
-		var widthCandidatesFlat = new List<int> { "--help, -h".Length, "--version".Length };
-		widthCandidatesFlat.AddRange(flatGlobalFlags.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
-		int maxOptWidthFlat = Math.Min(widthCandidatesFlat.Max(), 40);
+		var widthCandidatesGlobalFlat = new List<int> { "--help, -h".Length, "--version".Length };
+		widthCandidatesGlobalFlat.AddRange(flatGlobalFlags.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		int maxOptWidthFlat = Math.Min(widthCandidatesGlobalFlat.Max(), 40);
 		maxOptWidthFlat = Math.Max(maxOptWidthFlat, "--help, -h".Length);
 
 		int maxFlatCmdW = 0;
@@ -2014,11 +2014,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			EmitRootCommandHelpOverview(sb, flatRootOverview, "\t\t\t");
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("--help, -h".PadRight(maxOptWidthFlat))}\") + \"  Show help.\");");
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("--version".PadRight(maxOptWidthFlat))}\") + \"  Show version.\");");
 		EmitHelpOptionRows(sb, flatGlobalFlags, maxOptWidthFlat);
-		sb.AppendLine(
-			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape("--help, -h".PadRight(maxOptWidthFlat))}\") + \"  Show help.\");");
-		sb.AppendLine(
-			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape("--version".PadRight(maxOptWidthFlat))}\") + \"  Show version.\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Commands:\"));");
 		foreach (CommandModel c in commands)
@@ -2192,9 +2192,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			}
 		}
 
-		var widthCandidatesRoot = new List<int> { "--help, -h".Length, "--version".Length };
-		widthCandidatesRoot.AddRange(rootGlobalFlags.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
-		int maxOptWidthRoot = Math.Min(widthCandidatesRoot.Max(), 40);
+		var widthCandidatesGlobalRoot = new List<int> { "--help, -h".Length, "--version".Length };
+		widthCandidatesGlobalRoot.AddRange(rootGlobalFlags.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		int maxOptWidthRoot = Math.Min(widthCandidatesGlobalRoot.Max(), 40);
 		maxOptWidthRoot = Math.Max(maxOptWidthRoot, "--help, -h".Length);
 
 		int maxNsListingW = app.Root.Children.Count == 0 ? 0 : app.Root.Children.Max(ch => ch.Segment.Length);
@@ -2209,11 +2209,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			EmitRootCommandHelpOverview(sb, rootOverview, "\t\t\t");
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("--help, -h".PadRight(maxOptWidthRoot))}\") + \"  Show help.\");");
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("--version".PadRight(maxOptWidthRoot))}\") + \"  Show version.\");");
 		EmitHelpOptionRows(sb, rootGlobalFlags, maxOptWidthRoot);
-		sb.AppendLine(
-			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape("--help, -h".PadRight(maxOptWidthRoot))}\") + \"  Show help.\");");
-		sb.AppendLine(
-			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape("--version".PadRight(maxOptWidthRoot))}\") + \"  Show version.\");");
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (app.Root.Children.Count > 0)
 		{
@@ -2265,11 +2265,18 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				namespaceOptionSections.Add((seg, rows));
 		}
 
-		var widthCandidates = new List<int> { "--help, -h".Length };
-		widthCandidates.AddRange(globalFlagMembers.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
-		foreach ((_, List<ParameterModel> rows) in namespaceOptionSections)
-			widthCandidates.AddRange(rows.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
-		int maxOptWidth = Math.Min(widthCandidates.Max(), 40);
+		bool showGlobalFlagsInNs = node.RootCommand is not null && globalFlagMembers.Count > 0;
+		bool showNamespaceScopedOptionSections = node.RootCommand is not null;
+		var widthCandidatesNs = new List<int> { "--help, -h".Length };
+		if (showGlobalFlagsInNs)
+			widthCandidatesNs.AddRange(globalFlagMembers.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		if (showNamespaceScopedOptionSections)
+		{
+			foreach ((_, List<ParameterModel> rows) in namespaceOptionSections)
+				widthCandidatesNs.AddRange(rows.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		}
+
+		int maxOptWidth = Math.Min(widthCandidatesNs.Max(), 40);
 		maxOptWidth = Math.Max(maxOptWidth, "--help, -h".Length);
 
 		int maxChildNsListingW = 0;
@@ -2288,18 +2295,21 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			EmitRootCommandHelpOverview(sb, nsRootOverview, "\t\t\t");
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
-		bool showGlobalFlagsInNs = node.RootCommand is not null && globalFlagMembers.Count > 0;
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("--help, -h".PadRight(maxOptWidth))}\") + \"  Show help.\");");
 		if (showGlobalFlagsInNs)
 			EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
-		string globalHelpLeft = "--help, -h".PadRight(maxOptWidth);
-		sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(globalHelpLeft)}\") + \"  Show help.\");");
+
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
-		foreach ((string segment, List<ParameterModel> gRows) in namespaceOptionSections)
+		if (showNamespaceScopedOptionSections)
 		{
-			sb.AppendLine($"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"'{Escape(segment)}' options:\"));");
-			EmitHelpOptionRows(sb, gRows, maxOptWidth);
-			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+			foreach ((string segment, List<ParameterModel> gRows) in namespaceOptionSections)
+			{
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"'{Escape(segment)}' options:\"));");
+				EmitHelpOptionRows(sb, gRows, maxOptWidth);
+				sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+			}
 		}
 
 		if (node.Children.Count > 0)
@@ -4332,9 +4342,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
-		EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
-		string globalHelpLeft = "--help, -h".PadRight(maxOptWidth);
-		sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(globalHelpLeft)}\") + \"  Show help.\");");
+		sb.AppendLine(
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("--help, -h".PadRight(maxOptWidth))}\") + \"  Show help.\");");
+		if (globalFlagMembers.Count > 0)
+			EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
+
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
 		foreach ((string segment, List<ParameterModel> gRows) in namespaceOptionSections)

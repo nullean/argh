@@ -23,9 +23,9 @@ public class RootHelpFullTextTests
 			   Root default remarks for help layout tests.
 
 			Global options:
-			  --verbose   
 			  --help, -h  Show help.
 			  --version   Show version.
+			  --verbose   
 
 			Namespaces:
 			  di-probe  Instance command type for DI resolution tests
