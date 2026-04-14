@@ -31,6 +31,6 @@ public static class ArghHostRuntime
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public static class ArghServices
 {
-	/// <summary>Root service provider for the current CLI invocation, or <c>null</c> when not running under a configured host.</summary>
-	public static IServiceProvider? ServiceProvider { get; set; }
+	/// <summary>Root service provider for the current CLI invocation, or <c>null</c> when not running under a configured host. Uses BCL <see cref="System.IServiceProvider"/> so the base package does not reference Microsoft.Extensions.*; hosts (e.g. generic host) assign a provider that implements this interface.</summary>
+	public static System.IServiceProvider? ServiceProvider { get; set; }
 }

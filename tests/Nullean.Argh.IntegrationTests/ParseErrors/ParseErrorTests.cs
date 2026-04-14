@@ -34,8 +34,7 @@ public class ParseErrorTests
 			Options:
 			  --name <string>  [required]
 
-			Description:
-			   See {CliHostPaths.CliHostAssemblyName} doc-lambda --line <string>; set --name.
+			Notes:  See DocLambdaEcho; set name.
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(result)).Should().Be(expectedOut);
 	}

@@ -184,10 +184,19 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				} && name.Identifier.Text is "Add" or "AddNamespace" or "AddRootCommand" or "AddNamespaceRootCommand" or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware",
 				static (ctx, _) => (InvocationExpressionSyntax)ctx.Node);
 
-		IncrementalValueProvider<(Compilation Compilation, ImmutableArray<InvocationExpressionSyntax> Invocations)> combined =
-			context.CompilationProvider.Combine(invocations.Collect());
+		IncrementalValueProvider<(ImmutableArray<MetadataReference> MetadataReferences, Compilation Compilation)> refsAndCompilation =
+			context.MetadataReferencesProvider.Collect().Combine(context.CompilationProvider);
 
-		context.RegisterSourceOutput(combined, static (spc, tuple) => Execute(spc, tuple.Compilation, tuple.Invocations));
+		IncrementalValueProvider<((ImmutableArray<MetadataReference> MetadataReferences, Compilation Compilation), ImmutableArray<InvocationExpressionSyntax> Invocations)> combined =
+			refsAndCompilation.Combine(invocations.Collect());
+
+		context.RegisterSourceOutput(combined, static (spc, tuple) =>
+		{
+			var ((metadataReferences, compilation), invocationsArray) = tuple;
+			ReferenceMetadataCapabilities.Capabilities referenceCapabilities =
+				ReferenceMetadataCapabilities.Compute(metadataReferences);
+			Execute(spc, compilation, invocationsArray, referenceCapabilities);
+		});
 	}
 
 	private static void GetCompilationAssemblyMetadata(Compilation compilation, out string assemblyName, out string assemblyVersion)
@@ -196,7 +205,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		assemblyVersion = compilation.Assembly.Identity.Version?.ToString() ?? "0.0.0.0";
 	}
 
-	private static void Execute(SourceProductionContext context, Compilation compilation, ImmutableArray<InvocationExpressionSyntax> invocations)
+	private static void Execute(
+		SourceProductionContext context,
+		Compilation compilation,
+		ImmutableArray<InvocationExpressionSyntax> invocations,
+		ReferenceMetadataCapabilities.Capabilities referenceCapabilities)
 	{
 		GetCompilationAssemblyMetadata(compilation, out string entryAsmName, out string entryAsmVersion);
 
@@ -271,7 +284,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			}
 		}
 
-		EmitApp(context, appModel, parseOpts, entryAsmName, entryAsmVersion);
+		EmitApp(context, appModel, parseOpts, entryAsmName, entryAsmVersion, referenceCapabilities);
 	}
 
 	private static ITypeSymbol? GetReceiverType(SemanticModel model, InvocationExpressionSyntax invocation)
@@ -1925,8 +1938,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		AppEmitModel app,
 		CSharpParseOptions parseOptions,
 		string entryAssemblyName,
-		string entryAssemblyVersion)
+		string entryAssemblyVersion,
+		ReferenceMetadataCapabilities.Capabilities referenceCapabilities)
 	{
+		_ = referenceCapabilities;
 		ImmutableArray<DtoBindingTarget> dtoTargets = CollectDtoBindingTargets(context, app, parseOptions);
 		if (IsFlatCli(app))
 		{
