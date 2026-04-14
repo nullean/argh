@@ -6,7 +6,7 @@ namespace XmlDocShowcase;
 /// <remarks>
 /// More information for the namespace
 /// </remarks>
-internal sealed class XmlDocSamples
+internal sealed class XmlDocSamples(XmlDocNamespaceOptions options)
 {
 	/// <summary>
 	/// Summary-only showcase: <c>inline code</c>, <see cref="System.Environment"/>, <see href="https://learn.microsoft.com/dotnet/csharp/">C# language</see>,
