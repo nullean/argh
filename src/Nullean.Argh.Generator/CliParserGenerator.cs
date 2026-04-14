@@ -480,7 +480,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	/// </summary>
 	private static void ValidateCommandOptionsInjection(SourceProductionContext context, AppEmitModel app)
 	{
-		foreach (CommandModel cmd in app.AllCommands)
+		foreach (var cmd in app.AllCommands)
 		{
 			if (cmd.IsLambda || cmd.HandlerMethod is null)
 				continue;
@@ -491,11 +491,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			var chain = BuildOptionsInjectionChain(app, cmd);
 			if (chain.IsEmpty)
 				continue;
-			INamedTypeSymbol required = chain[chain.Length - 1].Type;
+			var required = chain[chain.Length - 1].Type;
 
 			// Check method parameters first.
-			bool injected = false;
-			foreach (IParameterSymbol p in cmd.HandlerMethod.Parameters)
+			var injected = false;
+			foreach (var p in cmd.HandlerMethod.Parameters)
 			{
 				if (p.Type is INamedTypeSymbol pt &&
 				    (SymbolEqualityComparer.Default.Equals(pt, required) ||
@@ -510,10 +510,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			if (!injected && cmd.RequiresInstance &&
 			    cmd.HandlerMethod.ContainingType is { } handlerClass)
 			{
-				IMethodSymbol? ctor = TryGetPrimaryConstructor(handlerClass);
+				var ctor = TryGetPrimaryConstructor(handlerClass);
 				if (ctor is not null)
 				{
-					foreach (IParameterSymbol p in ctor.Parameters)
+					foreach (var p in ctor.Parameters)
 					{
 						if (p.Type is INamedTypeSymbol pt &&
 						    (SymbolEqualityComparer.Default.Equals(pt, required) ||
@@ -528,7 +528,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 			if (!injected)
 			{
-				Location loc = cmd.HandlerMethod.Locations.FirstOrDefault() ?? Location.None;
+				var loc = cmd.HandlerMethod.Locations.FirstOrDefault() ?? Location.None;
 				context.ReportDiagnostic(Diagnostic.Create(
 					CommandMustInjectOptions,
 					loc,
@@ -586,7 +586,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	private static void FixOptionsParamsInCommands(AppEmitModel app)
 	{
 		var updated = ImmutableArray.CreateBuilder<CommandModel>(app.AllCommands.Length);
-		foreach (CommandModel cmd in app.AllCommands)
+		foreach (var cmd in app.AllCommands)
 		{
 			if (cmd.IsLambda || cmd.HandlerMethod is null || HasNoOptionsInjection(cmd.HandlerMethod))
 			{
@@ -4259,12 +4259,12 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			string? optionsCtorArgs = null;
 			if (!injectedOptions.IsDefaultOrEmpty && cmd.HandlerMethod is not null)
 			{
-				IMethodSymbol? ctor = TryGetPrimaryConstructor(cmd.HandlerMethod.ContainingType);
+				var ctor = TryGetPrimaryConstructor(cmd.HandlerMethod.ContainingType);
 				if (ctor is not null && ctor.Parameters.Length > 0)
 				{
 					var ctorArgs = new List<string>();
-					bool allResolved = true;
-					foreach (IParameterSymbol cp in ctor.Parameters)
+					var allResolved = true;
+					foreach (var cp in ctor.Parameters)
 					{
 						if (cp.Type is not INamedTypeSymbol cpType) { allResolved = false; break; }
 						// Exact match first, then most-derived (from end of chain); use LocalVarName (reconstructed)
