@@ -65,3 +65,13 @@ public sealed class CollectionSyntaxAttribute : Attribute
 /// <typeparam name="TMiddleware">A type implementing <see cref="Nullean.Argh.Middleware.ICommandMiddleware"/>.</typeparam>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
 public sealed class MiddlewareAttribute<TMiddleware> : Attribute where TMiddleware : Nullean.Argh.Middleware.ICommandMiddleware;
+
+/// <summary>
+/// Suppresses the AGH0021 diagnostic for this command method or handler class. Use when a command
+/// intentionally does not need access to the registered <c>GlobalOptions</c> or namespace options types.
+/// Apply to a <b>method</b> to opt out for that command only, or to a <b>class</b> to opt out for
+/// all commands defined on that class.
+/// Lambdas are always exempt from AGH0021 and do not need this attribute.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class, Inherited = false)]
+public sealed class NoOptionsInjectionAttribute : Attribute;

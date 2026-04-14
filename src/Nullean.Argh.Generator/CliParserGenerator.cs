@@ -484,6 +484,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		{
 			if (cmd.IsLambda || cmd.HandlerMethod is null)
 				continue;
+			if (HasNoOptionsInjection(cmd.HandlerMethod))
+				continue;
 
 			// Most specific required options type = last entry in the injection chain.
 			var chain = BuildOptionsInjectionChain(app, cmd);
@@ -586,7 +588,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		var updated = ImmutableArray.CreateBuilder<CommandModel>(app.AllCommands.Length);
 		foreach (CommandModel cmd in app.AllCommands)
 		{
-			if (cmd.IsLambda || cmd.HandlerMethod is null)
+			if (cmd.IsLambda || cmd.HandlerMethod is null || HasNoOptionsInjection(cmd.HandlerMethod))
 			{
 				updated.Add(cmd);
 				continue;
@@ -2102,6 +2104,23 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
+	/// <summary>
+	/// Returns <see langword="true"/> if the method or its containing type carries
+	/// <c>[NoOptionsInjection]</c>, suppressing AGH0021 and all options-injection codegen.
+	/// </summary>
+	private static bool HasNoOptionsInjection(IMethodSymbol method)
+	{
+		const string attrName = "NoOptionsInjectionAttribute";
+		const string ns = "Nullean.Argh";
+		foreach (var a in method.GetAttributes())
+			if (a.AttributeClass?.Name == attrName && a.AttributeClass.ContainingNamespace?.ToDisplayString() == ns)
+				return true;
+		foreach (var a in method.ContainingType.GetAttributes())
+			if (a.AttributeClass?.Name == attrName && a.AttributeClass.ContainingNamespace?.ToDisplayString() == ns)
+				return true;
+		return false;
+	}
+
 	private static bool HasPublicParameterlessCtor(INamedTypeSymbol type)
 	{
 		foreach (var ctor in type.InstanceConstructors)
@@ -2573,7 +2592,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		foreach (var cmd in app.AllCommands)
 		{
-			var injectedOpts = BuildOptionsInjectionChain(app, cmd);
+			var injectedOpts = cmd.HandlerMethod is not null && HasNoOptionsInjection(cmd.HandlerMethod)
+				? ImmutableArray<(INamedTypeSymbol, string, string, ImmutableArray<ParameterModel>)>.Empty
+				: BuildOptionsInjectionChain(app, cmd);
 			EmitCommandRunner(sb, cmd, app.GlobalMiddleware, injectedOptions: injectedOpts);
 		}
 
