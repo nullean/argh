@@ -16,6 +16,7 @@ internal static class HostedRootDefaults
 internal static class HostedRootHello
 {
 	/// <summary>Greets by name.</summary>
+	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="name">-n,--name, Name.</param>
 	public static void Run(HostedRootGlobalCliOptions g, string name) =>
 		Console.WriteLine($"hosted-root:hello:{name}");

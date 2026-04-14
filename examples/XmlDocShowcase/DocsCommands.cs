@@ -20,6 +20,7 @@ internal static class DocsCommands
 	/// </code>
 	/// </example>
 	/// </remarks>
+	/// <param name="globals">Injected global CLI options.</param>
 	/// <param name="to">Display name or team to address (maps to <c>--to</c>).</param>
 	public static Task<int> Welcome(XmlDocShowcaseGlobalOptions globals, string to)
 	{

@@ -43,12 +43,16 @@ internal static class CommandHandlers
 /// <summary>Command group <c>storage</c> with a nested <c>blob</c> subgroup.</summary>
 internal sealed class StorageCommands(StorageCommandNamespaceOptions o)
 {
+	private readonly StorageCommandNamespaceOptions _options = o;
+
 	/// <summary>Lists objects under the configured prefix.</summary>
 	public void List() => Console.WriteLine("basic:storage:list");
 
 	/// <summary>Nested subgroup mapped to <c>storage blob …</c>.</summary>
 	public sealed class BlobCommands(StorageCommandNamespaceOptions o)
 	{
+		private readonly StorageCommandNamespaceOptions _options = o;
+
 		/// <summary>Upload placeholder.</summary>
 		public void Upload() =>
 			Console.WriteLine("basic:storage:blob:upload");
@@ -58,6 +62,8 @@ internal sealed class StorageCommands(StorageCommandNamespaceOptions o)
 /// <summary><c>api</c> namespace: sibling to <c>storage</c> for grouped-command demo.</summary>
 internal sealed class ApiCommands(ApiNamespaceOptions o)
 {
+	private readonly ApiNamespaceOptions _options = o;
+
 	/// <summary>Shows API version string.</summary>
 	public void Version() => Console.WriteLine("basic:api:version:1");
 

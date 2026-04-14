@@ -35,6 +35,7 @@ internal static class CliRegistrationModule
 	}
 
 	/// <summary>Documented handler for lambda-style <c>Add</c> (XML appears in help).</summary>
+	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="line">-l,--line, Text line to echo.</param>
 	/// <example>doc-lambda --line hi</example>
 	internal static void DocLambdaEcho(TestGlobalCliOptions g, string line) =>

@@ -21,12 +21,14 @@ internal static class CliTestHandlers
 	/// <summary>Greet someone by name.</summary>
 	/// <remarks>See <see cref="CliRegistrationModule.DocLambdaEcho"/>; set <paramref name="name"/>.</remarks>
 	/// <example>hello --name world</example>
+	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="name">The name to greet.</param>
 	[MiddlewareAttribute<TestsPerCommandMiddleware>]
 	public static void Hello(TestGlobalCliOptions g, string name) =>
 		Console.Out.WriteLine($"ok:{name}");
 
 	/// <summary>Enum and short options.</summary>
+	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="color">-c,--colour, Pick a color.</param>
 	/// <param name="name">-n,--name, Display name</param>
 	public static void EnumCmd(TestGlobalCliOptions g, TestColor color, string name) =>

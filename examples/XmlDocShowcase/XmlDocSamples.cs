@@ -8,6 +8,8 @@ namespace XmlDocShowcase;
 /// </remarks>
 internal sealed class XmlDocSamples(XmlDocNamespaceOptions options)
 {
+	private readonly XmlDocNamespaceOptions _options = options;
+
 	/// <summary>
 	/// Summary-only showcase: <c>inline code</c>, <see cref="System.Environment"/>, <see href="https://learn.microsoft.com/dotnet/csharp/">C# language</see>,
 	/// <see langword="null"/>, <paramref name="label"/>, plus <b>bold</b>, <i>italic</i>, <u>underline</u>.

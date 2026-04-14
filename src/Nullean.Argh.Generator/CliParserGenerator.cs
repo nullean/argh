@@ -4641,18 +4641,18 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (p.ScalarKind == CliScalarKind.FileInfo)
 		{
 			if (outVarKeyword)
-				sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.FileInfo({rawExpr});");
+				sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.FileInfo({rawExpr}!);");
 			else
-				sb.AppendLine($"{ind}{targetVar} = new global::System.IO.FileInfo({rawExpr});");
+				sb.AppendLine($"{ind}{targetVar} = new global::System.IO.FileInfo({rawExpr}!);");
 			return;
 		}
 
 		if (p.ScalarKind == CliScalarKind.DirectoryInfo)
 		{
 			if (outVarKeyword)
-				sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.DirectoryInfo({rawExpr});");
+				sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.DirectoryInfo({rawExpr}!);");
 			else
-				sb.AppendLine($"{ind}{targetVar} = new global::System.IO.DirectoryInfo({rawExpr});");
+				sb.AppendLine($"{ind}{targetVar} = new global::System.IO.DirectoryInfo({rawExpr}!);");
 			return;
 		}
 
@@ -4674,7 +4674,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (p.ScalarKind == CliScalarKind.CustomParser && p.ParserTypeFq is not null && p.CustomValueTypeFq is not null)
 		{
 			sb.AppendLine($"{ind}var __parser = new {p.ParserTypeFq}();");
-			sb.AppendLine($"{ind}if (!__parser.TryParse({rawExpr}, out var __pv))");
+			sb.AppendLine($"{ind}if (!__parser.TryParse({rawExpr}!, out var __pv))");
 			sb.AppendLine($"{ind}{{");
 			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}.\");");
 			if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
