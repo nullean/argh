@@ -89,7 +89,7 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		var seg = ArghNamespaceSegmentCodegen.Get<T>();
 		if (seg is null)
 			throw new InvalidOperationException(
-				"AddNamespace<" + typeof(T).Name + ">(Action<IArghNamespaceBuilder>) requires the Argh source generator to emit a namespace segment for this type. Use AddNamespace<" + typeof(T).Name + ">(string name, ...) with an explicit segment, or ensure the project references Nullean.Argh.Generator.");
+				"AddNamespace<" + typeof(T).Name + ">(Action<IArghNamespaceBuilder>) requires the Argh source generator to emit a namespace segment for this type. Use AddNamespace<" + typeof(T).Name + ">(string name, ...) with an explicit segment, or ensure the project references Nullean.Argh.Core (analyzer).");
 
 		var childApp = _inner.App.CreateChildApp(seg);
 		configure(new ArghHostingNamespaceBuilder(_services, childApp, seg));

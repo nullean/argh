@@ -2,7 +2,7 @@
 
 Build full-featured .NET CLIs without writing a parser.
 
-Register commands on [`ArghApp`](src/Nullean.Argh/ArghApp.cs). A Roslyn source generator emits parsing, routing, dispatch, and help into your assembly at build time — no reflection, no runtime overhead, trimming- and AOT-safe by default.
+Register commands on [`ArghApp`](src/Nullean.Argh.Core/ArghApp.cs). A Roslyn source generator emits parsing, routing, dispatch, and help into your assembly at build time — no reflection, no runtime overhead, trimming- and AOT-safe by default.
 
 *Inspired by [ConsoleAppFramework](https://github.com/Cysharp/ConsoleAppFramework) (Cysharp) — same source-generated direction, different API and packaging.*
 
@@ -12,6 +12,7 @@ Register commands on [`ArghApp`](src/Nullean.Argh/ArghApp.cs). A Roslyn source g
 
 - [Features](#features)
 - [Packages](#packages)
+- [Choosing a package](#choosing-a-package)
 - [Quick start](#quick-start)
 - [Registration model](#registration-model)
 - [Namespaces](#namespaces)
@@ -36,14 +37,20 @@ Register commands on [`ArghApp`](src/Nullean.Argh/ArghApp.cs). A Roslyn source g
 
 ## Packages
 
-| Package | Role |
-|--------|------|
-| [`Nullean.Argh`](https://www.nuget.org/packages/Nullean.Argh) | **Standalone CLI**: small runtime + embedded Roslyn analyzer (same package). The **runtime** does not depend on **`Microsoft.Extensions.*`** NuGet packages; [`ArghServices.ServiceProvider`](src/Nullean.Argh/Runtime/ArghHostRuntime.cs) uses BCL **`System.IServiceProvider`** so hosted apps can assign the host’s provider without pulling ME.* into the base library. Fully usable **without** a generic host. |
-| [`Nullean.Argh.Hosting`](https://www.nuget.org/packages/Nullean.Argh.Hosting) | Optional layer with its own registration **DSL** ([`ArghHostingBuilder`](src/Nullean.Argh.Hosting/ArghHostingBuilder.cs)) that plugs the same fluent model into **`Microsoft.Extensions.*`** (DI lifetimes, `IHost`, `IHostedService`, logging, cancellation). |
+### Choosing a package
 
-The analyzer ships inside `Nullean.Argh`; you do not reference `Nullean.Argh.Generator` separately. The generator also inspects **metadata reference** display names (similar in spirit to [ConsoleAppFramework](https://github.com/Cysharp/ConsoleAppFramework)’s approach) to compute capability flags for optional future emit or diagnostics; emitted dispatch code is unchanged for now.
+**Add a single top-level NuGet package:** use **`Nullean.Argh`** for a console-only CLI, or **`Nullean.Argh.Hosting`** for **`Microsoft.Extensions.*`** and the generic host. Each pulls in **`Nullean.Argh.Core`** (runtime + analyzer) and **`Nullean.Argh.Interfaces`** transitively—you do not reference Core or Interfaces manually for normal apps.
 
-**Base package reference**
+| Package | When to use | Role |
+|--------|---------------|------|
+| [`Nullean.Argh`](https://www.nuget.org/packages/Nullean.Argh) | Default for **console** apps (one metapackage reference) | References **`Nullean.Argh.Core`** + **`Nullean.Argh.Interfaces`**. |
+| [`Nullean.Argh.Hosting`](https://www.nuget.org/packages/Nullean.Argh.Hosting) | **`IHost`**, DI lifetimes, ME.* | **`AddArgh`** / [`ArghHostingBuilder`](src/Nullean.Argh.Hosting/ArghHostingBuilder.cs). Depends on **Core** + **Interfaces** only—**not** the **`Nullean.Argh`** metapackage. |
+| [`Nullean.Argh.Core`](https://www.nuget.org/packages/Nullean.Argh.Core) | Advanced: runtime + analyzer **without** the metapackage | **`ArghApp`**, `ArghRuntime`, help, embedded analyzer; no **`Microsoft.Extensions.*`**. [`ArghServices.ServiceProvider`](src/Nullean.Argh.Core/Runtime/ArghHostRuntime.cs) uses BCL **`System.IServiceProvider`**. |
+| [`Nullean.Argh.Interfaces`](https://www.nuget.org/packages/Nullean.Argh.Interfaces) | **Shared libraries** (e.g. reusable middleware) with **minimal** surface | Attributes, `IArghBuilder`, middleware/parser contracts—often pulled transitively; reference alone only when you intentionally avoid Core. |
+
+**`Nullean.Argh.Generator`** is **not** published as its own NuGet package. It is built into the repo and **shipped inside `Nullean.Argh.Core`** under `analyzers/dotnet/cs` when you consume Core or the **`Nullean.Argh`** metapackage. The generator also inspects **metadata reference** display names (similar in spirit to [ConsoleAppFramework](https://github.com/Cysharp/ConsoleAppFramework)’s approach) for capability flags; emitted dispatch behavior is unchanged for now.
+
+**Console app (single package reference)**
 
 ```xml
 <ItemGroup>
@@ -51,12 +58,19 @@ The analyzer ships inside `Nullean.Argh`; you do not reference `Nullean.Argh.Gen
 </ItemGroup>
 ```
 
-**With Hosting** (add alongside or instead of wiring `ArghApp` only at the entrypoint—you still need `Nullean.Argh` for the analyzer/runtime types the DSL wraps):
+**Hosted app (single package reference)**
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Nullean.Argh" />
   <PackageReference Include="Nullean.Argh.Hosting" />
+</ItemGroup>
+```
+
+**Advanced:** reference **`Nullean.Argh.Core`** directly if you want the runtime and analyzer without the **`Nullean.Argh`** metapackage (**`Nullean.Argh.Interfaces`** comes in transitively).
+
+```xml
+<ItemGroup>
+  <PackageReference Include="Nullean.Argh.Core" />
 </ItemGroup>
 ```
 
@@ -73,7 +87,7 @@ app.Add("hello", MyHandlers.SayHello);
 return await app.RunAsync(args);
 ```
 
-[`RunAsync`](src/Nullean.Argh/Runtime/ArghRuntime.cs) dispatches into **generated** code in your assembly.
+[`RunAsync`](src/Nullean.Argh.Core/Runtime/ArghRuntime.cs) dispatches into **generated** code in your assembly.
 
 ### Hosting package (`Nullean.Argh.Hosting`)
 
@@ -147,14 +161,14 @@ Method parameters become CLI flags automatically. No attribute boilerplate for t
 
 **Custom parsing**
 
-- `[ArgumentParser(typeof(MyParser))]` with [`IArgumentParser<T>`](src/Nullean.Argh/Parsing/IArgumentParser.cs).
+- `[ArgumentParser(typeof(MyParser))]` with [`IArgumentParser<T>`](src/Nullean.Argh.Interfaces/Parsing/IArgumentParser.cs).
 
 ## Help and XML documentation
 
 This is the feature that removes a whole category of maintenance work. Write your XML doc once; the generator reads it at build time and bakes the text into generated `--help` output. Your `.xml` doc file is not read at runtime.
 
 - **Global**: `--help` / `-h`, `--version` at the root; per-command **`-h`/`--help`** prints that command's help.
-- Styling: ANSI colors when appropriate; **`NO_COLOR`** disables decoration (see [`CliHelpFormatting`](src/Nullean.Argh/Help/CliHelpFormatting.cs)).
+- Styling: ANSI colors when appropriate; **`NO_COLOR`** disables decoration (see [`CliHelpFormatting`](src/Nullean.Argh.Core/Help/CliHelpFormatting.cs)).
 - Enable **`GenerateDocumentationFile`** on your project; the generator emits help text from **summary**, **arguments/options**, **remarks**, and **`<example>`** content.
 - In **remarks**, the generator rewrites XML for CLI context: **`paramref`** to a flag becomes `--name`; **`see cref`** to another handler becomes that command's **usage synopsis**. See [`examples/XmlDocShowcase`](examples/XmlDocShowcase).
 
@@ -165,17 +179,19 @@ Cross-cutting logic — auth checks, logging, timing — lives in middleware and
 - **Global**: `UseMiddleware<T>()` or inline `UseMiddleware(async (ctx, next) => …)`.
 - **Per-command**: `[MiddlewareAttribute<TMiddleware>]` on a handler method.
 
-[`ICommandMiddleware`](src/Nullean.Argh/Middleware/CommandMiddleware.cs) receives [`CommandContext`](src/Nullean.Argh/Middleware/CommandMiddleware.cs) (`CommandPath`, `Args`, `ExitCode`, `CancellationToken`, …). Middleware **does not run** for root `--help`, `--version`, `--completions`, or when printing command help before the handler runs.
+[`ICommandMiddleware`](src/Nullean.Argh.Interfaces/Middleware/CommandMiddleware.cs) receives [`CommandContext`](src/Nullean.Argh.Interfaces/Middleware/CommandMiddleware.cs) (`CommandPath`, `Args`, `ExitCode`, `CancellationToken`, …). Middleware **does not run** for root `--help`, `--version`, `--completions`, or when printing command help before the handler runs.
 
 The pipeline is **wired in generated code** — not a runtime delegate chain.
 
 ## Dependency injection
 
-[`ArghServices.ServiceProvider`](src/Nullean.Argh/Runtime/ArghHostRuntime.cs) is typed as **`System.IServiceProvider`** and is set when running under a host (e.g. via [`Nullean.Argh.Hosting`](src/Nullean.Argh.Hosting/ArghHostingExtensions.cs)). For **`Add<T>()`** instance methods and **`UseMiddleware<T>()`** / `[MiddlewareAttribute<T>]`, generated code uses **`GetService(typeof(T))`** when a provider is present; otherwise **`new T()`** (parameterless constructors).
+[`ArghServices.ServiceProvider`](src/Nullean.Argh.Core/Runtime/ArghHostRuntime.cs) is typed as **`System.IServiceProvider`** and is set when running under a host (e.g. via [`Nullean.Argh.Hosting`](src/Nullean.Argh.Hosting/ArghHostingExtensions.cs)). For **`Add<T>()`** instance methods and **`UseMiddleware<T>()`** / `[MiddlewareAttribute<T>]`, generated code uses **`GetService(typeof(T))`** when a provider is present; otherwise **`new T()`** (parameterless constructors).
 
 For native AOT / trimming, register handler and middleware types in DI so required constructors are preserved.
 
 ## Hosting
+
+**`Nullean.Argh.Hosting`** does not depend on the **`Nullean.Argh`** metapackage; add **`Nullean.Argh.Hosting`** alone for hosted apps.
 
 `services.AddArgh(args, b => { … })` ([`AddArgh`](src/Nullean.Argh.Hosting/ArghHostingExtensions.cs)):
 
@@ -187,7 +203,7 @@ For native AOT / trimming, register handler and middleware types in DI so requir
 
 ## Routing API
 
-[`ArghParser.Route(args)`](src/Nullean.Argh/Runtime/ArghParser.cs) returns a [`RouteMatch`](src/Nullean.Argh/Runtime/ArghParser.cs) (`CommandPath`, `RemainingArgs`) without invoking handlers — useful for tests and tooling.
+[`ArghParser.Route(args)`](src/Nullean.Argh.Core/Runtime/ArghParser.cs) returns a [`RouteMatch`](src/Nullean.Argh.Core/Runtime/ArghParser.cs) (`CommandPath`, `RemainingArgs`) without invoking handlers — useful for tests and tooling.
 
 ## User experience
 
@@ -205,7 +221,7 @@ The fuzzy matcher runs at the right scope: a typo inside a namespace suggests th
 
 ## Shell completions
 
-At the root, **`--completions bash|zsh|fish`** prints a **shell script template** from [`CompletionScriptTemplates`](src/Nullean.Argh/Help/CompletionScriptTemplates.cs). Templates use `{0}` placeholders for the executable name and assume a **`__complete`** protocol (e.g. `myapp __complete bash -- …`). **You must implement** that protocol (or adapt the script) if you want live completions; the templates are **not** a full completion engine by themselves.
+At the root, **`--completions bash|zsh|fish`** prints a **shell script template** from [`CompletionScriptTemplates`](src/Nullean.Argh.Core/Help/CompletionScriptTemplates.cs). Templates use `{0}` placeholders for the executable name and assume a **`__complete`** protocol (e.g. `myapp __complete bash -- …`). **You must implement** that protocol (or adapt the script) if you want live completions; the templates are **not** a full completion engine by themselves.
 
 ## License and links
 
@@ -213,4 +229,4 @@ At the root, **`--completions bash|zsh|fish`** prints a **shell script template*
 - **Repository**: [github.com/nullean/argh](https://github.com/nullean/argh)
 - **Releases**: [GitHub releases](https://github.com/nullean/argh/releases)
 
-This README is the same file used as the **NuGet package readme** for `Nullean.Argh` and `Nullean.Argh.Hosting`.
+This README is packed as the **NuGet package readme** for **`Nullean.Argh`**, **`Nullean.Argh.Core`**, **`Nullean.Argh.Interfaces`**, and **`Nullean.Argh.Hosting`**.

@@ -1,75 +1,25 @@
-<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <AssemblyName>Nullean.Argh</AssemblyName>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <RootNamespace>Nullean.Argh</RootNamespace>
-
-    <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>..\..\build\keys\keypair.snk</AssemblyOriginatorKeyFile>
-
-    <PackageIcon>nuget-icon.png</PackageIcon>
+    <PackageId>Nullean.Argh</PackageId>
+    <Title>Nullean.Argh</Title>
+    <Description>Metapackage: references Nullean.Argh.Core (runtime + analyzer) and Nullean.Argh.Interfaces.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/nullean/argh</PackageProjectUrl>
-    <PackageReleaseNotes>https://github.com/nullean/argh/releases</PackageReleaseNotes>
-
-    <PackageId>Nullean.Argh</PackageId>
-    <Title>Nullean.Argh - Command-line parsing source generator</Title>
-    <Description>Source generator for command-line parsing and method invocations.</Description>
-
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <LangVersion>latest</LangVersion>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Memory" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="README.md" Link="README.md" />
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\README.md" Pack="true" PackagePath="README.md" CopyToOutputDirectory="PreserveNewest">
-      <Link>README.md</Link>
-    </Content>
-    <None Include="..\..\LICENSE" Pack="true" PackagePath="/" />
-    <Content Include="..\..\nuget-icon.png" CopyToOutputDirectory="PreserveNewest">
-      <Link>nuget-icon.png</Link>
-      <Pack>True</Pack>
-      <PackagePath>nuget-icon.png</PackagePath>
-    </Content>
+    <ProjectReference Include="..\Nullean.Argh.Core\Nullean.Argh.Core.csproj" />
+    <ProjectReference Include="..\Nullean.Argh.Interfaces\Nullean.Argh.Interfaces.csproj" />
   </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="System.Threading.Tasks.Extensions" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj"
-                      ReferenceOutputAssembly="false"
-                      PrivateAssets="all" />
-  </ItemGroup>
-
-  <!-- Ship the Roslyn component inside the same NuGet as the runtime library. -->
-  <Target Name="BuildArghGeneratorForPack" BeforeTargets="GenerateNuspec">
-    <MSBuild Projects="$(MSBuildThisFileDirectory)..\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj"
-             Targets="Build"
-             Properties="Configuration=$(Configuration);Platform=$(Platform)" />
-  </Target>
-
-  <Target Name="IncludeArghAnalyzerInNuGetPackage" BeforeTargets="_GetPackageFiles" DependsOnTargets="BuildArghGeneratorForPack">
-    <PropertyGroup>
-      <_ArghGeneratorDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\Nullean.Argh.Generator\bin\$(Configuration)\netstandard2.0'))</_ArghGeneratorDir>
-      <_ArghGeneratorDll>$(_ArghGeneratorDir)\Nullean.Argh.Generator.dll</_ArghGeneratorDll>
-      <_ArghGeneratorDll Condition="!Exists('$(_ArghGeneratorDll)')">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\Nullean.Argh.Generator\bin\Debug\netstandard2.0\Nullean.Argh.Generator.dll'))</_ArghGeneratorDll>
-      <_ArghGeneratorPdb>$([System.IO.Path]::GetDirectoryName('$(_ArghGeneratorDll)'))\Nullean.Argh.Generator.pdb</_ArghGeneratorPdb>
-    </PropertyGroup>
-    <ItemGroup>
-      <None Include="$(_ArghGeneratorDll)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-      <None Include="$(_ArghGeneratorPdb)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"
-              Condition="Exists('$(_ArghGeneratorPdb)')" />
-    </ItemGroup>
-  </Target>
 
 </Project>

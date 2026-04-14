@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>Nullean.Argh.Core</AssemblyName>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>Nullean.Argh</RootNamespace>
+
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\build\keys\keypair.snk</AssemblyOriginatorKeyFile>
+
+    <PackageIcon>nuget-icon.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/nullean/argh</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/nullean/argh/releases</PackageReleaseNotes>
+
+    <PackageId>Nullean.Argh.Core</PackageId>
+    <Title>Nullean.Argh.Core - CLI runtime and source generator</Title>
+    <Description>Runtime, ArghApp registration model, and embedded Roslyn analyzer for Nullean.Argh.</Description>
+
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Memory" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\README.md" Pack="true" PackagePath="README.md" CopyToOutputDirectory="PreserveNewest">
+      <Link>README.md</Link>
+    </Content>
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="/" />
+    <Content Include="..\..\nuget-icon.png" CopyToOutputDirectory="PreserveNewest">
+      <Link>nuget-icon.png</Link>
+      <Pack>True</Pack>
+      <PackagePath>nuget-icon.png</PackagePath>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Threading.Tasks.Extensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nullean.Argh.Interfaces\Nullean.Argh.Interfaces.csproj" />
+    <ProjectReference Include="..\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="BuildArghGeneratorForPack" BeforeTargets="GenerateNuspec">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+  </Target>
+
+  <Target Name="IncludeArghAnalyzerInNuGetPackage" BeforeTargets="_GetPackageFiles" DependsOnTargets="BuildArghGeneratorForPack">
+    <PropertyGroup>
+      <_ArghGeneratorDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\Nullean.Argh.Generator\bin\$(Configuration)\netstandard2.0'))</_ArghGeneratorDir>
+      <_ArghGeneratorDll>$(_ArghGeneratorDir)\Nullean.Argh.Generator.dll</_ArghGeneratorDll>
+      <_ArghGeneratorDll Condition="!Exists('$(_ArghGeneratorDll)')">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\Nullean.Argh.Generator\bin\Debug\netstandard2.0\Nullean.Argh.Generator.dll'))</_ArghGeneratorDll>
+      <_ArghGeneratorPdb>$([System.IO.Path]::GetDirectoryName('$(_ArghGeneratorDll)'))\Nullean.Argh.Generator.pdb</_ArghGeneratorPdb>
+    </PropertyGroup>
+    <ItemGroup>
+      <None Include="$(_ArghGeneratorDll)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+      <None Include="$(_ArghGeneratorPdb)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"
+              Condition="Exists('$(_ArghGeneratorPdb)')" />
+    </ItemGroup>
+  </Target>
+
+</Project>

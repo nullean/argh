@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>Nullean.Argh.Interfaces</AssemblyName>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>Nullean.Argh</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\build\keys\keypair.snk</AssemblyOriginatorKeyFile>
+    <PackageId>Nullean.Argh.Interfaces</PackageId>
+    <Title>Nullean.Argh.Interfaces</Title>
+    <Description>Contracts and attributes for Nullean.Argh CLI (middleware, parsers, registration surfaces).</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Threading.Tasks.Extensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="README.md" Link="README.md" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="/" />
+    <None Include="..\..\nuget-icon.png" Pack="true" PackagePath="nuget-icon.png" Link="nuget-icon.png" />
+  </ItemGroup>
+
+</Project>

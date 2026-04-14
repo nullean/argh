@@ -13,7 +13,10 @@
     <Project Path="build/scripts/scripts.fsproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Nullean.Argh.Interfaces/Nullean.Argh.Interfaces.csproj" />
     <Project Path="src/Nullean.Argh/Nullean.Argh.csproj" />
+    <Project Path="src/Nullean.Argh.Core/Nullean.Argh.Core.csproj" />
+    <Project Path="src/Nullean.Argh.Generator/Nullean.Argh.Generator.csproj" />
     <Project Path="src/Nullean.Argh.Hosting/Nullean.Argh.Hosting.csproj" />
   </Folder>
   <Folder Name="/examples/">

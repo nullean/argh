@@ -38,7 +38,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Nullean.Argh\Nullean.Argh.csproj" />
+    <ProjectReference Include="..\Nullean.Argh.Core\Nullean.Argh.Core.csproj" />
+    <ProjectReference Include="..\Nullean.Argh.Interfaces\Nullean.Argh.Interfaces.csproj" />
   </ItemGroup>
 
   <ItemGroup>

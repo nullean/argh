@@ -9,16 +9,16 @@ namespace Nullean.Argh;
 internal static class ReferenceMetadataCapabilities
 {
 	internal readonly record struct Capabilities(
-		bool HasMicrosoftExtensionsDependencyInjection,
-		bool HasMicrosoftExtensionsHosting);
+		bool HasMicrosoftExtensionsDependencyInjection, bool HasMicrosoftExtensionsHosting
+	);
 
 	internal static Capabilities Compute(ImmutableArray<MetadataReference> references)
 	{
 		var hasDi = false;
 		var hasHost = false;
-		foreach (MetadataReference r in references)
+		foreach (var r in references)
 		{
-			string display = r.Display ?? string.Empty;
+			var display = r.Display ?? string.Empty;
 			if (display.Length == 0)
 				continue;
 
