@@ -337,6 +337,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		public INamedTypeSymbol? CommandNamespaceOptionsType;
 		public Location? CommandNamespaceOptionsLocation;
 		public OptionsTypeModel? CommandNamespaceOptionsModel;
+		/// <summary>Inner XML of <c>&lt;summary&gt;</c> from the namespace entry type (populated when a generic <c>AddNamespace&lt;T&gt;</c> is used).</summary>
+		public string SummaryInnerXml = "";
+		/// <summary>Inner XML of <c>&lt;remarks&gt;</c> from the namespace entry type.</summary>
+		public string RemarksInnerXml = "";
 
 		public sealed class NamedCommandNamespaceChild
 		{
@@ -790,6 +794,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			CSharpParseOptions parseOpts = addNamespaceInvocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
 			ExpandTypeRegistration(context, addNamespaceInvocation, namespaceEntryType, childPath, mergeOuterTypeSegment: true,
 				childNode, parseOpts);
+			(childNode.SummaryInnerXml, childNode.RemarksInnerXml) = Documentation.GetTypeDocumentation(
+				namespaceEntryType.GetDocumentationCommentXml());
 		}
 
 		if (IsRegistryNodeVacuous(childNode))
@@ -1798,6 +1804,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		List<(string Name, string Summary, string HelpPrinter)> sorted =
 			entries.OrderBy(e => e.Name, StringComparer.Ordinal).ToList();
 
+		string pathPrefix = path.IsDefaultOrEmpty ? "" : string.Join(" ", path) + " ";
+		string nsHelp = path.IsDefaultOrEmpty ? "--help" : Escape(string.Join(" ", path)) + " --help";
+
 		sb.AppendLine("\t\t\t\tvar __tok = tok;");
 		sb.AppendLine("\t\t\t\tvar __app = \"" + Escape(entryAssemblyName) + "\";");
 		sb.Append("\t\t\t\tvar __cands = new string[] { ");
@@ -1818,10 +1827,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\telse if (__matches.Count == 1)");
 		sb.AppendLine("\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\tvar __m = __matches[0];");
-		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown {kind} '{{__tok}}'. Did you mean '{{__m}}'?\");");
+		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown {kind} '{{__tok}}'. Did you mean '{Escape(pathPrefix)}{{__m}}'?\");");
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
-		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} {__m} --help' for usage.\");");
-		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} --help' for usage.\");");
+		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Run '{{__app}} {Escape(pathPrefix)}{{__m}} --help' for usage.\");");
+		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Run '{{__app}} {nsHelp}' for usage.\");");
 		sb.AppendLine("\t\t\t\t}");
 		sb.AppendLine("\t\t\t\telse");
 		sb.AppendLine("\t\t\t\t{");
@@ -1829,18 +1838,19 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
 		foreach (var e in sorted)
 		{
+			string qualifiedName = Escape(pathPrefix + e.Name);
 			string sum = Escape(e.Summary);
 			sb.AppendLine(
 				$"\t\t\t\t\tif (__matches.Any(__x => string.Equals(__x, \"{Escape(e.Name)}\", StringComparison.OrdinalIgnoreCase)))");
 			sb.AppendLine("\t\t\t\t\t{");
 			sb.AppendLine(
-				$"\t\t\t\t\t\tConsole.Error.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{Escape(e.Name)}\") + \"    {sum}\");");
+				$"\t\t\t\t\t\tConsole.Error.WriteLine(\"  \" + CliHelpFormatting.Accent(\"{qualifiedName}\") + \"    {sum}\");");
 			sb.AppendLine("\t\t\t\t\t}");
 		}
 
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
-		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} <command> --help' for usage.\");");
-		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Run '{__app} --help' for usage.\");");
+		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Run '{{__app}} {Escape(pathPrefix)}<command> --help' for usage.\");");
+		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Run '{{__app}} {nsHelp}' for usage.\");");
 		sb.AppendLine("\t\t\t\t}");
 		sb.AppendLine("\t\t\t\treturn 2;");
 	}
@@ -2520,8 +2530,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				namespaceOptionSections.Add((seg, rows));
 		}
 
-		bool showGlobalFlagsInNs = node.RootCommand is not null && globalFlagMembers.Count > 0;
-		bool showNamespaceScopedOptionSections = node.RootCommand is not null;
+		bool hasNsDoc = !string.IsNullOrWhiteSpace(node.SummaryInnerXml);
+		bool showGlobalFlagsInNs = (node.RootCommand is not null || hasNsDoc) && globalFlagMembers.Count > 0;
+		bool showNamespaceScopedOptionSections = node.RootCommand is not null || hasNsDoc;
 		var widthCandidatesNs = new List<int> { "--help, -h".Length };
 		if (showGlobalFlagsInNs)
 			widthCandidatesNs.AddRange(globalFlagMembers.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
@@ -2548,6 +2559,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (node.RootCommand is { } nsRootOverview)
 			EmitRootCommandHelpOverview(sb, nsRootOverview, "\t\t\t", app, entryAssemblyName);
+		else if (!string.IsNullOrWhiteSpace(node.SummaryInnerXml))
+		{
+			EmitCommandHelpDocPrologue(sb, "\t\t\t", node.SummaryInnerXml, "", false);
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+		}
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
 		sb.AppendLine(
@@ -2595,6 +2611,12 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine(
 					$"\t\t\tCliHelpFormatting.WriteHelpListNameAndDescription(false, \"{Escape(fullCmd)}\", {sumArg}, {maxChildCmdListingW});");
 			}
+		}
+
+		if (node.RootCommand is null && !string.IsNullOrWhiteSpace(node.RemarksInnerXml))
+		{
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+			EmitNotesSection(sb, "\t\t\t", node.RemarksInnerXml, "");
 		}
 
 		sb.AppendLine("\t\t}");
@@ -2880,7 +2902,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	/// <summary>Summary (white) after usage, or remarks (gray) after options; caller emits <c>Description:</c> before remarks when using per-command help.</summary>
+	/// <summary>Summary (white) after usage, or remarks (gray) after options; caller emits <c>Notes:</c> before remarks when using per-command help.</summary>
 	private static void EmitCommandHelpDocPrologue(StringBuilder sb, string indent, string? innerXml, string? plainFallback, bool remarks)
 	{
 		if (!string.IsNullOrWhiteSpace(innerXml))
@@ -2900,6 +2922,55 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine($"{indent}Console.Out.WriteLine();");
 			else
 				sb.AppendLine($"{indent}Console.Out.WriteLine(\"   \" + {styler}(\"{Escape(line.Trim())}\"));");
+		}
+	}
+
+	/// <summary>Flatten remarks inner XML to plain text at generation time (used for single-line detection).</summary>
+	private static string FlattenRemarksXml(string? innerXml)
+	{
+		if (string.IsNullOrWhiteSpace(innerXml))
+			return "";
+		try
+		{
+			var el = XElement.Parse("<x>" + innerXml + "</x>", LoadOptions.PreserveWhitespace);
+			return Documentation.FlattenBlockPublic(el).Replace("\r\n", "\n").Trim();
+		}
+		catch { return ""; }
+	}
+
+	/// <summary>
+	/// Emits the Notes: section for command/namespace help.
+	/// Single-line remarks are inlined on the same line as "Notes:";
+	/// multi-line remarks follow on the next line with 2-space indent to align with Commands/Options above.
+	/// </summary>
+	private static void EmitNotesSection(StringBuilder sb, string indent, string? innerXml, string plainRendered)
+	{
+		string flat = string.IsNullOrWhiteSpace(plainRendered)
+			? FlattenRemarksXml(innerXml)
+			: plainRendered.Replace("\r\n", "\n").Trim();
+		if (string.IsNullOrWhiteSpace(flat))
+			return;
+
+		bool singleLine = !flat.Contains('\n');
+		if (singleLine)
+		{
+			sb.AppendLine($"{indent}Console.Out.WriteLine(CliHelpFormatting.Section(\"Notes:\") + \"  \" + CliHelpFormatting.DocRemarksLine(\"{Escape(flat)}\"));");
+			return;
+		}
+
+		sb.AppendLine($"{indent}Console.Out.WriteLine(CliHelpFormatting.Section(\"Notes:\"));");
+		if (!string.IsNullOrWhiteSpace(innerXml))
+		{
+			sb.AppendLine(indent + "global::Nullean.Argh.Help.XmlDocumentationRenderer.WriteIndentedDoc(Console.Out, \"  \", \"" + EscapeDocXml(innerXml!) + "\", true);");
+			return;
+		}
+		foreach (string part in flat.Split('\n'))
+		{
+			string line = part.TrimEnd('\r');
+			if (string.IsNullOrWhiteSpace(line))
+				sb.AppendLine($"{indent}Console.Out.WriteLine();");
+			else
+				sb.AppendLine($"{indent}Console.Out.WriteLine(\"  \" + CliHelpFormatting.DocRemarksLine(\"{Escape(line.Trim())}\"));");
 		}
 	}
 
@@ -4636,14 +4707,13 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			EmitHelpOptionRows(sb, commandOnlyFlags, maxOptWidth);
 		}
 
-		bool hasRemarks = !string.IsNullOrWhiteSpace(cmd.RemarksRendered) || !string.IsNullOrWhiteSpace(cmd.RemarksInnerXml);
+		string? remarksXml = TransformRemarksInnerXmlForHelp(cmd.RemarksInnerXml, cmd, app.AllCommands, entryAssemblyName);
+		bool hasRemarks = !string.IsNullOrWhiteSpace(cmd.RemarksRendered) || !string.IsNullOrWhiteSpace(remarksXml);
 		if (hasRemarks)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
-			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Description:\"));");
+			EmitNotesSection(sb, "\t\t\t", remarksXml, cmd.RemarksRendered);
 		}
-		string? remarksXml = TransformRemarksInnerXmlForHelp(cmd.RemarksInnerXml, cmd, app.AllCommands, entryAssemblyName);
-		EmitCommandHelpDocPrologue(sb, "\t\t\t", remarksXml, cmd.RemarksRendered, true);
 
 		if (!string.IsNullOrWhiteSpace(cmd.ExamplesRendered))
 		{
@@ -6193,6 +6263,27 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			catch
 			{
 				return "";
+			}
+		}
+
+		/// <summary>Inner XML of <c>&lt;summary&gt;</c> and <c>&lt;remarks&gt;</c> for a type symbol.</summary>
+		public static (string SummaryInnerXml, string RemarksInnerXml) GetTypeDocumentation(string? xml)
+		{
+			if (string.IsNullOrWhiteSpace(xml))
+				return ("", "");
+			try
+			{
+				var doc = XDocument.Parse("<root>" + xml + "</root>", LoadOptions.PreserveWhitespace);
+				XElement? root = doc.Root;
+				if (root is null)
+					return ("", "");
+				// Roslyn wraps type XML in a <member> element
+				XElement search = root.Element("member") ?? root;
+				return (GetElementInnerXml(search.Element("summary")), GetElementInnerXml(search.Element("remarks")));
+			}
+			catch
+			{
+				return ("", "");
 			}
 		}
 

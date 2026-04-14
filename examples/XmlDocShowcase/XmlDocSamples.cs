@@ -3,6 +3,9 @@ namespace XmlDocShowcase;
 /// <summary>
 /// <para>Focused XML documentation fragments for CLI help—each subcommand highlights one kind of tag or block.</para>
 /// </summary>
+/// <remarks>
+/// More information for the namespace
+/// </remarks>
 internal sealed class XmlDocSamples
 {
 	/// <summary>
