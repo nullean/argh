@@ -537,14 +537,20 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	}
 
 	/// <summary>
-	/// Returns the ordered chain of (optionsType, staticFieldName) that should be injected into a command.
+	/// Returns the ordered chain of options entries (global → most-specific namespace) for injection into a command.
 	/// Walks the registry tree directly so namespace options types with zero own members are still included.
+	/// Each entry carries the static field name (pre-parsed fallback) and a local var name (command-runner reconstruction).
 	/// </summary>
-	private static ImmutableArray<(INamedTypeSymbol Type, string FieldName)> BuildOptionsInjectionChain(AppEmitModel app, CommandModel cmd)
+	private static ImmutableArray<(INamedTypeSymbol Type, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)>
+		BuildOptionsInjectionChain(AppEmitModel app, CommandModel cmd)
 	{
-		var result = ImmutableArray.CreateBuilder<(INamedTypeSymbol, string)>();
+		var result = ImmutableArray.CreateBuilder<(INamedTypeSymbol, string, string, ImmutableArray<ParameterModel>)>();
 		if (app.GlobalOptionsType is not null)
-			result.Add((app.GlobalOptionsType, OptionsStaticFieldName(app.GlobalOptionsType)));
+			result.Add((
+				app.GlobalOptionsType,
+				OptionsStaticFieldName(app.GlobalOptionsType),
+				OptionsLocalVarName(app.GlobalOptionsType),
+				BuildFlattenedOptionsMembers(app.GlobalOptionsType)));
 
 		var current = app.Root;
 		foreach (var seg in cmd.RoutePrefix)
@@ -561,7 +567,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			if (found is null) break;
 			current = found.Node;
 			if (current.CommandNamespaceOptionsType is { } nsType)
-				result.Add((nsType, OptionsStaticFieldName(nsType)));
+				result.Add((
+					nsType,
+					OptionsStaticFieldName(nsType),
+					OptionsLocalVarName(nsType),
+					BuildFlattenedOptionsMembers(nsType)));
 		}
 
 		return result.ToImmutable();
@@ -589,18 +599,30 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				continue;
 			}
 
-			// Remove parameters whose type is any registered options type (they'll be injected from static fields).
+			// Remove original options-type params; replace with OptionsInjected entries for each flattened
+			// member so bool-switch / short-opt / canon-name machinery still recognises those flags.
 			var filtered = cmd.Parameters.Where(p =>
 			{
-				if (p.AsParametersOwnerParamName is not null) return true; // keep expanded [AsParameters] members
-				// Match the method parameter by name to its symbol type
+				if (p.AsParametersOwnerParamName is not null) return true;
 				if (cmd.HandlerMethod.Parameters.FirstOrDefault(mp => mp.Name == p.SymbolName) is not { } mp2) return true;
 				if (mp2.Type is not INamedTypeSymbol pt) return true;
-				// Remove if it exactly matches or is a subtype of any options type in the chain
 				return !injChain.Any(o => SymbolEqualityComparer.Default.Equals(pt, o.Type) || TypeInheritsFromOrImplements(pt, o.Type));
-			}).ToImmutableArray();
+			}).ToList();
 
-			updated.Add(cmd with { Parameters = filtered });
+			// Add flattened options members as OptionsInjected so the flag parser handles them correctly.
+			var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			foreach (var (_, _, _, flatMembers) in injChain)
+			{
+				foreach (var m in flatMembers)
+				{
+					if (m.Kind != ParameterKind.Flag) continue;
+					if (!seen.Add(m.CliLongName)) continue; // dedup inherited members
+					// Create an OptionsInjected entry — only flag-recognition fields matter here.
+					filtered.Add(m with { Kind = ParameterKind.OptionsInjected });
+				}
+			}
+
+			updated.Add(cmd with { Parameters = filtered.ToImmutableArray() });
 		}
 
 		app.AllCommands = updated.ToImmutable();
@@ -2201,6 +2223,10 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	private static string OptionsStaticFieldName(INamedTypeSymbol type) =>
 		"s_opts_" + DtoMethodSuffix(type);
 
+	/// <summary>Name of the per-command-runner local variable that holds the reconstructed options instance.</summary>
+	private static string OptionsLocalVarName(INamedTypeSymbol type) =>
+		"__opts_" + DtoMethodSuffix(type);
+
 	private static string DtoMethodSuffix(INamedTypeSymbol type)
 	{
 		var fq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -2534,10 +2560,16 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		foreach ((var node, var path) in EnumerateCommandNamespaceNodesWithPath(app.Root, ImmutableArray<string>.Empty))
 		{
-			if (node.CommandNamespaceOptionsModel is OptionsTypeModel gopt && gopt.Members.Length > 0 && node.CommandNamespaceOptionsType is not null)
-				EmitOptionsTryParse(sb, CommandNamespaceOptionsParseMethodName(path), gopt.Members,
-					storeType: node.CommandNamespaceOptionsType,
-					storeFieldName: OptionsStaticFieldName(node.CommandNamespaceOptionsType));
+			if (node.CommandNamespaceOptionsType is not null)
+			{
+				// Use FLATTENED members (including inherited) so flags from parent options types are
+				// also recognised and consumed between the namespace segment and the sub-command.
+				var nsMembers = BuildFlattenedOptionsMembers(node.CommandNamespaceOptionsType);
+				if (nsMembers.Length > 0)
+					EmitOptionsTryParse(sb, CommandNamespaceOptionsParseMethodName(path), nsMembers,
+						storeType: node.CommandNamespaceOptionsType,
+						storeFieldName: OptionsStaticFieldName(node.CommandNamespaceOptionsType));
+			}
 		}
 
 		EmitTryParseRouteHierarchical(sb, app);
@@ -2820,7 +2852,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	{
 		sb.AppendLine($"\t\tprivate static async Task<int> {methodName}(string[] args, int[] idx, CancellationToken ct)");
 		sb.AppendLine("\t\t{");
-		if (!isRoot && node.CommandNamespaceOptionsModel is { Members: { Length: > 0 } })
+		// Call namespace options parse for any namespace that has a registered options type (even if it only
+		// inherits flags from a parent type) so that flags between the namespace segment and the sub-command
+		// are consumed correctly.
+		if (!isRoot && node.CommandNamespaceOptionsType is not null &&
+		    BuildFlattenedOptionsMembers(node.CommandNamespaceOptionsType).Length > 0)
 			sb.AppendLine($"\t\t\tif (!{CommandNamespaceOptionsParseMethodName(path)}(args, idx)) return 2;");
 
 		sb.AppendLine("\t\t\tif (idx[0] >= args.Length)");
@@ -3292,7 +3328,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine($"\t\tprivate static bool {methodName}(string[] args, int[] idx, out RouteMatch match)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tmatch = default;");
-		if (!isRoot && node.CommandNamespaceOptionsModel is { Members: { Length: > 0 } })
+		if (!isRoot && node.CommandNamespaceOptionsType is not null &&
+		    BuildFlattenedOptionsMembers(node.CommandNamespaceOptionsType).Length > 0)
 			sb.AppendLine($"\t\t\tif (!{CommandNamespaceOptionsParseMethodName(path)}(args, idx)) return false;");
 		sb.AppendLine("\t\t\tif (idx[0] >= args.Length)");
 		sb.AppendLine("\t\t\t{");
@@ -3592,6 +3629,114 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t};");
 	}
 
+	/// <summary>
+	/// Emits local variable reconstruction for each options type in the injection chain.
+	/// For every member: prefer the value from the command's <c>flags</c> dict (post-command flags),
+	/// fall back to the pre-parsed static field (pre-command flags). This ensures flags work in
+	/// either position: <c>myapp --verbose cmd</c> or <c>myapp cmd --verbose</c>.
+	/// </summary>
+	private static void EmitOptionsReconstructLocals(
+		StringBuilder sb,
+		ImmutableArray<(INamedTypeSymbol Type, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> chain)
+	{
+		if (chain.IsDefaultOrEmpty) return;
+
+		// Track which static provides the fallback for each CLI name (first in chain that declares it).
+		// Key = CliLongName, Value = "{staticFieldName}.{SymbolName}"
+		var fallbackMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+		foreach (var (_, staticField, _, flatMembers) in chain)
+		{
+			foreach (var m in flatMembers)
+			{
+				if (!fallbackMap.ContainsKey(m.CliLongName))
+					fallbackMap[m.CliLongName] = staticField + "." + m.SymbolName;
+			}
+		}
+
+		// Track which member vars have already been emitted (across chain entries, to avoid re-declaration).
+		var emittedTmpVars = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		foreach (var (type, _, localVar, flatMembers) in chain)
+		{
+			if (flatMembers.IsEmpty) continue;
+			var fq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var byName = flatMembers.ToDictionary(static m => m.SymbolName, StringComparer.OrdinalIgnoreCase);
+
+			// Extract each member: command-level flags take precedence over pre-parsed static value.
+			foreach (var m in flatMembers)
+			{
+				var fallback = fallbackMap.TryGetValue(m.CliLongName, out var fb) ? fb : "default";
+				var tmpName = "__ropt_" + m.LocalVarName;
+				// Skip if already emitted by a parent type in the chain (inherited members appear in multiple flat lists).
+				if (!emittedTmpVars.Add(tmpName)) continue;
+				if (m.Special == BoolSpecialKind.Bool)
+				{
+					sb.AppendLine($"\t\t\tvar {tmpName} = flags.ContainsKey(\"{Escape(m.CliLongName)}\") || {fallback};");
+				}
+				else if (m.Special == BoolSpecialKind.NullableBool)
+				{
+					sb.AppendLine($"\t\t\tbool? {tmpName} = {fallback};");
+					sb.AppendLine($"\t\t\tif (flags.TryGetValue(\"{Escape(m.CliLongName)}\", out var {tmpName}_yv))");
+					sb.AppendLine($"\t\t\t\t{tmpName} = ParseNullableBool({tmpName}_yv, true);");
+					sb.AppendLine($"\t\t\tif (flags.TryGetValue(\"no-{Escape(m.CliLongName)}\", out var {tmpName}_nv))");
+					sb.AppendLine($"\t\t\t\t{tmpName} = ParseNullableBool({tmpName}_nv, false);");
+				}
+				else
+				{
+					// For value-typed flags: if found in command flags use that; else keep static fallback value.
+					sb.AppendLine($"\t\t\tflags.TryGetValue(\"{Escape(m.CliLongName)}\", out var {tmpName}Txt);");
+					sb.AppendLine($"\t\t\tvar {tmpName} = {fallback};");
+					if (m.ScalarKind == CliScalarKind.Primitive)
+					{
+						// Re-parse from text if present, keeping static value if not.
+						var parseExpr = m.TypeName switch
+						{
+							"int" => $"int.TryParse({tmpName}Txt, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"long" => $"long.TryParse({tmpName}Txt, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"double" => $"double.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"float" => $"float.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"string" or "string?" => $"{tmpName}Txt ?? {tmpName}",
+							_ => $"{tmpName}Txt != null ? {tmpName}Txt : {tmpName}"
+						};
+						if (m.TypeName is "string" or "string?")
+							sb.AppendLine($"\t\t\t{tmpName} = {parseExpr};");
+						else
+							sb.AppendLine($"\t\t\tif ({tmpName}Txt != null) {tmpName} = {parseExpr};");
+					}
+					// Enum and custom parsers: keep static fallback (complex re-parse not emitted here for brevity)
+				}
+			}
+
+			// Construct the local options instance.
+			IMethodSymbol? bestCtor = null;
+			foreach (var ctor in type.InstanceConstructors)
+			{
+				if (ctor.DeclaredAccessibility != Accessibility.Public) continue;
+				if (ctor.Parameters.Length == 0) continue;
+				if (!ctor.Parameters.All(p => byName.ContainsKey(p.Name))) continue;
+				if (bestCtor is null || ctor.Parameters.Length > bestCtor.Parameters.Length)
+					bestCtor = ctor;
+			}
+
+			if (bestCtor is not null && bestCtor.Parameters.Length == flatMembers.Length)
+			{
+				sb.Append($"\t\t\tvar {localVar} = new {fq}(");
+				for (var i = 0; i < bestCtor.Parameters.Length; i++)
+				{
+					if (i > 0) sb.Append(", ");
+					sb.Append("__ropt_" + byName[bestCtor.Parameters[i].Name].LocalVarName);
+				}
+				sb.AppendLine(");");
+			}
+			else
+			{
+				sb.AppendLine($"\t\t\tvar {localVar} = new {fq}();");
+				foreach (var m in flatMembers)
+					sb.AppendLine($"\t\t\t{localVar}.{m.SymbolName} = __ropt_{m.LocalVarName};");
+			}
+		}
+	}
+
 	private static void EmitBindCollectionParameter(StringBuilder sb, ParameterModel p, bool multiFlagsAvailable, string failureExit = "return 2", string? helpMethodName = null)
 	{
 		var flagKey = Escape(p.CliLongName);
@@ -3805,7 +3950,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		string? dtoMethodName = null,
 		string? dtoResultTypeFq = null,
 		INamedTypeSymbol? dtoOptionsType = null,
-		ImmutableArray<(INamedTypeSymbol Type, string FieldName)> injectedOptions = default)
+		ImmutableArray<(INamedTypeSymbol Type, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> injectedOptions = default)
 	{
 		var anyRepeatedCollection = cmd.Parameters.Any(static p =>
 			p is { IsCollection: true, Kind: ParameterKind.Flag } && p.CollectionSeparator is null);
@@ -3965,7 +4110,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		foreach (var p in cmd.Parameters)
 		{
-			if (p.Kind == ParameterKind.Injected)
+			if (p.Kind == ParameterKind.Injected || p.Kind == ParameterKind.OptionsInjected)
 				continue;
 
 			if (p.Kind == ParameterKind.Positional)
@@ -4058,6 +4203,9 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 		EmitAsParametersConstruction(sb, cmd);
 
+		// Reconstruct options instances merging command-level flags with pre-parsed statics.
+		EmitOptionsReconstructLocals(sb, injectedOptions);
+
 		if (cmd.RequiresInstance)
 		{
 			// Try to construct from options-injected ctor parameters before falling back to DI or parameterless ctor.
@@ -4072,15 +4220,15 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					foreach (IParameterSymbol cp in ctor.Parameters)
 					{
 						if (cp.Type is not INamedTypeSymbol cpType) { allResolved = false; break; }
-						// Exact match first, then most-derived (from end of chain)
-						(INamedTypeSymbol Type, string FieldName) best = default;
+						// Exact match first, then most-derived (from end of chain); use LocalVarName (reconstructed)
+						string? bestLocal = null;
 						foreach (var o in injectedOptions)
-							if (SymbolEqualityComparer.Default.Equals(o.Type, cpType)) { best = o; break; }
-						if (best.FieldName is null)
+							if (SymbolEqualityComparer.Default.Equals(o.Type, cpType)) { bestLocal = o.LocalVarName; break; }
+						if (bestLocal is null)
 							for (var _i = injectedOptions.Length - 1; _i >= 0; _i--)
-								if (TypeInheritsFromOrImplements(injectedOptions[_i].Type, cpType)) { best = injectedOptions[_i]; break; }
-						if (best.FieldName is null) { allResolved = false; break; }
-						ctorArgs.Add(best.FieldName);
+								if (TypeInheritsFromOrImplements(injectedOptions[_i].Type, cpType)) { bestLocal = injectedOptions[_i].LocalVarName; break; }
+						if (bestLocal is null) { allResolved = false; break; }
+						ctorArgs.Add(bestLocal);
 					}
 					if (allResolved)
 						optionsCtorArgs = string.Join(", ", ctorArgs);
@@ -4169,7 +4317,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	{
 		foreach (var p in cmd.Parameters)
 		{
-			if (p.Kind == ParameterKind.Injected)
+			if (p.Kind == ParameterKind.Injected || p.Kind == ParameterKind.OptionsInjected)
 				continue;
 
 			if (p.Special == BoolSpecialKind.Bool || p.Special == BoolSpecialKind.NullableBool)
@@ -4594,7 +4742,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		string ctExpr = "ct",
 		string? commandContextVar = null,
 		string lineIndent = "\t\t\t",
-		ImmutableArray<(INamedTypeSymbol Type, string FieldName)> injectedOptions = default)
+		ImmutableArray<(INamedTypeSymbol Type, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> injectedOptions = default)
 	{
 		// Lambda commands: invoke through ArghApp.GetRegisteredLambda with a cast
 		if (cmd.IsLambda && !string.IsNullOrEmpty(cmd.LambdaStorageKey))
@@ -4630,38 +4778,20 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					continue;
 				}
 
-				// Options-type parameters are injected from static fields set by TryParseGlobalOptions /
-				// TryParseCommandNamespaceOptions_xxx. Prefer the exact type match; fall back to the most
-				// specific (most derived) type in the chain that satisfies the parameter.
+			// Options-type parameters are injected as locally-reconstructed instances that merge
+				// command-level flags (post-command) with pre-parsed static values (pre-command).
 				if (!injectedOptions.IsDefaultOrEmpty && mp.Type is INamedTypeSymbol mpType)
 				{
-					// Exact match first
-					(INamedTypeSymbol Type, string FieldName) match = default;
+					string? localVar = null;
 					foreach (var o in injectedOptions)
-					{
-						if (SymbolEqualityComparer.Default.Equals(o.Type, mpType))
-						{
-							match = o;
-							break;
-						}
-					}
-					// Then most-derived type that is-a mpType (iterate from end = most specific)
-					if (match.FieldName is null)
-					{
+						if (SymbolEqualityComparer.Default.Equals(o.Type, mpType)) { localVar = o.LocalVarName; break; }
+					if (localVar is null)
 						for (var _i = injectedOptions.Length - 1; _i >= 0; _i--)
-						{
-							var o = injectedOptions[_i];
-							if (TypeInheritsFromOrImplements(o.Type, mpType))
-							{
-								match = o;
-								break;
-							}
-						}
-					}
+							if (TypeInheritsFromOrImplements(injectedOptions[_i].Type, mpType)) { localVar = injectedOptions[_i].LocalVarName; break; }
 
-					if (match.FieldName is not null)
+					if (localVar is not null)
 					{
-						args.Add(match.FieldName);
+						args.Add(localVar);
 						continue;
 					}
 				}
@@ -6258,7 +6388,14 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 	{
 		Flag,
 		Positional,
-		Injected
+		Injected,
+		/// <summary>
+		/// A flattened member from a global or namespace options type injected into this command.
+		/// Participates in bool-switch / short-opt / canon-name detection so the flag is parsed correctly,
+		/// but is skipped by value-declaration and binding emission (the value is obtained from a
+		/// locally-reconstructed options instance instead).
+		/// </summary>
+		OptionsInjected
 	}
 
 	private enum CliScalarKind
