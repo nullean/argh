@@ -15,11 +15,11 @@ internal sealed class TestStorageCommandNamespaceOptions : TestGlobalCliOptions
 /// <summary>Commands under <c>storage</c>; nested class becomes <c>storage blob</c> nested namespace.</summary>
 internal sealed class StorageCliCommands
 {
-	public static void List() => Console.Out.WriteLine("storage-list");
+	public static void List(TestStorageCommandNamespaceOptions o) => Console.Out.WriteLine("storage-list");
 
 	public sealed class BlobCommands
 	{
-		public static void Upload() => Console.Out.WriteLine("blob-upload");
+		public static void Upload(TestStorageCommandNamespaceOptions o) => Console.Out.WriteLine("blob-upload");
 	}
 }
 
@@ -36,6 +36,6 @@ internal sealed class DiProbeService : IDiProbeService
 /// <summary>Instance command type for DI resolution tests (<c>ArghServices.ServiceProvider</c>).</summary>
 internal sealed class DiProbeCommands(IDiProbeService svc)
 {
-	public void Ping() =>
+	public void Ping(TestGlobalCliOptions g) =>
 		Console.Out.WriteLine($"probe:{svc.Marker}");
 }

@@ -6,6 +6,6 @@ internal static class LocalCliHandlers
 	/// <summary>Echo a line; registered with <c>Add("doc-echo", LocalCliHandlers.DocEcho)</c>.</summary>
 	/// <param name="line">-l,--line, Text to echo.</param>
 	/// <example>doc-echo --line "example"</example>
-	internal static void DocEcho(string line) =>
+	internal static void DocEcho(GlobalCliOptions g, string line) =>
 		Console.WriteLine($"basic:doc-echo:{line}");
 }

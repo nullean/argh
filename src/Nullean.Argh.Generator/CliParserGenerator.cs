@@ -610,7 +610,11 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			}).ToList();
 
 			// Add flattened options members as OptionsInjected so the flag parser handles them correctly.
+			// Pre-seed with CLI names already present (e.g. from [AsParameters] expansion) to avoid duplicates.
 			var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			foreach (var p in filtered)
+				if (p.Kind == ParameterKind.Flag) seen.Add(p.CliLongName);
+
 			foreach (var (_, _, _, flatMembers) in injChain)
 			{
 				foreach (var m in flatMembers)
@@ -622,10 +626,30 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 				}
 			}
 
-			updated.Add(cmd with { Parameters = filtered.ToImmutableArray() });
+			var newParams = filtered.ToImmutableArray();
+			updated.Add(cmd with
+			{
+				Parameters = newParams,
+				// Rebuild usage hints now that options params are stripped.
+				UsageHints = UsageSynopsis.Build(newParams)
+			});
 		}
 
 		app.AllCommands = updated.ToImmutable();
+
+		// Also update RootCommand references in RegistryNodes so help printers see the fixed parameters.
+		var fixedById = new Dictionary<string, CommandModel>(StringComparer.Ordinal);
+		foreach (var cmd in app.AllCommands)
+			fixedById[cmd.RunMethodName] = cmd;
+		UpdateRegistryNodeRootCommands(app.Root, fixedById);
+	}
+
+	private static void UpdateRegistryNodeRootCommands(RegistryNode node, Dictionary<string, CommandModel> fixedById)
+	{
+		if (node.RootCommand is not null && fixedById.TryGetValue(node.RootCommand.RunMethodName, out var fixedRoot))
+			node.RootCommand = fixedRoot;
+		foreach (var child in node.Children)
+			UpdateRegistryNodeRootCommands(child.Node, fixedById);
 	}
 
 	private static bool TypeInheritsFromOrImplements(INamedTypeSymbol type, INamedTypeSymbol baseOrInterface)
@@ -3570,6 +3594,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 			}
 			else
 			{
+				// Declare the local variable first (EmitParseAndAssign only assigns, does not declare).
+				sb.AppendLine($"\t\t\t{GetCSharpCliType(m)} {m.LocalVarName} = {GetCliInitializer(m)};");
 				sb.AppendLine($"\t\t\tflags.TryGetValue(\"{Escape(m.CliLongName)}\", out var {m.LocalVarName}Text);");
 				EmitParseAndAssign(sb, m, m.LocalVarName + "Text", m.LocalVarName, "return false", null);
 			}
@@ -6896,7 +6922,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 			foreach (var p in parameters)
 			{
-				if (p.Kind == ParameterKind.Injected)
+				if (p.Kind == ParameterKind.Injected || p.Kind == ParameterKind.OptionsInjected)
 					continue;
 
 				if (p.Kind == ParameterKind.Positional)

@@ -37,17 +37,17 @@ internal static class CliRegistrationModule
 	/// <summary>Documented handler for lambda-style <c>Add</c> (XML appears in help).</summary>
 	/// <param name="line">-l,--line, Text line to echo.</param>
 	/// <example>doc-lambda --line hi</example>
-	internal static void DocLambdaEcho(string line) =>
+	internal static void DocLambdaEcho(TestGlobalCliOptions g, string line) =>
 		Console.Out.WriteLine($"doc-lambda:{line}");
 
 	/// <summary>Integration-test default when no subcommand is given at the app root.</summary>
 	/// <remarks>Root default remarks for help layout tests.</remarks>
-	internal static void CliRootDefault() =>
+	internal static void CliRootDefault(TestGlobalCliOptions g) =>
 		Console.Out.WriteLine("marker:root-default");
 
 	/// <summary>Integration-test default when only the <c>storage</c> namespace is selected.</summary>
 	/// <remarks>Namespace default remarks for help layout tests.</remarks>
-	internal static void StorageNamespaceRoot() =>
+	internal static void StorageNamespaceRoot(TestStorageCommandNamespaceOptions o) =>
 		Console.Out.WriteLine("marker:storage-ns-root");
 }
 

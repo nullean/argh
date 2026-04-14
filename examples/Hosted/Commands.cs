@@ -24,7 +24,7 @@ internal sealed class HostedCliCommands
 	/// <summary>Greets by name.</summary>
 	/// <param name="name">-n,--name, Name.</param>
 	[MiddlewareAttribute<HostedPerCommandMiddleware>]
-	public void Hello(string name)
+	public void Hello(HostedGlobalCliOptions g, string name)
 	{
 		_logger.LogInformation("Hello invoked");
 		Console.WriteLine($"hosted:hello:{name}");
@@ -33,23 +33,23 @@ internal sealed class HostedCliCommands
 	/// <summary>Status with enum.</summary>
 	/// <param name="color">-c,--color, Color.</param>
 	/// <param name="label">-l,--label, Label.</param>
-	public void Status(HostedExampleColor color, string label) =>
+	public void Status(HostedGlobalCliOptions g, HostedExampleColor color, string label) =>
 		Console.WriteLine($"status:{color}:{label}");
 
 	/// <summary>Deploy with <see cref="AsParametersAttribute"/>.</summary>
-	public void Deploy([AsParameters("app")] HostedDeployArgs app) =>
+	public void Deploy(HostedGlobalCliOptions g, [AsParameters("app")] HostedDeployArgs app) =>
 		Console.WriteLine($"deploy env={app.Env} port={app.Port}");
 
 	/// <summary>Repeated labels.</summary>
 	/// <param name="labels">--label, Values.</param>
-	public void Labels(List<string> labels) =>
+	public void Labels(HostedGlobalCliOptions g, List<string> labels) =>
 		Console.WriteLine("labels: " + string.Join(", ", labels));
 }
 
 /// <summary><c>storage</c> group with nested <c>blob</c> commands.</summary>
 internal sealed class HostedStorageCommands(ILogger<HostedStorageCommands> logger)
 {
-	public void List()
+	public void List(HostedStorageCommandNamespaceOptions o)
 	{
 		logger.LogInformation("storage list");
 		Console.WriteLine("storage:list");
@@ -73,7 +73,7 @@ internal sealed class HostedStorageCommands(ILogger<HostedStorageCommands> logge
 internal sealed class HostedApiCommands(ILogger<HostedApiCommands> log)
 {
 	/// <summary>Print API version.</summary>
-	public void Version()
+	public void Version(HostedApiNamespaceOptions o)
 	{
 		log.LogInformation("api version");
 		Console.WriteLine("hosted:api:version:1");

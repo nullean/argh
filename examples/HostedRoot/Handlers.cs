@@ -7,7 +7,7 @@ namespace HostedRoot;
 internal static class HostedRootDefaults
 {
 	/// <summary>App root: runs when you omit a namespace or subcommand.</summary>
-	public static void App() =>
+	public static void App(HostedRootGlobalCliOptions g) =>
 		Console.WriteLine("hosted-root:app-default");
 
 }
@@ -17,7 +17,7 @@ internal static class HostedRootHello
 {
 	/// <summary>Greets by name.</summary>
 	/// <param name="name">-n,--name, Name.</param>
-	public static void Run(string name) =>
+	public static void Run(HostedRootGlobalCliOptions g, string name) =>
 		Console.WriteLine($"hosted-root:hello:{name}");
 }
 
@@ -27,12 +27,12 @@ internal sealed class HostedRootStorageCommands(ILogger<HostedRootStorageCommand
 {
 	/// <summary>Storage namespace root: runs when <c>storage</c> is selected but no deeper command.</summary>
 	[DefaultCommand]
-	public static void StorageNamespace() =>
+	public static void StorageNamespace(HostedRootStorageNamespaceOptions o) =>
 		Console.WriteLine("hosted-root:storage-namespace-default");
 
 	/// <summary>List storage items.</summary>
 	/// <remarks>Does not modify remote state.</remarks>
-	public void List()
+	public void List(HostedRootStorageNamespaceOptions o)
 	{
 		logger.LogInformation("storage list");
 		Console.WriteLine("hosted-root:storage:list");
@@ -41,7 +41,7 @@ internal sealed class HostedRootStorageCommands(ILogger<HostedRootStorageCommand
 	internal sealed class BlobCommands(ILogger<HostedRootStorageCommands> logger)
 	{
 		/// <summary>Deletes a blob</summary>
-		public void Delete()
+		public void Delete(HostedRootStorageNamespaceOptions o)
 		{
 			logger.LogInformation("storage blob delete");
 			Console.WriteLine("hosted-root:storage:blob:delete");

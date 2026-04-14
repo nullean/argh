@@ -23,43 +23,43 @@ internal static class CliTestHandlers
 	/// <example>hello --name world</example>
 	/// <param name="name">The name to greet.</param>
 	[MiddlewareAttribute<TestsPerCommandMiddleware>]
-	public static void Hello(string name) =>
+	public static void Hello(TestGlobalCliOptions g, string name) =>
 		Console.Out.WriteLine($"ok:{name}");
 
 	/// <summary>Enum and short options.</summary>
 	/// <param name="color">-c,--colour, Pick a color.</param>
 	/// <param name="name">-n,--name, Display name</param>
-	public static void EnumCmd(TestColor color, string name) =>
+	public static void EnumCmd(TestGlobalCliOptions g, TestColor color, string name) =>
 		Console.Out.WriteLine($"ok:{color}:{name}");
 
-	public static void Deploy([AsParameters("app")] DeployCliArgs args) =>
+	public static void Deploy(TestGlobalCliOptions g, [AsParameters("app")] DeployCliArgs args) =>
 		Console.Out.WriteLine($"deploy:{args.Env}:{args.Port}");
 
-	public static void Tags(List<string> tags) =>
+	public static void Tags(TestGlobalCliOptions g, List<string> tags) =>
 		Console.Out.WriteLine("tags:" + string.Join(",", tags));
 
 	// For bool? test
-	public static void DryRunCmd(bool? dryRun = null) =>
+	public static void DryRunCmd(TestGlobalCliOptions g, bool? dryRun = null) =>
 		Console.Out.WriteLine($"dry-run:{dryRun?.ToString().ToLower() ?? "null"}");
 
 	// For int parsing test
-	public static void CountCmd(int count) =>
+	public static void CountCmd(TestGlobalCliOptions g, int count) =>
 		Console.Out.WriteLine($"count:{count}");
 
 	// For FileInfo test
-	public static void FileCmd(FileInfo file) =>
+	public static void FileCmd(TestGlobalCliOptions g, FileInfo file) =>
 		Console.Out.WriteLine($"file:{file.Name}");
 
 	// For DirectoryInfo test
-	public static void DirCmd(DirectoryInfo dir) =>
+	public static void DirCmd(TestGlobalCliOptions g, DirectoryInfo dir) =>
 		Console.Out.WriteLine($"dir:{dir.Name}");
 
 	// For Uri test
-	public static void UriCmd(Uri uri) =>
+	public static void UriCmd(TestGlobalCliOptions g, Uri uri) =>
 		Console.Out.WriteLine($"uri:{uri.Host}");
 
 	// For custom parser test
-	public static void PointCmd([ArgumentParser(typeof(PointParser))] Point point) =>
+	public static void PointCmd(TestGlobalCliOptions g, [ArgumentParser(typeof(PointParser))] Point point) =>
 		Console.Out.WriteLine($"point:{point.X},{point.Y}");
 
 	internal readonly record struct Point(int X, int Y);

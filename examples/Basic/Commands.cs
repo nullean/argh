@@ -21,33 +21,33 @@ internal static class CommandHandlers
 	/// <summary>Greets someone by name.</summary>
 	/// <param name="name">-n,--name, Name to greet.</param>
 	[MiddlewareAttribute<PerCommandExampleMiddleware>]
-	public static void Hello(string name) =>
+	public static void Hello(GlobalCliOptions g, string name) =>
 		Console.WriteLine($"basic:hello:{name}");
 
 	/// <summary>Prints a colored status line.</summary>
 	/// <param name="color">-c,--color, Accent color.</param>
 	/// <param name="label">-l,--label, Short label.</param>
-	public static void Status(ExampleColor color, string label) =>
+	public static void Status(GlobalCliOptions g, ExampleColor color, string label) =>
 		Console.WriteLine($"basic:status:{color}:{label}");
 
 	/// <summary>Deploy using a prefixed <c>app</c> parameter object.</summary>
-	public static void Deploy([AsParameters("app")] DeployAppArgs app) =>
+	public static void Deploy(GlobalCliOptions g, [AsParameters("app")] DeployAppArgs app) =>
 		Console.WriteLine($"basic:deploy:{app.Env}:{app.Port}");
 
 	/// <summary>Repeated <c>--label</c> flags build a list.</summary>
 	/// <param name="labels">--label, Labels to print.</param>
-	public static void Labels(List<string> labels) =>
+	public static void Labels(GlobalCliOptions g, List<string> labels) =>
 		Console.WriteLine("basic:labels:" + string.Join(",", labels));
 }
 
 /// <summary>Command group <c>storage</c> with a nested <c>blob</c> subgroup.</summary>
-internal sealed class StorageCommands
+internal sealed class StorageCommands(StorageCommandNamespaceOptions o)
 {
 	/// <summary>Lists objects under the configured prefix.</summary>
 	public void List() => Console.WriteLine("basic:storage:list");
 
 	/// <summary>Nested subgroup mapped to <c>storage blob …</c>.</summary>
-	public sealed class BlobCommands
+	public sealed class BlobCommands(StorageCommandNamespaceOptions o)
 	{
 		/// <summary>Upload placeholder.</summary>
 		public void Upload() =>
@@ -56,7 +56,7 @@ internal sealed class StorageCommands
 }
 
 /// <summary><c>api</c> namespace: sibling to <c>storage</c> for grouped-command demo.</summary>
-internal sealed class ApiCommands
+internal sealed class ApiCommands(ApiNamespaceOptions o)
 {
 	/// <summary>Shows API version string.</summary>
 	public void Version() => Console.WriteLine("basic:api:version:1");
