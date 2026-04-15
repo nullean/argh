@@ -7,7 +7,7 @@
 //   dotnet run --project examples/Basic -- doc-echo --line "hi"
 //   dotnet run --project examples/Basic -- quick-echo --msg ping
 //   dotnet run --project examples/Basic -- --version
-//   dotnet run --project examples/Basic -- --completions bash
+//   dotnet run --project examples/Basic -- __completion bash
 
 using Basic;
 using Nullean.Argh;

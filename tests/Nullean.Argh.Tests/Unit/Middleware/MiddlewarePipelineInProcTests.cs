@@ -46,7 +46,18 @@ public class MiddlewarePipelineInProcTests
 	{
 		TestsGlobalMiddleware.InvokeCount = 0;
 		TestsPerCommandMiddleware.InvokeCount = 0;
-		var code = await ArghRuntime.RunAsync(["--completions", "bash"]);
+		var code = await ArghRuntime.RunAsync(["__completion", "bash"]);
+		code.Should().Be(0);
+		TestsGlobalMiddleware.InvokeCount.Should().Be(0);
+		TestsPerCommandMiddleware.InvokeCount.Should().Be(0);
+	}
+
+	[Fact]
+	public async Task RunAsync_middleware_skipped_for_complete()
+	{
+		TestsGlobalMiddleware.InvokeCount = 0;
+		TestsPerCommandMiddleware.InvokeCount = 0;
+		var code = await ArghRuntime.RunAsync(["__complete", "bash", "--"]);
 		code.Should().Be(0);
 		TestsGlobalMiddleware.InvokeCount.Should().Be(0);
 		TestsPerCommandMiddleware.InvokeCount.Should().Be(0);

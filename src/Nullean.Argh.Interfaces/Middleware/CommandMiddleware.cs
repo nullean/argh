@@ -4,7 +4,7 @@ namespace Nullean.Argh.Middleware;
 /// Per-invocation context for command execution and middleware. Populated by generated code when the middleware pipeline is wired up.
 /// </summary>
 /// <remarks>
-/// Middleware does not run for root <c>--help</c>, <c>--version</c>, <c>--completions</c>, or when printing command help (<c>--help</c>/<c>-h</c>) before the handler runs.
+/// Middleware does not run for root <c>--help</c>, <c>--version</c>, <c>__completion</c>, <c>__complete</c>, or when printing command help (<c>--help</c>/<c>-h</c>) before the handler runs.
 /// </remarks>
 public sealed class CommandContext
 {
@@ -44,7 +44,7 @@ public delegate ValueTask CommandMiddlewareDelegate(CommandContext context);
 /// Middleware that runs after routing, around command execution.
 /// </summary>
 /// <remarks>
-/// Middleware does not run for root <c>--help</c>, <c>--version</c>, <c>--completions</c>, or when printing command help (<c>--help</c>/<c>-h</c>) before the handler runs.
+/// Middleware does not run for root <c>--help</c>, <c>--version</c>, <c>__completion</c>, <c>__complete</c>, or when printing command help (<c>--help</c>/<c>-h</c>) before the handler runs.
 /// </remarks>
 public interface ICommandMiddleware
 {

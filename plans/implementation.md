@@ -264,7 +264,7 @@ internal static partial class ArghGenerated
 
 ### Tasks
 
-- [ ] Built-in `--completions <shell>` flag (bash | zsh | fish) at root
+- [x] Built-in `__completion <shell>` (bash | zsh | fish) at root for install scripts
 - [ ] Generated completion script covers: command names, group names, flag names, enum values
 - [ ] Fish: `complete -c myapp -n '__fish_use_subcommand' -a deploy -d 'Deploy application'`
 - [ ] Bash/zsh: standard `_myapp()` completion function

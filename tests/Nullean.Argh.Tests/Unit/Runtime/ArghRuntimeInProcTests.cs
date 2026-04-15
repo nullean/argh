@@ -30,7 +30,7 @@ public class ArghRuntimeInProcTests
 		try
 		{
 			Console.SetOut(sw);
-			var code = await ArghRuntime.RunAsync(["--completions", "bash"]);
+			var code = await ArghRuntime.RunAsync(["__completion", "bash"]);
 			code.Should().Be(0);
 			sw.ToString().Should().Contain("complete");
 		}

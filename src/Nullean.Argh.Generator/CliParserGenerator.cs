@@ -14,7 +14,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace Nullean.Argh;
 
 [Generator]
-public sealed class CliParserGenerator : IIncrementalGenerator
+public sealed partial class CliParserGenerator : IIncrementalGenerator
 {
 	private const string ArghAppMetadataName = "Nullean.Argh.ArghApp";
 	private const string IArghBuilderMetadataName = "Nullean.Argh.Builder.IArghBuilder";
@@ -1811,7 +1811,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 			namespace Nullean.Argh
 			{
-				/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>--completions bash|zsh|fish</c> prints a shell script from <see cref="global::Nullean.Argh.Help.CompletionScriptTemplates"/>.</summary>
+				/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>__completion bash|zsh|fish</c> prints a shell script from <see cref="global::Nullean.Argh.Help.CompletionScriptTemplates"/>.</summary>
 				public static class ArghGenerated
 				{
 					public static Task<int> RunAsync(string[] args) =>
@@ -1820,6 +1820,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 					public static bool TryParseRoute(string[] args, out RouteMatch match)
 					{
 						match = default;
+						if (CompletionProtocol.IsArghMetaCompletionInvocation(args))
+							return false;
 						return false;
 					}
 
@@ -1834,27 +1836,39 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 					private static int Run(string[] args)
 					{
-						if (args.Length >= 2 && args[0] == "--completions")
+						if (CompletionProtocol.IsCompletionScriptInvocation(args))
 						{
-							var shell = args[1];
+							if (!CompletionProtocol.TryParseCompletionScriptInvocation(args, out var __scriptShell))
+							{
+								System.Console.Error.WriteLine("Error: expected '__completion bash|zsh|fish'");
+								return 2;
+							}
 							var appName = "__ARGH_EMBED_ASM_NAME__";
-							if (string.Equals(shell, "bash", System.StringComparison.OrdinalIgnoreCase))
+							switch (__scriptShell)
 							{
-								System.Console.Out.Write(CompletionScriptTemplates.GetBash().Replace("{0}", appName));
-								return 0;
+								case CompletionShell.Bash:
+									System.Console.Out.Write(CompletionScriptTemplates.GetBash().Replace("{0}", appName));
+									return 0;
+								case CompletionShell.Zsh:
+									System.Console.Out.Write(CompletionScriptTemplates.GetZsh().Replace("{0}", appName));
+									return 0;
+								case CompletionShell.Fish:
+									System.Console.Out.Write(CompletionScriptTemplates.GetFish().Replace("{0}", appName));
+									return 0;
+								default:
+									return 2;
 							}
-							if (string.Equals(shell, "zsh", System.StringComparison.OrdinalIgnoreCase))
+						}
+
+						if (CompletionProtocol.IsCompleteInvocation(args))
+						{
+							if (!CompletionProtocol.TryParseCompleteInvocation(args, out _, out var __words))
 							{
-								System.Console.Out.Write(CompletionScriptTemplates.GetZsh().Replace("{0}", appName));
-								return 0;
+								System.Console.Error.WriteLine("Error: expected '__complete <bash|zsh|fish> -- [words...]'");
+								return 2;
 							}
-							if (string.Equals(shell, "fish", System.StringComparison.OrdinalIgnoreCase))
-							{
-								System.Console.Out.Write(CompletionScriptTemplates.GetFish().Replace("{0}", appName));
-								return 0;
-							}
-							System.Console.Error.WriteLine($"Error: unsupported shell '{shell}' for --completions (expected bash, zsh, or fish).");
-							return 2;
+							Complete(default, __words);
+							return 0;
 						}
 
 						if (args.Length > 0 && (args[0] == "--help" || args[0] == "-h"))
@@ -1871,6 +1885,12 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 						System.Console.Error.WriteLine("No commands are registered.");
 						return 2;
+					}
+
+					private static void Complete(CompletionShell shell, ReadOnlySpan<string> words)
+					{
+						_ = shell;
+						_ = words;
 					}
 
 					private static void PrintVersion()
@@ -1913,29 +1933,30 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 
 	private const int FuzzyMaxDistance = 2;
 
-	private static void EmitRootCompletionsBlock(StringBuilder sb, string indent, string entryAssemblyName)
+	private static void EmitRootCompletionScriptBlock(StringBuilder sb, string indent, string entryAssemblyName)
 	{
-		sb.AppendLine(indent + "if (args.Length >= 2 && args[0] == \"--completions\")");
+		sb.AppendLine(indent + "if (CompletionProtocol.IsCompletionScriptInvocation(args))");
 		sb.AppendLine(indent + "{");
-		sb.AppendLine(indent + "\tvar __shell = args[1];");
+		sb.AppendLine(indent + "\tif (!CompletionProtocol.TryParseCompletionScriptInvocation(args, out var __scriptShell))");
+		sb.AppendLine(indent + "\t{");
+		sb.AppendLine(indent + "\t\tConsole.Error.WriteLine(\"Error: expected '__completion bash|zsh|fish'\");");
+		sb.AppendLine(indent + "\t\treturn 2;");
+		sb.AppendLine(indent + "\t}");
 		sb.AppendLine(indent + "\tvar __entry = \"" + Escape(entryAssemblyName) + "\";");
-		sb.AppendLine(indent + "\tif (string.Equals(__shell, \"bash\", StringComparison.OrdinalIgnoreCase))");
+		sb.AppendLine(indent + "\tswitch (__scriptShell)");
 		sb.AppendLine(indent + "\t{");
-		sb.AppendLine(indent + "\t\tConsole.Out.Write(CompletionScriptTemplates.GetBash().Replace(\"{0}\", __entry));");
-		sb.AppendLine(indent + "\t\treturn 0;");
+		sb.AppendLine(indent + "\t\tcase CompletionShell.Bash:");
+		sb.AppendLine(indent + "\t\t\tConsole.Out.Write(CompletionScriptTemplates.GetBash().Replace(\"{0}\", __entry));");
+		sb.AppendLine(indent + "\t\t\treturn 0;");
+		sb.AppendLine(indent + "\t\tcase CompletionShell.Zsh:");
+		sb.AppendLine(indent + "\t\t\tConsole.Out.Write(CompletionScriptTemplates.GetZsh().Replace(\"{0}\", __entry));");
+		sb.AppendLine(indent + "\t\t\treturn 0;");
+		sb.AppendLine(indent + "\t\tcase CompletionShell.Fish:");
+		sb.AppendLine(indent + "\t\t\tConsole.Out.Write(CompletionScriptTemplates.GetFish().Replace(\"{0}\", __entry));");
+		sb.AppendLine(indent + "\t\t\treturn 0;");
+		sb.AppendLine(indent + "\t\tdefault:");
+		sb.AppendLine(indent + "\t\t\treturn 2;");
 		sb.AppendLine(indent + "\t}");
-		sb.AppendLine(indent + "\tif (string.Equals(__shell, \"zsh\", StringComparison.OrdinalIgnoreCase))");
-		sb.AppendLine(indent + "\t{");
-		sb.AppendLine(indent + "\t\tConsole.Out.Write(CompletionScriptTemplates.GetZsh().Replace(\"{0}\", __entry));");
-		sb.AppendLine(indent + "\t\treturn 0;");
-		sb.AppendLine(indent + "\t}");
-		sb.AppendLine(indent + "\tif (string.Equals(__shell, \"fish\", StringComparison.OrdinalIgnoreCase))");
-		sb.AppendLine(indent + "\t{");
-		sb.AppendLine(indent + "\t\tConsole.Out.Write(CompletionScriptTemplates.GetFish().Replace(\"{0}\", __entry));");
-		sb.AppendLine(indent + "\t\treturn 0;");
-		sb.AppendLine(indent + "\t}");
-		sb.AppendLine(indent + "\tConsole.Error.WriteLine($\"Error: unsupported shell '{__shell}' for --completions (expected bash, zsh, or fish).\");");
-		sb.AppendLine(indent + "\treturn 2;");
 		sb.AppendLine(indent + "}");
 		sb.AppendLine();
 	}
@@ -2384,16 +2405,18 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine();
 		sb.AppendLine("namespace Nullean.Argh");
 		sb.AppendLine("{");
-		sb.AppendLine("\t/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>--completions bash|zsh|fish</c> prints a shell script from <see cref=\"global::Nullean.Argh.Help.CompletionScriptTemplates\"/>; each <c>{0}</c> in the template is replaced with the entry assembly name (same effect as <c>string.Format</c>, but substitution uses <c>Replace</c> so shell scripts can contain literal braces).</summary>");
+		sb.AppendLine("\t/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>__completion bash|zsh|fish</c> prints a shell script from <see cref=\"global::Nullean.Argh.Help.CompletionScriptTemplates\"/>; each <c>{0}</c> in the template is replaced with the entry assembly name (same effect as <c>string.Format</c>, but substitution uses <c>Replace</c> so shell scripts can contain literal braces).</summary>");
 		sb.AppendLine("\tpublic static class ArghGenerated");
 		sb.AppendLine("\t{");
+		EmitCompletionForApp(sb, app, hierarchical: false);
 		sb.AppendLine("\t\tpublic static Task<int> RunAsync(string[] args) =>");
 		sb.AppendLine("\t\t\tRunWithCancellationAsync(args);");
 		sb.AppendLine();
 		AppendRunWithCancellationAsyncMethod(sb);
 		sb.AppendLine("\t\tprivate static async Task<int> RunCoreAsync(string[] args, CancellationToken ct)");
 		sb.AppendLine("\t\t{");
-		EmitRootCompletionsBlock(sb, "\t\t\t", entryAssemblyName);
+		EmitRootCompletionScriptBlock(sb, "\t\t\t", entryAssemblyName);
+		EmitRootCompleteBlock(sb, "\t\t\t");
 		sb.AppendLine("\t\t\tif (args.Length == 0)");
 		sb.AppendLine("\t\t\t{");
 		if (app.Root.RootCommand is { } flatRoot)
@@ -2549,7 +2572,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine();
 		sb.AppendLine("namespace Nullean.Argh");
 		sb.AppendLine("{");
-		sb.AppendLine("\t/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>--completions bash|zsh|fish</c> prints a shell script from <see cref=\"global::Nullean.Argh.Help.CompletionScriptTemplates\"/>; each <c>{0}</c> in the template is replaced with the entry assembly name (same effect as <c>string.Format</c>, but substitution uses <c>Replace</c> so shell scripts can contain literal braces).</summary>");
+		sb.AppendLine("\t/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>__completion bash|zsh|fish</c> prints a shell script from <see cref=\"global::Nullean.Argh.Help.CompletionScriptTemplates\"/>; each <c>{0}</c> in the template is replaced with the entry assembly name (same effect as <c>string.Format</c>, but substitution uses <c>Replace</c> so shell scripts can contain literal braces).</summary>");
 		sb.AppendLine("\tpublic static class ArghGenerated");
 		sb.AppendLine("\t{");
 
@@ -2570,6 +2593,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		}
 		sb.AppendLine();
 
+		EmitCompletionForApp(sb, app, hierarchical: true);
 		sb.AppendLine("\t\tpublic static Task<int> RunAsync(string[] args) =>");
 		sb.AppendLine("\t\t\tRunWithCancellationAsync(args);");
 		sb.AppendLine();
@@ -2678,7 +2702,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		var hasGlobal = app.GlobalOptionsModel is { Members: { Length: > 0 } };
 		sb.AppendLine("\t\tprivate static async Task<int> RunCoreAsync(string[] args, CancellationToken ct)");
 		sb.AppendLine("\t\t{");
-		EmitRootCompletionsBlock(sb, "\t\t\t", entryAssemblyName);
+		EmitRootCompletionScriptBlock(sb, "\t\t\t", entryAssemblyName);
+		EmitRootCompleteBlock(sb, "\t\t\t");
 		sb.AppendLine("\t\t\tvar idx = new int[1];");
 		if (hasGlobal)
 			sb.AppendLine("\t\t\tif (!TryParseGlobalOptions(args, idx)) return 2;");
@@ -3294,7 +3319,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\tpublic static bool TryParseRoute(string[] args, out RouteMatch match)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tmatch = default;");
-		sb.AppendLine("\t\t\tif (args.Length >= 2 && args[0] == \"--completions\") return false;");
+		sb.AppendLine("\t\t\tif (CompletionProtocol.IsArghMetaCompletionInvocation(args)) return false;");
 		sb.AppendLine("\t\t\tif (args.Length == 0)");
 		sb.AppendLine("\t\t\t{");
 		if (rootDefault is not null)
@@ -3334,7 +3359,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\tpublic static bool TryParseRoute(string[] args, out RouteMatch match)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tmatch = default;");
-		sb.AppendLine("\t\t\tif (args.Length >= 2 && args[0] == \"--completions\") return false;");
+		sb.AppendLine("\t\t\tif (CompletionProtocol.IsArghMetaCompletionInvocation(args)) return false;");
 		sb.AppendLine("\t\t\tvar idx = new int[1];");
 		if (hasGlobal)
 			sb.AppendLine("\t\t\tif (!TryParseGlobalOptions(args, idx)) return false;");
@@ -4485,7 +4510,7 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		return "default!";
 	}
 
-	private static void EmitBoolSwitchNames(StringBuilder sb, CommandModel cmd)
+	private static void EmitBoolSwitchNames(StringBuilder sb, CommandModel cmd, bool suppressNoNameHelper = false)
 	{
 		var names = new List<string>();
 		var noNames = new List<string>();
@@ -4503,7 +4528,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		if (names.Count == 0 && noNames.Count == 0)
 		{
 			sb.AppendLine("\t\t\tbool IsBoolSwitchName(string name) => false;");
-			sb.AppendLine("\t\t\tbool IsBoolSwitchNoName(string name) => false;");
+			if (!suppressNoNameHelper)
+				sb.AppendLine("\t\t\tbool IsBoolSwitchNoName(string name) => false;");
 			return;
 		}
 
@@ -4517,6 +4543,8 @@ public sealed class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t_ => false");
 		sb.AppendLine("\t\t\t};");
 
+		if (suppressNoNameHelper)
+			return;
 		if (noNames.Count == 0)
 		{
 			sb.AppendLine("\t\t\tbool IsBoolSwitchNoName(string name) => false;");

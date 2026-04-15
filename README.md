@@ -324,7 +324,7 @@ app.UseMiddleware<TimingMiddleware>();
 public static Task<int> Deploy(string environment) { … }
 ```
 
-[`ICommandMiddleware`](src/Nullean.Argh.Interfaces/Middleware/CommandMiddleware.cs) receives [`CommandContext`](src/Nullean.Argh.Interfaces/Middleware/CommandMiddleware.cs) with `CommandPath`, `Args`, `ExitCode`, and `CancellationToken`. Middleware does not run for `--help`, `--version`, or `--completions`. The pipeline is wired in generated code — not a runtime delegate chain.
+[`ICommandMiddleware`](src/Nullean.Argh.Interfaces/Middleware/CommandMiddleware.cs) receives [`CommandContext`](src/Nullean.Argh.Interfaces/Middleware/CommandMiddleware.cs) with `CommandPath`, `Args`, `ExitCode`, and `CancellationToken`. Middleware does not run for `--help`, `--version`, `__completion`, or `__complete`. The pipeline is wired in generated code — not a runtime delegate chain.
 
 ## Dependency injection
 
@@ -366,9 +366,25 @@ For native AOT / trimming, register handler and middleware types explicitly in D
 
 ## Shell completions
 
-`--completions bash|zsh|fish` prints a shell integration script from [`CompletionScriptTemplates`](src/Nullean.Argh.Core/Help/CompletionScriptTemplates.cs) with the executable name substituted. The scripts wire tab completion to your binary by calling `myapp __complete <shell> -- <partial>`.
+**Tab completion** for subcommands, namespaces, and flags is included: the source generator emits **lookup tables** at compile time (same model as routing and `--help`), and a small `__complete` handler answers the shell with one candidate per line. **`--completions` is not reserved**—use `__completion` / `__complete` only for Argh’s integration.
 
-A full completion engine (handling `__complete` at runtime and returning matching commands and flags) and `--cli-schema` JSON export (a machine-readable command tree for tooling and LLM integrations) are planned.
+| Command | Purpose |
+|--------|---------|
+| `myapp __completion bash\|zsh\|fish` | Print an install snippet from [`CompletionScriptTemplates`](src/Nullean.Argh.Core/Help/CompletionScriptTemplates.cs) (substitutes your executable name). |
+| `myapp __complete <shell> -- <words...>` | Return completion candidates; `words` are argv after the program name (full line context for nested commands). |
+
+**Bash** — `eval "$(myapp __completion bash)"` (add to `~/.bashrc` to persist).
+
+**Zsh** — `source <(myapp __completion zsh)` (add to `~/.zshrc` to persist).
+
+**Fish** (3.4+ for `commandline -opc`):
+
+```fish
+mkdir -p ~/.config/fish/completions
+myapp __completion fish > ~/.config/fish/completions/myapp.fish
+```
+
+Details: [`CompletionProtocol`](src/Nullean.Argh.Core/Help/CompletionProtocol.cs). `--cli-schema` JSON export is planned.
 
 ## License and links
 
