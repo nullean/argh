@@ -420,7 +420,21 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private sealed record GlobalMiddlewareRegistration(INamedTypeSymbol MiddlewareType);
 
-	private sealed record OptionsTypeModel(INamedTypeSymbol Type, ImmutableArray<ParameterModel> Members);
+	private sealed record OptionsTypeModel(
+		INamedTypeSymbol Type,
+		string TypeMetadataName,
+		ImmutableArray<string> AllBaseTypeMetadataNames,
+		ImmutableArray<ParameterModel> Members);
+
+	/// <summary>Per-parameter data extracted at analysis time, stored in <see cref="CommandModel"/>.</summary>
+	private sealed record HandlerParam(
+		string Name,
+		string TypeMetadataName,
+		bool IsInjectedParam,
+		bool IsAsParameters,
+		string? AsParametersPrefix,
+		/// <summary>Non-null only for [AsParameters]-annotated params — needed for DTO target building in emit.</summary>
+		INamedTypeSymbol? AsParamTypeSymbol = null);
 
 	private readonly record struct AsParametersMeta(
 		string OwnerParamName,
@@ -555,24 +569,23 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	{
 		foreach (var cmd in app.AllCommands)
 		{
-			if (cmd.IsLambda || cmd.HandlerMethod is null)
+			if (cmd.IsLambda || cmd.HandlerParamTypes.IsDefaultOrEmpty && !cmd.RequiresInstance)
 				continue;
-			if (HasNoOptionsInjection(cmd.HandlerMethod))
+			if (cmd.HandlerHasNoOptionsInjection)
 				continue;
 
 			// Most specific required options type = last entry in the injection chain.
 			var chain = BuildOptionsInjectionChain(app, cmd);
 			if (chain.IsEmpty)
 				continue;
-			var required = chain[chain.Length - 1].Type;
+			var (requiredType, requiredMetaName, requiredBaseNames, _, _, _) = chain[chain.Length - 1];
 
 			// Check method parameters first.
 			var injected = false;
-			foreach (var p in cmd.HandlerMethod.Parameters)
+			foreach (var mp in cmd.HandlerParamTypes)
 			{
-				if (p.Type is INamedTypeSymbol pt &&
-				    (SymbolEqualityComparer.Default.Equals(pt, required) ||
-				     TypeInheritsFromOrImplements(pt, required)))
+				if (mp.TypeMetadataName == requiredMetaName ||
+				    requiredBaseNames.Contains(mp.TypeMetadataName))
 				{
 					injected = true;
 					break;
@@ -580,33 +593,26 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 
 			// For instance methods, also accept injection via constructor.
-			if (!injected && cmd.RequiresInstance &&
-			    cmd.HandlerMethod.ContainingType is { } handlerClass)
+			if (!injected && cmd.RequiresInstance)
 			{
-				var ctor = TryGetPrimaryConstructor(handlerClass);
-				if (ctor is not null)
+				foreach (var cp in cmd.ContainingTypeCtorParams)
 				{
-					foreach (var p in ctor.Parameters)
+					if (cp.TypeMetadataName == requiredMetaName ||
+					    requiredBaseNames.Contains(cp.TypeMetadataName))
 					{
-						if (p.Type is INamedTypeSymbol pt &&
-						    (SymbolEqualityComparer.Default.Equals(pt, required) ||
-						     TypeInheritsFromOrImplements(pt, required)))
-						{
-							injected = true;
-							break;
-						}
+						injected = true;
+						break;
 					}
 				}
 			}
 
 			if (!injected)
 			{
-				var loc = cmd.HandlerMethod.Locations.FirstOrDefault() ?? Location.None;
 				context.ReportDiagnostic(Diagnostic.Create(
 					CommandMustInjectOptions,
-					loc,
-					cmd.HandlerMethod.Name,
-					required.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat)));
+					cmd.HandlerLocation,
+					cmd.MethodName,
+					requiredType.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat)));
 			}
 		}
 	}
@@ -616,13 +622,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	/// Walks the registry tree directly so namespace options types with zero own members are still included.
 	/// Each entry carries the static field name (pre-parsed fallback) and a local var name (command-runner reconstruction).
 	/// </summary>
-	private static ImmutableArray<(INamedTypeSymbol Type, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)>
+	private static ImmutableArray<(INamedTypeSymbol Type, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)>
 		BuildOptionsInjectionChain(AppEmitModel app, CommandModel cmd)
 	{
-		var result = ImmutableArray.CreateBuilder<(INamedTypeSymbol, string, string, ImmutableArray<ParameterModel>)>();
+		var result = ImmutableArray.CreateBuilder<(INamedTypeSymbol, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>)>();
 		if (app.GlobalOptionsType is not null)
 			result.Add((
 				app.GlobalOptionsType,
+				GetMetadataNameStatic(app.GlobalOptionsType),
+				CollectBaseTypeMetadataNames(app.GlobalOptionsType),
 				OptionsStaticFieldName(app.GlobalOptionsType),
 				OptionsLocalVarName(app.GlobalOptionsType),
 				BuildFlattenedOptionsMembers(app.GlobalOptionsType)));
@@ -644,6 +652,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (current.CommandNamespaceOptionsType is { } nsType)
 				result.Add((
 					nsType,
+					GetMetadataNameStatic(nsType),
+					CollectBaseTypeMetadataNames(nsType),
 					OptionsStaticFieldName(nsType),
 					OptionsLocalVarName(nsType),
 					BuildFlattenedOptionsMembers(nsType)));
@@ -661,7 +671,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var updated = ImmutableArray.CreateBuilder<CommandModel>(app.AllCommands.Length);
 		foreach (var cmd in app.AllCommands)
 		{
-			if (cmd.IsLambda || cmd.HandlerMethod is null || HasNoOptionsInjection(cmd.HandlerMethod))
+			if (cmd.IsLambda || cmd.HandlerHasNoOptionsInjection)
 			{
 				updated.Add(cmd);
 				continue;
@@ -679,9 +689,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var filtered = cmd.Parameters.Where(p =>
 			{
 				if (p.AsParametersOwnerParamName is not null) return true;
-				if (cmd.HandlerMethod.Parameters.FirstOrDefault(mp => mp.Name == p.SymbolName) is not { } mp2) return true;
-				if (mp2.Type is not INamedTypeSymbol pt) return true;
-				return !injChain.Any(o => SymbolEqualityComparer.Default.Equals(pt, o.Type) || TypeInheritsFromOrImplements(pt, o.Type));
+				var handlerParam = cmd.HandlerParamTypes.FirstOrDefault(mp => mp.Name == p.SymbolName);
+				if (handlerParam is null) return true;
+				return !injChain.Any(o =>
+					o.TypeMetadataName == handlerParam.TypeMetadataName ||
+					o.AllBaseTypeMetadataNames.Contains(handlerParam.TypeMetadataName));
 			}).ToList();
 
 			// Add flattened options members as OptionsInjected so the flag parser handles them correctly.
@@ -690,7 +702,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			foreach (var p in filtered)
 				if (p.Kind == ParameterKind.Flag) seen.Add(p.CliLongName);
 
-			foreach (var (_, _, _, flatMembers) in injChain)
+			foreach (var (_, _, _, _, _, flatMembers) in injChain)
 			{
 				foreach (var m in flatMembers)
 				{
@@ -1224,7 +1236,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			rnSb.Append('_'); rnSb.Append(Naming.SanitizeIdentifier(commandName));
 			runName = rnSb.ToString();
 		}
-		var returnType = invokeMethod.ReturnType as INamedTypeSymbol;
+		var retFq = invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		var retIsVoid = retFq is "global::System.Void"
+			or "global::System.Threading.Tasks.Task"
+			or "global::System.Threading.Tasks.ValueTask";
+		var retIsAsync = retFq is "global::System.Threading.Tasks.Task"
+			or "global::System.Threading.Tasks.ValueTask"
+			|| (invokeMethod.ReturnType is INamedTypeSymbol rNamed && rNamed.IsGenericType &&
+			    (rNamed.ConstructedFrom.Name is "Task" or "ValueTask") &&
+			    rNamed.ConstructedFrom.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks");
 
 		var cmd = new CommandModel(
 			routePrefix,
@@ -1234,16 +1254,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			"__lambda",
 			false,
 			false,
-			returnType,
+			retFq,
+			retIsAsync,
+			retIsVoid,
 			parameters,
-			null,
+			false,
+			ImmutableArray<HandlerParam>.Empty,
+			Location.None,
+			ImmutableArray<(string, string)>.Empty,
+			"",   // HandlerDocCommentId
 			"",
 			"",
 			"",
 			"",
 			"",
 			usage,
-			ImmutableArray<INamedTypeSymbol>.Empty,
+			ImmutableArray<(string, bool)>.Empty,
 			IsLambda: true,
 			LambdaStorageKey: storageKey,
 			LambdaDelegateFq: delegateFq);
@@ -1319,7 +1345,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var parameters = paramBuilder.ToImmutable();
 		var usage = UsageSynopsis.Build(parameters);
 		var runName = CommandModel.BuildRootDefaultRunMethodName(routePrefix);
-		var returnType = invokeMethod.ReturnType as INamedTypeSymbol;
+		var lambdaRetFq = invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		var lambdaRetIsVoid = lambdaRetFq is "global::System.Void"
+			or "global::System.Threading.Tasks.Task"
+			or "global::System.Threading.Tasks.ValueTask";
+		var lambdaRetIsAsync = lambdaRetFq is "global::System.Threading.Tasks.Task"
+			or "global::System.Threading.Tasks.ValueTask"
+			|| (invokeMethod.ReturnType is INamedTypeSymbol lrNamed && lrNamed.IsGenericType &&
+			    (lrNamed.ConstructedFrom.Name is "Task" or "ValueTask") &&
+			    lrNamed.ConstructedFrom.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks");
 		var cmd = new CommandModel(
 			routePrefix,
 			RootDefaultInternalCommandName,
@@ -1328,16 +1362,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			"__lambda",
 			false,
 			false,
-			returnType,
+			lambdaRetFq,
+			lambdaRetIsAsync,
+			lambdaRetIsVoid,
 			parameters,
-			null,
+			false,
+			ImmutableArray<HandlerParam>.Empty,
+			Location.None,
+			ImmutableArray<(string, string)>.Empty,
+			"",   // HandlerDocCommentId
 			"",
 			"",
 			"",
 			"",
 			"",
 			usage,
-			ImmutableArray<INamedTypeSymbol>.Empty,
+			ImmutableArray<(string, bool)>.Empty,
 			IsRootDefault: true,
 			IsLambda: true,
 			LambdaStorageKey: storageKey,
@@ -1499,10 +1539,30 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 		}
 
-		if (members.Count == 0)
-			return new OptionsTypeModel(type, ImmutableArray<ParameterModel>.Empty);
+		var typeMetaName = GetMetadataNameStatic(type);
+		var baseNames = CollectBaseTypeMetadataNames(type);
 
-		return new OptionsTypeModel(type, members.ToImmutable());
+		if (members.Count == 0)
+			return new OptionsTypeModel(type, typeMetaName, baseNames, ImmutableArray<ParameterModel>.Empty);
+
+		return new OptionsTypeModel(type, typeMetaName, baseNames, members.ToImmutable());
+	}
+
+	private static string GetMetadataNameStatic(ITypeSymbol t) =>
+		t.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+
+	private static ImmutableArray<string> CollectBaseTypeMetadataNames(INamedTypeSymbol type)
+	{
+		var b = ImmutableArray.CreateBuilder<string>();
+		var current = type.BaseType;
+		while (current is not null && current.SpecialType != SpecialType.System_Object)
+		{
+			b.Add(GetMetadataNameStatic(current));
+			current = current.BaseType;
+		}
+		foreach (var iface in type.AllInterfaces)
+			b.Add(GetMetadataNameStatic(iface));
+		return b.ToImmutable();
 	}
 
 	private static IMethodSymbol? ResolveHandlerMethod(
@@ -1760,13 +1820,35 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private static ImmutableArray<ParameterModel> FlattenAsParametersType(
 		SourceProductionContext context,
 		Location location,
+		HandlerParam handlerParam,
+		INamedTypeSymbol type,
+		string? prefix,
+		CSharpParseOptions parseOptions)
+	{
+		return FlattenAsParametersType(context, location, handlerParam.Name, type, prefix, parseOptions);
+	}
+
+	private static ImmutableArray<ParameterModel> FlattenAsParametersType(
+		SourceProductionContext context,
+		Location location,
 		IParameterSymbol methodParam,
 		INamedTypeSymbol type,
 		string? prefix,
 		CSharpParseOptions parseOptions)
 	{
+		return FlattenAsParametersType(context, location, methodParam.Name, type, prefix, parseOptions);
+	}
+
+	private static ImmutableArray<ParameterModel> FlattenAsParametersType(
+		SourceProductionContext context,
+		Location location,
+		string methodParamName,
+		INamedTypeSymbol type,
+		string? prefix,
+		CSharpParseOptions parseOptions)
+	{
 		var pfx = string.IsNullOrWhiteSpace(prefix) ? "" : Naming.ToCliLongName(prefix!.Trim()) + "-";
-		var owner = methodParam.Name;
+		var owner = methodParamName;
 		var typeFq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 		var primary = TryGetPrimaryConstructor(type);
 		var ctorNames = new HashSet<string>(StringComparer.Ordinal);
@@ -2238,26 +2320,24 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		foreach (var cmd in app.AllCommands)
 		{
-			if (cmd.HandlerMethod is null)
+			if (cmd.HandlerParamTypes.IsDefaultOrEmpty)
 				continue;
 
-			foreach (var p in cmd.HandlerMethod.Parameters)
+			foreach (var mp in cmd.HandlerParamTypes)
 			{
-				if (!HasAsParametersAttribute(p))
+				if (!mp.IsAsParameters || mp.AsParamTypeSymbol is not { } nt)
 					continue;
 
-				if (p.Type is not INamedTypeSymbol nt || nt.TypeKind == TypeKind.Error)
+				if (nt.TypeKind == TypeKind.Error || map.ContainsKey(nt))
 					continue;
 
-				if (map.ContainsKey(nt))
-					continue;
-
+				// Re-flatten using the stored type symbol; same logic as BuildParameterModels used originally.
 				var flat = FlattenAsParametersType(
 					context,
 					Location.None,
-					p,
+					mp.Name,
 					nt,
-					GetAsParametersPrefix(p),
+					mp.AsParametersPrefix,
 					parseOptions);
 				if (flat.Length > 0)
 					map[nt] = new DtoBindingTarget(nt, flat, IsOptionsDto: false);
@@ -2478,8 +2558,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		foreach (var cmd in app.AllCommands)
 		{
-			var injectedOpts = cmd.HandlerMethod is not null && HasNoOptionsInjection(cmd.HandlerMethod)
-				? ImmutableArray<(INamedTypeSymbol, string, string, ImmutableArray<ParameterModel>)>.Empty
+			var injectedOpts = cmd.HandlerHasNoOptionsInjection
+				? ImmutableArray<(INamedTypeSymbol, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>)>.Empty
 				: BuildOptionsInjectionChain(app, cmd);
 			EmitCommandRunner(sb, cmd, app.GlobalMiddleware, injectedOptions: injectedOpts);
 		}
@@ -3291,16 +3371,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			"__noop",
 			false,
 			false,
-			null,
+			"global::System.Void",
+			false,
+			true,
 			members,
-			null,
-			"",
-			"",
-			"",
-			"",
-			"",
-			"",
-			ImmutableArray<INamedTypeSymbol>.Empty);
+			false,
+			ImmutableArray<HandlerParam>.Empty,
+			Location.None,
+			ImmutableArray<(string, string)>.Empty,
+			"",   // HandlerDocCommentId
+			"",   // SummaryOneLiner
+			"",   // RemarksRendered
+			"",   // SummaryInnerXml
+			"",   // RemarksInnerXml
+			"",   // ExamplesRendered
+			"",   // UsageHints
+			ImmutableArray<(string, bool)>.Empty);
 
 	private static void EmitAllowedFlagPredicate(StringBuilder sb, ImmutableArray<ParameterModel> members)
 	{
@@ -3536,14 +3622,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	/// </summary>
 	private static void EmitOptionsReconstructLocals(
 		StringBuilder sb,
-		ImmutableArray<(INamedTypeSymbol Type, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> chain)
+		ImmutableArray<(INamedTypeSymbol Type, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> chain)
 	{
 		if (chain.IsDefaultOrEmpty) return;
 
 		// Track which static provides the fallback for each CLI name (first in chain that declares it).
 		// Key = CliLongName, Value = "{staticFieldName}.{SymbolName}"
 		var fallbackMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		foreach (var (_, staticField, _, flatMembers) in chain)
+		foreach (var (_, _, _, staticField, _, flatMembers) in chain)
 		{
 			foreach (var m in flatMembers)
 			{
@@ -3555,7 +3641,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		// Track which member vars have already been emitted (across chain entries, to avoid re-declaration).
 		var emittedTmpVars = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		foreach (var (type, _, localVar, flatMembers) in chain)
+		foreach (var (type, _, _, _, localVar, flatMembers) in chain)
 		{
 			if (flatMembers.IsEmpty) continue;
 			var fq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -3703,12 +3789,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private static void EmitAsParametersConstruction(StringBuilder sb, CommandModel cmd)
 	{
-		if (cmd.HandlerMethod is null)
+		if (cmd.HandlerParamTypes.IsDefaultOrEmpty)
 			return;
 
-		foreach (var mp in cmd.HandlerMethod.Parameters)
+		foreach (var mp in cmd.HandlerParamTypes)
 		{
-			if (!HasAsParametersAttribute(mp))
+			if (!mp.IsAsParameters)
 				continue;
 
 			var group = cmd.Parameters
@@ -3849,7 +3935,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string? dtoMethodName = null,
 		string? dtoResultTypeFq = null,
 		INamedTypeSymbol? dtoOptionsType = null,
-		ImmutableArray<(INamedTypeSymbol Type, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> injectedOptions = default)
+		ImmutableArray<(INamedTypeSymbol Type, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> injectedOptions = default)
 	{
 		var anyRepeatedCollection = cmd.Parameters.Any(static p =>
 			p is { IsCollection: true, Kind: ParameterKind.Flag } && p.CollectionSeparator is null);
@@ -4109,23 +4195,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			// Try to construct from options-injected ctor parameters before falling back to DI or parameterless ctor.
 			string? optionsCtorArgs = null;
-			if (!injectedOptions.IsDefaultOrEmpty && cmd.HandlerMethod is not null)
+			if (!injectedOptions.IsDefaultOrEmpty && !cmd.ContainingTypeCtorParams.IsDefaultOrEmpty)
 			{
-				var ctor = TryGetPrimaryConstructor(cmd.HandlerMethod.ContainingType);
-				if (ctor is not null && ctor.Parameters.Length > 0)
+				var ctorParams = cmd.ContainingTypeCtorParams;
+				if (ctorParams.Length > 0)
 				{
 					var ctorArgs = new List<string>();
 					var allResolved = true;
-					foreach (var cp in ctor.Parameters)
+					foreach (var (_, cpMetaName) in ctorParams)
 					{
-						if (cp.Type is not INamedTypeSymbol cpType) { allResolved = false; break; }
 						// Exact match first, then most-derived (from end of chain); use LocalVarName (reconstructed)
 						string? bestLocal = null;
 						foreach (var o in injectedOptions)
-							if (SymbolEqualityComparer.Default.Equals(o.Type, cpType)) { bestLocal = o.LocalVarName; break; }
+							if (o.TypeMetadataName == cpMetaName) { bestLocal = o.LocalVarName; break; }
 						if (bestLocal is null)
 							for (var _i = injectedOptions.Length - 1; _i >= 0; _i--)
-								if (TypeInheritsFromOrImplements(injectedOptions[_i].Type, cpType)) { bestLocal = injectedOptions[_i].LocalVarName; break; }
+								if (injectedOptions[_i].AllBaseTypeMetadataNames.Contains(cpMetaName)) { bestLocal = injectedOptions[_i].LocalVarName; break; }
 						if (bestLocal is null) { allResolved = false; break; }
 						ctorArgs.Add(bestLocal);
 					}
@@ -4154,7 +4239,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 
 		sb.AppendLine();
-		var useMiddleware = globalMiddleware.Length > 0 || cmd.CommandMiddleware.Length > 0;
+		var useMiddleware = globalMiddleware.Length > 0 || cmd.CommandMiddlewareData.Length > 0;
 		if (!useMiddleware)
 		{
 			sb.Append("\t\t\t");
@@ -4170,10 +4255,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			EmitInvocation(sb, cmd, "c.CancellationToken", "c", "\t\t\t\t", injectedOptions: injectedOptions);
 			sb.AppendLine("\t\t\t};");
 			var cap = 0;
-			for (var i = cmd.CommandMiddleware.Length - 1; i >= 0; i--)
+			for (var i = cmd.CommandMiddlewareData.Length - 1; i >= 0; i--)
 			{
-				var fq = cmd.CommandMiddleware[i].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-				var middlewareParamless = HasPublicParameterlessCtor(cmd.CommandMiddleware[i]);
+				var (fq, middlewareParamless) = cmd.CommandMiddlewareData[i];
 				var name = "__cap" + cap++;
 				sb.AppendLine($"\t\t\tvar {name} = next;");
 				sb.AppendLine($"\t\t\tnext = async c => await {DiResolveOrNew(fq, middlewareParamless)}.InvokeAsync(c, {name});");
@@ -4644,7 +4728,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string ctExpr = "ct",
 		string? commandContextVar = null,
 		string lineIndent = "\t\t\t",
-		ImmutableArray<(INamedTypeSymbol Type, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> injectedOptions = default)
+		ImmutableArray<(INamedTypeSymbol Type, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> injectedOptions = default)
 	{
 		// Lambda commands: invoke through ArghApp.GetRegisteredLambda with a cast
 		if (cmd.IsLambda && !string.IsNullOrEmpty(cmd.LambdaStorageKey))
@@ -4654,7 +4738,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 
 		var args = new List<string>();
-		if (cmd.HandlerMethod is null)
+		if (cmd.HandlerParamTypes.IsDefaultOrEmpty)
 		{
 			foreach (var p in cmd.Parameters)
 			{
@@ -4666,30 +4750,30 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 		else
 		{
-			foreach (var mp in cmd.HandlerMethod.Parameters)
+			foreach (var mp in cmd.HandlerParamTypes)
 			{
-				if (IsInjected(mp))
+				if (mp.IsInjectedParam)
 				{
 					args.Add(ctExpr);
 					continue;
 				}
 
-				if (HasAsParametersAttribute(mp))
+				if (mp.IsAsParameters)
 				{
 					args.Add(AsParametersConstructedVarName(mp.Name));
 					continue;
 				}
 
-			// Options-type parameters are injected as locally-reconstructed instances that merge
+				// Options-type parameters are injected as locally-reconstructed instances that merge
 				// command-level flags (post-command) with pre-parsed static values (pre-command).
-				if (!injectedOptions.IsDefaultOrEmpty && mp.Type is INamedTypeSymbol mpType)
+				if (!injectedOptions.IsDefaultOrEmpty)
 				{
 					string? localVar = null;
 					foreach (var o in injectedOptions)
-						if (SymbolEqualityComparer.Default.Equals(o.Type, mpType)) { localVar = o.LocalVarName; break; }
+						if (o.TypeMetadataName == mp.TypeMetadataName) { localVar = o.LocalVarName; break; }
 					if (localVar is null)
 						for (var _i = injectedOptions.Length - 1; _i >= 0; _i--)
-							if (TypeInheritsFromOrImplements(injectedOptions[_i].Type, mpType)) { localVar = injectedOptions[_i].LocalVarName; break; }
+							if (injectedOptions[_i].AllBaseTypeMetadataNames.Contains(mp.TypeMetadataName)) { localVar = injectedOptions[_i].LocalVarName; break; }
 
 					if (localVar is not null)
 					{
@@ -4719,16 +4803,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			? $"{lineIndent}return 0;"
 			: $"{lineIndent}{commandContextVar}.ExitCode = 0;\n{lineIndent}return;";
 
-		var ret = cmd.ReturnType;
-		if (ret is null)
-		{
-			sb.AppendLine($"{lineIndent}{call};");
-			sb.AppendLine(ret0);
-			return;
-		}
-
-		var retFq = ret.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-		if (retFq == "global::System.Void")
+		var retFq = cmd.ReturnTypeFq;
+		// Empty string means no return type info (shouldn't happen for method handlers)
+		if (retFq == "" || retFq == "global::System.Void")
 		{
 			sb.AppendLine($"{lineIndent}{call};");
 			sb.AppendLine(ret0);
@@ -4755,27 +4832,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return;
 		}
 
-		if (ret is INamedTypeSymbol named && named.IsGenericType &&
-		    named.ConstructedFrom.Name == "Task" &&
-		    named.ConstructedFrom.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks")
+		if (retFq == "global::System.Threading.Tasks.Task<int>")
 		{
-			var tArg = named.TypeArguments[0];
-			if (tArg.SpecialType == SpecialType.System_Int32)
-			{
-				if (commandContextVar is null)
-					sb.AppendLine($"{lineIndent}return await {call}.ConfigureAwait(false);");
-				else
-				{
-					sb.AppendLine($"{lineIndent}{commandContextVar}.ExitCode = await {call}.ConfigureAwait(false);");
-					sb.AppendLine($"{lineIndent}return;");
-				}
-			}
+			if (commandContextVar is null)
+				sb.AppendLine($"{lineIndent}return await {call}.ConfigureAwait(false);");
 			else
 			{
-				sb.AppendLine($"{lineIndent}await {call}.ConfigureAwait(false);");
-				sb.AppendLine(ret0);
+				sb.AppendLine($"{lineIndent}{commandContextVar}.ExitCode = await {call}.ConfigureAwait(false);");
+				sb.AppendLine($"{lineIndent}return;");
 			}
+			return;
+		}
 
+		if (retFq.StartsWith("global::System.Threading.Tasks.Task<", StringComparison.Ordinal))
+		{
+			sb.AppendLine($"{lineIndent}await {call}.ConfigureAwait(false);");
+			sb.AppendLine(ret0);
 			return;
 		}
 
@@ -4786,27 +4858,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return;
 		}
 
-		if (ret is INamedTypeSymbol vn && vn.IsGenericType &&
-		    vn.ConstructedFrom.Name == "ValueTask" &&
-		    vn.ConstructedFrom.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks")
+		if (retFq == "global::System.Threading.Tasks.ValueTask<int>")
 		{
-			var tArg = vn.TypeArguments[0];
-			if (tArg.SpecialType == SpecialType.System_Int32)
-			{
-				if (commandContextVar is null)
-					sb.AppendLine($"{lineIndent}return await {call}.ConfigureAwait(false);");
-				else
-				{
-					sb.AppendLine($"{lineIndent}{commandContextVar}.ExitCode = await {call}.ConfigureAwait(false);");
-					sb.AppendLine($"{lineIndent}return;");
-				}
-			}
+			if (commandContextVar is null)
+				sb.AppendLine($"{lineIndent}return await {call}.ConfigureAwait(false);");
 			else
 			{
-				sb.AppendLine($"{lineIndent}await {call}.ConfigureAwait(false);");
-				sb.AppendLine(ret0);
+				sb.AppendLine($"{lineIndent}{commandContextVar}.ExitCode = await {call}.ConfigureAwait(false);");
+				sb.AppendLine($"{lineIndent}return;");
 			}
+			return;
+		}
 
+		if (retFq.StartsWith("global::System.Threading.Tasks.ValueTask<", StringComparison.Ordinal))
+		{
+			sb.AppendLine($"{lineIndent}await {call}.ConfigureAwait(false);");
+			sb.AppendLine(ret0);
 			return;
 		}
 
@@ -4838,9 +4905,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			? $"{lineIndent}return 0;"
 			: $"{lineIndent}{commandContextVar}.ExitCode = 0;\n{lineIndent}return;";
 
-		var lambdaRetType = cmd.ReturnType;
-		var lambdaIsTaskOfInt = lambdaRetType is INamedTypeSymbol { IsGenericType: true } lnt &&
-		                        lnt.TypeArguments.Length == 1 && lnt.TypeArguments[0].SpecialType == SpecialType.System_Int32;
+		var lambdaRetFq = cmd.ReturnTypeFq;
+		var lambdaIsTaskOfInt = lambdaRetFq == "global::System.Threading.Tasks.Task<int>"
+			|| lambdaRetFq == "global::System.Threading.Tasks.ValueTask<int>";
 
 		if (castType == "global::System.Delegate")
 		{
@@ -4852,7 +4919,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		else
 		{
 			sb.AppendLine($"{lineIndent}var __lambdaDelegate = (({castType})ArghApp.GetRegisteredLambda(\"{Escape(cmd.LambdaStorageKey)}\")!);");
-			var lambdaRetFq = lambdaRetType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
 			if (lambdaRetFq == "global::System.Threading.Tasks.Task" ||
 			    (lambdaRetFq.StartsWith("global::System.Threading.Tasks.Task<", System.StringComparison.Ordinal) && !lambdaIsTaskOfInt))
 			{
@@ -5164,13 +5230,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var crefToCommand = new Dictionary<string, CommandModel>(StringComparer.Ordinal);
 		foreach (var c in allCommands)
 		{
-			if (c.HandlerMethod is null || c.IsLambda)
+			if (c.IsLambda || string.IsNullOrEmpty(c.HandlerDocCommentId))
 				continue;
-			if (c.HandlerMethod.GetDocumentationCommentId() is not { Length: > 0 } docId)
+			if (crefToCommand.ContainsKey(c.HandlerDocCommentId))
 				continue;
-			if (crefToCommand.ContainsKey(docId))
-				continue;
-			crefToCommand[docId] = c;
+			crefToCommand[c.HandlerDocCommentId] = c;
 		}
 
 		var flagBySymbol = new Dictionary<string, ParameterModel>(StringComparer.Ordinal);
@@ -5218,9 +5282,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				foreach (var c in allCommands)
 				{
-					if (c.HandlerMethod is null || c.IsLambda)
+					if (c.IsLambda || string.IsNullOrEmpty(c.HandlerDocCommentId))
 						continue;
-					if (!DocumentationCrefMatchesMethod(crefAttr!, c.HandlerMethod))
+					if (!DocumentationCrefMatchesDocId(crefAttr!, c.HandlerDocCommentId))
 						continue;
 					cmd = c;
 					break;
@@ -5255,6 +5319,16 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (method.GetDocumentationCommentId() is not { Length: > 0 } fullId)
 			return false;
 
+		return DocumentationCrefMatchesDocId(cref, fullId);
+	}
+
+	/// <summary>String-based version of <see cref="DocumentationCrefMatchesMethod"/> that takes the pre-extracted doc comment id.</summary>
+	private static bool DocumentationCrefMatchesDocId(string cref, string fullId)
+	{
+		if (string.IsNullOrEmpty(cref) || string.IsNullOrEmpty(fullId))
+			return false;
+
+		cref = cref.Replace("global::", "");
 		fullId = fullId.Replace("global::", "");
 
 		if (string.Equals(cref, fullId, StringComparison.Ordinal))
@@ -5284,16 +5358,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string MethodName,
 		bool RequiresInstance,
 		bool ContainingTypeHasParameterlessCtor,
-		INamedTypeSymbol? ReturnType,
+		string ReturnTypeFq,
+		bool ReturnIsAsync,
+		bool ReturnIsVoid,
 		ImmutableArray<ParameterModel> Parameters,
-		IMethodSymbol? HandlerMethod,
+		bool HandlerHasNoOptionsInjection,
+		ImmutableArray<HandlerParam> HandlerParamTypes,
+		Location HandlerLocation,
+		ImmutableArray<(string Name, string TypeMetadataName)> ContainingTypeCtorParams,
+		string HandlerDocCommentId,
 		string SummaryOneLiner,
 		string RemarksRendered,
 		string SummaryInnerXml,
 		string RemarksInnerXml,
 		string ExamplesRendered,
 		string UsageHints,
-		ImmutableArray<INamedTypeSymbol> CommandMiddleware,
+		ImmutableArray<(string Fq, bool HasParameterlessCtor)> CommandMiddlewareData,
 		bool IsRootDefault = false,
 		bool IsLambda = false,
 		string LambdaStorageKey = "",
@@ -5325,9 +5405,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var usage = UsageSynopsis.Build(withDocs);
 			var runName = BuildRootDefaultRunMethodName(routePrefix);
 			var containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var cmdMiddleware = CollectCommandMiddleware(method);
 			var hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt &&
 			                       HasPublicParameterlessCtor(namedCt);
+			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) =
+				ExtractHandlerAnalysis(method);
 			return new CommandModel(
 				routePrefix,
 				RootDefaultInternalCommandName,
@@ -5336,16 +5417,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				method.Name,
 				!method.IsStatic,
 				hasParamlessCtor,
-				method.ReturnType as INamedTypeSymbol,
+				retFq,
+				retIsAsync,
+				retIsVoid,
 				withDocs,
-				method,
+				handlerNoInj,
+				handlerParams,
+				handlerLoc,
+				ctorParams,
+				docId,
 				docs.SummaryOneLiner,
 				docs.RemarksRendered,
 				docs.SummaryInnerXml,
 				docs.RemarksInnerXml,
 				docs.ExamplesRendered,
 				usage,
-				cmdMiddleware,
+				mwData,
 				IsRootDefault: true);
 		}
 
@@ -5375,9 +5462,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var usage = UsageSynopsis.Build(withDocs);
 			var runName = BuildRunMethodName(routePrefix, commandName);
 			var containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var cmdMiddleware = CollectCommandMiddleware(method);
 			var hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt &&
 			                       HasPublicParameterlessCtor(namedCt);
+			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) =
+				ExtractHandlerAnalysis(method);
 			return new CommandModel(
 				routePrefix,
 				commandName,
@@ -5386,16 +5474,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				method.Name,
 				!method.IsStatic,
 				hasParamlessCtor,
-				method.ReturnType as INamedTypeSymbol,
+				retFq,
+				retIsAsync,
+				retIsVoid,
 				withDocs,
-				method,
+				handlerNoInj,
+				handlerParams,
+				handlerLoc,
+				ctorParams,
+				docId,
 				docs.SummaryOneLiner,
 				docs.RemarksRendered,
 				docs.SummaryInnerXml,
 				docs.RemarksInnerXml,
 				docs.ExamplesRendered,
 				usage,
-				cmdMiddleware);
+				mwData);
 		}
 
 		private static ImmutableArray<ParameterModel> BuildParameterModels(
@@ -5469,6 +5563,79 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 
 			return b.ToImmutable();
+		}
+
+		/// <summary>Returns the CSharp-error-message display string for a type — used as a stable, symbol-free metadata key.</summary>
+		private static string GetMetadataName(ITypeSymbol t) =>
+			t.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+
+		private static (
+			string ReturnTypeFq,
+			bool ReturnIsAsync,
+			bool ReturnIsVoid,
+			bool HasNoOptionsInjection,
+			ImmutableArray<HandlerParam> HandlerParamTypes,
+			Location HandlerLocation,
+			ImmutableArray<(string Name, string TypeMetadataName)> ContainingTypeCtorParams,
+			ImmutableArray<(string Fq, bool HasParameterlessCtor)> MiddlewareData,
+			string DocCommentId
+		) ExtractHandlerAnalysis(IMethodSymbol method)
+		{
+			// Return type
+			var retFq = method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var retIsVoid = retFq is "global::System.Void"
+				or "global::System.Threading.Tasks.Task"
+				or "global::System.Threading.Tasks.ValueTask";
+			var retIsAsync = retFq is "global::System.Threading.Tasks.Task"
+				or "global::System.Threading.Tasks.ValueTask"
+				|| (method.ReturnType is INamedTypeSymbol named && named.IsGenericType &&
+				    (named.ConstructedFrom.Name is "Task" or "ValueTask") &&
+				    named.ConstructedFrom.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks");
+
+			// Parameters
+			var paramBuilder = ImmutableArray.CreateBuilder<HandlerParam>(method.Parameters.Length);
+			foreach (var p in method.Parameters)
+			{
+				var isInj = IsInjected(p);
+				var isAsParam = HasAsParametersAttribute(p);
+				var asParamPrefix = isAsParam ? GetAsParametersPrefix(p) : null;
+				INamedTypeSymbol? asParamTypeSymbol = isAsParam && p.Type is INamedTypeSymbol nt && nt.TypeKind != TypeKind.Error ? nt : null;
+				paramBuilder.Add(new HandlerParam(p.Name, GetMetadataName(p.Type), isInj, isAsParam, asParamPrefix, asParamTypeSymbol));
+			}
+
+			// Handler location
+			var loc = method.Locations.FirstOrDefault() ?? Location.None;
+
+			// Primary constructor parameters of containing type
+			var ctorParams = ImmutableArray<(string, string)>.Empty;
+			var primaryCtor = TryGetPrimaryConstructor(method.ContainingType);
+			if (primaryCtor is not null && primaryCtor.Parameters.Length > 0)
+			{
+				var ctorBuilder = ImmutableArray.CreateBuilder<(string, string)>(primaryCtor.Parameters.Length);
+				foreach (var cp in primaryCtor.Parameters)
+					ctorBuilder.Add((cp.Name, GetMetadataName(cp.Type)));
+				ctorParams = ctorBuilder.ToImmutable();
+			}
+
+			// Middleware data
+			var rawMiddleware = CollectCommandMiddleware(method);
+			var mwBuilder = ImmutableArray.CreateBuilder<(string, bool)>(rawMiddleware.Length);
+			foreach (var mw in rawMiddleware)
+				mwBuilder.Add((mw.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), HasPublicParameterlessCtor(mw)));
+			var middlewareData = mwBuilder.ToImmutable();
+
+			var docId = method.GetDocumentationCommentId() ?? "";
+			return (
+				ReturnTypeFq: retFq,
+				ReturnIsAsync: retIsAsync,
+				ReturnIsVoid: retIsVoid,
+				HasNoOptionsInjection: HasNoOptionsInjection(method),
+				HandlerParamTypes: paramBuilder.ToImmutable(),
+				HandlerLocation: loc,
+				ContainingTypeCtorParams: ctorParams,
+				MiddlewareData: middlewareData,
+				DocCommentId: docId
+			);
 		}
 
 		private static string BuildRunMethodName(ImmutableArray<string> routePrefix, string commandName)
