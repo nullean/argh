@@ -10,11 +10,16 @@ using Hosted;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Nullean.Argh;
 using Nullean.Argh.Hosting;
 
 var builder = Host.CreateApplicationBuilder(args);
+var verbose = HostedGlobalCliOptions.TryParseArgh(args, out var options) && options.Verbose;
 
-builder.Services.AddLogging(c => c.AddConsole().SetMinimumLevel(LogLevel.Information));
+builder.Services.AddLogging(c => c
+	.AddConsole()
+	.SetMinimumLevel(verbose ? LogLevel.Debug : LogLevel.Information)
+);
 
 builder.Services.AddSingleton<HostedGlobalMiddleware>();
 builder.Services.AddSingleton<HostedOrderingDemoMiddleware>();

@@ -4,21 +4,21 @@ using Xunit;
 
 namespace Nullean.Argh.Tests.Unit.Binding;
 
-public class ArghTryParseTests
+public class TryParseArghTests
 {
 	[Fact]
-	public void ArghTryParse_static_on_options_type_binds_global_flags()
+	public void TryParseArgh_static_on_options_type_binds_global_flags()
 	{
-		var ok = TestGlobalCliOptions.ArghTryParse(["--verbose"], out var o);
+		var ok = TestGlobalCliOptions.TryParseArgh(["--verbose"], out var o);
 		ok.Should().BeTrue();
 		o.Should().NotBeNull();
 		o.Verbose.Should().BeTrue();
 	}
 
 	[Fact]
-	public void ArghTryParse_static_on_command_namespace_options_binds_inherited_and_namespace_flags()
+	public void TryParseArgh_static_on_command_namespace_options_binds_inherited_and_namespace_flags()
 	{
-		var ok = TestStorageCommandNamespaceOptions.ArghTryParse(
+		var ok = TestStorageCommandNamespaceOptions.TryParseArgh(
 			["--verbose", "--prefix", "pre"],
 			out var s);
 		ok.Should().BeTrue();
@@ -28,9 +28,9 @@ public class ArghTryParseTests
 	}
 
 	[Fact]
-	public void ArghTryParse_static_on_AsParameters_record_binds_prefixed_flags()
+	public void TryParseArgh_static_on_AsParameters_record_binds_prefixed_flags()
 	{
-		var ok = DeployCliArgs.ArghTryParse(
+		var ok = DeployCliArgs.TryParseArgh(
 			["--app-env", "prod", "--app-port", "8080"],
 			out var d);
 		ok.Should().BeTrue();
@@ -40,9 +40,9 @@ public class ArghTryParseTests
 	}
 
 	[Fact]
-	public void ArghTryParse_Type_extension_still_works_for_generic_dispatch()
+	public void TryParseArgh_Type_extension_still_works_for_generic_dispatch()
 	{
-		var ok = typeof(TestGlobalCliOptions).ArghTryParse<TestGlobalCliOptions>(["--verbose"], out var o);
+		var ok = typeof(TestGlobalCliOptions).TryParseArgh<TestGlobalCliOptions>(["--verbose"], out var o);
 		ok.Should().BeTrue();
 		o!.Verbose.Should().BeTrue();
 	}
