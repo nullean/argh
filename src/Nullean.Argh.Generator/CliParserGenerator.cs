@@ -190,6 +190,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
+	// ── Pre-compiled Regex patterns ── compiled once, reused for every handler method analyzed
+	private static readonly Regex SummaryXmlPattern =
+		new(@"<summary>\s*([\s\S]*?)\s*</summary>", RegexOptions.Compiled);
+	private static readonly Regex RemarksXmlPattern =
+		new(@"<remarks>\s*([\s\S]*?)\s*</remarks>", RegexOptions.Compiled);
+	private static readonly Regex DocTriviaStripPattern =
+		new(@"^\s*///\s?", RegexOptions.Compiled | RegexOptions.Multiline);
+	private static readonly Regex WhitespaceCollapsePattern =
+		new(@"\s+", RegexOptions.Compiled);
+	private static readonly Regex IdentifierSegmentPattern =
+		new(@"^[a-zA-Z0-9_-]+$", RegexOptions.Compiled);
+
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		// ── Assembly metadata ── stable, only changes on version bump
@@ -373,6 +385,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		public ImmutableArray<CommandModel> AllCommands = ImmutableArray<CommandModel>.Empty;
 		public ImmutableArray<GlobalMiddlewareRegistration> GlobalMiddleware = ImmutableArray<GlobalMiddlewareRegistration>.Empty;
 		public readonly List<ArglessNamespaceCodegenEntry> ArglessNamespaceCodegen = new();
+		/// <summary>Pre-computed injection chains per command (keyed by <see cref="CommandModel.RunMethodName"/>). Set once in <c>TryBuildAppEmitModel</c> after <c>AllCommands</c> is populated.</summary>
+		public ImmutableDictionary<string, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)>> InjectionChains
+			= ImmutableDictionary<string, ImmutableArray<(string, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>, ImmutableArray<string>?)>>.Empty;
 	}
 
 	private sealed record ArglessNamespaceCodegenEntry(string TypeFq, string Segment);
@@ -410,6 +425,53 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string TypeFq,
 		bool UseInit,
 		string ClrName);
+
+	/// <summary>
+	/// Value-type location snapshot used in pipeline records instead of <see cref="Location"/> (a reference type
+	/// that embeds a SyntaxTree reference and breaks incremental caching on every file edit).
+	/// Reconstructed to a real <see cref="Location"/> only when reporting a diagnostic.
+	/// </summary>
+	private readonly record struct SourceSpanInfo(
+		string FilePath,
+		int Start,
+		int Length,
+		int Line,
+		int Character)
+	{
+		public static readonly SourceSpanInfo None = new("", 0, 0, 0, 0);
+
+		public static SourceSpanInfo From(Location loc)
+		{
+			if (!loc.IsInSource) return None;
+			var lp = loc.GetLineSpan();
+			return new SourceSpanInfo(
+				lp.Path,
+				loc.SourceSpan.Start,
+				loc.SourceSpan.Length,
+				lp.StartLinePosition.Line,
+				lp.StartLinePosition.Character);
+		}
+
+		public Location ToLocation() =>
+			FilePath.Length == 0
+				? Location.None
+				: Location.Create(
+					FilePath,
+					new TextSpan(Start, Length),
+					new LinePositionSpan(
+						new LinePosition(Line, Character),
+						new LinePosition(Line, Character + Length)));
+	}
+
+	/// <summary>
+	/// Value-type diagnostic snapshot used in AnalyzedInvocation records instead of <see cref="Diagnostic"/>
+	/// (a reference type that breaks incremental caching). Reconstructed in TryBuildAppEmitModel.
+	/// </summary>
+	private readonly record struct PendingDiagnostic(
+		string DescriptorId,
+		SourceSpanInfo Span,
+		string Arg0 = "",
+		string Arg1 = "");
 
 	// ─── AnalyzedInvocation discriminated union ────────────────────────────────
 	// Symbol-free records representing each pre-analysed ArghApp builder invocation.
@@ -466,9 +528,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string NsRemarksInnerXml,
 		/// <summary>Whether a redundancy check should be applied (AddNamespace&lt;T&gt; registers its own commands).</summary>
 		bool HasEntryType,
-		Location DiagnosticLocation,
+		SourceSpanInfo DiagnosticSpanInfo,
 		/// <summary>Embedded diagnostics to report from TryBuildAppEmitModel (e.g. AGH0016 redundant Add&lt;T&gt;).</summary>
-		ImmutableArray<Diagnostic> EmbeddedDiagnostics,
+		ImmutableArray<PendingDiagnostic> EmbeddedDiagnostics,
 		/// <summary>
 		/// Pre-registered commands and sub-namespaces from the entry type T (for AddNamespace&lt;T&gt;).
 		/// Contains root commands, regular commands, and nested children from ExpandTypeRegistration.
@@ -500,16 +562,44 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	/// </summary>
 	private sealed class DiagnosticAccumulator
 	{
-		private List<Diagnostic>? _diagnostics;
+		private List<PendingDiagnostic>? _diagnostics;
 
-		public void Add(Diagnostic d) => (_diagnostics ??= new List<Diagnostic>()).Add(d);
+		public void Add(DiagnosticDescriptor descriptor, Location location, params string[] args) =>
+			(_diagnostics ??= new()).Add(new PendingDiagnostic(
+				descriptor.Id,
+				SourceSpanInfo.From(location),
+				args.Length > 0 ? args[0] : "",
+				args.Length > 1 ? args[1] : ""));
 
-		public ImmutableArray<Diagnostic> ToImmutable() =>
-			_diagnostics is null ? ImmutableArray<Diagnostic>.Empty : _diagnostics.ToImmutableArray();
-
-		/// <summary>Adapts <see cref="DiagnosticAccumulator"/> to serve as a fake SourceProductionContext reporter via a callback.</summary>
-		public static void ReportDiagnostic(DiagnosticAccumulator acc, Diagnostic d) => acc.Add(d);
+		public ImmutableArray<PendingDiagnostic> ToImmutable() =>
+			_diagnostics is null ? ImmutableArray<PendingDiagnostic>.Empty : _diagnostics.ToImmutableArray();
 	}
+
+	private static DiagnosticDescriptor GetDescriptorById(string id) => id switch
+	{
+		"AGH0002" => HandlerMustBeMethod,
+		"AGH0003" => ArgumentOrder,
+		"AGH0004" => CommandNamespaceOptionsMustExtendParent,
+		"AGH0005" => CommandNamespaceOptionsRequiresParent,
+		"AGH0006" => UseMiddlewareDelegateNotSupported,
+		"AGH0007" => DuplicateCliNames,
+		"AGH0008" => CollectionPositionalNotSupported,
+		"AGH0009" => AsParametersEmptyType,
+		"AGH0010" => DuplicateRootCommand,
+		"AGH0011" => AddRootCommandOnlyAtAppRoot,
+		"AGH0012" => AddNamespaceRootCommandOnlyInNamespace,
+		"AGH0013" => ReservedCommandNameRoot,
+		"AGH0014" => AddNamespaceRequiresExplicitDescriptionOrType,
+		"AGH0015" => AddNamespaceDescriptionNotConstant,
+		"AGH0016" => RedundantAddInsideAddNamespaceT,
+		"AGH0017" => NamespaceSegmentUnresolved,
+		"AGH0018" => NamespaceSegmentConflict,
+		"AGH0019" => MultipleDefaultCommandAttributes,
+		"AGH0020" => VacuousNamespace,
+		"AGH0021" => CommandMustInjectOptions,
+		"AGH0022" => NamespaceSegmentSanitizationCollision,
+		_ => throw new ArgumentException($"Unknown diagnostic id: {id}")
+	};
 
 	/// <summary>
 	/// Per-invocation semantic analysis, intended for the CreateSyntaxProvider Select step.
@@ -759,8 +849,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			nsSummaryXml,
 			nsRemarksXml,
 			HasEntryType: namespaceEntryType is not null,
-			invocation.GetLocation(),
-			ImmutableArray<Diagnostic>.Empty,
+			SourceSpanInfo.From(invocation.GetLocation()),
+			ImmutableArray<PendingDiagnostic>.Empty,
 			entryTypeSnapshot);
 	}
 
@@ -839,8 +929,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		foreach (var ai in allAnalyzed)
 		{
 			if (ai is AIAddNamespace ns)
-				foreach (var d in ns.EmbeddedDiagnostics)
-					context.ReportDiagnostic(d);
+				foreach (var pd in ns.EmbeddedDiagnostics)
+					context.ReportDiagnostic(Diagnostic.Create(GetDescriptorById(pd.DescriptorId), pd.Span.ToLocation(), pd.Arg0, pd.Arg1));
 		}
 
 		var sorted = allAnalyzed
@@ -892,6 +982,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		app.AllCommands = dedup.Values.ToImmutableArray();
 		// GlobalOptionsModel is set during ProcessAnalyzedInvocationsForNode.
+
+		// Pre-compute injection chains once per command; reused by validation, FixOptionsParamsInCommands, and emit.
+		app.InjectionChains = app.AllCommands.ToImmutableDictionary(
+			cmd => cmd.RunMethodName,
+			cmd => cmd.HandlerHasNoOptionsInjection
+				? ImmutableArray<(string, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>, ImmutableArray<string>?)>.Empty
+				: BuildOptionsInjectionChain(app, cmd),
+			StringComparer.Ordinal);
 
 		ValidateCommandOptionsInjection(context, app);
 		FixOptionsParamsInCommands(app);
@@ -1072,14 +1170,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ProcessAnalyzedInvocationsForNode(context, allAnalyzed, childInvocations, childNode, childPath, app, isRoot: false);
 
 		if (IsRegistryNodeVacuous(childNode))
-			context.ReportDiagnostic(Diagnostic.Create(VacuousNamespace, ns.DiagnosticLocation));
+			context.ReportDiagnostic(Diagnostic.Create(VacuousNamespace, ns.DiagnosticSpanInfo.ToLocation()));
 
 		parentNode.Children.Add(new RegistryNode.NamedCommandNamespaceChild
 		{
 			Segment = ns.SegmentName,
 			Node = childNode,
 			SummaryOneLiner = ns.NsSummary,
-			Location = ns.DiagnosticLocation
+			Location = ns.DiagnosticSpanInfo.ToLocation()
 		});
 	}
 
@@ -1223,7 +1321,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				continue;
 
 			// Most specific required options type = last entry in the injection chain.
-			var chain = BuildOptionsInjectionChain(app, cmd);
+			var chain = app.InjectionChains.TryGetValue(cmd.RunMethodName, out var precomputed)
+				? precomputed
+				: BuildOptionsInjectionChain(app, cmd);
 			if (chain.IsEmpty)
 				continue;
 			var (requiredTypeFq, requiredMetaName, requiredBaseNames, _, _, _, _) = chain[chain.Length - 1];
@@ -1258,7 +1358,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				context.ReportDiagnostic(Diagnostic.Create(
 					CommandMustInjectOptions,
-					cmd.HandlerLocation,
+					cmd.HandlerSpanInfo.ToLocation(),
 					cmd.MethodName,
 					requiredMetaName));  // use pre-computed metadata name instead of ToDisplayString
 			}
@@ -1328,7 +1428,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				continue;
 			}
 
-			var injChain = BuildOptionsInjectionChain(app, cmd);
+			var injChain = app.InjectionChains.TryGetValue(cmd.RunMethodName, out var precomputed2)
+				? precomputed2
+				: BuildOptionsInjectionChain(app, cmd);
 			if (injChain.IsEmpty)
 			{
 				updated.Add(cmd);
@@ -1453,7 +1555,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (c is null || string.IsNullOrWhiteSpace(c.Value))
 				return false;
 			code = c.Value.Trim();
-			return Regex.IsMatch(code, @"^[a-zA-Z0-9_-]+$");
+			return IdentifierSegmentPattern.IsMatch(code);
 		}
 		catch
 		{
@@ -1697,7 +1799,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			parameters,
 			false,
 			ImmutableArray<HandlerParam>.Empty,
-			Location.None,
+			SourceSpanInfo.None,
 			ImmutableArray<(string, string)>.Empty,
 			"",   // HandlerDocCommentId
 			"",
@@ -1814,7 +1916,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			parameters,
 			false,
 			ImmutableArray<HandlerParam>.Empty,
-			Location.None,
+			SourceSpanInfo.None,
 			ImmutableArray<(string, string)>.Empty,
 			"",   // HandlerDocCommentId
 			"",
@@ -1969,7 +2071,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (!HasDefaultCommandAttribute(method)) continue;
 			if (defaultCommand is not null)
 			{
-				acc.Add(Diagnostic.Create(MultipleDefaultCommandAttributes, method.Locations.FirstOrDefault() ?? location, type.Name));
+				acc.Add(MultipleDefaultCommandAttributes, method.Locations.FirstOrDefault() ?? location, type.Name);
 				continue;
 			}
 			defaultCommand = method;
@@ -1977,7 +2079,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (defaultCommand is not null)
 		{
 			if (targetNode.RootCommand is not null)
-				acc.Add(Diagnostic.Create(DuplicateRootCommand, location));
+				acc.Add(DuplicateRootCommand, location);
 			else
 				targetNode.RootCommand = CommandModel.FromRootMethod(defaultCommand, parseOpts, routePrefix, acc, location);
 		}
@@ -2320,7 +2422,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				if (seen.TryGetValue(name, out var first))
 				{
 					if (!string.Equals(first, p.SymbolName, StringComparison.Ordinal))
-						acc.Add(Diagnostic.Create(DuplicateCliNames, location, name));
+						acc.Add(DuplicateCliNames, location, name);
 				}
 				else
 					seen[name] = p.SymbolName;
@@ -2341,7 +2443,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (p.Kind == ParameterKind.Flag) { seenFlag = true; continue; }
 			if (p.Kind == ParameterKind.Positional && seenFlag)
 			{
-				acc.Add(Diagnostic.Create(ArgumentOrder, location));
+				acc.Add(ArgumentOrder, location);
 				return;
 			}
 		}
@@ -2389,7 +2491,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 		}
 		if (list.Count == 0)
-			acc.Add(Diagnostic.Create(AsParametersEmptyType, location, type.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat)));
+			acc.Add(AsParametersEmptyType, location, type.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat));
 		return list.ToImmutableArray();
 	}
 
@@ -3164,7 +3266,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			var injectedOpts = cmd.HandlerHasNoOptionsInjection
 				? ImmutableArray<(string, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>, ImmutableArray<string>?)>.Empty
-				: BuildOptionsInjectionChain(app, cmd);
+				: app.InjectionChains.TryGetValue(cmd.RunMethodName, out var precomputed3)
+					? precomputed3
+					: BuildOptionsInjectionChain(app, cmd);
 			EmitCommandRunner(sb, cmd, app.GlobalMiddleware, injectedOptions: injectedOpts);
 		}
 
@@ -3546,11 +3650,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				    !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
 					continue;
 				var full = trivia.ToFullString();
-				var match = Regex.Match(full, @"<summary>\s*([\s\S]*?)\s*</summary>");
+				var match = SummaryXmlPattern.Match(full);
 				if (!match.Success)
 					continue;
 				var inner = match.Groups[1].Value;
-				inner = Regex.Replace(inner, @"^\s*///\s?", "", RegexOptions.Multiline).Trim();
+				inner = DocTriviaStripPattern.Replace(inner, "").Trim();
 				if (inner.Length == 0)
 					continue;
 				return "<summary>" + inner + "</summary>";
@@ -3572,11 +3676,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				    !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
 					continue;
 				var full = trivia.ToFullString();
-				var match = Regex.Match(full, @"<remarks>\s*([\s\S]*?)\s*</remarks>");
+				var match = RemarksXmlPattern.Match(full);
 				if (!match.Success)
 					continue;
 				var inner = match.Groups[1].Value;
-				inner = Regex.Replace(inner, @"^\s*///\s?", "", RegexOptions.Multiline).Trim();
+				inner = DocTriviaStripPattern.Replace(inner, "").Trim();
 				if (inner.Length == 0)
 					continue;
 				return "<remarks>" + inner + "</remarks>";
@@ -3978,7 +4082,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			members,
 			false,
 			ImmutableArray<HandlerParam>.Empty,
-			Location.None,
+			SourceSpanInfo.None,
 			ImmutableArray<(string, string)>.Empty,
 			"",   // HandlerDocCommentId
 			"",   // SummaryOneLiner
@@ -5947,7 +6051,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ImmutableArray<ParameterModel> Parameters,
 		bool HandlerHasNoOptionsInjection,
 		ImmutableArray<HandlerParam> HandlerParamTypes,
-		Location HandlerLocation,
+		SourceSpanInfo HandlerSpanInfo,
 		ImmutableArray<(string Name, string TypeMetadataName)> ContainingTypeCtorParams,
 		string HandlerDocCommentId,
 		string SummaryOneLiner,
@@ -6088,7 +6192,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
 			foreach (var p in parameters)
 				if (p.IsCollection && p.Kind == ParameterKind.Positional)
-					acc.Add(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
+					acc.Add(CollectionPositionalNotSupported, diagnosticLocation);
 			var docs = MergeMethodDocumentationFromTrivia(method, Documentation.ParseMethod(method.GetDocumentationCommentXml(), parseOptions), parseOptions);
 			var withDocs = ApplyParamDocumentation(parameters, method, docs.ParamDocsRaw);
 			withDocs = ApplyCollectionSeparatorsFromDocumentation(withDocs, method, docs.ParamSeparators);
@@ -6114,7 +6218,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
 			foreach (var p in parameters)
 				if (p.IsCollection && p.Kind == ParameterKind.Positional)
-					acc.Add(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
+					acc.Add(CollectionPositionalNotSupported, diagnosticLocation);
 			var docs = MergeMethodDocumentationFromTrivia(method, Documentation.ParseMethod(method.GetDocumentationCommentXml(), parseOptions), parseOptions);
 			var withDocs = ApplyParamDocumentation(parameters, method, docs.ParamDocsRaw);
 			withDocs = ApplyCollectionSeparatorsFromDocumentation(withDocs, method, docs.ParamSeparators);
@@ -6237,7 +6341,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			bool ReturnIsVoid,
 			bool HasNoOptionsInjection,
 			ImmutableArray<HandlerParam> HandlerParamTypes,
-			Location HandlerLocation,
+			SourceSpanInfo HandlerSpanInfo,
 			ImmutableArray<(string Name, string TypeMetadataName)> ContainingTypeCtorParams,
 			ImmutableArray<(string Fq, bool HasParameterlessCtor)> MiddlewareData,
 			string DocCommentId
@@ -6328,7 +6432,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				ReturnIsVoid: retIsVoid,
 				HasNoOptionsInjection: HasNoOptionsInjection(method),
 				HandlerParamTypes: paramBuilder.ToImmutable(),
-				HandlerLocation: loc,
+				HandlerSpanInfo: SourceSpanInfo.From(loc),
 				ContainingTypeCtorParams: ctorParams,
 				MiddlewareData: middlewareData,
 				DocCommentId: docId
@@ -7290,7 +7394,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					return new MethodDocumentation("", "", "", "", "", ImmutableDictionary<string, string>.Empty,
 						ImmutableDictionary<string, string>.Empty);
 
-				var summary = Regex.Replace(FlattenBlock(root.Element("summary")).Replace("\r\n", "\n"), @"\s+", " ").Trim();
+				var summary = WhitespaceCollapsePattern.Replace(FlattenBlock(root.Element("summary")).Replace("\r\n", "\n"), " ").Trim();
 				var remarks = FlattenBlock(root.Element("remarks")).Replace("\r\n", "\n").Trim();
 				var summaryInner = GetElementInnerXml(root.Element("summary"));
 				var remarksInner = GetElementInnerXml(root.Element("remarks"));
