@@ -520,6 +520,8 @@ Use cases:
 
 The shape is defined by [`ArghCliSchemaDocument`](src/Nullean.Argh.Core/Schema/ArghCliSchemaDocument.cs). Output is indented camelCase JSON. Reserved meta-commands (`__complete`, `__completion`, `__schema`) appear under `reservedMetaCommands`.
 
+**Native AOT in CI:** The GitHub Actions workflow runs an **`aot-validate`** job that publishes [`examples/ArghAotSmoketest`](examples/ArghAotSmoketest) with Native AOT on Linux, macOS, and Windows and invokes `__schema` on the native binary. The repo uses the SDK unified artifacts layout (output under **`.artifacts/`**, gitignored).
+
 ## License and links
 
 - **License**: [MIT](LICENSE)

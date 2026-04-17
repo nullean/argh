@@ -20,6 +20,7 @@
     <Project Path="src/Nullean.Argh.Hosting/Nullean.Argh.Hosting.csproj" />
   </Folder>
   <Folder Name="/examples/">
+    <Project Path="examples/ArghAotSmoketest/ArghAotSmoketest.csproj" />
     <Project Path="examples/Basic/Basic.csproj" />
     <Project Path="examples/Hosted/Hosted.csproj" />
     <Project Path="examples/HostedRoot/HostedRoot.csproj" />

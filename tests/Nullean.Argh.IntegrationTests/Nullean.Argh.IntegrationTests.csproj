@@ -15,7 +15,8 @@
 
   <Target Name="CopyCliHostToIntegrationTestOutput" AfterTargets="Build">
     <PropertyGroup>
-      <_CliHostDir>$(MSBuildThisFileDirectory)..\Nullean.Argh.Tests.CliHost\bin\$(Configuration)\$(TargetFramework)\</_CliHostDir>
+      <_CliHostCfg>$([System.String]::Copy('$(Configuration)').ToLowerInvariant())</_CliHostCfg>
+      <_CliHostDir>$([System.IO.Path]::Combine('$(ArtifactsPath)', 'bin', 'Nullean.Argh.Tests.CliHost', '$(_CliHostCfg)'))\</_CliHostDir>
     </PropertyGroup>
     <ItemGroup>
       <_CliHostFiles Include="$(_CliHostDir)*.*" Exclude="$(_CliHostDir)*.pdb" />

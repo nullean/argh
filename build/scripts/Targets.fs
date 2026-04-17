@@ -63,6 +63,11 @@ let private validatePackages (arguments:ParseResults<Arguments>) =
 let private generateApiChanges (arguments:ParseResults<Arguments>) =
     let output = Paths.RootRelative <| Paths.Output.FullName
     let currentVersion = currentVersion.Value
+    /// Unified artifacts layout (<UseArtifactsOutput>): `.artifacts/bin/<Project>/release[_<tfm>]/`.
+    let assembliesDir (packageId: string) =
+        match packageId with
+        | "Nullean.Argh.Hosting" -> sprintf ".artifacts/bin/%s/release_%s" packageId Paths.MainTFM
+        | _ -> sprintf ".artifacts/bin/%s/release" packageId
     let nugetPackages =
         Paths.Output.GetFiles("*.nupkg") |> Seq.sortByDescending(fun f -> f.CreationTimeUtc)
         |> Seq.map (fun p -> Path.GetFileNameWithoutExtension(Paths.RootRelative p.FullName).Replace("." + currentVersion, ""))
@@ -75,7 +80,7 @@ let private generateApiChanges (arguments:ParseResults<Arguments>) =
             [
                 "assembly-differ"
                 (sprintf "previous-nuget|%s|%s|%s" p currentVersion Paths.MainTFM);
-                (sprintf "directory|src/%s/bin/Release/%s" p Paths.MainTFM);
+                (sprintf "directory|%s" (assembliesDir p));
                 "-a"; "true"; "--target"; p; "-f"; "github-comment"; "--output"; outputFile
             ]
 

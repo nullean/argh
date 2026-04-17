@@ -61,10 +61,9 @@
 
   <Target Name="IncludeArghAnalyzerInNuGetPackage" BeforeTargets="_GetPackageFiles" DependsOnTargets="BuildArghGeneratorForPack">
     <PropertyGroup>
-      <_ArghGeneratorDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\Nullean.Argh.Generator\bin\$(Configuration)\netstandard2.0'))</_ArghGeneratorDir>
-      <_ArghGeneratorDll>$(_ArghGeneratorDir)\Nullean.Argh.Generator.dll</_ArghGeneratorDll>
-      <_ArghGeneratorDll Condition="!Exists('$(_ArghGeneratorDll)')">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\Nullean.Argh.Generator\bin\Debug\netstandard2.0\Nullean.Argh.Generator.dll'))</_ArghGeneratorDll>
-      <_ArghGeneratorPdb>$([System.IO.Path]::GetDirectoryName('$(_ArghGeneratorDll)'))\Nullean.Argh.Generator.pdb</_ArghGeneratorPdb>
+      <_ArghGenCfg>$([System.String]::Copy('$(Configuration)').ToLowerInvariant())</_ArghGenCfg>
+      <_ArghGeneratorDll>$([System.IO.Path]::Combine('$(ArtifactsPath)', 'bin', 'Nullean.Argh.Generator', '$(_ArghGenCfg)', 'Nullean.Argh.Generator.dll'))</_ArghGeneratorDll>
+      <_ArghGeneratorPdb>$([System.IO.Path]::Combine('$(ArtifactsPath)', 'bin', 'Nullean.Argh.Generator', '$(_ArghGenCfg)', 'Nullean.Argh.Generator.pdb'))</_ArghGeneratorPdb>
     </PropertyGroup>
     <ItemGroup>
       <None Include="$(_ArghGeneratorDll)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />

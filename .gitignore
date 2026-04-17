@@ -82,4 +82,6 @@ project.lock.json
 docs-temp
 *.binlog
 
+.artifacts/
+
 .cursor/

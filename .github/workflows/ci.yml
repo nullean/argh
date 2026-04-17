@@ -15,6 +15,29 @@ on:
       - "*.*.*"
 
 jobs:
+  aot-validate:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            binary: ArghAotSmoketest
+          - runner: macos-latest
+            binary: ArghAotSmoketest
+          - runner: windows-latest
+            binary: ArghAotSmoketest.exe
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-dotnet@v5
+      with:
+        global-json-file: ./global.json
+    - name: Publish AOT
+      run: dotnet publish examples/ArghAotSmoketest/ArghAotSmoketest.csproj -c Release
+    - name: Invoke AOT
+      shell: bash
+      run: ./.artifacts/publish/ArghAotSmoketest/release/${{ matrix.binary }} __schema
+
   build:
     runs-on: ubuntu-latest
     steps:
