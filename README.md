@@ -158,23 +158,43 @@ Flat apps route `app <command> …`; hierarchical apps route `app <namespace> �
 
 Group related commands under a shared path, scoped options, and their own help page — the same mental model as ASP.NET's `MapGroup`.
 
+The idiomatic pattern is to put commands directly on the class (and nest classes for sub-groups). `AddNamespace<T>` auto-registers all public methods on `T` and any public nested types:
+
 ```csharp
-app.MapNamespace<StorageCommands>("storage", ns =>
+/// <summary>Commands under <c>storage</c>.</summary>
+internal sealed class StorageCommands
 {
-    ns.MapNamespace<BlobCommands>("blob", blobs =>
+    /// <summary>List objects in the bucket.</summary>
+    public void List() => Console.WriteLine("storage:list");
+
+    /// <summary>Commands under <c>storage blob</c>.</summary>
+    public sealed class BlobCommands
     {
-        blobs.Map("upload", BlobHandlers.Upload);
-        blobs.Map("download", BlobHandlers.Download);
-    });
-    ns.Map("list", StorageHandlers.List);
-});
+        /// <summary>Upload a file.</summary>
+        /// <param name="path">-p,--path, Local file path.</param>
+        public void Upload(string path) => Console.WriteLine($"storage:blob:upload:{path}");
+
+        /// <summary>Download a file.</summary>
+        /// <param name="key">-k,--key, Object key.</param>
+        public void Download(string key) => Console.WriteLine($"storage:blob:download:{key}");
+    }
+}
+
+app.AddNamespace<StorageCommands>("storage");
 // Resulting paths:
 //   storage list
-//   storage blob upload
-//   storage blob download
+//   storage blob upload --path ./file.txt
+//   storage blob download --key backups/db.sql
 ```
 
-`MapNamespace<T>` auto-registers public methods from `T` and nested handler types — do not call `Map<T>()` again for the same type inside the callback. The generator produces separate help printers for namespace overview and leaf commands.
+The generator produces separate help printers for the namespace overview and each leaf command. Pass a callback to add scoped options or nested namespaces without auto-registration:
+
+```csharp
+app.AddNamespace<StorageCommands>("storage", ns =>
+{
+    ns.CommandNamespaceOptions<StorageOptions>();
+});
+```
 
 ## Parameters and binding
 
