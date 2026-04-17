@@ -29,8 +29,8 @@ public sealed partial class CliParserGenerator
 
 	private static void EmitCompletionHierarchical(StringBuilder sb, AppEmitModel app)
 	{
-		var globalMembers = app.GlobalOptionsModel is { Members.Length: > 0 }
-			? BuildFlattenedOptionsMembers(app.GlobalOptionsType!)
+		var globalMembers = app.GlobalOptionsModel is { FlattenedMembers.Length: > 0 }
+			? app.GlobalOptionsModel.FlattenedMembers
 			: ImmutableArray<ParameterModel>.Empty;
 
 		sb.AppendLine("\t\tprivate static readonly string[] __c_meta_root = new string[] { \"--help\", \"-h\", \"--version\" };");
@@ -41,8 +41,8 @@ public sealed partial class CliParserGenerator
 		{
 			var key = CommandNamespacePathKey(path);
 			EmitNextSegmentsArray(sb, $"__c_next_{key}", node);
-			var nsMembers = node.CommandNamespaceOptionsType is { } nsType
-				? BuildFlattenedOptionsMembers(nsType)
+			var nsMembers = node.CommandNamespaceOptionsModel is { FlattenedMembers.Length: > 0 }
+				? node.CommandNamespaceOptionsModel.FlattenedMembers
 				: ImmutableArray<ParameterModel>.Empty;
 			var mergedNs = MergeCompletionFlags(globalMembers, nsMembers);
 			EmitCompletionStringArray(sb, $"__c_flags_ns_{key}", mergedNs);
@@ -306,8 +306,8 @@ public sealed partial class CliParserGenerator
 		foreach ((var node, var path) in EnumerateCommandNamespaceNodesWithPath(app.Root, ImmutableArray<string>.Empty))
 		{
 			var key = CommandNamespacePathKey(path);
-			var members = node.CommandNamespaceOptionsType is { } nsType
-				? BuildFlattenedOptionsMembers(nsType)
+			var members = node.CommandNamespaceOptionsModel is { FlattenedMembers.Length: > 0 }
+				? node.CommandNamespaceOptionsModel.FlattenedMembers
 				: ImmutableArray<ParameterModel>.Empty;
 			if (members.IsEmpty)
 			{
@@ -328,8 +328,8 @@ public sealed partial class CliParserGenerator
 		foreach ((var node, var path) in EnumerateCommandNamespaceNodesWithPath(app.Root, ImmutableArray<string>.Empty))
 		{
 			var key = CommandNamespacePathKey(path);
-			var members = node.CommandNamespaceOptionsType is { } nsType
-				? BuildFlattenedOptionsMembers(nsType)
+			var members = node.CommandNamespaceOptionsModel is { FlattenedMembers.Length: > 0 }
+				? node.CommandNamespaceOptionsModel.FlattenedMembers
 				: ImmutableArray<ParameterModel>.Empty;
 			if (members.IsEmpty)
 				continue;

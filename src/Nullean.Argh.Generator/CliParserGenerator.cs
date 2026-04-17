@@ -349,7 +349,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		public CommandModel? RootCommand;
 		public readonly List<CommandModel> Commands = new();
 		public readonly List<NamedCommandNamespaceChild> Children = new();
-		public INamedTypeSymbol? CommandNamespaceOptionsType;  // kept for validation only (used in ValidateCommandNamespaceOptionsChain before switching to model-based approach)
 		public Location? CommandNamespaceOptionsLocation;
 		public OptionsTypeModel? CommandNamespaceOptionsModel;
 		/// <summary>Inner XML of <c>&lt;summary&gt;</c> from the namespace entry type (populated when a generic <c>AddNamespace&lt;T&gt;</c> is used).</summary>
@@ -369,7 +368,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private sealed class AppEmitModel
 	{
-		public INamedTypeSymbol? GlobalOptionsType;  // kept for validation (TypeInheritsFromOrImplements); removed from emit
 		public OptionsTypeModel? GlobalOptionsModel;
 		public readonly RegistryNode Root = new();
 		public ImmutableArray<CommandModel> AllCommands = ImmutableArray<CommandModel>.Empty;
@@ -417,16 +415,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	// Symbol-free records representing each pre-analysed ArghApp builder invocation.
 	// Produced by AnalyzeInvocation() in the Select step (which has SemanticModel),
 	// and consumed by TryBuildAppEmitModel() in the RegisterSourceOutput Execute step.
-	// All fields are strings, value types, or pre-computed ImmutableArrays — NO ISymbol.
+	// All AnalyzedInvocation subtypes are symbol-free: only strings, value types, and pre-computed
+	// ImmutableArrays. No ISymbol references. This ensures Roslyn's pipeline can cache them by
+	// structural equality between compilations.
 
 	private abstract record AnalyzedInvocation(string FilePath, int SpanStart);
 
 	/// <summary>A <c>GlobalOptions&lt;T&gt;()</c> invocation — only valid at root scope.</summary>
-	private sealed record AIGlobalOptions(string FilePath, int SpanStart, OptionsTypeModel Model, INamedTypeSymbol TypeSymbolForValidation)
+	private sealed record AIGlobalOptions(string FilePath, int SpanStart, OptionsTypeModel Model)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>CommandNamespaceOptions&lt;T&gt;()</c> invocation — only valid inside a namespace.</summary>
-	private sealed record AICommandNamespaceOptions(string FilePath, int SpanStart, OptionsTypeModel Model, INamedTypeSymbol TypeSymbolForValidation, Location DiagnosticLocation)
+	private sealed record AICommandNamespaceOptions(string FilePath, int SpanStart, OptionsTypeModel Model)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>UseMiddleware&lt;T&gt;()</c> invocation — only valid at root scope.</summary>
@@ -538,7 +538,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					return null;
 				var model = BuildOptionsTypeModel(go);
 				if (model is null) return null;
-				return new AIGlobalOptions(filePath, spanStart, model, go);
+				return new AIGlobalOptions(filePath, spanStart, model);
 			}
 			case "CommandNamespaceOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
 			{
@@ -546,7 +546,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					return null;
 				var model = BuildOptionsTypeModel(gt);
 				if (model is null) return null;
-				return new AICommandNamespaceOptions(filePath, spanStart, model, gt, invocation.GetLocation());
+				return new AICommandNamespaceOptions(filePath, spanStart, model);
 			}
 			case "UseMiddleware" when method.IsGenericMethod && method.TypeArguments.Length == 1:
 			{
@@ -871,7 +871,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		ProcessAnalyzedInvocationsForNode(context, sorted, rootAnalyzed, app.Root, ImmutableArray<string>.Empty, app, isRoot: true);
 
-		ValidateCommandNamespaceOptionsChain(context, app.Root, parentEffectiveOptions: app.GlobalOptionsType);
+		ValidateCommandNamespaceOptionsChain(context, app.Root, parentEffectiveOptionsMetadataName: app.GlobalOptionsModel?.TypeMetadataName);
 		if (!ValidateNamespaceSegmentSanitizationCollisions(context, app.Root))
 			return false;
 
@@ -928,19 +928,17 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			switch (ai)
 			{
 				case AIGlobalOptions g when isRoot:
-					app.GlobalOptionsType = g.TypeSymbolForValidation;
 					app.GlobalOptionsModel = g.Model;
 					break;
 				case AIGlobalOptions when !isRoot:
 					context.ReportDiagnostic(Diagnostic.Create(
 						CommandNamespaceOptionsRequiresParent,
-						ai is AIGlobalOptions go2 ? Location.None : Location.None,
+						Location.None,
 						"T"));
 					break;
 				case AICommandNamespaceOptions ns when !isRoot:
-					node.CommandNamespaceOptionsType = ns.TypeSymbolForValidation;
 					node.CommandNamespaceOptionsModel = ns.Model;
-					node.CommandNamespaceOptionsLocation = ns.DiagnosticLocation;
+					node.CommandNamespaceOptionsLocation = Location.None;
 					break;
 				case AICommandNamespaceOptions when isRoot:
 					context.ReportDiagnostic(Diagnostic.Create(
@@ -1144,42 +1142,41 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		target.RemarksInnerXml = snap.RemarksInnerXml;
 	}
 
-	private static void AttachCommandNamespaceOptionsModels(RegistryNode node, SourceProductionContext context)
-	{
-		if (node.CommandNamespaceOptionsType is not null)
-			node.CommandNamespaceOptionsModel = BuildOptionsTypeModel(node.CommandNamespaceOptionsType);
-
-		foreach (var ch in node.Children)
-			AttachCommandNamespaceOptionsModels(ch.Node, context);
-	}
-
 	private static void ValidateCommandNamespaceOptionsChain(
 		SourceProductionContext context,
 		RegistryNode node,
-		INamedTypeSymbol? parentEffectiveOptions)
+		string? parentEffectiveOptionsMetadataName)
 	{
-		if (node.CommandNamespaceOptionsType is not null)
+		var nsModel = node.CommandNamespaceOptionsModel;
+		if (nsModel is not null)
 		{
-			if (parentEffectiveOptions is null)
+			if (parentEffectiveOptionsMetadataName is null)
 			{
 				context.ReportDiagnostic(Diagnostic.Create(
 					CommandNamespaceOptionsRequiresParent,
 					node.CommandNamespaceOptionsLocation ?? Location.None,
-					node.CommandNamespaceOptionsType.Name));
+					GetShortTypeName(nsModel.TypeMetadataName)));
 			}
-			else if (!TypeInheritsFromOrImplements(node.CommandNamespaceOptionsType, parentEffectiveOptions))
+			else if (nsModel.TypeMetadataName != parentEffectiveOptionsMetadataName
+			         && !nsModel.AllBaseTypeMetadataNames.Contains(parentEffectiveOptionsMetadataName))
 			{
 				context.ReportDiagnostic(Diagnostic.Create(
 					CommandNamespaceOptionsMustExtendParent,
 					node.CommandNamespaceOptionsLocation ?? Location.None,
-					node.CommandNamespaceOptionsType.Name,
-					parentEffectiveOptions.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat)));
+					GetShortTypeName(nsModel.TypeMetadataName),
+					GetShortTypeName(parentEffectiveOptionsMetadataName)));
 			}
 		}
 
-		var nextParent = node.CommandNamespaceOptionsType ?? parentEffectiveOptions;
+		var nextParent = nsModel?.TypeMetadataName ?? parentEffectiveOptionsMetadataName;
 		foreach (var child in node.Children)
 			ValidateCommandNamespaceOptionsChain(context, child.Node, nextParent);
+	}
+
+	private static string GetShortTypeName(string metadataName)
+	{
+		var dot = metadataName.LastIndexOf('.');
+		return dot >= 0 ? metadataName.Substring(dot + 1) : metadataName;
 	}
 
 	private static bool ValidateNamespaceSegmentSanitizationCollisions(SourceProductionContext context, RegistryNode node)
@@ -3478,8 +3475,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		// Call namespace options parse for any namespace that has a registered options type (even if it only
 		// inherits flags from a parent type) so that flags between the namespace segment and the sub-command
 		// are consumed correctly.
-		if (!isRoot && node.CommandNamespaceOptionsType is not null &&
-		    BuildFlattenedOptionsMembers(node.CommandNamespaceOptionsType).Length > 0)
+		if (!isRoot && node.CommandNamespaceOptionsModel is { FlattenedMembers.Length: > 0 })
 			sb.AppendLine($"\t\t\tif (!{CommandNamespaceOptionsParseMethodName(path)}(args, idx)) return 2;");
 
 		sb.AppendLine("\t\t\tif (idx[0] >= args.Length)");
@@ -3508,23 +3504,21 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t\tvar tok = args[idx[0]];");
 		foreach (var cmd in node.Commands)
-		{
-			sb.AppendLine($"\t\t\tif (string.Equals(tok, \"{Escape(cmd.CommandName)}\", StringComparison.OrdinalIgnoreCase))");
-			sb.AppendLine("\t\t\t{");
-			sb.AppendLine("\t\t\t\tidx[0]++;");
-			sb.AppendLine($"\t\t\t\treturn await {cmd.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
-			sb.AppendLine("\t\t\t}");
-		}
+			EmitOrdinalIgnoreCaseIf(sb, "\t\t\t", "tok", cmd.CommandName, s =>
+			{
+				s.AppendLine("\t\t\t\tidx[0]++;");
+				s.AppendLine($"\t\t\t\treturn await {cmd.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
+			});
 
 		foreach (var ch in node.Children)
 		{
 			var childPath = AppendSegment(path, ch.Segment);
 			var childMethod = "DispatchCommandNamespace_" + CommandNamespacePathKey(childPath);
-			sb.AppendLine($"\t\t\tif (string.Equals(tok, \"{Escape(ch.Segment)}\", StringComparison.OrdinalIgnoreCase))");
-			sb.AppendLine("\t\t\t{");
-			sb.AppendLine("\t\t\t\tidx[0]++;");
-			sb.AppendLine($"\t\t\t\treturn await {childMethod}(args, idx, ct).ConfigureAwait(false);");
-			sb.AppendLine("\t\t\t}");
+			EmitOrdinalIgnoreCaseIf(sb, "\t\t\t", "tok", ch.Segment, s =>
+			{
+				s.AppendLine("\t\t\t\tidx[0]++;");
+				s.AppendLine($"\t\t\t\treturn await {childMethod}(args, idx, ct).ConfigureAwait(false);");
+			});
 		}
 
 		sb.AppendLine("\t\t\t{");
@@ -3913,8 +3907,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine($"\t\tprivate static bool {methodName}(string[] args, int[] idx, out RouteMatch match)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tmatch = default;");
-		if (!isRoot && node.CommandNamespaceOptionsType is not null &&
-		    BuildFlattenedOptionsMembers(node.CommandNamespaceOptionsType).Length > 0)
+		if (!isRoot && node.CommandNamespaceOptionsModel is { FlattenedMembers.Length: > 0 })
 			sb.AppendLine($"\t\t\tif (!{CommandNamespaceOptionsParseMethodName(path)}(args, idx)) return false;");
 		sb.AppendLine("\t\t\tif (idx[0] >= args.Length)");
 		sb.AppendLine("\t\t\t{");
@@ -5782,6 +5775,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			"string" => p.DefaultValueLiteral.Trim('"'),
 			_ => p.DefaultValueLiteral
 		};
+	}
+
+	/// <summary>
+	/// Emits: if (string.Equals({varName}, "{value}", StringComparison.OrdinalIgnoreCase)) { {body} }
+	/// </summary>
+	private static void EmitOrdinalIgnoreCaseIf(
+		StringBuilder sb,
+		string indent,
+		string varName,
+		string value,
+		Action<StringBuilder> body)
+	{
+		sb.AppendLine($"{indent}if (string.Equals({varName}, \"{Escape(value)}\", StringComparison.OrdinalIgnoreCase))");
+		sb.AppendLine($"{indent}{{");
+		body(sb);
+		sb.AppendLine($"{indent}}}");
 	}
 
 	private static string Escape(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
