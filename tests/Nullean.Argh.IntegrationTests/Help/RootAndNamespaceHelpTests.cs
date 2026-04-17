@@ -29,8 +29,8 @@ public class RootAndNamespaceHelpTests
 			Namespaces:
 			  di-probe  Instance command type for DI resolution tests
 			            (ArghServices.ServiceProvider).
-			  storage   Commands under storage; nested class becomes storage blob nested
-			            namespace.
+			  storage   Commands under storage. Nested BlobCommands must be registered
+			            explicitly via MapNamespace<BlobCommands>.
 
 			Commands:
 			  hello        Greet someone by name.

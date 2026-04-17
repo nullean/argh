@@ -12,7 +12,7 @@ internal sealed class TestStorageCommandNamespaceOptions : TestGlobalCliOptions
 	public string Prefix { get; set; } = "";
 }
 
-/// <summary>Commands under <c>storage</c>; nested class becomes <c>storage blob</c> nested namespace.</summary>
+/// <summary>Commands under <c>storage</c>. Nested <see cref="BlobCommands"/> must be registered explicitly via <c>MapNamespace&lt;BlobCommands&gt;</c>.</summary>
 internal sealed class StorageCliCommands
 {
 	public static void List(TestStorageCommandNamespaceOptions o) => Console.Out.WriteLine("storage-list");

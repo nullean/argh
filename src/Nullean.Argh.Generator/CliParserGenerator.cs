@@ -904,20 +904,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (mergeOuterTypeSegment)
 		{
 			AddMethodsFromTypeAcc(acc, location, type, routePrefix, attachTo, parseOpts);
-			foreach (var nested in GetPublicNestedClasses(type))
-			{
-				var seg = Naming.ToTypeSegmentName(nested.Name);
-				var childNode = new RegistryNode();
-				var nestedPrefix = AppendSegment(routePrefix, seg);
-				ExpandTypeRegistrationAcc(acc, location, nested, nestedPrefix, mergeOuterTypeSegment: true, childNode, parseOpts);
-				attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild
-				{
-					Segment = seg,
-					Node = childNode,
-					SummaryOneLiner = GetTypeListingSummaryOneLiner(nested),
-					Location = location
-				});
-			}
 		}
 		else
 		{
@@ -1986,20 +1972,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (mergeOuterTypeSegment)
 		{
 			AddMethodsFromType(context, invocation, type, routePrefix, attachTo, parseOpts);
-			foreach (var nested in GetPublicNestedClasses(type))
-			{
-				var seg = Naming.ToTypeSegmentName(nested.Name);
-				var childNode = new RegistryNode();
-				var nestedPrefix = AppendSegment(routePrefix, seg);
-				ExpandTypeRegistration(context, invocation, nested, nestedPrefix, mergeOuterTypeSegment: true, childNode, parseOpts);
-				attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild
-				{
-					Segment = seg,
-					Node = childNode,
-					SummaryOneLiner = GetTypeListingSummaryOneLiner(nested),
-					Location = invocation.GetLocation()
-				});
-			}
 		}
 		else
 		{
@@ -2024,16 +1996,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			b.Add(s);
 		b.Add(segment);
 		return b.MoveToImmutable();
-	}
-
-	private static IEnumerable<INamedTypeSymbol> GetPublicNestedClasses(INamedTypeSymbol type)
-	{
-		foreach (var member in type.GetMembers())
-		{
-			if (member is INamedTypeSymbol nested && nested.TypeKind == TypeKind.Class && nested.DeclaredAccessibility == Accessibility.Public
-			    && !nested.IsStatic)
-				yield return nested;
-		}
 	}
 
 	private static void AddMethodsFromType(

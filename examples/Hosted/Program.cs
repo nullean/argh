@@ -38,6 +38,7 @@ builder.Services.AddArgh(
 		app.MapNamespace<HostedStorageCommands>("storage", g =>
 		{
 			g.UseNamespaceOptions<HostedStorageCommandNamespaceOptions>();
+			g.MapNamespace<HostedStorageCommands.BlobCommands>("blob");
 		});
 		app.MapNamespace<HostedApiCommands>("api", g =>
 		{

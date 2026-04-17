@@ -28,6 +28,7 @@ app.Map("quick-echo", (string msg) => Console.WriteLine($"basic:quick:{msg}"));
 app.MapNamespace<StorageCommands>("storage", g =>
 {
 	g.UseNamespaceOptions<StorageCommandNamespaceOptions>();
+	g.MapNamespace<StorageCommands.BlobCommands>("blob");
 });
 app.MapNamespace<ApiCommands>("api", g =>
 {

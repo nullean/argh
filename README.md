@@ -158,7 +158,7 @@ Flat apps route `app <command> …`; hierarchical apps route `app <namespace> �
 
 Group related commands under a shared path, scoped options, and their own help page — the same mental model as ASP.NET's `MapGroup`.
 
-The idiomatic pattern is to put commands directly on the class (and nest classes for sub-groups). `AddNamespace<T>` auto-registers all public methods on `T` and any public nested types:
+The idiomatic pattern is to put commands as methods on the class. Nested sub-groups are registered explicitly — there is no auto-discovery of nested types.
 
 ```csharp
 /// <summary>Commands under <c>storage</c>.</summary>
@@ -166,33 +166,37 @@ internal sealed class StorageCommands
 {
     /// <summary>List objects in the bucket.</summary>
     public void List() => Console.WriteLine("storage:list");
-
-    /// <summary>Commands under <c>storage blob</c>.</summary>
-    public sealed class BlobCommands
-    {
-        /// <summary>Upload a file.</summary>
-        /// <param name="path">-p,--path, Local file path.</param>
-        public void Upload(string path) => Console.WriteLine($"storage:blob:upload:{path}");
-
-        /// <summary>Download a file.</summary>
-        /// <param name="key">-k,--key, Object key.</param>
-        public void Download(string key) => Console.WriteLine($"storage:blob:download:{key}");
-    }
 }
 
-app.AddNamespace<StorageCommands>("storage");
+/// <summary>Commands under <c>storage blob</c>.</summary>
+internal sealed class BlobCommands
+{
+    /// <summary>Upload a file.</summary>
+    /// <param name="path">-p,--path, Local file path.</param>
+    public void Upload(string path) => Console.WriteLine($"storage:blob:upload:{path}");
+
+    /// <summary>Download a file.</summary>
+    /// <param name="key">-k,--key, Object key.</param>
+    public void Download(string key) => Console.WriteLine($"storage:blob:download:{key}");
+}
+
+app.AddNamespace<StorageCommands>("storage", ns =>
+{
+    ns.AddNamespace<BlobCommands>("blob");
+});
 // Resulting paths:
 //   storage list
 //   storage blob upload --path ./file.txt
 //   storage blob download --key backups/db.sql
 ```
 
-The generator produces separate help printers for the namespace overview and each leaf command. Pass a callback to add scoped options or nested namespaces without auto-registration:
+The generator produces separate help printers for the namespace overview and each leaf command. Add `CommandNamespaceOptions<T>()` inside the callback to attach scoped options:
 
 ```csharp
 app.AddNamespace<StorageCommands>("storage", ns =>
 {
     ns.CommandNamespaceOptions<StorageOptions>();
+    ns.AddNamespace<BlobCommands>("blob");
 });
 ```
 

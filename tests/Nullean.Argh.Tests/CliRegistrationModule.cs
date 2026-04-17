@@ -31,6 +31,7 @@ internal static class CliRegistrationModule
 		{
 			g.UseNamespaceOptions<TestStorageCommandNamespaceOptions>();
 			g.MapRoot(StorageNamespaceRoot);
+			g.MapNamespace<StorageCliCommands.BlobCommands>("blob");
 		});
 	}
 
