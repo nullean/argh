@@ -4,7 +4,7 @@ Build full-featured .NET CLIs without writing a parser.
 
 Methods become commands, XML docs become help text, records become option sets. A Roslyn source generator emits parsing, routing, dispatch, and help into your assembly at build time — no reflection, no runtime overhead, trimming- and AOT-safe by default.
 
-*Inspired by [ConsoleAppFramework](https://github.com/Cysharp/ConsoleAppFramework) (Cysharp) — same source-generated direction, different API and packaging.*
+***Heavily** Inspired by [ConsoleAppFramework](https://github.com/Cysharp/ConsoleAppFramework) (Cysharp) — rewritten from scratch with a different feature set, but ConsoleAppFramework laid out the path for source-generated CLI's in .NET.*
 
 ![Sample CLI help output (XmlDocShowcase)](https://cdn.jsdelivr.net/gh/nullean/argh@main/docs/assets/xml-doc-showcase-help.gif)
 
@@ -56,14 +56,16 @@ Methods become commands, XML docs become help text, records become option sets. 
 
 ## Packages
 
-**Which package do I need?** `Nullean.Argh` for a standalone console app; `Nullean.Argh.Hosting` for `Microsoft.Extensions.*` / generic host integration. Everything else is pulled in transitively — you do not reference `Core` or `Interfaces` manually for normal apps.
+**Which package do I need?** 
 
-| Package | When to use | Role |
-|--------|-------------|------|
-| [`Nullean.Argh`](https://www.nuget.org/packages/Nullean.Argh) | Default for **console** apps | Zero-dep console package. References **Core** + **Interfaces**. No `Microsoft.Extensions.*` dependency. |
-| [`Nullean.Argh.Hosting`](https://www.nuget.org/packages/Nullean.Argh.Hosting) | `IHost`, DI lifetimes, ME.* | `AddArgh` / [`ArghHostingBuilder`](src/Nullean.Argh.Hosting/ArghHostingBuilder.cs). Depends on **Core** + **Interfaces** only. |
-| [`Nullean.Argh.Core`](https://www.nuget.org/packages/Nullean.Argh.Core) | — | Shared runtime pulled in by both user-facing packages. Contains `ArghApp`, runtime, help, and the embedded source generator. Not referenced directly in normal apps. |
-| [`Nullean.Argh.Interfaces`](https://www.nuget.org/packages/Nullean.Argh.Interfaces) | Shared middleware / parser libraries | Reference directly only when building a shared library (e.g. reusable middleware or parsers) that other Argh-based apps will consume. Contains attributes, `IArghBuilder`, and middleware/parser contracts. Zero external dependencies. |
+* [`Nullean.Argh`](https://www.nuget.org/packages/Nullean.Argh) dependency free version. 
+* [`Nullean.Argh.Hosting`](https://www.nuget.org/packages/Nullean.Argh.Hosting) isolated implementation of `.Core` that fully integrates with `Microsoft.Extensions.*` ecosystem.
+
+Everything else is pulled in transitively, you do not reference `.Core` or `.Interfaces` manually for normal apps. 
+The two packages are isolated implementations and both only depend on `.Core`.
+
+* [`Nullean.Argh.Core`](https://www.nuget.org/packages/Nullean.Argh.Core) Shared runtime pulled in by both user-facing packages. Contains `ArghApp`, runtime, help, and the embedded source generator. Not referenced directly in normal apps.
+* [`Nullean.Argh.Interfaces`](https://www.nuget.org/packages/Nullean.Argh.Interfaces) Reference directly only when building a shared library (e.g. reusable middleware or parsers) that other Argh-based apps will consume. Contains attributes, `IArghBuilder`, and middleware/parser contracts. Zero external dependencies.
 
 **`Nullean.Argh.Generator`** is not a separate NuGet package — it ships embedded inside `Nullean.Argh.Core` under `analyzers/dotnet/cs`.
 
