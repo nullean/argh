@@ -53,7 +53,7 @@ public sealed partial class CliParserGenerator
 			var chain = BuildOptionsInjectionChain(app, cmd);
 			var list = new List<string>();
 			list.AddRange(CollectCompletionFlagStrings(globalMembers));
-			foreach (var (_, _, _, _, _, flat) in chain)
+			foreach (var (_, _, _, _, _, flat, _) in chain)
 				list.AddRange(CollectCompletionFlagStrings(flat));
 			list.AddRange(CollectCompletionFlagStrings(cmd.Parameters));
 			var distinct = list.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s => s, StringComparer.Ordinal).ToList();

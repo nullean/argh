@@ -192,12 +192,31 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		var invocations = context.SyntaxProvider
+		// ── Assembly metadata ── stable, only changes on version bump
+		var assemblyInfo = context.CompilationProvider
+			.Select(static (c, _) => (
+				Name: c.Assembly.Identity.Name ?? "app",
+				Ver: c.Assembly.Identity.Version?.ToString() ?? "0.0.0.0"));
+
+		// ── Parse options ── changes only when LangVersion/nullable/defines change
+		var parseOpts = context.ParseOptionsProvider
+			.Select(static (o, _) => o as CSharpParseOptions ?? CSharpParseOptions.Default);
+
+		// ── Capabilities from metadata references ──
+		var capabilities = context.MetadataReferencesProvider
+			.Collect()
+			.Select(static (refs, _) => ReferenceMetadataCapabilities.Compute(refs));
+
+		// ── Per-invocation semantic analysis — cached per-invocation by Roslyn ──
+		// Each invocation is analyzed independently and produces a symbol-free AnalyzedInvocation.
+		// Roslyn caches the result per invocation; only changed invocations are re-analyzed.
+		var analyzed = context.SyntaxProvider
 			.CreateSyntaxProvider(
 				static (node, _) => node is InvocationExpressionSyntax
 				{
 					Expression: MemberAccessExpressionSyntax { Name: SimpleNameSyntax name }
-				} && name.Identifier.Text is "Add" or "AddNamespace" or "AddRootCommand" or "AddNamespaceRootCommand" or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware",
+				} && name.Identifier.Text is "Add" or "AddNamespace" or "AddRootCommand" or "AddNamespaceRootCommand"
+					or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware",
 				static (ctx, ct) =>
 				{
 					var invocation = (InvocationExpressionSyntax)ctx.Node;
@@ -206,108 +225,58 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					var receiverType = ctx.SemanticModel.GetTypeInfo(member.Expression, ct).Type;
 					if (receiverType is null)
 						return null;
-					// Quick namespace check — Nullean.Argh types only
-					if (IsArghNamespace(receiverType))
-						return invocation;
-					if (receiverType is INamedTypeSymbol named)
+					// Quick namespace filter — only Nullean.Argh types
+					if (!IsArghNamespace(receiverType))
 					{
-						foreach (var iface in named.AllInterfaces)
+						if (receiverType is not INamedTypeSymbol named2)
+							return null;
+						var isArgh = false;
+						foreach (var iface in named2.AllInterfaces)
 						{
-							if (IsArghNamespace(iface))
-								return invocation;
+							if (IsArghNamespace(iface)) { isArgh = true; break; }
 						}
+						if (!isArgh) return null;
 					}
-					return null;
+					return AnalyzeInvocation(invocation, ctx.SemanticModel, ct);
 
 					static bool IsArghNamespace(ITypeSymbol t) =>
 						t.ContainingNamespace?.ToDisplayString().StartsWith("Nullean.Argh", StringComparison.Ordinal) == true;
 				})
 			.Where(x => x is not null)
-			.Select(static (x, _) => x!);
+			.Select(static (x, _) => x!)
+			.Collect();
 
-		IncrementalValueProvider<(ImmutableArray<MetadataReference> MetadataReferences, Compilation Compilation)> refsAndCompilation =
-			context.MetadataReferencesProvider.Collect().Combine(context.CompilationProvider);
-
-		IncrementalValueProvider<((ImmutableArray<MetadataReference> MetadataReferences, Compilation Compilation), ImmutableArray<InvocationExpressionSyntax> Invocations)> combined =
-			refsAndCompilation.Combine(invocations.Collect());
+		var combined = analyzed
+			.Combine(assemblyInfo)
+			.Combine(capabilities)
+			.Combine(parseOpts);
 
 		context.RegisterSourceOutput(combined, static (spc, tuple) =>
 		{
-			var ((metadataReferences, compilation), invocationsArray) = tuple;
-			var referenceCapabilities =
-				ReferenceMetadataCapabilities.Compute(metadataReferences);
-			Execute(spc, compilation, invocationsArray, referenceCapabilities);
+			var (((analyzedArray, (asmName, asmVer)), caps), po) = tuple;
+			Execute(spc, analyzedArray, asmName, asmVer, caps, po);
 		});
 	}
 
-	private static void GetCompilationAssemblyMetadata(Compilation compilation, out string assemblyName, out string assemblyVersion)
-	{
-		assemblyName = compilation.Assembly.Identity.Name ?? "app";
-		assemblyVersion = compilation.Assembly.Identity.Version?.ToString() ?? "0.0.0.0";
-	}
 
+	/// <summary>New Execute — fully incremental: no Compilation reference, works with symbol-free AnalyzedInvocation[].</summary>
 	private static void Execute(
 		SourceProductionContext context,
-		Compilation compilation,
-		ImmutableArray<InvocationExpressionSyntax> invocations,
-		ReferenceMetadataCapabilities.Capabilities referenceCapabilities)
+		ImmutableArray<AnalyzedInvocation> analyzed,
+		string entryAsmName,
+		string entryAsmVersion,
+		ReferenceMetadataCapabilities.Capabilities referenceCapabilities,
+		CSharpParseOptions parseOpts)
 	{
-		GetCompilationAssemblyMetadata(compilation, out var entryAsmName, out var entryAsmVersion);
-
-		if (invocations.IsDefaultOrEmpty)
+		if (analyzed.IsDefaultOrEmpty)
 		{
 			EmitEmpty(context, entryAsmName, entryAsmVersion);
 			return;
 		}
 
-		var arghApp = compilation.GetTypeByMetadataName(ArghAppMetadataName);
-		if (arghApp is null)
-		{
-			EmitEmpty(context, entryAsmName, entryAsmVersion);
-			return;
-		}
-
-		var iArghBuilder = compilation.GetTypeByMetadataName(IArghBuilderMetadataName);
-		var arghBuilderType = compilation.GetTypeByMetadataName(ArghBuilderMetadataName);
-		var iArghNamespaceBuilder = compilation.GetTypeByMetadataName(IArghNamespaceBuilderMetadataName);
-		var arghNamespaceBuilderType = compilation.GetTypeByMetadataName(ArghNamespaceBuilderMetadataName);
-
-		var filtered = new List<InvocationExpressionSyntax>();
-		foreach (var invocation in invocations)
-		{
-			var model = compilation.GetSemanticModel(invocation.SyntaxTree);
-			if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
-				continue;
-
-			var receiver = GetReceiverType(model, invocation);
-			if (receiver is null || !IsArghRegistrationReceiver(receiver, arghApp, iArghBuilder, arghBuilderType, iArghNamespaceBuilder, arghNamespaceBuilderType))
-				continue;
-
-			if (method.Name is not ("Add" or "AddNamespace" or "AddRootCommand" or "AddNamespaceRootCommand" or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware"))
-				continue;
-
-			filtered.Add(invocation);
-		}
-
-		if (filtered.Count == 0)
-		{
-			EmitEmpty(context, entryAsmName, entryAsmVersion);
-			return;
-		}
-
-		filtered.Sort(static (a, b) =>
-		{
-			var la = a.SyntaxTree.GetLineSpan(a.Span);
-			var lb = b.SyntaxTree.GetLineSpan(b.Span);
-			var c = string.CompareOrdinal(la.Path, lb.Path);
-			if (c != 0)
-				return c;
-			return a.Span.Start.CompareTo(b.Span.Start);
-		});
-
-		var built = TryBuildAppEmitModel(context, compilation, filtered, out var appModel);
+		var built = TryBuildAppEmitModel(context, analyzed, out var appModel);
 		if (appModel is not null)
-			EmitNamespaceSegmentCodegen(context, compilation, appModel);
+			EmitNamespaceSegmentCodegen(context, appModel);
 
 		if (!built || appModel is null)
 		{
@@ -315,18 +284,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return;
 		}
 
-		var parseOpts = CSharpParseOptions.Default;
-		foreach (var st in compilation.SyntaxTrees)
-		{
-			if (st.Options is CSharpParseOptions po)
-			{
-				parseOpts = po;
-				break;
-			}
-		}
-
 		EmitApp(context, appModel, parseOpts, entryAsmName, entryAsmVersion, referenceCapabilities);
 	}
+
+	/// <summary>Legacy Execute — kept for reference / fallback; not wired into the pipeline.</summary>
 
 	private static ITypeSymbol? GetReceiverType(SemanticModel model, InvocationExpressionSyntax invocation)
 	{
@@ -388,7 +349,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		public CommandModel? RootCommand;
 		public readonly List<CommandModel> Commands = new();
 		public readonly List<NamedCommandNamespaceChild> Children = new();
-		public INamedTypeSymbol? CommandNamespaceOptionsType;
+		public INamedTypeSymbol? CommandNamespaceOptionsType;  // kept for validation only (used in ValidateCommandNamespaceOptionsChain before switching to model-based approach)
 		public Location? CommandNamespaceOptionsLocation;
 		public OptionsTypeModel? CommandNamespaceOptionsModel;
 		/// <summary>Inner XML of <c>&lt;summary&gt;</c> from the namespace entry type (populated when a generic <c>AddNamespace&lt;T&gt;</c> is used).</summary>
@@ -408,7 +369,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private sealed class AppEmitModel
 	{
-		public INamedTypeSymbol? GlobalOptionsType;
+		public INamedTypeSymbol? GlobalOptionsType;  // kept for validation (TypeInheritsFromOrImplements); removed from emit
 		public OptionsTypeModel? GlobalOptionsModel;
 		public readonly RegistryNode Root = new();
 		public ImmutableArray<CommandModel> AllCommands = ImmutableArray<CommandModel>.Empty;
@@ -416,15 +377,20 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		public readonly List<ArglessNamespaceCodegenEntry> ArglessNamespaceCodegen = new();
 	}
 
-	private sealed record ArglessNamespaceCodegenEntry(INamedTypeSymbol Type, string Segment);
+	private sealed record ArglessNamespaceCodegenEntry(string TypeFq, string Segment);
 
-	private sealed record GlobalMiddlewareRegistration(INamedTypeSymbol MiddlewareType);
+	private sealed record GlobalMiddlewareRegistration(string TypeFq, bool HasParameterlessCtor);
 
 	private sealed record OptionsTypeModel(
-		INamedTypeSymbol Type,
+		string TypeFq,
 		string TypeMetadataName,
 		ImmutableArray<string> AllBaseTypeMetadataNames,
-		ImmutableArray<ParameterModel> Members);
+		ImmutableArray<ParameterModel> Members,
+		ImmutableArray<ParameterModel> FlattenedMembers,
+		/// <summary>Parameter names of the best public non-empty constructor whose parameters all match member names; null if none or property-init should be used.</summary>
+		ImmutableArray<string>? BestCtorParamOrder,
+		bool IsPublic,
+		bool IsGeneric);
 
 	/// <summary>Per-parameter data extracted at analysis time, stored in <see cref="CommandModel"/>.</summary>
 	private sealed record HandlerParam(
@@ -433,8 +399,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		bool IsInjectedParam,
 		bool IsAsParameters,
 		string? AsParametersPrefix,
-		/// <summary>Non-null only for [AsParameters]-annotated params — needed for DTO target building in emit.</summary>
-		INamedTypeSymbol? AsParamTypeSymbol = null);
+		/// <summary>Non-null only for [AsParameters]-annotated params — the FQ type name for DTO building in emit.</summary>
+		string? AsParamTypeFq = null,
+		bool AsParamIsPublic = true,
+		bool AsParamIsGeneric = false,
+		/// <summary>Pre-computed best ctor param order for [AsParameters] DTO construction (symbol-free).</summary>
+		ImmutableArray<string>? AsParamBestCtorParamOrder = null);
 
 	private readonly record struct AsParametersMeta(
 		string OwnerParamName,
@@ -443,32 +413,469 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		bool UseInit,
 		string ClrName);
 
+	// ─── AnalyzedInvocation discriminated union ────────────────────────────────
+	// Symbol-free records representing each pre-analysed ArghApp builder invocation.
+	// Produced by AnalyzeInvocation() in the Select step (which has SemanticModel),
+	// and consumed by TryBuildAppEmitModel() in the RegisterSourceOutput Execute step.
+	// All fields are strings, value types, or pre-computed ImmutableArrays — NO ISymbol.
+
+	private abstract record AnalyzedInvocation(string FilePath, int SpanStart);
+
+	/// <summary>A <c>GlobalOptions&lt;T&gt;()</c> invocation — only valid at root scope.</summary>
+	private sealed record AIGlobalOptions(string FilePath, int SpanStart, OptionsTypeModel Model, INamedTypeSymbol TypeSymbolForValidation)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
+	/// <summary>A <c>CommandNamespaceOptions&lt;T&gt;()</c> invocation — only valid inside a namespace.</summary>
+	private sealed record AICommandNamespaceOptions(string FilePath, int SpanStart, OptionsTypeModel Model, INamedTypeSymbol TypeSymbolForValidation, Location DiagnosticLocation)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
+	/// <summary>A <c>UseMiddleware&lt;T&gt;()</c> invocation — only valid at root scope.</summary>
+	private sealed record AIUseMiddleware(string FilePath, int SpanStart, GlobalMiddlewareRegistration Registration)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
+	/// <summary>
+	/// An <c>Add&lt;T&gt;()</c> or <c>Add(name, handler)</c> invocation.
+	/// For <c>Add&lt;T&gt;</c>, <see cref="TypeSnapshot"/> holds the full registry structure;
+	/// for <c>Add(name, handler)</c>, <see cref="Commands"/> holds the single command.
+	/// </summary>
+	private sealed record AIAddCommand(string FilePath, int SpanStart, ImmutableArray<CommandModel> Commands, RegistryNodeSnapshot? TypeSnapshot = null)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
+	/// <summary>An <c>AddRootCommand(handler)</c> or <c>AddNamespaceRootCommand(handler)</c> invocation.</summary>
+	private sealed record AIAddRootCommand(string FilePath, int SpanStart, CommandModel Cmd, bool IsNamespaceRoot)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
+	/// <summary>
+	/// An <c>AddNamespace(…)</c> invocation.
+	/// LambdaBodyStart/End are character offsets into FilePath used to identify child invocations positionally.
+	/// </summary>
+	private sealed record AIAddNamespace(
+		string FilePath,
+		int SpanStart,
+		string SegmentName,
+		int LambdaBodyStart,
+		int LambdaBodyEnd,
+		/// <summary>FQ name of the generic type argument (for AddNamespace&lt;T&gt;), or null for AddNamespace(string, string, Action).</summary>
+		string? EntryTypeFq,
+		/// <summary>True when AddNamespace&lt;T&gt;(Action) with no explicit segment — requires codegen module initializer.</summary>
+		bool IsArglessSegment,
+		/// <summary>Pre-computed namespace summary one-liner for help listing.</summary>
+		string NsSummary,
+		/// <summary>Pre-computed namespace XML documentation.</summary>
+		string NsSummaryInnerXml,
+		string NsRemarksInnerXml,
+		/// <summary>Whether a redundancy check should be applied (AddNamespace&lt;T&gt; registers its own commands).</summary>
+		bool HasEntryType,
+		Location DiagnosticLocation,
+		/// <summary>Embedded diagnostics to report from TryBuildAppEmitModel (e.g. AGH0016 redundant Add&lt;T&gt;).</summary>
+		ImmutableArray<Diagnostic> EmbeddedDiagnostics,
+		/// <summary>
+		/// Pre-registered commands and sub-namespaces from the entry type T (for AddNamespace&lt;T&gt;).
+		/// Contains root commands, regular commands, and nested children from ExpandTypeRegistration.
+		/// Null when there is no entry type.
+		/// </summary>
+		RegistryNodeSnapshot? EntryTypeSnapshot)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
+	/// <summary>Symbol-free snapshot of a RegistryNode subtree produced during analysis.</summary>
+	private sealed record RegistryNodeSnapshot(
+		CommandModel? RootCommand,
+		ImmutableArray<CommandModel> Commands,
+		ImmutableArray<ChildNamespaceSnapshot> Children,
+		string SummaryInnerXml,
+		string RemarksInnerXml);
+
+	/// <summary>Symbol-free snapshot of a child namespace (nested type) produced during analysis.</summary>
+	private sealed record ChildNamespaceSnapshot(
+		string Segment,
+		RegistryNodeSnapshot Node,
+		string SummaryOneLiner);
+
+	// ─────────────────────────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// Lightweight diagnostic collection wrapper used in <see cref="AnalyzeInvocation"/> where no
+	/// <see cref="SourceProductionContext"/> is available. Collected diagnostics are embedded in the
+	/// returned <see cref="AnalyzedInvocation"/> record and reported later by TryBuildAppEmitModel.
+	/// </summary>
+	private sealed class DiagnosticAccumulator
+	{
+		private List<Diagnostic>? _diagnostics;
+
+		public void Add(Diagnostic d) => (_diagnostics ??= new List<Diagnostic>()).Add(d);
+
+		public ImmutableArray<Diagnostic> ToImmutable() =>
+			_diagnostics is null ? ImmutableArray<Diagnostic>.Empty : _diagnostics.ToImmutableArray();
+
+		/// <summary>Adapts <see cref="DiagnosticAccumulator"/> to serve as a fake SourceProductionContext reporter via a callback.</summary>
+		public static void ReportDiagnostic(DiagnosticAccumulator acc, Diagnostic d) => acc.Add(d);
+	}
+
+	/// <summary>
+	/// Per-invocation semantic analysis, intended for the CreateSyntaxProvider Select step.
+	/// Runs with a <see cref="SemanticModel"/> but produces a fully symbol-free <see cref="AnalyzedInvocation"/>
+	/// so the pipeline boundary data is stable across unrelated edits.
+	/// Diagnostics that cannot be reported here (no SourceProductionContext in Select step) are embedded
+	/// in the returned record via EmbeddedDiagnostics and reported later by TryBuildAppEmitModel.
+	/// </summary>
+	private static AnalyzedInvocation? AnalyzeInvocation(
+		InvocationExpressionSyntax invocation,
+		SemanticModel semanticModel,
+		CancellationToken ct)
+	{
+		if (semanticModel.GetSymbolInfo(invocation, ct).Symbol is not IMethodSymbol method)
+			return null;
+
+		var filePath = invocation.SyntaxTree.FilePath;
+		var spanStart = invocation.SpanStart;
+		var parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
+
+		switch (method.Name)
+		{
+			case "GlobalOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
+			{
+				if (method.TypeArguments[0] is not INamedTypeSymbol go || go.TypeKind == TypeKind.Error)
+					return null;
+				var model = BuildOptionsTypeModel(go);
+				if (model is null) return null;
+				return new AIGlobalOptions(filePath, spanStart, model, go);
+			}
+			case "CommandNamespaceOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
+			{
+				if (method.TypeArguments[0] is not INamedTypeSymbol gt || gt.TypeKind == TypeKind.Error)
+					return null;
+				var model = BuildOptionsTypeModel(gt);
+				if (model is null) return null;
+				return new AICommandNamespaceOptions(filePath, spanStart, model, gt, invocation.GetLocation());
+			}
+			case "UseMiddleware" when method.IsGenericMethod && method.TypeArguments.Length == 1:
+			{
+				if (method.TypeArguments[0] is not INamedTypeSymbol mwType || mwType.TypeKind == TypeKind.Error)
+					return null;
+				var reg = new GlobalMiddlewareRegistration(
+					mwType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+					HasPublicParameterlessCtor(mwType));
+				return new AIUseMiddleware(filePath, spanStart, reg);
+			}
+			case "UseMiddleware":
+				// Inline delegate — diagnostic will be reported by TryBuildAppEmitModel (option 2 from plan).
+				return new AIUseMiddleware(filePath, spanStart, new GlobalMiddlewareRegistration("", false));
+			case "Add" when method.IsGenericMethod && method.TypeArguments.Length > 0:
+			{
+				if (method.TypeArguments[0] is not INamedTypeSymbol named || named.TypeKind == TypeKind.Error)
+					return null;
+				// Use mergeOuterTypeSegment: false — at root this creates a child namespace wrapper.
+				// At namespace level (mergeOuterTypeSegment: true in old code), this also works:
+				// TryBuildAppEmitModel determines the merge behavior from context.
+				var acc = new DiagnosticAccumulator();
+				var wrapper = new RegistryNode();
+				ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, mergeOuterTypeSegment: false, wrapper, parseOpts);
+				var snap = BuildRegistryNodeSnapshot(wrapper);
+				return new AIAddCommand(filePath, spanStart, ImmutableArray<CommandModel>.Empty, TypeSnapshot: snap);
+			}
+			case "Add" when invocation.ArgumentList.Arguments.Count >= 2:
+			{
+				var nameExpr = invocation.ArgumentList.Arguments[0].Expression;
+				var commandName = TryGetStringLiteral(nameExpr);
+				if (commandName is null || string.IsNullOrWhiteSpace(commandName))
+					return null;
+				var handlerExpr = invocation.ArgumentList.Arguments[1].Expression;
+				if (handlerExpr is LambdaExpressionSyntax)
+				{
+					var node = new RegistryNode();
+					TryExpandLambdaDelegateAcc(semanticModel, invocation, handlerExpr, commandName, ImmutableArray<string>.Empty, node);
+					if (node.Commands.Count == 0) return null;
+					return new AIAddCommand(filePath, spanStart, node.Commands.ToImmutableArray());
+				}
+				var handler = ResolveHandlerMethodForAnalyze(semanticModel, handlerExpr);
+				if (handler is null) return null;
+				var acc2 = new DiagnosticAccumulator();
+				var cmd = CommandModel.FromMethod(commandName, handler, parseOpts, ImmutableArray<string>.Empty, acc2, invocation.GetLocation());
+				return new AIAddCommand(filePath, spanStart, ImmutableArray.Create(cmd));
+			}
+			case "AddRootCommand":
+			{
+				if (invocation.ArgumentList.Arguments.Count < 1) return null;
+				return AnalyzeAddRootCommandInvocation(invocation, semanticModel, filePath, spanStart, parseOpts, isNamespaceRoot: false);
+			}
+			case "AddNamespaceRootCommand":
+			{
+				if (invocation.ArgumentList.Arguments.Count < 1) return null;
+				return AnalyzeAddRootCommandInvocation(invocation, semanticModel, filePath, spanStart, parseOpts, isNamespaceRoot: true);
+			}
+			case "AddNamespace":
+				return AnalyzeAddNamespaceInvocation(invocation, semanticModel, filePath, spanStart, parseOpts, ct);
+			default:
+				return null;
+		}
+	}
+
+	private static AIAddRootCommand? AnalyzeAddRootCommandInvocation(
+		InvocationExpressionSyntax invocation,
+		SemanticModel semanticModel,
+		string filePath,
+		int spanStart,
+		CSharpParseOptions parseOpts,
+		bool isNamespaceRoot)
+	{
+		if (invocation.ArgumentList.Arguments.Count < 1) return null;
+		var handlerExpr = invocation.ArgumentList.Arguments[0].Expression;
+		if (handlerExpr is LambdaExpressionSyntax)
+		{
+			var node = new RegistryNode();
+			TryExpandLambdaRootCommandAcc(semanticModel, invocation, handlerExpr, ImmutableArray<string>.Empty, node);
+			if (node.RootCommand is null) return null;
+			return new AIAddRootCommand(filePath, spanStart, node.RootCommand, isNamespaceRoot);
+		}
+		var handler = ResolveHandlerMethodForAnalyze(semanticModel, handlerExpr);
+		if (handler is null) return null;
+		var acc = new DiagnosticAccumulator();
+		var cmd = CommandModel.FromRootMethod(handler, parseOpts, ImmutableArray<string>.Empty, acc, invocation.GetLocation());
+		return new AIAddRootCommand(filePath, spanStart, cmd, isNamespaceRoot);
+	}
+
+	/// <summary>Resolves a method from a handler expression without reporting diagnostics — returns null on failure.</summary>
+	private static IMethodSymbol? ResolveHandlerMethodForAnalyze(SemanticModel model, ExpressionSyntax handlerExpr)
+	{
+		var symbol = model.GetSymbolInfo(handlerExpr).Symbol;
+		if (symbol is IMethodSymbol m) return m;
+
+		var op = model.GetOperation(handlerExpr);
+		while (op is IConversionOperation conv)
+			op = conv.Operand;
+
+		if (op is IMethodReferenceOperation directRef) return directRef.Method;
+		if (op is IDelegateCreationOperation del && del.Target is IMethodReferenceOperation reference) return reference.Method;
+
+		return null; // handler not a method — diagnostic will be reported by old path / TryBuildAppEmitModel
+	}
+
+	private static AIAddNamespace? AnalyzeAddNamespaceInvocation(
+		InvocationExpressionSyntax invocation,
+		SemanticModel semanticModel,
+		string filePath,
+		int spanStart,
+		CSharpParseOptions parseOpts,
+		CancellationToken ct)
+	{
+		if (invocation.ArgumentList.Arguments.Count < 1)
+			return null;
+
+		if (semanticModel.GetSymbolInfo(invocation, ct).Symbol is not IMethodSymbol addNsMethod || addNsMethod.Name != "AddNamespace")
+			return null;
+
+		var genericEntry = addNsMethod.IsGenericMethod && addNsMethod.TypeArguments.Length == 1;
+		var namespaceEntryType = genericEntry && addNsMethod.TypeArguments[0] is INamedTypeSymbol nt && nt.TypeKind != TypeKind.Error
+			? nt
+			: null;
+
+		var argCount = invocation.ArgumentList.Arguments.Count;
+		string? segmentName = null;
+		var nsSummary = "";
+		var nsSummaryXml = "";
+		var nsRemarksXml = "";
+		var isArgless = false;
+
+		if (genericEntry && argCount == 1 && namespaceEntryType is not null)
+		{
+			var firstExpr = invocation.ArgumentList.Arguments[0].Expression;
+			var strOnly = TryGetStringLiteral(firstExpr) ?? TryGetStringConstant(semanticModel, firstExpr);
+			if (strOnly is not null && !string.IsNullOrWhiteSpace(strOnly))
+			{
+				// AddNamespace<T>("segment") — no configure callback
+				segmentName = strOnly;
+				nsSummary = GetTypeListingSummaryOneLiner(namespaceEntryType);
+			}
+			else
+			{
+				// AddNamespace<T>(Action<IArghNamespaceBuilder>) — segment from attribute/XML
+				if (!TryGetNamespaceSegmentAttribute(namespaceEntryType, out var attrSeg) &&
+				    !TryGetFirstCodeInTypeSummary(namespaceEntryType, out attrSeg))
+					return null; // can't determine segment — will be caught as AGH0017 in old path
+				segmentName = attrSeg;
+				nsSummary = GetTypeListingSummaryOneLiner(namespaceEntryType);
+				isArgless = true;
+			}
+		}
+		else if (genericEntry && argCount >= 2 && namespaceEntryType is not null)
+		{
+			segmentName = TryGetStringLiteral(invocation.ArgumentList.Arguments[0].Expression);
+			if (string.IsNullOrWhiteSpace(segmentName))
+				return null;
+			nsSummary = GetTypeListingSummaryOneLiner(namespaceEntryType);
+		}
+		else if (!genericEntry && argCount >= 3)
+		{
+			segmentName = TryGetStringLiteral(invocation.ArgumentList.Arguments[0].Expression);
+			if (string.IsNullOrWhiteSpace(segmentName))
+				return null;
+			var desc = TryGetStringConstant(semanticModel, invocation.ArgumentList.Arguments[1].Expression);
+			nsSummary = desc ?? "";
+		}
+		else
+		{
+			return null; // AGH0014 emitted in old path
+		}
+
+		// Get XML docs if entry type is available.
+		if (namespaceEntryType is not null)
+		{
+			var (sx, rx) = Documentation.GetTypeDocumentation(namespaceEntryType.GetDocumentationCommentXml());
+			nsSummaryXml = sx;
+			nsRemarksXml = rx;
+		}
+
+		// Determine the lambda body span for positional child lookup.
+		var lambdaBodyStart = -1;
+		var lambdaBodyEnd = -1;
+		// The last argument is the configure lambda (if it exists)
+		var lastArg = invocation.ArgumentList.Arguments.LastOrDefault();
+		if (lastArg?.Expression is LambdaExpressionSyntax lambdaSyntax)
+		{
+			lambdaBodyStart = lambdaSyntax.Body.SpanStart;
+			lambdaBodyEnd = lambdaSyntax.Body.Span.End;
+		}
+
+		// Pre-compute entry type snapshot (commands from the type, nested classes as child namespaces).
+		RegistryNodeSnapshot? entryTypeSnapshot = null;
+		if (namespaceEntryType is not null)
+		{
+			var acc = new DiagnosticAccumulator();
+			var entryNode = new RegistryNode();
+			// Use mergeOuterTypeSegment=true — expand the type's own methods + nested classes
+			ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), namespaceEntryType, ImmutableArray<string>.Empty, mergeOuterTypeSegment: true, entryNode, parseOpts);
+			entryTypeSnapshot = BuildRegistryNodeSnapshot(entryNode);
+		}
+
+		return new AIAddNamespace(
+			filePath,
+			spanStart,
+			segmentName!,
+			lambdaBodyStart,
+			lambdaBodyEnd,
+			namespaceEntryType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+			isArgless,
+			nsSummary,
+			nsSummaryXml,
+			nsRemarksXml,
+			HasEntryType: namespaceEntryType is not null,
+			invocation.GetLocation(),
+			ImmutableArray<Diagnostic>.Empty,
+			entryTypeSnapshot);
+	}
+
+	/// <summary>Recursively expands type registration using DiagnosticAccumulator (for Select-step analysis).</summary>
+	private static void ExpandTypeRegistrationAcc(
+		DiagnosticAccumulator acc,
+		Location location,
+		INamedTypeSymbol type,
+		ImmutableArray<string> routePrefix,
+		bool mergeOuterTypeSegment,
+		RegistryNode attachTo,
+		CSharpParseOptions parseOpts)
+	{
+		if (mergeOuterTypeSegment)
+		{
+			AddMethodsFromTypeAcc(acc, location, type, routePrefix, attachTo, parseOpts);
+			foreach (var nested in GetPublicNestedClasses(type))
+			{
+				var seg = Naming.ToTypeSegmentName(nested.Name);
+				var childNode = new RegistryNode();
+				var nestedPrefix = AppendSegment(routePrefix, seg);
+				ExpandTypeRegistrationAcc(acc, location, nested, nestedPrefix, mergeOuterTypeSegment: true, childNode, parseOpts);
+				attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild
+				{
+					Segment = seg,
+					Node = childNode,
+					SummaryOneLiner = GetTypeListingSummaryOneLiner(nested),
+					Location = location
+				});
+			}
+		}
+		else
+		{
+			var seg = Naming.ToTypeSegmentName(type.Name);
+			var wrapper = new RegistryNode();
+			var outerPrefix = AppendSegment(routePrefix, seg);
+			ExpandTypeRegistrationAcc(acc, location, type, outerPrefix, mergeOuterTypeSegment: true, wrapper, parseOpts);
+			attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild
+			{
+				Segment = seg,
+				Node = wrapper,
+				SummaryOneLiner = GetTypeListingSummaryOneLiner(type),
+				Location = location
+			});
+		}
+	}
+
+	/// <summary>Converts a RegistryNode to a symbol-free RegistryNodeSnapshot.</summary>
+	private static RegistryNodeSnapshot BuildRegistryNodeSnapshot(RegistryNode node)
+	{
+		var children = ImmutableArray.CreateBuilder<ChildNamespaceSnapshot>(node.Children.Count);
+		foreach (var ch in node.Children)
+			children.Add(new ChildNamespaceSnapshot(ch.Segment, BuildRegistryNodeSnapshot(ch.Node), ch.SummaryOneLiner));
+		return new RegistryNodeSnapshot(
+			node.RootCommand,
+			node.Commands.ToImmutableArray(),
+			children.ToImmutable(),
+			node.SummaryInnerXml,
+			node.RemarksInnerXml);
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────────
+
+
+	/// <summary>
+	/// Overload that builds the emit model from pre-analyzed (symbol-free) invocations — used by the truly incremental pipeline.
+	/// </summary>
 	private static bool TryBuildAppEmitModel(
 		SourceProductionContext context,
-		Compilation compilation,
-		List<InvocationExpressionSyntax> allInvocations,
+		ImmutableArray<AnalyzedInvocation> allAnalyzed,
 		out AppEmitModel? model)
 	{
 		model = null;
-		var rootInvocations = new List<InvocationExpressionSyntax>();
-		foreach (var inv in allInvocations)
+
+		// Report any embedded diagnostics collected during AnalyzeInvocation.
+		foreach (var ai in allAnalyzed)
 		{
-			if (FindParentAddNamespaceInvocation(inv) is null)
-				rootInvocations.Add(inv);
+			if (ai is AIAddNamespace ns)
+				foreach (var d in ns.EmbeddedDiagnostics)
+					context.ReportDiagnostic(d);
+		}
+
+		var sorted = allAnalyzed
+			.OrderBy(a => a.FilePath, StringComparer.Ordinal)
+			.ThenBy(a => a.SpanStart)
+			.ToList();
+
+		// Identify root-level invocations: those NOT contained inside any AIAddNamespace lambda body.
+		var rootAnalyzed = new List<AnalyzedInvocation>();
+		foreach (var ai in sorted)
+		{
+			if (!IsInsideAnyAddNamespaceLambda(ai, sorted))
+				rootAnalyzed.Add(ai);
 		}
 
 		var app = new AppEmitModel();
-		CollectGlobalMiddleware(context, compilation, rootInvocations, out var globalMiddleware);
-		app.GlobalMiddleware = globalMiddleware;
 
-		ProcessInvocationsForNode(context, compilation, allInvocations, rootInvocations, app.Root, ImmutableArray<string>.Empty, app,
-			isRoot: true);
+		// Collect global middleware from root UseMiddleware invocations.
+		var mwBuilder = ImmutableArray.CreateBuilder<GlobalMiddlewareRegistration>();
+		foreach (var ai in rootAnalyzed)
+		{
+			if (ai is AIUseMiddleware { Registration: { TypeFq: { Length: > 0 } } reg })
+				mwBuilder.Add(reg);
+			else if (ai is AIUseMiddleware { Registration: { TypeFq: "" } })
+				context.ReportDiagnostic(Diagnostic.Create(UseMiddlewareDelegateNotSupported, ai.GetType() == typeof(AIUseMiddleware) ? Location.None : Location.None));
+		}
+		app.GlobalMiddleware = mwBuilder.ToImmutable();
+
+		ProcessAnalyzedInvocationsForNode(context, sorted, rootAnalyzed, app.Root, ImmutableArray<string>.Empty, app, isRoot: true);
 
 		ValidateCommandNamespaceOptionsChain(context, app.Root, parentEffectiveOptions: app.GlobalOptionsType);
 		if (!ValidateNamespaceSegmentSanitizationCollisions(context, app.Root))
 			return false;
 
-		AttachCommandNamespaceOptionsModels(app.Root, context);
+		// OptionsModels are already set from AIGlobalOptions / AICommandNamespaceOptions via ProcessAnalyzedInvocationsForNode.
 
 		var flat = new List<CommandModel>();
 		CollectCommands(app.Root, flat);
@@ -484,8 +891,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 
 		app.AllCommands = dedup.Values.ToImmutableArray();
-		if (app.GlobalOptionsType is not null)
-			app.GlobalOptionsModel = BuildOptionsTypeModel(context, app.GlobalOptionsType);
+		// GlobalOptionsModel is set during ProcessAnalyzedInvocationsForNode.
 
 		ValidateCommandOptionsInjection(context, app);
 		FixOptionsParamsInCommands(app);
@@ -493,10 +899,255 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return true;
 	}
 
+	/// <summary>Determines if a given AnalyzedInvocation is positionally inside any AIAddNamespace lambda body.</summary>
+	private static bool IsInsideAnyAddNamespaceLambda(AnalyzedInvocation ai, List<AnalyzedInvocation> all)
+	{
+		foreach (var other in all)
+		{
+			if (other is not AIAddNamespace ns) continue;
+			if (ns.LambdaBodyStart < 0 || ns.LambdaBodyEnd < 0) continue;
+			if (!string.Equals(ns.FilePath, ai.FilePath, StringComparison.Ordinal)) continue;
+			if (ai.SpanStart > ns.LambdaBodyStart && ai.SpanStart < ns.LambdaBodyEnd)
+				return true;
+		}
+		return false;
+	}
+
+	/// <summary>Builds the registry tree from pre-analyzed invocations for a given node scope.</summary>
+	private static void ProcessAnalyzedInvocationsForNode(
+		SourceProductionContext context,
+		List<AnalyzedInvocation> allAnalyzed,
+		List<AnalyzedInvocation> nodeInvocations,
+		RegistryNode node,
+		ImmutableArray<string> currentPath,
+		AppEmitModel app,
+		bool isRoot)
+	{
+		foreach (var ai in nodeInvocations)
+		{
+			switch (ai)
+			{
+				case AIGlobalOptions g when isRoot:
+					app.GlobalOptionsType = g.TypeSymbolForValidation;
+					app.GlobalOptionsModel = g.Model;
+					break;
+				case AIGlobalOptions when !isRoot:
+					context.ReportDiagnostic(Diagnostic.Create(
+						CommandNamespaceOptionsRequiresParent,
+						ai is AIGlobalOptions go2 ? Location.None : Location.None,
+						"T"));
+					break;
+				case AICommandNamespaceOptions ns when !isRoot:
+					node.CommandNamespaceOptionsType = ns.TypeSymbolForValidation;
+					node.CommandNamespaceOptionsModel = ns.Model;
+					node.CommandNamespaceOptionsLocation = ns.DiagnosticLocation;
+					break;
+				case AICommandNamespaceOptions when isRoot:
+					context.ReportDiagnostic(Diagnostic.Create(
+						CommandNamespaceOptionsRequiresParent,
+						Location.None,
+						"T"));
+					break;
+				case AIAddCommand { TypeSnapshot: { } typeSnap }:
+				{
+					// Add<T> invocation — apply the pre-computed snapshot.
+					// At root level (isRoot=true), mergeOuterTypeSegment was false: add as child namespace.
+					// Inside namespace (isRoot=false), mergeOuterTypeSegment was true: merge directly.
+					if (!isRoot)
+					{
+						// Merge: snapshot has single child per type; extract its contents into current node.
+						foreach (var childSnap in typeSnap.Children)
+							ApplyRegistryNodeSnapshot(childSnap.Node, node, currentPath);
+						if (typeSnap.RootCommand is { } snapRc)
+							node.RootCommand ??= snapRc with { RoutePrefix = currentPath, RunMethodName = CommandModel.BuildRootDefaultRunMethodName(currentPath) };
+						foreach (var snapCmd in typeSnap.Commands)
+							node.Commands.Add(snapCmd with { RoutePrefix = currentPath, RunMethodName = CommandModel.BuildRunMethodNameStatic(currentPath, snapCmd.CommandName) });
+					}
+					else
+					{
+						// Not merged: add child namespaces directly.
+						ApplyRegistryNodeSnapshot(typeSnap, node, currentPath);
+					}
+					break;
+				}
+				case AIAddCommand ac:
+					foreach (var cmd in ac.Commands)
+					{
+						// Re-prefix with the current path (commands were analyzed with empty prefix).
+						var prefixed = cmd with
+						{
+							RoutePrefix = currentPath,
+							RunMethodName = currentPath.IsDefaultOrEmpty
+								? cmd.RunMethodName
+								: CommandModel.BuildRunMethodNameStatic(currentPath, cmd.CommandName),
+							UsageHints = cmd.UsageHints
+						};
+						if (cmd.IsRootDefault)
+							node.RootCommand = prefixed;
+						else
+							node.Commands.Add(prefixed);
+					}
+					break;
+				case AIAddRootCommand rc when isRoot && rc.IsNamespaceRoot:
+					context.ReportDiagnostic(Diagnostic.Create(AddNamespaceRootCommandOnlyInNamespace, Location.None));
+					break;
+				case AIAddRootCommand rc when !isRoot && !rc.IsNamespaceRoot:
+					context.ReportDiagnostic(Diagnostic.Create(AddRootCommandOnlyAtAppRoot, Location.None));
+					break;
+				case AIAddRootCommand rc:
+				{
+					if (node.RootCommand is not null)
+					{
+						context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, Location.None));
+						break;
+					}
+					// Re-prefix with current path.
+					var prefixedRoot = rc.Cmd with
+					{
+						RoutePrefix = currentPath,
+						RunMethodName = CommandModel.BuildRootDefaultRunMethodName(currentPath),
+					};
+					node.RootCommand = prefixedRoot;
+					break;
+				}
+				case AIUseMiddleware:
+					// Handled at root level for global middleware (done before this method is called).
+					break;
+				case AIAddNamespace ns:
+					ProcessAnalyzedAddNamespace(context, allAnalyzed, ns, node, currentPath, app, isRoot);
+					break;
+			}
+		}
+	}
+
+	private static void ProcessAnalyzedAddNamespace(
+		SourceProductionContext context,
+		List<AnalyzedInvocation> allAnalyzed,
+		AIAddNamespace ns,
+		RegistryNode parentNode,
+		ImmutableArray<string> parentPath,
+		AppEmitModel app,
+		bool isRoot)
+	{
+		var childNode = new RegistryNode();
+		var childPath = AppendSegment(parentPath, ns.SegmentName);
+
+		// Find child invocations positionally.
+		var childInvocations = new List<AnalyzedInvocation>();
+		if (ns.LambdaBodyStart >= 0 && ns.LambdaBodyEnd >= 0)
+		{
+			foreach (var other in allAnalyzed)
+			{
+				if (!string.Equals(other.FilePath, ns.FilePath, StringComparison.Ordinal)) continue;
+				if (other.SpanStart <= ns.LambdaBodyStart || other.SpanStart >= ns.LambdaBodyEnd) continue;
+				// Skip invocations that are nested inside a deeper lambda (not direct children).
+				if (IsInsideAnyNestedAddNamespaceLambda(other, allAnalyzed, ns)) continue;
+				childInvocations.Add(other);
+			}
+			childInvocations.Sort((a, b) =>
+			{
+				var c = string.CompareOrdinal(a.FilePath, b.FilePath);
+				return c != 0 ? c : a.SpanStart.CompareTo(b.SpanStart);
+			});
+		}
+
+		// If we have a namespace entry type (AddNamespace<T>), apply its pre-computed snapshot.
+		if (ns.EntryTypeSnapshot is { } snap)
+		{
+			ApplyRegistryNodeSnapshot(snap, childNode, childPath);
+			childNode.SummaryInnerXml = ns.NsSummaryInnerXml;
+			childNode.RemarksInnerXml = ns.NsRemarksInnerXml;
+		}
+
+		// Register argless segment codegen.
+		if (ns.IsArglessSegment && ns.EntryTypeFq is { Length: > 0 } arglessFq)
+		{
+			foreach (var existing in app.ArglessNamespaceCodegen)
+			{
+				if (string.Equals(existing.TypeFq, arglessFq, StringComparison.Ordinal))
+					goto skipArglessAdd;
+			}
+			app.ArglessNamespaceCodegen.Add(new ArglessNamespaceCodegenEntry(arglessFq, ns.SegmentName));
+			skipArglessAdd:;
+		}
+
+		ProcessAnalyzedInvocationsForNode(context, allAnalyzed, childInvocations, childNode, childPath, app, isRoot: false);
+
+		if (IsRegistryNodeVacuous(childNode))
+			context.ReportDiagnostic(Diagnostic.Create(VacuousNamespace, ns.DiagnosticLocation));
+
+		parentNode.Children.Add(new RegistryNode.NamedCommandNamespaceChild
+		{
+			Segment = ns.SegmentName,
+			Node = childNode,
+			SummaryOneLiner = ns.NsSummary,
+			Location = ns.DiagnosticLocation
+		});
+	}
+
+	/// <summary>Checks if an invocation is inside a nested AddNamespace lambda that is itself inside ns.</summary>
+	private static bool IsInsideAnyNestedAddNamespaceLambda(AnalyzedInvocation ai, List<AnalyzedInvocation> all, AIAddNamespace parent)
+	{
+		foreach (var other in all)
+		{
+			if (other is not AIAddNamespace nested) continue;
+			if (ReferenceEquals(nested, parent)) continue;
+			if (nested.LambdaBodyStart < 0 || nested.LambdaBodyEnd < 0) continue;
+			if (!string.Equals(nested.FilePath, ai.FilePath, StringComparison.Ordinal)) continue;
+			// nested must itself be inside parent
+			if (nested.SpanStart <= parent.LambdaBodyStart || nested.SpanStart >= parent.LambdaBodyEnd) continue;
+			// ai must be inside nested
+			if (ai.SpanStart > nested.LambdaBodyStart && ai.SpanStart < nested.LambdaBodyEnd)
+				return true;
+		}
+		return false;
+	}
+
+	/// <summary>Applies a pre-computed RegistryNodeSnapshot to a live RegistryNode (re-prefixing commands).</summary>
+	private static void ApplyRegistryNodeSnapshot(RegistryNodeSnapshot snap, RegistryNode target, ImmutableArray<string> path)
+	{
+		if (snap.RootCommand is { } rc)
+		{
+			var prefixed = rc with
+			{
+				RoutePrefix = path,
+				RunMethodName = CommandModel.BuildRootDefaultRunMethodName(path)
+			};
+			// Only set if not already set by an explicit AddNamespaceRootCommand in the lambda body.
+			target.RootCommand ??= prefixed;
+		}
+		foreach (var cmd in snap.Commands)
+		{
+			var prefixed = cmd with
+			{
+				RoutePrefix = path,
+				RunMethodName = CommandModel.BuildRunMethodNameStatic(path, cmd.CommandName)
+			};
+			target.Commands.Add(prefixed);
+		}
+		foreach (var childSnap in snap.Children)
+		{
+			var childPath = AppendSegment(path, childSnap.Segment);
+			var childNode = new RegistryNode();
+			childNode.SummaryInnerXml = childSnap.Node.SummaryInnerXml;
+			childNode.RemarksInnerXml = childSnap.Node.RemarksInnerXml;
+			ApplyRegistryNodeSnapshot(childSnap.Node, childNode, childPath);
+			target.Children.Add(new RegistryNode.NamedCommandNamespaceChild
+			{
+				Segment = childSnap.Segment,
+				Node = childNode,
+				SummaryOneLiner = childSnap.SummaryOneLiner,
+				Location = Location.None
+			});
+		}
+		target.SummaryInnerXml = snap.SummaryInnerXml;
+		target.RemarksInnerXml = snap.RemarksInnerXml;
+	}
+
 	private static void AttachCommandNamespaceOptionsModels(RegistryNode node, SourceProductionContext context)
 	{
 		if (node.CommandNamespaceOptionsType is not null)
-			node.CommandNamespaceOptionsModel = BuildOptionsTypeModel(context, node.CommandNamespaceOptionsType);
+			node.CommandNamespaceOptionsModel = BuildOptionsTypeModel(node.CommandNamespaceOptionsType);
 
 		foreach (var ch in node.Children)
 			AttachCommandNamespaceOptionsModels(ch.Node, context);
@@ -578,7 +1229,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var chain = BuildOptionsInjectionChain(app, cmd);
 			if (chain.IsEmpty)
 				continue;
-			var (requiredType, requiredMetaName, requiredBaseNames, _, _, _) = chain[chain.Length - 1];
+			var (requiredTypeFq, requiredMetaName, requiredBaseNames, _, _, _, _) = chain[chain.Length - 1];
 
 			// Check method parameters first.
 			var injected = false;
@@ -612,7 +1263,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					CommandMustInjectOptions,
 					cmd.HandlerLocation,
 					cmd.MethodName,
-					requiredType.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat)));
+					requiredMetaName));  // use pre-computed metadata name instead of ToDisplayString
 			}
 		}
 	}
@@ -621,19 +1272,21 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	/// Returns the ordered chain of options entries (global → most-specific namespace) for injection into a command.
 	/// Walks the registry tree directly so namespace options types with zero own members are still included.
 	/// Each entry carries the static field name (pre-parsed fallback) and a local var name (command-runner reconstruction).
+	/// All fields are symbol-free (strings / pre-computed ParameterModel arrays).
 	/// </summary>
-	private static ImmutableArray<(INamedTypeSymbol Type, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)>
+	private static ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)>
 		BuildOptionsInjectionChain(AppEmitModel app, CommandModel cmd)
 	{
-		var result = ImmutableArray.CreateBuilder<(INamedTypeSymbol, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>)>();
-		if (app.GlobalOptionsType is not null)
+		var result = ImmutableArray.CreateBuilder<(string, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>, ImmutableArray<string>?)>();
+		if (app.GlobalOptionsModel is { } gom)
 			result.Add((
-				app.GlobalOptionsType,
-				GetMetadataNameStatic(app.GlobalOptionsType),
-				CollectBaseTypeMetadataNames(app.GlobalOptionsType),
-				OptionsStaticFieldName(app.GlobalOptionsType),
-				OptionsLocalVarName(app.GlobalOptionsType),
-				BuildFlattenedOptionsMembers(app.GlobalOptionsType)));
+				gom.TypeFq,
+				gom.TypeMetadataName,
+				gom.AllBaseTypeMetadataNames,
+				OptionsStaticFieldNameFq(gom.TypeFq),
+				OptionsLocalVarNameFq(gom.TypeFq),
+				gom.FlattenedMembers,
+				gom.BestCtorParamOrder));
 
 		var current = app.Root;
 		foreach (var seg in cmd.RoutePrefix)
@@ -649,14 +1302,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 			if (found is null) break;
 			current = found.Node;
-			if (current.CommandNamespaceOptionsType is { } nsType)
+			if (current.CommandNamespaceOptionsModel is { } nsModel)
 				result.Add((
-					nsType,
-					GetMetadataNameStatic(nsType),
-					CollectBaseTypeMetadataNames(nsType),
-					OptionsStaticFieldName(nsType),
-					OptionsLocalVarName(nsType),
-					BuildFlattenedOptionsMembers(nsType)));
+					nsModel.TypeFq,
+					nsModel.TypeMetadataName,
+					nsModel.AllBaseTypeMetadataNames,
+					OptionsStaticFieldNameFq(nsModel.TypeFq),
+					OptionsLocalVarNameFq(nsModel.TypeFq),
+					nsModel.FlattenedMembers,
+					nsModel.BestCtorParamOrder));
 		}
 
 		return result.ToImmutable();
@@ -702,7 +1356,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			foreach (var p in filtered)
 				if (p.Kind == ParameterKind.Flag) seen.Add(p.CliLongName);
 
-			foreach (var (_, _, _, _, _, flatMembers) in injChain)
+			foreach (var (_, _, _, _, _, flatMembers, _) in injChain)
 			{
 				foreach (var m in flatMembers)
 				{
@@ -767,101 +1421,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			CollectCommands(child.Node, sink);
 	}
 
-	private static void ProcessInvocationsForNode(
-		SourceProductionContext context,
-		Compilation compilation,
-		List<InvocationExpressionSyntax> allInvocations,
-		List<InvocationExpressionSyntax> nodeInvocations,
-		RegistryNode node,
-		ImmutableArray<string> currentPath,
-		AppEmitModel app,
-		bool isRoot)
-	{
-		SemanticModel GetModel(InvocationExpressionSyntax inv) => compilation.GetSemanticModel(inv.SyntaxTree);
-
-		foreach (var invocation in nodeInvocations)
-		{
-			if (GetModel(invocation).GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
-				continue;
-
-			switch (method.Name)
-			{
-				case "GlobalOptions" when isRoot && method.IsGenericMethod && method.TypeArguments.Length > 0:
-				{
-					if (method.TypeArguments[0] is INamedTypeSymbol go && go.TypeKind != TypeKind.Error)
-					{
-						app.GlobalOptionsType = go;
-					}
-
-					break;
-				}
-				case "GlobalOptions" when !isRoot:
-					context.ReportDiagnostic(Diagnostic.Create(
-						CommandNamespaceOptionsRequiresParent,
-						invocation.GetLocation(),
-						method.TypeArguments.Length > 0 ? method.TypeArguments[0].Name : "T"));
-					break;
-				case "CommandNamespaceOptions" when isRoot:
-					context.ReportDiagnostic(Diagnostic.Create(
-						CommandNamespaceOptionsRequiresParent,
-						invocation.GetLocation(),
-						method is { IsGenericMethod: true, TypeArguments.Length: > 0 }
-							? method.TypeArguments[0].Name
-							: "T"));
-					break;
-				case "CommandNamespaceOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
-				{
-					if (method.TypeArguments[0] is INamedTypeSymbol gt && gt.TypeKind != TypeKind.Error)
-					{
-						node.CommandNamespaceOptionsType = gt;
-						node.CommandNamespaceOptionsLocation = invocation.GetLocation();
-					}
-
-					break;
-				}
-				case "AddNamespace":
-					ProcessAddNamespaceInvocation(context, compilation, allInvocations, invocation, node, currentPath, app);
-					break;
-				case "AddRootCommand":
-					if (!isRoot)
-					{
-						context.ReportDiagnostic(Diagnostic.Create(AddRootCommandOnlyAtAppRoot, invocation.GetLocation()));
-						break;
-					}
-
-					ExpandAddRootCommand(context, GetModel(invocation), invocation, currentPath, node);
-					break;
-				case "AddNamespaceRootCommand":
-					if (isRoot)
-					{
-						context.ReportDiagnostic(Diagnostic.Create(AddNamespaceRootCommandOnlyInNamespace, invocation.GetLocation()));
-						break;
-					}
-
-					ExpandAddRootCommand(context, GetModel(invocation), invocation, currentPath, node);
-					break;
-				case "Add" when method.IsGenericMethod:
-				{
-					var typeArg = method.TypeArguments.Length > 0 ? method.TypeArguments[0] : null;
-					if (typeArg is INamedTypeSymbol named && typeArg.TypeKind != TypeKind.Error)
-					{
-						var parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
-						ExpandTypeRegistration(context, invocation, named, currentPath, mergeOuterTypeSegment: !isRoot, node,
-							parseOpts);
-					}
-
-					break;
-				}
-				case "Add":
-				{
-					if (invocation.ArgumentList.Arguments.Count < 2)
-						continue;
-					ExpandAddStringDelegate(context, GetModel(invocation), invocation, currentPath, node);
-					break;
-				}
-			}
-		}
-	}
 
 
 	private static bool TryGetNamespaceSegmentAttribute(INamedTypeSymbol type, out string segment)
@@ -953,151 +1512,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string segment,
 		Location location)
 	{
+		var typeFq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 		foreach (var existing in app.ArglessNamespaceCodegen)
 		{
-			if (!SymbolEqualityComparer.Default.Equals(existing.Type, type))
+			if (!string.Equals(existing.TypeFq, typeFq, StringComparison.Ordinal))
 				continue;
 			if (!string.Equals(existing.Segment, segment, StringComparison.Ordinal))
 				context.ReportDiagnostic(Diagnostic.Create(NamespaceSegmentConflict, location, type.Name, existing.Segment, segment));
 			return;
 		}
 
-		app.ArglessNamespaceCodegen.Add(new ArglessNamespaceCodegenEntry(type, segment));
+		app.ArglessNamespaceCodegen.Add(new ArglessNamespaceCodegenEntry(typeFq, segment));
 	}
 
 	private static bool IsRegistryNodeVacuous(RegistryNode node) =>
 		node.RootCommand is null && node.Commands.Count == 0 && node.Children.Count == 0;
 
-	private static void ProcessAddNamespaceInvocation(
-		SourceProductionContext context,
-		Compilation compilation,
-		List<InvocationExpressionSyntax> allInvocations,
-		InvocationExpressionSyntax addNamespaceInvocation,
-		RegistryNode parentNode,
-		ImmutableArray<string> parentPath,
-		AppEmitModel app)
-	{
-		if (addNamespaceInvocation.ArgumentList.Arguments.Count < 1)
-			return;
-
-		var model = compilation.GetSemanticModel(addNamespaceInvocation.SyntaxTree);
-		if (model.GetSymbolInfo(addNamespaceInvocation).Symbol is not IMethodSymbol addNsMethod ||
-		    addNsMethod.Name != "AddNamespace")
-			return;
-
-		var genericEntry = addNsMethod.IsGenericMethod && addNsMethod.TypeArguments.Length == 1;
-		var namespaceEntryType = genericEntry && addNsMethod.TypeArguments[0] is INamedTypeSymbol nt && nt.TypeKind != TypeKind.Error
-			? nt
-			: null;
-
-		var argCount = addNamespaceInvocation.ArgumentList.Arguments.Count;
-		string? segmentName = null;
-		var nsSummary = "";
-
-		if (genericEntry && argCount == 1 && namespaceEntryType is not null)
-		{
-			var firstExpr = addNamespaceInvocation.ArgumentList.Arguments[0].Expression;
-			var strOnly = TryGetStringLiteral(firstExpr) ?? TryGetStringConstant(model, firstExpr);
-			if (strOnly is not null && !string.IsNullOrWhiteSpace(strOnly))
-			{
-				// AddNamespace<T>("segment") — no configure callback
-				segmentName = strOnly;
-				ValidateNamespaceSegmentForExplicitName(context, namespaceEntryType, segmentName, firstExpr.GetLocation());
-				nsSummary = GetTypeListingSummaryOneLiner(namespaceEntryType);
-			}
-			else
-			{
-				// AddNamespace<T>(Action<IArghNamespaceBuilder>) — segment from attribute/XML + module initializer
-				if (!TryResolveNamespaceSegmentForArgless(context, namespaceEntryType, addNamespaceInvocation.GetLocation(), out var seg))
-					return;
-				segmentName = seg;
-				nsSummary = GetTypeListingSummaryOneLiner(namespaceEntryType);
-				RegisterArglessNamespaceCodegen(context, app, namespaceEntryType, segmentName, addNamespaceInvocation.GetLocation());
-			}
-		}
-		else if (genericEntry && argCount >= 2 && namespaceEntryType is not null)
-		{
-			segmentName = TryGetStringLiteral(addNamespaceInvocation.ArgumentList.Arguments[0].Expression);
-			if (string.IsNullOrWhiteSpace(segmentName))
-				return;
-			ValidateNamespaceSegmentForExplicitName(context, namespaceEntryType, segmentName!, addNamespaceInvocation.ArgumentList.Arguments[0].GetLocation());
-			nsSummary = GetTypeListingSummaryOneLiner(namespaceEntryType);
-		}
-		else if (!genericEntry && argCount >= 3)
-		{
-			segmentName = TryGetStringLiteral(addNamespaceInvocation.ArgumentList.Arguments[0].Expression);
-			if (string.IsNullOrWhiteSpace(segmentName))
-				return;
-			var desc = TryGetStringConstant(model, addNamespaceInvocation.ArgumentList.Arguments[1].Expression);
-			if (desc is null)
-			{
-				context.ReportDiagnostic(Diagnostic.Create(
-					AddNamespaceDescriptionNotConstant,
-					addNamespaceInvocation.ArgumentList.Arguments[1].GetLocation()));
-			}
-			else
-				nsSummary = desc;
-		}
-		else
-		{
-			context.ReportDiagnostic(Diagnostic.Create(
-				AddNamespaceRequiresExplicitDescriptionOrType,
-				addNamespaceInvocation.GetLocation()));
-			return;
-		}
-
-		var childNode = new RegistryNode();
-		var childInvocations = new List<InvocationExpressionSyntax>();
-		foreach (var inv in allInvocations)
-		{
-			if (FindParentAddNamespaceInvocation(inv) is not { } p || !ReferenceEquals(p, addNamespaceInvocation))
-				continue;
-			if (namespaceEntryType is not null &&
-			    IsRedundantGenericAddForNamespaceEntry(inv, namespaceEntryType, compilation))
-			{
-				context.ReportDiagnostic(Diagnostic.Create(
-					RedundantAddInsideAddNamespaceT,
-					inv.GetLocation(),
-					namespaceEntryType.Name));
-				continue;
-			}
-
-			childInvocations.Add(inv);
-		}
-
-		childInvocations.Sort(static (a, b) =>
-		{
-			var la = a.SyntaxTree.GetLineSpan(a.Span);
-			var lb = b.SyntaxTree.GetLineSpan(b.Span);
-			var c = string.CompareOrdinal(la.Path, lb.Path);
-			if (c != 0)
-				return c;
-			return a.Span.Start.CompareTo(b.Span.Start);
-		});
-
-		var childPath = AppendSegment(parentPath, segmentName!);
-		ProcessInvocationsForNode(context, compilation, allInvocations, childInvocations, childNode, childPath, app,
-			isRoot: false);
-		if (namespaceEntryType is not null)
-		{
-			var parseOpts = addNamespaceInvocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
-			ExpandTypeRegistration(context, addNamespaceInvocation, namespaceEntryType, childPath, mergeOuterTypeSegment: true,
-				childNode, parseOpts);
-			(childNode.SummaryInnerXml, childNode.RemarksInnerXml) = Documentation.GetTypeDocumentation(
-				namespaceEntryType.GetDocumentationCommentXml());
-		}
-
-		if (IsRegistryNodeVacuous(childNode))
-			context.ReportDiagnostic(Diagnostic.Create(VacuousNamespace, addNamespaceInvocation.GetLocation()));
-
-		parentNode.Children.Add(new RegistryNode.NamedCommandNamespaceChild
-		{
-			Segment = segmentName!,
-			Node = childNode,
-			SummaryOneLiner = nsSummary,
-			Location = addNamespaceInvocation.GetLocation()
-		});
-	}
 
 	private static InvocationExpressionSyntax? FindParentAddNamespaceInvocation(InvocationExpressionSyntax invocation)
 	{
@@ -1175,6 +1605,16 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
 		targetNode.Commands.Add(CommandModel.FromMethod(commandName, handler, parseOpts, routePrefix, context, invocation.GetLocation()));
 	}
+
+	/// <summary>Select-step (no SourceProductionContext) variant of <see cref="TryExpandLambdaDelegate"/>.</summary>
+	private static void TryExpandLambdaDelegateAcc(
+		SemanticModel model,
+		InvocationExpressionSyntax invocation,
+		ExpressionSyntax handlerExpr,
+		string commandName,
+		ImmutableArray<string> routePrefix,
+		RegistryNode targetNode) =>
+		TryExpandLambdaDelegate(default, model, invocation, handlerExpr, commandName, routePrefix, targetNode);
 
 	private static void TryExpandLambdaDelegate(
 		SourceProductionContext context,
@@ -1309,6 +1749,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
 		targetNode.RootCommand = CommandModel.FromRootMethod(handler, parseOpts, routePrefix, context, invocation.GetLocation());
 	}
+
+	/// <summary>Select-step (no SourceProductionContext) variant of <see cref="TryExpandLambdaRootCommand"/>.</summary>
+	private static void TryExpandLambdaRootCommandAcc(
+		SemanticModel model,
+		InvocationExpressionSyntax invocation,
+		ExpressionSyntax handlerExpr,
+		ImmutableArray<string> routePrefix,
+		RegistryNode targetNode) =>
+		TryExpandLambdaRootCommand(default, model, invocation, handlerExpr, routePrefix, targetNode);
 
 	private static void TryExpandLambdaRootCommand(
 		SourceProductionContext context,
@@ -1505,6 +1954,47 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
+	/// <summary>DiagnosticAccumulator-based variant of <see cref="AddMethodsFromType"/> for use in the Select-step analysis.</summary>
+	private static void AddMethodsFromTypeAcc(
+		DiagnosticAccumulator acc,
+		Location location,
+		INamedTypeSymbol type,
+		ImmutableArray<string> routePrefix,
+		RegistryNode targetNode,
+		CSharpParseOptions parseOpts)
+	{
+		IMethodSymbol? defaultCommand = null;
+		foreach (var member in type.GetMembers())
+		{
+			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary) continue;
+			if (method.AssociatedSymbol is not null) continue;
+			if (method.DeclaredAccessibility != Accessibility.Public) continue;
+			if (!HasDefaultCommandAttribute(method)) continue;
+			if (defaultCommand is not null)
+			{
+				acc.Add(Diagnostic.Create(MultipleDefaultCommandAttributes, method.Locations.FirstOrDefault() ?? location, type.Name));
+				continue;
+			}
+			defaultCommand = method;
+		}
+		if (defaultCommand is not null)
+		{
+			if (targetNode.RootCommand is not null)
+				acc.Add(Diagnostic.Create(DuplicateRootCommand, location));
+			else
+				targetNode.RootCommand = CommandModel.FromRootMethod(defaultCommand, parseOpts, routePrefix, acc, location);
+		}
+		foreach (var member in type.GetMembers())
+		{
+			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary) continue;
+			if (method.AssociatedSymbol is not null) continue;
+			if (method.DeclaredAccessibility != Accessibility.Public) continue;
+			if (defaultCommand is not null && SymbolEqualityComparer.Default.Equals(method, defaultCommand)) continue;
+			var cmdName = Naming.ToCommandName(method.Name);
+			targetNode.Commands.Add(CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, acc, location));
+		}
+	}
+
 	private static bool HasDefaultCommandAttribute(IMethodSymbol method)
 	{
 		foreach (var ad in method.GetAttributes())
@@ -1517,7 +2007,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return false;
 	}
 
-	private static OptionsTypeModel? BuildOptionsTypeModel(SourceProductionContext context, INamedTypeSymbol type)
+	private static OptionsTypeModel? BuildOptionsTypeModel(INamedTypeSymbol type)
 	{
 		var members = ImmutableArray.CreateBuilder<ParameterModel>();
 		foreach (var member in type.GetMembers())
@@ -1539,13 +2029,41 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 		}
 
+		var typeFq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 		var typeMetaName = GetMetadataNameStatic(type);
 		var baseNames = CollectBaseTypeMetadataNames(type);
+		var flattenedMembers = BuildFlattenedOptionsMembers(type);
+		var bestCtorParamOrder = ComputeBestCtorParamOrder(type, members.Count > 0 ? members.ToImmutable() : ImmutableArray<ParameterModel>.Empty);
+		var isPublic = type.DeclaredAccessibility == Accessibility.Public;
+		var isGeneric = type.TypeParameters.Length > 0;
 
 		if (members.Count == 0)
-			return new OptionsTypeModel(type, typeMetaName, baseNames, ImmutableArray<ParameterModel>.Empty);
+			return new OptionsTypeModel(typeFq, typeMetaName, baseNames, ImmutableArray<ParameterModel>.Empty, flattenedMembers, bestCtorParamOrder, isPublic, isGeneric);
 
-		return new OptionsTypeModel(type, typeMetaName, baseNames, members.ToImmutable());
+		return new OptionsTypeModel(typeFq, typeMetaName, baseNames, members.ToImmutable(), flattenedMembers, bestCtorParamOrder, isPublic, isGeneric);
+	}
+
+	/// <summary>Pre-computes the parameter name order for the best public non-empty constructor (for symbol-free emit).</summary>
+	private static ImmutableArray<string>? ComputeBestCtorParamOrder(INamedTypeSymbol type, ImmutableArray<ParameterModel> members)
+	{
+		if (members.IsDefaultOrEmpty)
+			return null;
+		var byName = new HashSet<string>(members.Select(m => m.SymbolName), StringComparer.OrdinalIgnoreCase);
+		IMethodSymbol? bestCtor = null;
+		foreach (var ctor in type.InstanceConstructors)
+		{
+			if (ctor.DeclaredAccessibility != Accessibility.Public) continue;
+			if (ctor.Parameters.Length == 0) continue;
+			if (!ctor.Parameters.All(p => byName.Contains(p.Name))) continue;
+			if (bestCtor is null || ctor.Parameters.Length > bestCtor.Parameters.Length)
+				bestCtor = ctor;
+		}
+		if (bestCtor is null || bestCtor.Parameters.Length != members.Length)
+			return null;
+		var b = ImmutableArray.CreateBuilder<string>(bestCtor.Parameters.Length);
+		foreach (var p in bestCtor.Parameters)
+			b.Add(p.Name);
+		return b.MoveToImmutable();
 	}
 
 	private static string GetMetadataNameStatic(ITypeSymbol t) =>
@@ -1595,31 +2113,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return null;
 	}
 
-	private static void CollectGlobalMiddleware(
-		SourceProductionContext context,
-		Compilation compilation,
-		List<InvocationExpressionSyntax> rootInvocations,
-		out ImmutableArray<GlobalMiddlewareRegistration> globalMiddleware)
-	{
-		var b = ImmutableArray.CreateBuilder<GlobalMiddlewareRegistration>();
-		foreach (var inv in rootInvocations)
-		{
-			var model = compilation.GetSemanticModel(inv.SyntaxTree);
-			if (model.GetSymbolInfo(inv).Symbol is not IMethodSymbol method || method.Name != "UseMiddleware")
-				continue;
-
-			if (method.IsGenericMethod && method.TypeArguments.Length == 1 &&
-			    method.TypeArguments[0] is INamedTypeSymbol gft && gft.TypeKind != TypeKind.Error)
-			{
-				b.Add(new GlobalMiddlewareRegistration(gft));
-				continue;
-			}
-
-			context.ReportDiagnostic(Diagnostic.Create(UseMiddlewareDelegateNotSupported, inv.GetLocation()));
-		}
-
-		globalMiddleware = b.ToImmutable();
-	}
 
 	private static bool IsInjected(IParameterSymbol p)
 	{
@@ -1817,6 +2310,92 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
+	/// <summary>DiagnosticAccumulator-based overload for Select-step analysis.</summary>
+	private static void ReportDuplicateCliNamesAcc(DiagnosticAccumulator acc, Location location, ImmutableArray<ParameterModel> parameters)
+	{
+		var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+		foreach (var p in parameters)
+		{
+			if (p.Kind != ParameterKind.Flag) continue;
+			void check(string name)
+			{
+				if (string.IsNullOrEmpty(name)) return;
+				if (seen.TryGetValue(name, out var first))
+				{
+					if (!string.Equals(first, p.SymbolName, StringComparison.Ordinal))
+						acc.Add(Diagnostic.Create(DuplicateCliNames, location, name));
+				}
+				else
+					seen[name] = p.SymbolName;
+			}
+			check(p.CliLongName);
+			foreach (var al in p.Aliases) check(al);
+			if (p.Special == BoolSpecialKind.NullableBool) check("no-" + p.CliLongName);
+		}
+	}
+
+	/// <summary>DiagnosticAccumulator-based overload for Select-step analysis.</summary>
+	private static void ValidateExpandedParameterLayoutAcc(DiagnosticAccumulator acc, Location location, ImmutableArray<ParameterModel> expanded)
+	{
+		var seenFlag = false;
+		foreach (var p in expanded)
+		{
+			if (p.Kind == ParameterKind.Injected) continue;
+			if (p.Kind == ParameterKind.Flag) { seenFlag = true; continue; }
+			if (p.Kind == ParameterKind.Positional && seenFlag)
+			{
+				acc.Add(Diagnostic.Create(ArgumentOrder, location));
+				return;
+			}
+		}
+	}
+
+	/// <summary>DiagnosticAccumulator-based overload for Select-step analysis.</summary>
+	private static ImmutableArray<ParameterModel> FlattenAsParametersTypeAcc(
+		DiagnosticAccumulator acc,
+		Location location,
+		IParameterSymbol methodParam,
+		INamedTypeSymbol type,
+		string? prefix,
+		CSharpParseOptions parseOptions)
+	{
+		var pfx = string.IsNullOrWhiteSpace(prefix) ? "" : Naming.ToCliLongName(prefix!.Trim()) + "-";
+		var owner = methodParam.Name;
+		var typeFq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		var primary = TryGetPrimaryConstructor(type);
+		var ctorNames = new HashSet<string>(StringComparer.Ordinal);
+		var list = new List<ParameterModel>();
+		var order = 0;
+		if (primary is not null)
+		{
+			foreach (var cp in primary.Parameters)
+			{
+				ctorNames.Add(cp.Name);
+				list.Add(ParameterModel.FromAsParametersCtorParameter(owner, typeFq, type, cp, pfx, order++, parseOptions));
+			}
+		}
+		var chain = new List<INamedTypeSymbol>();
+		for (var t = type; t is not null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)
+			chain.Add(t);
+		var seenPropNames = new HashSet<string>(StringComparer.Ordinal);
+		for (var i = chain.Count - 1; i >= 0; i--)
+		{
+			var tt = chain[i];
+			foreach (var member in tt.GetMembers())
+			{
+				if (member is not IPropertySymbol prop) continue;
+				if (prop.DeclaredAccessibility != Accessibility.Public || prop.IsStatic || prop.IsIndexer) continue;
+				if (!IsSettableForAsParameters(prop)) continue;
+				if (ctorNames.Contains(prop.Name)) continue;
+				if (!seenPropNames.Add(prop.Name)) continue;
+				list.Add(ParameterModel.FromAsParametersInitProperty(methodParamName: owner, typeFq, prop, pfx, order++, parseOptions));
+			}
+		}
+		if (list.Count == 0)
+			acc.Add(Diagnostic.Create(AsParametersEmptyType, location, type.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat)));
+		return list.ToImmutableArray();
+	}
+
 	private static ImmutableArray<ParameterModel> FlattenAsParametersType(
 		SourceProductionContext context,
 		Location location,
@@ -1928,7 +2507,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return null;
 	}
 
-	private static void EmitNamespaceSegmentCodegen(SourceProductionContext context, Compilation compilation, AppEmitModel app)
+	private static void EmitNamespaceSegmentCodegen(SourceProductionContext context, AppEmitModel app)
 	{
 		if (app.ArglessNamespaceCodegen.Count == 0)
 			return;
@@ -1945,9 +2524,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("	{");
 		foreach (var e in app.ArglessNamespaceCodegen)
 		{
-			var t = e.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			var escaped = e.Segment.Replace("\\", "\\\\").Replace("\"", "\\\"");
-			sb.AppendLine("\t\tglobal::Nullean.Argh.ArghNamespaceSegmentCodegen.Set<" + t + ">(\"" + escaped + "\");");
+			sb.AppendLine("\t\tglobal::Nullean.Argh.ArghNamespaceSegmentCodegen.Set<" + e.TypeFq + ">(\"" + escaped + "\");");
 		}
 		sb.AppendLine("	}");
 		sb.AppendLine("}");
@@ -2287,35 +2865,52 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ReferenceMetadataCapabilities.Capabilities referenceCapabilities)
 	{
 		_ = referenceCapabilities;
-		var dtoTargets = CollectDtoBindingTargets(context, app, parseOptions);
+		_ = parseOptions;  // no longer needed for DTO building; kept in signature for future use
+		var dtoTargets = CollectDtoBindingTargets(app);
 		EmitHierarchical(context, app, dtoTargets, entryAssemblyName, entryAssemblyVersion);
 		EmitDtoTypeExtensions(context, dtoTargets);
 	}
 
-	private sealed record DtoBindingTarget(INamedTypeSymbol TypeSymbol, ImmutableArray<ParameterModel> Members, bool IsOptionsDto);
+	private sealed record DtoBindingTarget(
+		string TypeFq,
+		ImmutableArray<ParameterModel> Members,
+		bool IsOptionsDto,
+		bool IsGeneric,
+		bool IsPublic,
+		ImmutableArray<string>? BestCtorParamOrder);
 
 	private static ImmutableArray<DtoBindingTarget> CollectDtoBindingTargets(
-		SourceProductionContext context,
-		AppEmitModel app,
-		CSharpParseOptions parseOptions)
+		AppEmitModel app)
 	{
-		var map = new Dictionary<INamedTypeSymbol, DtoBindingTarget>(SymbolEqualityComparer.Default);
+		// Use string TypeFq as dedup key since we no longer have INamedTypeSymbol in the pipeline boundary.
+		var map = new Dictionary<string, DtoBindingTarget>(StringComparer.Ordinal);
 
-		if (app.GlobalOptionsType is not null)
+		if (app.GlobalOptionsModel is { } gom && gom.FlattenedMembers.Length > 0)
 		{
-			var m = BuildFlattenedOptionsMembers(app.GlobalOptionsType);
-			if (m.Length > 0)
-				map[app.GlobalOptionsType] = new DtoBindingTarget(app.GlobalOptionsType, m, IsOptionsDto: true);
+			map[gom.TypeFq] = new DtoBindingTarget(
+				gom.TypeFq,
+				gom.FlattenedMembers,
+				IsOptionsDto: true,
+				IsGeneric: gom.IsGeneric,
+				IsPublic: gom.IsPublic,
+				gom.BestCtorParamOrder);
 		}
 
 		foreach ((var node, _) in EnumerateCommandNamespaceNodesWithPath(app.Root, ImmutableArray<string>.Empty))
 		{
-			if (node.CommandNamespaceOptionsType is null)
+			if (node.CommandNamespaceOptionsModel is not { } nsModel)
 				continue;
-
-			var gm = BuildFlattenedOptionsMembers(node.CommandNamespaceOptionsType);
-			if (gm.Length > 0)
-				map[node.CommandNamespaceOptionsType] = new DtoBindingTarget(node.CommandNamespaceOptionsType, gm, IsOptionsDto: true);
+			if (nsModel.FlattenedMembers.Length == 0)
+				continue;
+			if (map.ContainsKey(nsModel.TypeFq))
+				continue;
+			map[nsModel.TypeFq] = new DtoBindingTarget(
+				nsModel.TypeFq,
+				nsModel.FlattenedMembers,
+				IsOptionsDto: true,
+				IsGeneric: nsModel.IsGeneric,
+				IsPublic: nsModel.IsPublic,
+				nsModel.BestCtorParamOrder);
 		}
 
 		foreach (var cmd in app.AllCommands)
@@ -2325,27 +2920,30 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			foreach (var mp in cmd.HandlerParamTypes)
 			{
-				if (!mp.IsAsParameters || mp.AsParamTypeSymbol is not { } nt)
+				if (!mp.IsAsParameters || mp.AsParamTypeFq is not { } typeFq)
+					continue;
+				if (string.IsNullOrEmpty(typeFq) || map.ContainsKey(typeFq))
 					continue;
 
-				if (nt.TypeKind == TypeKind.Error || map.ContainsKey(nt))
-					continue;
+				// Extract the already-flattened DTO members from the command's Parameters array
+				// (these were computed by FlattenAsParametersType during analysis and include proper prefix/AsParametersMeta).
+				var flat = cmd.Parameters
+					.Where(p => p.AsParametersOwnerParamName == mp.Name)
+					.ToImmutableArray();
 
-				// Re-flatten using the stored type symbol; same logic as BuildParameterModels used originally.
-				var flat = FlattenAsParametersType(
-					context,
-					Location.None,
-					mp.Name,
-					nt,
-					mp.AsParametersPrefix,
-					parseOptions);
 				if (flat.Length > 0)
-					map[nt] = new DtoBindingTarget(nt, flat, IsOptionsDto: false);
+					map[typeFq] = new DtoBindingTarget(
+						typeFq,
+						flat,
+						IsOptionsDto: false,
+						IsGeneric: mp.AsParamIsGeneric,
+						IsPublic: mp.AsParamIsPublic,
+						mp.AsParamBestCtorParamOrder);
 			}
 		}
 
 		return map.Values
-			.OrderBy(t => t.TypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), StringComparer.Ordinal)
+			.OrderBy(t => t.TypeFq, StringComparer.Ordinal)
 			.ToImmutableArray();
 	}
 
@@ -2392,15 +2990,24 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	}
 
 	private static string OptionsStaticFieldName(INamedTypeSymbol type) =>
-		"s_opts_" + DtoMethodSuffix(type);
+		"s_opts_" + DtoMethodSuffix(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+
+	private static string OptionsStaticFieldNameFq(string typeFq) =>
+		"s_opts_" + DtoMethodSuffix(typeFq);
 
 	/// <summary>Name of the per-command-runner local variable that holds the reconstructed options instance.</summary>
 	private static string OptionsLocalVarName(INamedTypeSymbol type) =>
-		"__opts_" + DtoMethodSuffix(type);
+		"__opts_" + DtoMethodSuffix(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
 
-	private static string DtoMethodSuffix(INamedTypeSymbol type)
+	private static string OptionsLocalVarNameFq(string typeFq) =>
+		"__opts_" + DtoMethodSuffix(typeFq);
+
+	private static string DtoMethodSuffix(INamedTypeSymbol type) =>
+		DtoMethodSuffix(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+
+	private static string DtoMethodSuffix(string typeFq)
 	{
-		var fq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		var fq = typeFq;
 		if (fq.StartsWith("global::", StringComparison.Ordinal))
 			fq = fq.Substring(8);
 
@@ -2420,8 +3027,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	{
 		foreach (var t in targets)
 		{
-			var methodName = "TryParseDto_" + DtoMethodSuffix(t.TypeSymbol);
-			var resultFq = t.TypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var methodName = "TryParseDto_" + DtoMethodSuffix(t.TypeFq);
 			var syn = SyntheticOptionsCommand(t.Members, methodName);
 			EmitCommandRunner(
 				sb,
@@ -2429,8 +3035,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				ImmutableArray<GlobalMiddlewareRegistration>.Empty,
 				emitDtoTryParse: true,
 				dtoMethodName: methodName,
-				dtoResultTypeFq: resultFq,
-				dtoOptionsType: t.IsOptionsDto ? t.TypeSymbol : null);
+				dtoResultTypeFq: t.TypeFq,
+				dtoOptionsTypeFq: t.IsOptionsDto ? t.TypeFq : null,
+				dtoOptionsBestCtorParamOrder: t.IsOptionsDto ? t.BestCtorParamOrder : null);
 		}
 	}
 
@@ -2456,8 +3063,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\tthrow new ArgumentException(\"The receiver must be typeof(T).\", nameof(type));");
 		foreach (var t in targets)
 		{
-			var fq = t.TypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var method = "TryParseDto_" + DtoMethodSuffix(t.TypeSymbol);
+			var fq = t.TypeFq;
+			var method = "TryParseDto_" + DtoMethodSuffix(fq);
 			sb.AppendLine($"\t\t\tif (typeof(T) == typeof({fq}))");
 			sb.AppendLine("\t\t\t{");
 			sb.AppendLine($"\t\t\t\tvar ok = ArghGenerated.{method}(args, out var v);");
@@ -2473,12 +3080,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		foreach (var t in targets)
 		{
-			if (t.TypeSymbol.TypeParameters.Length > 0)
+			if (t.IsGeneric)
 				continue;
 
-			var fq = t.TypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var method = "TryParseDto_" + DtoMethodSuffix(t.TypeSymbol);
-			var vis = t.TypeSymbol.DeclaredAccessibility == Accessibility.Public ? "public" : "internal";
+			var fq = t.TypeFq;
+			var method = "TryParseDto_" + DtoMethodSuffix(fq);
+			var vis = t.IsPublic ? "public" : "internal";
 			sb.AppendLine($"\t\textension({fq})");
 			sb.AppendLine("\t\t{");
 			sb.AppendLine($"\t\t\t{vis} static bool ArghTryParse(string[] args, out {fq}? value) =>");
@@ -2520,17 +3127,17 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		// Static fields that hold the parsed global/namespace options instances.
 		// Commands inject these via method or constructor parameters.
-		if (app.GlobalOptionsType is not null)
+		if (app.GlobalOptionsModel is { } globalOptModel)
 		{
-			var fq = app.GlobalOptionsType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			sb.AppendLine($"\t\tprivate static {fq} {OptionsStaticFieldName(app.GlobalOptionsType)} = new {fq}();");
+			var fq = globalOptModel.TypeFq;
+			sb.AppendLine($"\t\tprivate static {fq} {OptionsStaticFieldNameFq(fq)} = new {fq}();");
 		}
 		foreach ((var nsNode, _) in EnumerateCommandNamespaceNodesWithPath(app.Root, ImmutableArray<string>.Empty))
 		{
-			if (nsNode.CommandNamespaceOptionsType is { } nsType)
+			if (nsNode.CommandNamespaceOptionsModel is { } nsModel)
 			{
-				var fq = nsType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-				sb.AppendLine($"\t\tprivate static {fq} {OptionsStaticFieldName(nsType)} = new {fq}();");
+				var fq = nsModel.TypeFq;
+				sb.AppendLine($"\t\tprivate static {fq} {OptionsStaticFieldNameFq(fq)} = new {fq}();");
 			}
 		}
 		sb.AppendLine();
@@ -2559,27 +3166,28 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		foreach (var cmd in app.AllCommands)
 		{
 			var injectedOpts = cmd.HandlerHasNoOptionsInjection
-				? ImmutableArray<(INamedTypeSymbol, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>)>.Empty
+				? ImmutableArray<(string, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>, ImmutableArray<string>?)>.Empty
 				: BuildOptionsInjectionChain(app, cmd);
 			EmitCommandRunner(sb, cmd, app.GlobalMiddleware, injectedOptions: injectedOpts);
 		}
 
-		if (app.GlobalOptionsModel is { Members: { Length: > 0 } } gom && app.GlobalOptionsType is not null)
-			EmitOptionsTryParse(sb, "TryParseGlobalOptions", gom.Members,
-				storeType: app.GlobalOptionsType,
-				storeFieldName: OptionsStaticFieldName(app.GlobalOptionsType));
+		if (app.GlobalOptionsModel is { Members: { Length: > 0 } } gomStore)
+			EmitOptionsTryParse(sb, "TryParseGlobalOptions", gomStore.FlattenedMembers,
+				storeTypeFq: gomStore.TypeFq,
+				storeFieldName: OptionsStaticFieldNameFq(gomStore.TypeFq),
+				storeBestCtorParamOrder: gomStore.BestCtorParamOrder);
 
 		foreach ((var node, var path) in EnumerateCommandNamespaceNodesWithPath(app.Root, ImmutableArray<string>.Empty))
 		{
-			if (node.CommandNamespaceOptionsType is not null)
+			if (node.CommandNamespaceOptionsModel is { } nsModel)
 			{
 				// Use FLATTENED members (including inherited) so flags from parent options types are
 				// also recognised and consumed between the namespace segment and the sub-command.
-				var nsMembers = BuildFlattenedOptionsMembers(node.CommandNamespaceOptionsType);
-				if (nsMembers.Length > 0)
-					EmitOptionsTryParse(sb, CommandNamespaceOptionsParseMethodName(path), nsMembers,
-						storeType: node.CommandNamespaceOptionsType,
-						storeFieldName: OptionsStaticFieldName(node.CommandNamespaceOptionsType));
+				if (nsModel.FlattenedMembers.Length > 0)
+					EmitOptionsTryParse(sb, CommandNamespaceOptionsParseMethodName(path), nsModel.FlattenedMembers,
+						storeTypeFq: nsModel.TypeFq,
+						storeFieldName: OptionsStaticFieldNameFq(nsModel.TypeFq),
+						storeBestCtorParamOrder: nsModel.BestCtorParamOrder);
 			}
 		}
 
@@ -3416,8 +4024,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		StringBuilder sb,
 		string methodName,
 		ImmutableArray<ParameterModel> members,
-		INamedTypeSymbol? storeType = null,
-		string? storeFieldName = null)
+		string? storeTypeFq = null,
+		string? storeFieldName = null,
+		ImmutableArray<string>? storeBestCtorParamOrder = null)
 	{
 		var syn = SyntheticOptionsCommand(members, methodName);
 		sb.AppendLine($"\t\tprivate static bool {methodName}(string[] args, int[] idx)");
@@ -3515,8 +4124,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\tConsole.Error.WriteLine($\"Error: unexpected token '{a}'.\");");
 		sb.AppendLine("\t\t\t\treturn false;");
 		sb.AppendLine("\t\t\t}");
-		if (storeType is not null && storeFieldName is not null && members.Length > 0)
-			EmitOptionsConstructAndStore(sb, storeType, members, storeFieldName);
+		if (storeTypeFq is not null && storeFieldName is not null && members.Length > 0)
+			EmitOptionsConstructAndStore(sb, storeTypeFq, members, storeFieldName, storeBestCtorParamOrder);
 		sb.AppendLine("\t\t\treturn true;");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
@@ -3529,11 +4138,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	/// </summary>
 	private static void EmitOptionsConstructAndStore(
 		StringBuilder sb,
-		INamedTypeSymbol type,
+		string typeFq,
 		ImmutableArray<ParameterModel> members,
-		string storeFieldName)
+		string storeFieldName,
+		ImmutableArray<string>? bestCtorParamOrder)
 	{
-		var fq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 		var byName = members.ToDictionary(static m => m.SymbolName, StringComparer.OrdinalIgnoreCase);
 
 		// Extract each member's value from the flags dict.
@@ -3561,30 +4170,20 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 
 		// Construct using the primary constructor if all members align, otherwise property assignment.
-		IMethodSymbol? bestCtor = null;
-		foreach (var ctor in type.InstanceConstructors)
+		if (bestCtorParamOrder is { } ctorOrder && ctorOrder.Length == members.Length)
 		{
-			if (ctor.DeclaredAccessibility != Accessibility.Public) continue;
-			if (ctor.Parameters.Length == 0) continue;
-			if (!ctor.Parameters.All(p => byName.ContainsKey(p.Name))) continue;
-			if (bestCtor is null || ctor.Parameters.Length > bestCtor.Parameters.Length)
-				bestCtor = ctor;
-		}
-
-		if (bestCtor is not null && bestCtor.Parameters.Length == members.Length)
-		{
-			sb.Append($"\t\t\t{storeFieldName} = new {fq}(");
-			for (var i = 0; i < bestCtor.Parameters.Length; i++)
+			sb.Append($"\t\t\t{storeFieldName} = new {typeFq}(");
+			for (var i = 0; i < ctorOrder.Length; i++)
 			{
 				if (i > 0) sb.Append(", ");
-				sb.Append(byName[bestCtor.Parameters[i].Name].LocalVarName);
+				sb.Append(byName[ctorOrder[i]].LocalVarName);
 			}
 
 			sb.AppendLine(");");
 		}
 		else
 		{
-			sb.AppendLine($"\t\t\t{storeFieldName} = new {fq}();");
+			sb.AppendLine($"\t\t\t{storeFieldName} = new {typeFq}();");
 			foreach (var m in members)
 				sb.AppendLine($"\t\t\t{storeFieldName}.{m.SymbolName} = {m.LocalVarName};");
 		}
@@ -3622,14 +4221,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	/// </summary>
 	private static void EmitOptionsReconstructLocals(
 		StringBuilder sb,
-		ImmutableArray<(INamedTypeSymbol Type, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> chain)
+		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> chain)
 	{
 		if (chain.IsDefaultOrEmpty) return;
 
 		// Track which static provides the fallback for each CLI name (first in chain that declares it).
 		// Key = CliLongName, Value = "{staticFieldName}.{SymbolName}"
 		var fallbackMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		foreach (var (_, _, _, staticField, _, flatMembers) in chain)
+		foreach (var (_, _, _, staticField, _, flatMembers, _) in chain)
 		{
 			foreach (var m in flatMembers)
 			{
@@ -3641,10 +4240,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		// Track which member vars have already been emitted (across chain entries, to avoid re-declaration).
 		var emittedTmpVars = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		foreach (var (type, _, _, _, localVar, flatMembers) in chain)
+		foreach (var (typeFq, _, _, _, localVar, flatMembers, bestCtorParamOrder) in chain)
 		{
 			if (flatMembers.IsEmpty) continue;
-			var fq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			var byName = flatMembers.ToDictionary(static m => m.SymbolName, StringComparer.OrdinalIgnoreCase);
 
 			// Extract each member: command-level flags take precedence over pre-parsed static value.
@@ -3692,30 +4290,20 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				}
 			}
 
-			// Construct the local options instance.
-			IMethodSymbol? bestCtor = null;
-			foreach (var ctor in type.InstanceConstructors)
+			// Construct the local options instance using pre-computed constructor order.
+			if (bestCtorParamOrder is { } ctorOrder && ctorOrder.Length == flatMembers.Length)
 			{
-				if (ctor.DeclaredAccessibility != Accessibility.Public) continue;
-				if (ctor.Parameters.Length == 0) continue;
-				if (!ctor.Parameters.All(p => byName.ContainsKey(p.Name))) continue;
-				if (bestCtor is null || ctor.Parameters.Length > bestCtor.Parameters.Length)
-					bestCtor = ctor;
-			}
-
-			if (bestCtor is not null && bestCtor.Parameters.Length == flatMembers.Length)
-			{
-				sb.Append($"\t\t\tvar {localVar} = new {fq}(");
-				for (var i = 0; i < bestCtor.Parameters.Length; i++)
+				sb.Append($"\t\t\tvar {localVar} = new {typeFq}(");
+				for (var i = 0; i < ctorOrder.Length; i++)
 				{
 					if (i > 0) sb.Append(", ");
-					sb.Append("__ropt_" + byName[bestCtor.Parameters[i].Name].LocalVarName);
+					sb.Append("__ropt_" + byName[ctorOrder[i]].LocalVarName);
 				}
 				sb.AppendLine(");");
 			}
 			else
 			{
-				sb.AppendLine($"\t\t\tvar {localVar} = new {fq}();");
+				sb.AppendLine($"\t\t\tvar {localVar} = new {typeFq}();");
 				foreach (var m in flatMembers)
 					sb.AppendLine($"\t\t\t{localVar}.{m.SymbolName} = __ropt_{m.LocalVarName};");
 			}
@@ -3882,33 +4470,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\treturn true;");
 	}
 
-	private static void EmitOptionsDtoConstructionAndReturn(StringBuilder sb, INamedTypeSymbol type, ImmutableArray<ParameterModel> members)
+	private static void EmitOptionsDtoConstructionAndReturn(StringBuilder sb, string typeFq, ImmutableArray<ParameterModel> members, ImmutableArray<string>? bestCtorParamOrder)
 	{
-		var fq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 		var byName = members.ToDictionary(static m => m.SymbolName, StringComparer.OrdinalIgnoreCase);
 
-		IMethodSymbol? bestCtor = null;
-		foreach (var ctor in type.InstanceConstructors)
+		if (bestCtorParamOrder is { } ctorOrder && ctorOrder.Length > 0 && ctorOrder.Length == members.Length)
 		{
-			if (ctor.DeclaredAccessibility != Accessibility.Public)
-				continue;
-			if (ctor.Parameters.Length == 0)
-				continue;
-			if (!ctor.Parameters.All(p => byName.ContainsKey(p.Name)))
-				continue;
-			if (bestCtor is null || ctor.Parameters.Length > bestCtor.Parameters.Length)
-				bestCtor = ctor;
-		}
-
-		if (bestCtor is not null && bestCtor.Parameters.Length > 0 && bestCtor.Parameters.Length == members.Length)
-		{
-			sb.Append("\t\t\tvalue = new ").Append(fq).Append("(");
-			for (var i = 0; i < bestCtor.Parameters.Length; i++)
+			sb.Append("\t\t\tvalue = new ").Append(typeFq).Append("(");
+			for (var i = 0; i < ctorOrder.Length; i++)
 			{
 				if (i > 0)
 					sb.Append(", ");
-				var ps = bestCtor.Parameters[i];
-				sb.Append(byName[ps.Name].LocalVarName);
+				sb.Append(byName[ctorOrder[i]].LocalVarName);
 			}
 
 			sb.AppendLine(");");
@@ -3916,7 +4489,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return;
 		}
 
-		sb.AppendLine($"\t\t\tvar __dto = new {fq}();");
+		sb.AppendLine($"\t\t\tvar __dto = new {typeFq}();");
 		foreach (var m in members)
 			sb.AppendLine($"\t\t\t__dto.{m.SymbolName} = {m.LocalVarName};");
 
@@ -3934,8 +4507,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		bool emitDtoTryParse = false,
 		string? dtoMethodName = null,
 		string? dtoResultTypeFq = null,
-		INamedTypeSymbol? dtoOptionsType = null,
-		ImmutableArray<(INamedTypeSymbol Type, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> injectedOptions = default)
+		string? dtoOptionsTypeFq = null,
+		ImmutableArray<string>? dtoOptionsBestCtorParamOrder = null,
+		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions = default)
 	{
 		var anyRepeatedCollection = cmd.Parameters.Any(static p =>
 			p is { IsCollection: true, Kind: ParameterKind.Flag } && p.CollectionSeparator is null);
@@ -4176,8 +4750,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		if (emitDtoTryParse)
 		{
-			if (dtoOptionsType is not null)
-				EmitOptionsDtoConstructionAndReturn(sb, dtoOptionsType, cmd.Parameters);
+			if (dtoOptionsTypeFq is not null)
+				EmitOptionsDtoConstructionAndReturn(sb, dtoOptionsTypeFq, cmd.Parameters, dtoOptionsBestCtorParamOrder);
 			else
 				EmitAsParametersConstructionForDto(sb, cmd);
 
@@ -4265,8 +4839,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			for (var i = globalMiddleware.Length - 1; i >= 0; i--)
 			{
-				var gFq = globalMiddleware[i].MiddlewareType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-				var gParamless = HasPublicParameterlessCtor(globalMiddleware[i].MiddlewareType);
+				var gFq = globalMiddleware[i].TypeFq;
+				var gParamless = globalMiddleware[i].HasParameterlessCtor;
 				var name = "__cap" + cap++;
 				sb.AppendLine($"\t\t\tvar {name} = next;");
 				sb.AppendLine($"\t\t\tnext = async c => await {DiResolveOrNew(gFq, gParamless)}.InvokeAsync(c, {name});");
@@ -4728,7 +5302,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string ctExpr = "ct",
 		string? commandContextVar = null,
 		string lineIndent = "\t\t\t",
-		ImmutableArray<(INamedTypeSymbol Type, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers)> injectedOptions = default)
+		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions = default)
 	{
 		// Lambda commands: invoke through ArghApp.GetRegisteredLambda with a cast
 		if (cmd.IsLambda && !string.IsNullOrEmpty(cmd.LambdaStorageKey))
@@ -5492,6 +6066,85 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				mwData);
 		}
 
+		/// <summary>Overload for the per-invocation Select step — uses <see cref="DiagnosticAccumulator"/> instead of SourceProductionContext.</summary>
+		public static CommandModel FromRootMethod(
+			IMethodSymbol method,
+			CSharpParseOptions parseOptions,
+			ImmutableArray<string> routePrefix,
+			DiagnosticAccumulator acc,
+			Location diagnosticLocation)
+		{
+			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation);
+			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
+			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
+			foreach (var p in parameters)
+				if (p.IsCollection && p.Kind == ParameterKind.Positional)
+					acc.Add(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
+			var docs = MergeMethodDocumentationFromTrivia(method, Documentation.ParseMethod(method.GetDocumentationCommentXml(), parseOptions), parseOptions);
+			var withDocs = ApplyParamDocumentation(parameters, method, docs.ParamDocsRaw);
+			withDocs = ApplyCollectionSeparatorsFromDocumentation(withDocs, method, docs.ParamSeparators);
+			var usage = UsageSynopsis.Build(withDocs);
+			var runName = BuildRootDefaultRunMethodName(routePrefix);
+			var containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt && HasPublicParameterlessCtor(namedCt);
+			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) = ExtractHandlerAnalysis(method);
+			return new CommandModel(routePrefix, RootDefaultInternalCommandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData, IsRootDefault: true);
+		}
+
+		/// <summary>Overload for the per-invocation Select step — uses <see cref="DiagnosticAccumulator"/> instead of SourceProductionContext.</summary>
+		public static CommandModel FromMethod(
+			string commandName,
+			IMethodSymbol method,
+			CSharpParseOptions parseOptions,
+			ImmutableArray<string> routePrefix,
+			DiagnosticAccumulator acc,
+			Location diagnosticLocation)
+		{
+			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation);
+			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
+			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
+			foreach (var p in parameters)
+				if (p.IsCollection && p.Kind == ParameterKind.Positional)
+					acc.Add(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
+			var docs = MergeMethodDocumentationFromTrivia(method, Documentation.ParseMethod(method.GetDocumentationCommentXml(), parseOptions), parseOptions);
+			var withDocs = ApplyParamDocumentation(parameters, method, docs.ParamDocsRaw);
+			withDocs = ApplyCollectionSeparatorsFromDocumentation(withDocs, method, docs.ParamSeparators);
+			var usage = UsageSynopsis.Build(withDocs);
+			var runName = BuildRunMethodName(routePrefix, commandName);
+			var containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt && HasPublicParameterlessCtor(namedCt);
+			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) = ExtractHandlerAnalysis(method);
+			return new CommandModel(routePrefix, commandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData);
+		}
+
+		private static ImmutableArray<ParameterModel> BuildParameterModels(
+			IMethodSymbol method,
+			CSharpParseOptions parseOptions,
+			DiagnosticAccumulator acc,
+			Location diagnosticLocation)
+		{
+			var builder = ImmutableArray.CreateBuilder<ParameterModel>();
+			foreach (var p in method.Parameters)
+			{
+				if (IsInjected(p))
+				{
+					builder.Add(ParameterModel.From(p));
+					continue;
+				}
+				if (HasAsParametersAttribute(p))
+				{
+					if (p.Type is not INamedTypeSymbol namedType || namedType.TypeKind == TypeKind.Error)
+						continue;
+					var prefix = GetAsParametersPrefix(p);
+					foreach (var pm in FlattenAsParametersTypeAcc(acc, diagnosticLocation, p, namedType, prefix, parseOptions))
+						builder.Add(pm);
+					continue;
+				}
+				builder.Add(ParameterModel.From(p));
+			}
+			return builder.ToImmutable();
+		}
+
 		private static ImmutableArray<ParameterModel> BuildParameterModels(
 			IMethodSymbol method,
 			CSharpParseOptions parseOptions,
@@ -5599,8 +6252,43 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var isInj = IsInjected(p);
 				var isAsParam = HasAsParametersAttribute(p);
 				var asParamPrefix = isAsParam ? GetAsParametersPrefix(p) : null;
-				INamedTypeSymbol? asParamTypeSymbol = isAsParam && p.Type is INamedTypeSymbol nt && nt.TypeKind != TypeKind.Error ? nt : null;
-				paramBuilder.Add(new HandlerParam(p.Name, GetMetadataName(p.Type), isInj, isAsParam, asParamPrefix, asParamTypeSymbol));
+				string? asParamTypeFq = null;
+				ImmutableArray<string>? asParamBestCtor = null;
+				var asParamIsPublic = true;
+				var asParamIsGeneric = false;
+				if (isAsParam && p.Type is INamedTypeSymbol asNt && asNt.TypeKind != TypeKind.Error)
+				{
+					asParamTypeFq = asNt.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+					asParamIsPublic = asNt.DeclaredAccessibility == Accessibility.Public;
+					asParamIsGeneric = asNt.TypeParameters.Length > 0;
+					// Pre-compute the best ctor param order for DTO construction in emit.
+					var membersForCtor = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+					foreach (var member in asNt.GetMembers())
+					{
+						if (member is IPropertySymbol prop && prop.DeclaredAccessibility == Accessibility.Public && !prop.IsStatic && !prop.IsIndexer && prop.GetMethod is not null && prop.SetMethod is not null)
+							membersForCtor.Add(prop.Name);
+						else if (member is IFieldSymbol field && field.DeclaredAccessibility == Accessibility.Public && !field.IsStatic)
+							membersForCtor.Add(field.Name);
+					}
+					// Walk primary ctor or most-parameterized public ctor
+					IMethodSymbol? bestCtor = null;
+					foreach (var ctor in asNt.InstanceConstructors)
+					{
+						if (ctor.DeclaredAccessibility != Accessibility.Public) continue;
+						if (ctor.Parameters.Length == 0) continue;
+						if (!ctor.Parameters.All(cp => membersForCtor.Contains(cp.Name))) continue;
+						if (bestCtor is null || ctor.Parameters.Length > bestCtor.Parameters.Length)
+							bestCtor = ctor;
+					}
+					if (bestCtor is not null)
+					{
+						var ctorB = ImmutableArray.CreateBuilder<string>(bestCtor.Parameters.Length);
+						foreach (var cp in bestCtor.Parameters)
+							ctorB.Add(cp.Name);
+						asParamBestCtor = ctorB.MoveToImmutable();
+					}
+				}
+				paramBuilder.Add(new HandlerParam(p.Name, GetMetadataName(p.Type), isInj, isAsParam, asParamPrefix, asParamTypeFq, asParamIsPublic, asParamIsGeneric, asParamBestCtor));
 			}
 
 			// Handler location
@@ -5659,6 +6347,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		/// <summary>Visible to <see cref="CliParserGenerator"/> for lambda root commands (same naming as <see cref="FromRootMethod"/>).</summary>
 		internal static string BuildRootDefaultRunMethodName(ImmutableArray<string> routePrefix) =>
 			BuildRunMethodName(routePrefix, "RootDefault");
+
+		/// <summary>Public helper used by the analyzed-invocation pipeline to re-compute run method names when prefixing.</summary>
+		internal static string BuildRunMethodNameStatic(ImmutableArray<string> routePrefix, string commandName) =>
+			BuildRunMethodName(routePrefix, commandName);
 
 		private static ImmutableArray<ParameterModel> ApplyParamDocumentation(
 			ImmutableArray<ParameterModel> parameters,
