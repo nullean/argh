@@ -182,6 +182,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor NamespaceSegmentSanitizationCollision = new(
+		"AGH0022",
+		"Namespace segment names collide after identifier sanitization",
+		"Namespace segment names '{0}' and '{1}' collide after identifier sanitization (both become '{2}').",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		var invocations = context.SyntaxProvider
@@ -369,6 +377,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			public RegistryNode Node = null!;
 			/// <summary>First non-empty XML summary from the first generic <c>Add</c> handler type in this namespace block.</summary>
 			public string SummaryOneLiner = "";
+			public Location Location = Location.None;
 		}
 	}
 
@@ -410,6 +419,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			isRoot: true);
 
 		ValidateCommandNamespaceOptionsChain(context, app.Root, parentEffectiveOptions: app.GlobalOptionsType);
+		if (!ValidateNamespaceSegmentSanitizationCollisions(context, app.Root))
+			return false;
 
 		AttachCommandNamespaceOptionsModels(app.Root, context);
 
@@ -472,6 +483,36 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var nextParent = node.CommandNamespaceOptionsType ?? parentEffectiveOptions;
 		foreach (var child in node.Children)
 			ValidateCommandNamespaceOptionsChain(context, child.Node, nextParent);
+	}
+
+	private static bool ValidateNamespaceSegmentSanitizationCollisions(SourceProductionContext context, RegistryNode node)
+	{
+		var seen = new Dictionary<string, string>(StringComparer.Ordinal);
+		var ok = true;
+		foreach (var child in node.Children)
+		{
+			var sanitized = Naming.SanitizeIdentifier(child.Segment);
+			if (seen.TryGetValue(sanitized, out var first))
+			{
+				context.ReportDiagnostic(Diagnostic.Create(
+					NamespaceSegmentSanitizationCollision,
+					child.Location,
+					first,
+					child.Segment,
+					sanitized));
+				ok = false;
+			}
+			else
+			{
+				seen[sanitized] = child.Segment;
+			}
+		}
+		foreach (var child in node.Children)
+		{
+			if (!ValidateNamespaceSegmentSanitizationCollisions(context, child.Node))
+				ok = false;
+		}
+		return ok;
 	}
 
 	/// <summary>
@@ -1009,7 +1050,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			Segment = segmentName!,
 			Node = childNode,
-			SummaryOneLiner = nsSummary
+			SummaryOneLiner = nsSummary,
+			Location = addNamespaceInvocation.GetLocation()
 		});
 	}
 
@@ -1293,7 +1335,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				{
 					Segment = seg,
 					Node = childNode,
-					SummaryOneLiner = GetTypeListingSummaryOneLiner(nested)
+					SummaryOneLiner = GetTypeListingSummaryOneLiner(nested),
+					Location = invocation.GetLocation()
 				});
 			}
 		}
@@ -1307,7 +1350,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				Segment = seg,
 				Node = wrapper,
-				SummaryOneLiner = GetTypeListingSummaryOneLiner(type)
+				SummaryOneLiner = GetTypeListingSummaryOneLiner(type),
+				Location = invocation.GetLocation()
 			});
 		}
 	}
