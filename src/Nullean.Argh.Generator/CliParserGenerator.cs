@@ -5421,7 +5421,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				if (p.Kind == ParameterKind.Injected)
 					args.Add(ctExpr);
-				else
+				else if (p.Kind != ParameterKind.OptionsInjected)
+					// OptionsInjected entries are flag-recognition markers added by FixOptionsParamsInCommands;
+					// they are not method arguments — the options instance is passed as a reconstructed local.
 					args.Add(p.LocalVarName);
 			}
 		}
