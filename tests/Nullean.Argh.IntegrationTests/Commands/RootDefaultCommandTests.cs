@@ -4,8 +4,7 @@ using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Commands;
 
-/// <summary>Subprocess tests for <see cref="Nullean.Argh.Builder.IArghBuilder.AddRootCommand"/> and
-/// <see cref="Nullean.Argh.Builder.IArghBuilder.AddNamespaceRootCommand"/>.</summary>
+/// <summary>Subprocess tests for <see cref="Nullean.Argh.Builder.IArghBuilder.MapRoot"/> at app root and inside a namespace.</summary>
 public class RootDefaultCommandTests
 {
 	[Fact]

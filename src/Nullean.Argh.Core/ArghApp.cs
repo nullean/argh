@@ -14,11 +14,11 @@ public sealed partial class ArghApp : IArghBuilder
 	public ArghApp() => _commandNamespacePath = "";
 	private ArghApp(string commandNamespacePath) => _commandNamespacePath = commandNamespacePath;
 
-	/// <summary>Parses typed options before routing; available to all commands (see command namespace options).</summary>
-	public ArghApp GlobalOptions<T>() where T : class => this;
+	/// <summary>Parses typed options before routing; available to all commands (see namespace options).</summary>
+	public ArghApp UseGlobalOptions<T>() where T : class => this;
 
 	/// <summary>Registers a named command backed by a method group or lambda.</summary>
-	public ArghApp Add(string name, Delegate handler)
+	public ArghApp Map(string name, Delegate handler)
 	{
 		var key = _commandNamespacePath.Length == 0 ? name : _commandNamespacePath + "/" + name;
 		Lambdas[key] = handler;
@@ -26,26 +26,17 @@ public sealed partial class ArghApp : IArghBuilder
 	}
 
 	/// <summary>Registers every public method on <typeparamref name="T"/> as a command.</summary>
-	public ArghApp Add<T>() where T : class => this;
+	public ArghApp Map<T>() where T : class => this;
 
 	/// <summary>
-	/// Registers a default handler when no subcommand or namespace segment is given (e.g. <c>app</c> or <c>app --verbose</c> with only global options).
-	/// Only valid on the root <see cref="ArghApp"/>; analyzed by the source generator.
+	/// Registers a default handler when no subcommand or namespace segment applies at the current scope
+	/// (app root or inside a <see cref="MapNamespace"/> block). Analyzed by the source generator.
 	/// </summary>
-	public ArghApp AddRootCommand(Delegate handler)
+	public ArghApp MapRoot(Delegate handler)
 	{
 		if (_commandNamespacePath.Length == 0)
 			Lambdas["__argh_root"] = handler;
-		return this;
-	}
-
-	/// <summary>
-	/// Registers a default handler for the current namespace when no deeper subcommand is given (e.g. <c>app group</c> after namespace options).
-	/// Only valid inside <see cref="AddNamespace"/> configuration; analyzed by the source generator.
-	/// </summary>
-	public ArghApp AddNamespaceRootCommand(Delegate handler)
-	{
-		if (_commandNamespacePath.Length > 0)
+		else
 			Lambdas[_commandNamespacePath + "/__argh_root"] = handler;
 		return this;
 	}
@@ -53,7 +44,7 @@ public sealed partial class ArghApp : IArghBuilder
 	/// <summary>
 	/// Creates a nested command namespace (ASP.NET <c>MapGroup</c> style). The description is shown in root/namespace <c>--help</c> listings; use <see cref="string.Empty"/> when you want no prose.
 	/// </summary>
-	public ArghApp AddNamespace(string name, string description, Action<IArghBuilder> configure)
+	public ArghApp MapNamespace(string name, string description, Action<IArghBuilder> configure)
 	{
 		_ = description;
 		configure(new ArghBuilder(CreateChildApp(name)));
@@ -61,23 +52,23 @@ public sealed partial class ArghApp : IArghBuilder
 	}
 
 	/// <summary>
-	/// Creates a nested namespace with no configure callback; equivalent to <c>AddNamespace&lt;T&gt;(name, _ =&gt; { })</c>.
+	/// Creates a nested namespace with no configure callback; equivalent to <c>MapNamespace&lt;T&gt;(name, _ =&gt; { })</c>.
 	/// </summary>
-	public ArghApp AddNamespace<T>(string name) where T : class =>
-		AddNamespace<T>(name, static (IArghBuilder _) => { });
+	public ArghApp MapNamespace<T>(string name) where T : class =>
+		MapNamespace<T>(name, static (IArghBuilder _) => { });
 
 	/// <summary>
 	/// Creates a nested namespace; the listing description is taken from the XML <c>&lt;summary&gt;</c> on <typeparamref name="T"/>.
-	/// Public commands on <typeparamref name="T"/> (and nested handler classes) are registered automatically—do not call <c>Add&lt;T&gt;()</c> again inside the configure callback.
+	/// Public commands on <typeparamref name="T"/> (and nested handler classes) are registered automatically—do not call <c>Map&lt;T&gt;()</c> again inside the configure callback.
 	/// </summary>
-	public ArghApp AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
+	public ArghApp MapNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
 	{
 		configure(new ArghBuilder(CreateChildApp(name)));
 		return this;
 	}
 
-	/// <summary>Like <see cref="AddNamespace{T}(string, Action{IArghBuilder})"/> but passes an <see cref="IArghNamespaceBuilder"/> that exposes <see cref="IArghNamespaceBuilder.Segment"/>.</summary>
-	public ArghApp AddNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
+	/// <summary>Like <see cref="MapNamespace{T}(string, Action{IArghBuilder})"/> but passes an <see cref="IArghNamespaceBuilder"/> that exposes <see cref="IArghNamespaceBuilder.Segment"/>.</summary>
+	public ArghApp MapNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
 	{
 		configure(new ArghNamespaceBuilder(CreateChildApp(name), name));
 		return this;
@@ -87,20 +78,20 @@ public sealed partial class ArghApp : IArghBuilder
 	/// Nested namespace where the segment is resolved at compile time (see <see cref="ArghNamespaceSegmentCodegen"/>).
 	/// Requires the source generator to emit registration for <typeparamref name="T"/>.
 	/// </summary>
-	public ArghApp AddNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class
+	public ArghApp MapNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class
 	{
 		var seg = ArghNamespaceSegmentCodegen.Get<T>();
 		if (seg is null)
 		{
 			throw new InvalidOperationException(
-				"AddNamespace<" + typeof(T).Name + ">(Action<IArghNamespaceBuilder>) requires the Argh source generator to emit a namespace segment for this type. Use AddNamespace<" + typeof(T).Name + ">(string name, ...) with an explicit segment, or ensure the project references Nullean.Argh.Generator.");
+				"MapNamespace<" + typeof(T).Name + ">(Action<IArghNamespaceBuilder>) requires the Argh source generator to emit a namespace segment for this type. Use MapNamespace<" + typeof(T).Name + ">(string name, ...) with an explicit segment, or ensure the project references Nullean.Argh.Generator.");
 		}
 
 		configure(new ArghNamespaceBuilder(CreateChildApp(seg), seg));
 		return this;
 	}
 
-	/// <summary>Creates an <see cref="ArghApp"/> for a child namespace segment (same path rules as <see cref="AddNamespace"/>).</summary>
+	/// <summary>Creates an <see cref="ArghApp"/> for a child namespace segment (same path rules as <see cref="MapNamespace"/>).</summary>
 	internal ArghApp CreateChildApp(string name)
 	{
 		var childPath = _commandNamespacePath.Length == 0 ? name : _commandNamespacePath + "/" + name;
@@ -108,7 +99,7 @@ public sealed partial class ArghApp : IArghBuilder
 	}
 
 	/// <summary>Typed options for the current namespace; <typeparamref name="T"/> must inherit the parent options type (enforced at compile time).</summary>
-	public ArghApp CommandNamespaceOptions<T>() where T : class => this;
+	public ArghApp UseNamespaceOptions<T>() where T : class => this;
 
 	/// <summary>Runs the source-generated CLI for this application (see <see cref="ArghRuntime.RunAsync"/>).</summary>
 	public Task<int> RunAsync(string[] args) => ArghRuntime.RunAsync(args);

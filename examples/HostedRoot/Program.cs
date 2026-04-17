@@ -24,17 +24,17 @@ builder.Services.AddArgh(
 	app =>
 	{
 		app.UseMiddleware<HostedRootGlobalMiddleware>();
-		app.GlobalOptions<HostedRootGlobalCliOptions>();
-		app.AddRootCommand(HostedRootDefaults.App);
-		app.Add("hello", HostedRootHello.Run);
-		app.AddNamespace<HostedRootStorageCommands>(g =>
+		app.UseGlobalOptions<HostedRootGlobalCliOptions>();
+		app.MapRoot(HostedRootDefaults.App);
+		app.Map("hello", HostedRootHello.Run);
+		app.MapNamespace<HostedRootStorageCommands>(g =>
 		{
-			g.CommandNamespaceOptions<HostedRootStorageNamespaceOptions>();
-			g.AddNamespace<HostedRootStorageCommands.BlobCommands>("blob");
+			g.UseNamespaceOptions<HostedRootStorageNamespaceOptions>();
+			g.MapNamespace<HostedRootStorageCommands.BlobCommands>("blob");
 		});
-		app.AddNamespace("connect", "description", g =>
+		app.MapNamespace("connect", "description", g =>
 		{
-			g.Add("search", static () => Console.WriteLine("search"));
+			g.Map("search", static () => Console.WriteLine("search"));
 		});
 	});
 

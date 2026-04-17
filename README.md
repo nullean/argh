@@ -101,7 +101,7 @@ The two packages are isolated implementations and both only depend on `.Core`.
 using Nullean.Argh;
 
 var app = new ArghApp();
-app.Add("hello", MyHandlers.SayHello);
+app.Map("hello", MyHandlers.SayHello);
 
 return await app.RunAsync(args);
 ```
@@ -120,8 +120,8 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddArgh(args, b =>
 {
-    b.Add("hello", MyHandlers.SayHello);
-    // b.Add<MyCommandHandlers>(); b.GlobalOptions<MyGlobals>(); …
+    b.Map("hello", MyHandlers.SayHello);
+    // b.Map<MyCommandHandlers>(); b.UseGlobalOptions<MyGlobals>(); …
 });
 
 await builder.Build().RunAsync();
@@ -135,21 +135,20 @@ Three forms, same registration surface — all are fully supported. With class a
 
 ```csharp
 // 1. Method group — direct typed dispatch.
-app.Add("deploy", DeployHandlers.Run);
+app.Map("deploy", DeployHandlers.Run);
 
 // 2. Lambda — convenient for simple one-liners.
-app.Add("greet", (string name) => Console.WriteLine($"Hello, {name}!"));
+app.Map("greet", (string name) => Console.WriteLine($"Hello, {name}!"));
 
 // 3. Class — registers every public method on T as a command.
-app.Add<StorageHandlers>();
+app.Map<StorageHandlers>();
 ```
 
 | API | Purpose |
 |-----|---------|
-| `Add(name, handler)` | Bind a command name to a delegate. |
-| `Add<T>()` | Register every public method on `T` as a command (typically a static class of handlers). |
-| `AddRootCommand(handler)` | Default handler when no subcommand is given at the app root. |
-| `AddNamespaceRootCommand(handler)` | Default handler when a namespace is selected but no deeper command is. |
+| `Map(name, handler)` | Bind a command name to a delegate. |
+| `Map<T>()` | Register every public method on `T` as a command (typically a static class of handlers). |
+| `MapRoot(handler)` | Default handler when no subcommand is given (at app root, or inside a `MapNamespace` callback for that namespace). |
 
 Flat apps route `app <command> …`; hierarchical apps route `app <namespace> … <command> …`. The generator emits the switch/dispatch tree accordingly.
 
@@ -158,14 +157,14 @@ Flat apps route `app <command> …`; hierarchical apps route `app <namespace> �
 Group related commands under a shared path, scoped options, and their own help page — the same mental model as ASP.NET's `MapGroup`.
 
 ```csharp
-app.AddNamespace<StorageCommands>("storage", ns =>
+app.MapNamespace<StorageCommands>("storage", ns =>
 {
-    ns.AddNamespace<BlobCommands>("blob", blobs =>
+    ns.MapNamespace<BlobCommands>("blob", blobs =>
     {
-        blobs.Add("upload", BlobHandlers.Upload);
-        blobs.Add("download", BlobHandlers.Download);
+        blobs.Map("upload", BlobHandlers.Upload);
+        blobs.Map("download", BlobHandlers.Download);
     });
-    ns.Add("list", StorageHandlers.List);
+    ns.Map("list", StorageHandlers.List);
 });
 // Resulting paths:
 //   storage list
@@ -173,7 +172,7 @@ app.AddNamespace<StorageCommands>("storage", ns =>
 //   storage blob download
 ```
 
-`AddNamespace<T>` auto-registers public methods from `T` and nested handler types — do not call `Add<T>()` again for the same type inside the callback. The generator produces separate help printers for namespace overview and leaf commands.
+`MapNamespace<T>` auto-registers public methods from `T` and nested handler types — do not call `Map<T>()` again for the same type inside the callback. The generator produces separate help printers for namespace overview and leaf commands.
 
 ## Parameters and binding
 
@@ -277,8 +276,8 @@ Share state across commands without repeating parameters on every method signatu
 ```csharp
 public record GlobalOptions(bool Verbose = false);
 
-app.GlobalOptions<GlobalOptions>();
-app.Add("build", (GlobalOptions g) => { if (g.Verbose) … });
+app.UseGlobalOptions<GlobalOptions>();
+app.Map("build", (GlobalOptions g) => { if (g.Verbose) … });
 // myapp build --verbose
 ```
 
@@ -291,10 +290,10 @@ Scoped to a namespace and its children. The options type must inherit the parent
 ```csharp
 public record StorageOptions(string ConnectionString = "") : GlobalOptions;
 
-app.AddNamespace<StorageHandlers>("storage", ns =>
+app.MapNamespace<StorageHandlers>("storage", ns =>
 {
-    ns.CommandNamespaceOptions<StorageOptions>();
-    ns.Add("list", (StorageOptions o) => { … });
+    ns.UseNamespaceOptions<StorageOptions>();
+    ns.Map("list", (StorageOptions o) => { … });
 });
 // myapp storage list --connection-string "…" --verbose
 ```
@@ -308,7 +307,7 @@ A command can extend a global or namespace options type and annotate it with `[A
 ```csharp
 public record DeployOptions(string Environment, bool DryRun = false) : StorageOptions;
 
-ns.Add("deploy", ([AsParameters] DeployOptions opts) => { … });
+ns.Map("deploy", ([AsParameters] DeployOptions opts) => { … });
 // myapp storage deploy --connection-string "…" --environment staging --dry-run
 ```
 
@@ -370,7 +369,7 @@ Notes:
 
 ### Namespaces
 
-Put the `<summary>` (and optionally `<remarks>`) on the class `T` passed to `AddNamespace<T>`. The generator uses it as the namespace description in `myapp storage --help` and in the root command listing:
+Put the `<summary>` (and optionally `<remarks>`) on the class `T` passed to `MapNamespace<T>`. The generator uses it as the namespace description in `myapp storage --help` and in the root command listing:
 
 ```csharp
 /// <summary>Manage blob and file storage resources.</summary>
@@ -380,12 +379,12 @@ Put the `<summary>` (and optionally `<remarks>`) on the class `T` passed to `Add
 /// </remarks>
 internal sealed class StorageCommands { … }
 
-app.AddNamespace<StorageCommands>("storage", ns => { … });
+app.MapNamespace<StorageCommands>("storage", ns => { … });
 ```
 
 ### Root app
 
-The root `myapp --help` shows a description when a root command is registered via `AddRootCommand`. The XML doc on that handler becomes the app-level overview:
+The root `myapp --help` shows a description when a root command is registered via `MapRoot`. The XML doc on that handler becomes the app-level overview:
 
 ```csharp
 /// <summary>Manage and deploy your application's cloud resources.</summary>
@@ -394,7 +393,7 @@ The root `myapp --help` shows a description when a root command is registered vi
 /// </remarks>
 public static Task<int> Root() { … }
 
-app.AddRootCommand(Root);
+app.MapRoot(Root);
 ```
 
 In **remarks**, `<paramref>` to a flag becomes `--name`; `<see cref>` to another handler becomes that command's usage synopsis. See [`examples/XmlDocShowcase`](examples/XmlDocShowcase) for the full tag inventory.
@@ -428,7 +427,7 @@ public static Task<int> Deploy(string environment) { … }
 
 When using `Nullean.Argh.Hosting`, DI integration is fully transparent — register your handler and middleware types in the service collection and the generated code resolves them automatically. No manual `ServiceProvider` wiring needed.
 
-For advanced use or when not using `Nullean.Argh.Hosting`: [`ArghServices.ServiceProvider`](src/Nullean.Argh.Core/Runtime/ArghHostRuntime.cs) is typed as `System.IServiceProvider` and set when running under a host. For `Add<T>()` instance methods and `UseMiddleware<T>()` / `[MiddlewareAttribute<T>]`, generated code resolves via `GetService(typeof(T))` when a provider is present; otherwise it falls back to `new T()`.
+For advanced use or when not using `Nullean.Argh.Hosting`: [`ArghServices.ServiceProvider`](src/Nullean.Argh.Core/Runtime/ArghHostRuntime.cs) is typed as `System.IServiceProvider` and set when running under a host. For `Map<T>()` instance methods and `UseMiddleware<T>()` / `[MiddlewareAttribute<T>]`, generated code resolves via `GetService(typeof(T))` when a provider is present; otherwise it falls back to `new T()`.
 
 ```csharp
 // Handler with an injected service
@@ -443,7 +442,7 @@ public class DeployCommands(IDeployService deployer)
 
 // Registration — service must be in the DI container
 builder.Services.AddScoped<IDeployService, DeployService>();
-builder.Services.AddArgh(args, b => b.Add<DeployCommands>());
+builder.Services.AddArgh(args, b => b.Map<DeployCommands>());
 ```
 
 For native AOT / trimming, register handler and middleware types explicitly in DI so required constructors are preserved.
@@ -452,23 +451,25 @@ For native AOT / trimming, register handler and middleware types explicitly in D
 
 `Nullean.Argh.Hosting` plugs the same command registration model into `IHost` and `Microsoft.Extensions.DependencyInjection` — no custom bootstrapping or glue code needed.
 
-`services.AddArgh(args, b => { … })` ([`AddArgh`](src/Nullean.Argh.Hosting/ArghHostingExtensions.cs)) mirrors the same `Add` / `Add<T>` / `GlobalOptions` / `UseMiddleware` / `AddNamespace` surface as `ArghApp`, and additionally lets you control DI lifetimes:
+`services.AddArgh(args, b => { … })` ([`AddArgh`](src/Nullean.Argh.Hosting/ArghHostingExtensions.cs)) mirrors the same `Map` / `Map<T>` / `UseGlobalOptions` / `UseNamespaceOptions` / `UseMiddleware` / `MapNamespace` surface as `ArghApp`, and additionally lets you control DI lifetimes:
 
 ```csharp
+using Microsoft.Extensions.DependencyInjection;
+
 builder.Services.AddArgh(args, b =>
 {
-    b.AddScoped<DeployCommands>();       // resolved per command invocation
-    b.AddSingleton<AuditMiddleware>();   // single instance for the process
-    b.Add("ping", PingHandlers.Run);    // static method — no DI lifetime needed
-    b.GlobalOptions<GlobalOptions>();
+    b.MapScoped<DeployCommands>();       // resolved per command invocation
+    b.UseMiddleware<AuditMiddleware>(ServiceLifetime.Singleton);   // single instance for the process
+    b.Map("ping", PingHandlers.Run);    // static method — no DI lifetime needed
+    b.UseGlobalOptions<GlobalOptions>();
 });
 ```
 
 | `IArghHostingBuilder` API | Purpose |
 |--------------------------|---------|
-| `Add<T>()` | Register `T` as transient and add all its public methods as commands. |
-| `AddTransient<T>()` / `AddScoped<T>()` / `AddSingleton<T>()` | Same, with an explicit DI lifetime. |
-| `GlobalOptions<T>()` | Register `T` as the global options type and add it to DI. |
+| `Map<T>()` | Register `T` as transient and add all its public methods as commands. |
+| `MapTransient<T>()` / `MapScoped<T>()` / `MapSingleton<T>()` | Same, with an explicit DI lifetime. |
+| `UseGlobalOptions<T>()` | Register `T` as the global options type and add it to DI. |
 | `UseMiddleware<TMiddleware>()` | Register middleware as transient. |
 | `UseMiddleware<TMiddleware>(lifetime)` | Register middleware with an explicit DI lifetime. |
 

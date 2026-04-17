@@ -26,17 +26,17 @@ builder.Services.AddArgh(
 	{
 		app.UseMiddleware<HostedGlobalMiddleware>();
 		app.UseMiddleware<HostedOrderingDemoMiddleware>();
-		app.GlobalOptions<HostedGlobalCliOptions>();
-		app.Add<HostedCliCommands>();
-		app.Add("doc-echo", HostedLocalHandlers.DocEcho);
-		app.Add("quick-echo", (string msg) => Console.WriteLine($"hosted:quick:{msg}"));
-		app.AddNamespace<HostedStorageCommands>("storage", g =>
+		app.UseGlobalOptions<HostedGlobalCliOptions>();
+		app.Map<HostedCliCommands>();
+		app.Map("doc-echo", HostedLocalHandlers.DocEcho);
+		app.Map("quick-echo", (string msg) => Console.WriteLine($"hosted:quick:{msg}"));
+		app.MapNamespace<HostedStorageCommands>("storage", g =>
 		{
-			g.CommandNamespaceOptions<HostedStorageCommandNamespaceOptions>();
+			g.UseNamespaceOptions<HostedStorageCommandNamespaceOptions>();
 		});
-		app.AddNamespace<HostedApiCommands>("api", g =>
+		app.MapNamespace<HostedApiCommands>("api", g =>
 		{
-			g.CommandNamespaceOptions<HostedApiNamespaceOptions>();
+			g.UseNamespaceOptions<HostedApiNamespaceOptions>();
 		});
 	});
 

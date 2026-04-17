@@ -6,9 +6,9 @@ using Nullean.Argh;
 using XmlDocShowcase;
 
 var app = new ArghApp();
-app.GlobalOptions<XmlDocShowcaseGlobalOptions>();
-app.Add("welcome", DocsCommands.Welcome);
-app.Add("ping", DocsCommands.Ping);
-app.AddNamespace<XmlDocSamples>("docs", g => { g.CommandNamespaceOptions<XmlDocNamespaceOptions>(); });
+app.UseGlobalOptions<XmlDocShowcaseGlobalOptions>();
+app.Map("welcome", DocsCommands.Welcome);
+app.Map("ping", DocsCommands.Ping);
+app.MapNamespace<XmlDocSamples>("docs", g => { g.UseNamespaceOptions<XmlDocNamespaceOptions>(); });
 
 return await app.RunAsync(args);

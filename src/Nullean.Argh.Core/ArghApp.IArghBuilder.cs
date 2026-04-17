@@ -5,69 +5,63 @@ namespace Nullean.Argh;
 
 public sealed partial class ArghApp
 {
-	IArghBuilder IArghBuilder.GlobalOptions<T>() where T : class
+	IArghBuilder IArghBuilder.UseGlobalOptions<T>() where T : class
 	{
-		_ = GlobalOptions<T>();
+		_ = UseGlobalOptions<T>();
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.Add(string name, Delegate handler)
+	IArghBuilder IArghBuilder.Map(string name, Delegate handler)
 	{
-		_ = Add(name, handler);
+		_ = Map(name, handler);
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.Add<T>() where T : class
+	IArghBuilder IArghBuilder.Map<T>() where T : class
 	{
-		_ = Add<T>();
+		_ = Map<T>();
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.AddRootCommand(Delegate handler)
+	IArghBuilder IArghBuilder.MapRoot(Delegate handler)
 	{
-		_ = AddRootCommand(handler);
+		_ = MapRoot(handler);
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.AddNamespaceRootCommand(Delegate handler)
+	IArghBuilder IArghBuilder.MapNamespace(string name, string description, Action<IArghBuilder> configure)
 	{
-		_ = AddNamespaceRootCommand(handler);
+		_ = MapNamespace(name, description, configure);
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.AddNamespace(string name, string description, Action<IArghBuilder> configure)
+	IArghBuilder IArghBuilder.MapNamespace<T>(string name) where T : class
 	{
-		_ = AddNamespace(name, description, configure);
+		_ = MapNamespace<T>(name);
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.AddNamespace<T>(string name) where T : class
+	IArghBuilder IArghBuilder.MapNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
 	{
-		_ = AddNamespace<T>(name);
+		_ = MapNamespace<T>(name, configure);
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
+	IArghBuilder IArghBuilder.MapNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
 	{
-		_ = AddNamespace<T>(name, configure);
+		_ = MapNamespace<T>(name, configure);
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.AddNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
+	IArghBuilder IArghBuilder.MapNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class
 	{
-		_ = AddNamespace<T>(name, configure);
+		_ = MapNamespace<T>(configure);
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.AddNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class
+	IArghBuilder IArghBuilder.UseNamespaceOptions<T>() where T : class
 	{
-		_ = AddNamespace<T>(configure);
-		return this;
-	}
-
-	IArghBuilder IArghBuilder.CommandNamespaceOptions<T>() where T : class
-	{
-		_ = CommandNamespaceOptions<T>();
+		_ = UseNamespaceOptions<T>();
 		return this;
 	}
 

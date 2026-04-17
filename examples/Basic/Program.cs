@@ -16,22 +16,22 @@ var app = new ArghApp();
 // Middleware: global registrations run in order, then per-command middleware from attributes.
 app.UseMiddleware<GlobalExampleMiddleware>();
 app.UseMiddleware<OrderingDemoMiddleware>();
-app.GlobalOptions<GlobalCliOptions>();
-app.Add("hello", CommandHandlers.Hello);
-app.Add("status", CommandHandlers.Status);
-app.Add("deploy", CommandHandlers.Deploy);
-app.Add("labels", CommandHandlers.Labels);
+app.UseGlobalOptions<GlobalCliOptions>();
+app.Map("hello", CommandHandlers.Hello);
+app.Map("status", CommandHandlers.Status);
+app.Map("deploy", CommandHandlers.Deploy);
+app.Map("labels", CommandHandlers.Labels);
 // Named handler with XML (see DocEcho below) — help text is generated from documentation.
-app.Add("doc-echo", LocalCliHandlers.DocEcho);
+app.Map("doc-echo", LocalCliHandlers.DocEcho);
 // Anonymous lambda: no XML on the delegate; use DocEcho-style handlers when you want rich --help.
-app.Add("quick-echo", (string msg) => Console.WriteLine($"basic:quick:{msg}"));
-app.AddNamespace<StorageCommands>("storage", g =>
+app.Map("quick-echo", (string msg) => Console.WriteLine($"basic:quick:{msg}"));
+app.MapNamespace<StorageCommands>("storage", g =>
 {
-	g.CommandNamespaceOptions<StorageCommandNamespaceOptions>();
+	g.UseNamespaceOptions<StorageCommandNamespaceOptions>();
 });
-app.AddNamespace<ApiCommands>("api", g =>
+app.MapNamespace<ApiCommands>("api", g =>
 {
-	g.CommandNamespaceOptions<ApiNamespaceOptions>();
+	g.UseNamespaceOptions<ApiNamespaceOptions>();
 });
 
 return await app.RunAsync(args);

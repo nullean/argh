@@ -45,7 +45,7 @@ The build scripts in `build/scripts/` are F# using Bullseye targets. `./build.sh
 
 ## How the Generator Works
 
-`CliParserGenerator` (in `src/Nullean.Argh.Generator/`) scans the user's code for invocations of `Add`, `AddNamespace`, `AddRootCommand`, `AddNamespaceRootCommand`, `GlobalOptions`, `CommandNamespaceOptions`, and `UseMiddleware` on `IArghBuilder`/`ArghApp`. It:
+`CliParserGenerator` (in `src/Nullean.Argh.Generator/`) scans the user's code for invocations of `Map`, `MapNamespace`, `MapRoot`, `UseGlobalOptions`, `UseNamespaceOptions`, and `UseMiddleware` on `IArghBuilder`/`ArghApp`. It:
 
 1. **Filters** invocations by receiver namespace (`Nullean.Argh`) in the pipeline `CreateSyntaxProvider` transform before `Collect()`.
 2. **Builds** an `AppEmitModel` / `RegistryNode` tree from the filtered, semantically validated invocations.

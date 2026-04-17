@@ -25,7 +25,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private static readonly DiagnosticDescriptor CommandNamespaceOptionsMustExtendParent = new(
 		"AGH0004",
 		"Command namespace options type must extend the parent options type",
-		"'{0}' must inherit or implement '{1}' for this CommandNamespaceOptions<> registration.",
+		"'{0}' must inherit or implement '{1}' for this UseNamespaceOptions<> registration.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
@@ -33,7 +33,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private static readonly DiagnosticDescriptor CommandNamespaceOptionsRequiresParent = new(
 		"AGH0005",
 		"Command namespace options require a parent options type",
-		"Register GlobalOptions<T>() before CommandNamespaceOptions<{0}>(), or ensure the parent namespace declares a compatible base options type.",
+		"Register UseGlobalOptions<T>() before UseNamespaceOptions<{0}>(), or ensure the parent namespace declares a compatible base options type.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
@@ -41,7 +41,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private static readonly DiagnosticDescriptor HandlerMustBeMethod = new(
 		"AGH0002",
 		"Command handler must be a method group",
-		"The second argument to Add must be a method group (not a lambda or local function) so the generator can emit an AOT-compatible call.",
+		"The second argument to Map must be a method group (not a lambda or local function) so the generator can emit an AOT-compatible call.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
@@ -89,23 +89,23 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private static readonly DiagnosticDescriptor DuplicateRootCommand = new(
 		"AGH0010",
 		"Duplicate default command",
-		"Only one default handler per scope: AddRootCommand, AddNamespaceRootCommand, or [DefaultCommand].",
+		"Only one default handler per scope: MapRoot, or [DefaultCommand].",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
 	private static readonly DiagnosticDescriptor AddRootCommandOnlyAtAppRoot = new(
 		"AGH0011",
-		"AddRootCommand only on the root app",
-		"Use AddRootCommand on the root ArghApp only (not inside AddNamespace). For a namespace default handler, use AddNamespaceRootCommand.",
+		"MapRoot only on the root app",
+		"Use MapRoot on the root ArghApp only (not inside MapNamespace). For a namespace default handler, call MapRoot inside the MapNamespace configure callback.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
 	private static readonly DiagnosticDescriptor AddNamespaceRootCommandOnlyInNamespace = new(
 		"AGH0012",
-		"AddNamespaceRootCommand only inside a namespace",
-		"Use AddNamespaceRootCommand inside AddNamespace configuration. For the top-level default, use AddRootCommand.",
+		"MapRoot only inside a namespace",
+		"Use MapRoot inside MapNamespace configuration. For the top-level default, use MapRoot at the app root.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
@@ -120,15 +120,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private static readonly DiagnosticDescriptor AddNamespaceRequiresExplicitDescriptionOrType = new(
 		"AGH0014",
-		"AddNamespace requires a description or entry type",
-		"Use AddNamespace(string name, string description, Action<IArghBuilder> configure) with an explicit description (may be empty), or AddNamespace<T>(string name, Action<IArghBuilder> configure) to use type T's XML summary for the namespace listing.",
+		"MapNamespace requires a description or entry type",
+		"Use MapNamespace(string name, string description, Action<IArghBuilder> configure) with an explicit description (may be empty), or MapNamespace<T>(string name, Action<IArghBuilder> configure) to use type T's XML summary for the namespace listing.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
 	private static readonly DiagnosticDescriptor AddNamespaceDescriptionNotConstant = new(
 		"AGH0015",
-		"AddNamespace description not a compile-time string",
+		"MapNamespace description not a compile-time string",
 		"The description argument must be a string literal or const string so the generator can emit namespace help text.",
 		"Argh",
 		DiagnosticSeverity.Warning,
@@ -136,8 +136,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private static readonly DiagnosticDescriptor RedundantAddInsideAddNamespaceT = new(
 		"AGH0016",
-		"Redundant Add<T> inside AddNamespace<T>",
-		"AddNamespace<{0}> already registers public commands from that type; remove the inner Add<{0}> call.",
+		"Redundant Map<T> inside MapNamespace<T>",
+		"MapNamespace<{0}> already registers public commands from that type; remove the inner Map<{0}> call.",
 		"Argh",
 		DiagnosticSeverity.Warning,
 		isEnabledByDefault: true);
@@ -145,7 +145,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private static readonly DiagnosticDescriptor NamespaceSegmentUnresolved = new(
 		"AGH0017",
 		"Namespace segment could not be resolved",
-		"AddNamespace<{0}>() without a name requires [NamespaceSegment] with a string argument on the type and/or a single <c>segment</c> in the type XML <summary>.",
+		"MapNamespace<{0}>() without a name requires [NamespaceSegment] with a string argument on the type and/or a single <c>segment</c> in the type XML <summary>.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
@@ -169,7 +169,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private static readonly DiagnosticDescriptor VacuousNamespace = new(
 		"AGH0020",
 		"Namespace registers no commands",
-		"This AddNamespace block does not register any commands, nested namespaces, or default handlers.",
+		"This MapNamespace block does not register any commands, nested namespaces, or default handlers.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
@@ -202,6 +202,26 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private static readonly Regex IdentifierSegmentPattern =
 		new(@"^[a-zA-Z0-9_-]+$", RegexOptions.Compiled);
 
+	/// <summary>Syntax-only filter for Argh builder invocations; <c>Map</c> is narrowed to generic or two-arg forms.</summary>
+	private static bool IsTrackedArghInvocation(InvocationExpressionSyntax inv, MemberAccessExpressionSyntax ma, string methodName)
+	{
+		switch (methodName)
+		{
+			case "MapNamespace":
+			case "MapRoot":
+			case "UseGlobalOptions":
+			case "UseNamespaceOptions":
+			case "UseMiddleware":
+				return true;
+			case "Map":
+				if (ma.Name is GenericNameSyntax gn && gn.TypeArgumentList.Arguments.Count > 0)
+					return true;
+				return inv.ArgumentList.Arguments.Count >= 2;
+			default:
+				return false;
+		}
+	}
+
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		// ── Assembly metadata ── stable, only changes on version bump
@@ -224,11 +244,19 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		// Roslyn caches the result per invocation; only changed invocations are re-analyzed.
 		var analyzed = context.SyntaxProvider
 			.CreateSyntaxProvider(
-				static (node, _) => node is InvocationExpressionSyntax
+				static (node, _) =>
 				{
-					Expression: MemberAccessExpressionSyntax { Name: SimpleNameSyntax name }
-				} && name.Identifier.Text is "Add" or "AddNamespace" or "AddRootCommand" or "AddNamespaceRootCommand"
-					or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware",
+					if (node is not InvocationExpressionSyntax inv
+					    || inv.Expression is not MemberAccessExpressionSyntax ma)
+						return false;
+					var methodName = ma.Name switch
+					{
+						GenericNameSyntax gn => gn.Identifier.Text,
+						SimpleNameSyntax sn => sn.Identifier.Text,
+						_ => (string?)null
+					};
+					return methodName is not null && IsTrackedArghInvocation(inv, ma, methodName);
+				},
 				static (ctx, ct) =>
 				{
 					var invocation = (InvocationExpressionSyntax)ctx.Node;
@@ -486,11 +514,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private abstract record AnalyzedInvocation(string FilePath, int SpanStart);
 
 	/// <summary>A <c>GlobalOptions&lt;T&gt;()</c> invocation — only valid at root scope.</summary>
-	private sealed record AIGlobalOptions(string FilePath, int SpanStart, OptionsTypeModel Model)
+	private sealed record AIUseGlobalOptions(string FilePath, int SpanStart, OptionsTypeModel Model)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>CommandNamespaceOptions&lt;T&gt;()</c> invocation — only valid inside a namespace.</summary>
-	private sealed record AICommandNamespaceOptions(string FilePath, int SpanStart, OptionsTypeModel Model)
+	private sealed record AIUseNamespaceOptions(string FilePath, int SpanStart, OptionsTypeModel Model)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>UseMiddleware&lt;T&gt;()</c> invocation — only valid at root scope.</summary>
@@ -502,18 +530,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	/// For <c>Add&lt;T&gt;</c>, <see cref="TypeSnapshot"/> holds the full registry structure;
 	/// for <c>Add(name, handler)</c>, <see cref="Commands"/> holds the single command.
 	/// </summary>
-	private sealed record AIAddCommand(string FilePath, int SpanStart, ImmutableArray<CommandModel> Commands, RegistryNodeSnapshot? TypeSnapshot = null)
+	private sealed record AIMapCommand(string FilePath, int SpanStart, ImmutableArray<CommandModel> Commands, RegistryNodeSnapshot? TypeSnapshot = null)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>An <c>AddRootCommand(handler)</c> or <c>AddNamespaceRootCommand(handler)</c> invocation.</summary>
-	private sealed record AIAddRootCommand(string FilePath, int SpanStart, CommandModel Cmd, bool IsNamespaceRoot)
+	private sealed record AIMapRootCommand(string FilePath, int SpanStart, CommandModel Cmd, bool IsNamespaceRoot)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>
 	/// An <c>AddNamespace(…)</c> invocation.
 	/// LambdaBodyStart/End are character offsets into FilePath used to identify child invocations positionally.
 	/// </summary>
-	private sealed record AIAddNamespace(
+	private sealed record AIMapNamespace(
 		string FilePath,
 		int SpanStart,
 		string SegmentName,
@@ -624,21 +652,21 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		switch (method.Name)
 		{
-			case "GlobalOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
+			case "UseGlobalOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
 			{
 				if (method.TypeArguments[0] is not INamedTypeSymbol go || go.TypeKind == TypeKind.Error)
 					return null;
 				var model = BuildOptionsTypeModel(go);
 				if (model is null) return null;
-				return new AIGlobalOptions(filePath, spanStart, model);
+				return new AIUseGlobalOptions(filePath, spanStart, model);
 			}
-			case "CommandNamespaceOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
+			case "UseNamespaceOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
 			{
 				if (method.TypeArguments[0] is not INamedTypeSymbol gt || gt.TypeKind == TypeKind.Error)
 					return null;
 				var model = BuildOptionsTypeModel(gt);
 				if (model is null) return null;
-				return new AICommandNamespaceOptions(filePath, spanStart, model);
+				return new AIUseNamespaceOptions(filePath, spanStart, model);
 			}
 			case "UseMiddleware" when method.IsGenericMethod && method.TypeArguments.Length == 1:
 			{
@@ -652,7 +680,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			case "UseMiddleware":
 				// Inline delegate — diagnostic will be reported by TryBuildAppEmitModel (option 2 from plan).
 				return new AIUseMiddleware(filePath, spanStart, new GlobalMiddlewareRegistration("", false));
-			case "Add" when method.IsGenericMethod && method.TypeArguments.Length > 0:
+			case "Map" when method.IsGenericMethod && method.TypeArguments.Length > 0:
 			{
 				if (method.TypeArguments[0] is not INamedTypeSymbol named || named.TypeKind == TypeKind.Error)
 					return null;
@@ -663,9 +691,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var wrapper = new RegistryNode();
 				ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, mergeOuterTypeSegment: false, wrapper, parseOpts);
 				var snap = BuildRegistryNodeSnapshot(wrapper);
-				return new AIAddCommand(filePath, spanStart, ImmutableArray<CommandModel>.Empty, TypeSnapshot: snap);
+				return new AIMapCommand(filePath, spanStart, ImmutableArray<CommandModel>.Empty, TypeSnapshot: snap);
 			}
-			case "Add" when invocation.ArgumentList.Arguments.Count >= 2:
+			case "Map" when invocation.ArgumentList.Arguments.Count >= 2:
 			{
 				var nameExpr = invocation.ArgumentList.Arguments[0].Expression;
 				var commandName = TryGetStringLiteral(nameExpr);
@@ -677,32 +705,39 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					var node = new RegistryNode();
 					TryExpandLambdaDelegateAcc(semanticModel, invocation, handlerExpr, commandName, ImmutableArray<string>.Empty, node);
 					if (node.Commands.Count == 0) return null;
-					return new AIAddCommand(filePath, spanStart, node.Commands.ToImmutableArray());
+					return new AIMapCommand(filePath, spanStart, node.Commands.ToImmutableArray());
 				}
 				var handler = ResolveHandlerMethodForAnalyze(semanticModel, handlerExpr);
 				if (handler is null) return null;
 				var acc2 = new DiagnosticAccumulator();
 				var cmd = CommandModel.FromMethod(commandName, handler, parseOpts, ImmutableArray<string>.Empty, acc2, invocation.GetLocation());
-				return new AIAddCommand(filePath, spanStart, ImmutableArray.Create(cmd));
+				return new AIMapCommand(filePath, spanStart, ImmutableArray.Create(cmd));
 			}
-			case "AddRootCommand":
+			case "MapRoot":
 			{
 				if (invocation.ArgumentList.Arguments.Count < 1) return null;
-				return AnalyzeAddRootCommandInvocation(invocation, semanticModel, filePath, spanStart, parseOpts, isNamespaceRoot: false);
+				var isNs = IsInvocationInsideMapNamespaceConfigure(invocation);
+				return AnalyzeMapRootInvocation(invocation, semanticModel, filePath, spanStart, parseOpts, isNamespaceRoot: isNs);
 			}
-			case "AddNamespaceRootCommand":
-			{
-				if (invocation.ArgumentList.Arguments.Count < 1) return null;
-				return AnalyzeAddRootCommandInvocation(invocation, semanticModel, filePath, spanStart, parseOpts, isNamespaceRoot: true);
-			}
-			case "AddNamespace":
-				return AnalyzeAddNamespaceInvocation(invocation, semanticModel, filePath, spanStart, parseOpts, ct);
+			case "MapNamespace":
+				return AnalyzeMapNamespaceInvocation(invocation, semanticModel, filePath, spanStart, parseOpts, ct);
 			default:
 				return null;
 		}
 	}
 
-	private static AIAddRootCommand? AnalyzeAddRootCommandInvocation(
+	private static bool IsInvocationInsideMapNamespaceConfigure(InvocationExpressionSyntax invocation)
+	{
+		for (var n = invocation.Parent; n != null; n = n.Parent)
+		{
+			if (n is LambdaExpressionSyntax lambda && IsMapNamespaceConfigureLambda(lambda, out _))
+				return true;
+		}
+
+		return false;
+	}
+
+	private static AIMapRootCommand? AnalyzeMapRootInvocation(
 		InvocationExpressionSyntax invocation,
 		SemanticModel semanticModel,
 		string filePath,
@@ -717,13 +752,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var node = new RegistryNode();
 			TryExpandLambdaRootCommandAcc(semanticModel, invocation, handlerExpr, ImmutableArray<string>.Empty, node);
 			if (node.RootCommand is null) return null;
-			return new AIAddRootCommand(filePath, spanStart, node.RootCommand, isNamespaceRoot);
+			return new AIMapRootCommand(filePath, spanStart, node.RootCommand, isNamespaceRoot);
 		}
 		var handler = ResolveHandlerMethodForAnalyze(semanticModel, handlerExpr);
 		if (handler is null) return null;
 		var acc = new DiagnosticAccumulator();
 		var cmd = CommandModel.FromRootMethod(handler, parseOpts, ImmutableArray<string>.Empty, acc, invocation.GetLocation());
-		return new AIAddRootCommand(filePath, spanStart, cmd, isNamespaceRoot);
+		return new AIMapRootCommand(filePath, spanStart, cmd, isNamespaceRoot);
 	}
 
 	/// <summary>Resolves a method from a handler expression without reporting diagnostics — returns null on failure.</summary>
@@ -742,7 +777,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return null; // handler not a method — diagnostic will be reported by old path / TryBuildAppEmitModel
 	}
 
-	private static AIAddNamespace? AnalyzeAddNamespaceInvocation(
+	private static AIMapNamespace? AnalyzeMapNamespaceInvocation(
 		InvocationExpressionSyntax invocation,
 		SemanticModel semanticModel,
 		string filePath,
@@ -753,7 +788,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (invocation.ArgumentList.Arguments.Count < 1)
 			return null;
 
-		if (semanticModel.GetSymbolInfo(invocation, ct).Symbol is not IMethodSymbol addNsMethod || addNsMethod.Name != "AddNamespace")
+		if (semanticModel.GetSymbolInfo(invocation, ct).Symbol is not IMethodSymbol addNsMethod || addNsMethod.Name != "MapNamespace")
 			return null;
 
 		var genericEntry = addNsMethod.IsGenericMethod && addNsMethod.TypeArguments.Length == 1;
@@ -839,7 +874,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			entryTypeSnapshot = BuildRegistryNodeSnapshot(entryNode);
 		}
 
-		return new AIAddNamespace(
+		return new AIMapNamespace(
 			filePath,
 			spanStart,
 			segmentName!,
@@ -930,7 +965,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		// Report any embedded diagnostics collected during AnalyzeInvocation.
 		foreach (var ai in allAnalyzed)
 		{
-			if (ai is AIAddNamespace ns)
+			if (ai is AIMapNamespace ns)
 				foreach (var pd in ns.EmbeddedDiagnostics)
 					context.ReportDiagnostic(Diagnostic.Create(GetDescriptorById(pd.DescriptorId), pd.Span.ToLocation(), pd.Arg0, pd.Arg1));
 		}
@@ -940,11 +975,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			.ThenBy(a => a.SpanStart)
 			.ToList();
 
-		// Identify root-level invocations: those NOT contained inside any AIAddNamespace lambda body.
+		// Identify root-level invocations: those NOT contained inside any AIMapNamespace lambda body.
 		var rootAnalyzed = new List<AnalyzedInvocation>();
 		foreach (var ai in sorted)
 		{
-			if (!IsInsideAnyAddNamespaceLambda(ai, sorted))
+			if (!IsInsideAnyMapNamespaceLambda(ai, sorted))
 				rootAnalyzed.Add(ai);
 		}
 
@@ -967,7 +1002,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (!ValidateNamespaceSegmentSanitizationCollisions(context, app.Root))
 			return false;
 
-		// OptionsModels are already set from AIGlobalOptions / AICommandNamespaceOptions via ProcessAnalyzedInvocationsForNode.
+		// OptionsModels are already set from AIUseGlobalOptions / AIUseNamespaceOptions via ProcessAnalyzedInvocationsForNode.
 
 		var flat = new List<CommandModel>();
 		CollectCommands(app.Root, flat);
@@ -999,12 +1034,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return true;
 	}
 
-	/// <summary>Determines if a given AnalyzedInvocation is positionally inside any AIAddNamespace lambda body.</summary>
-	private static bool IsInsideAnyAddNamespaceLambda(AnalyzedInvocation ai, List<AnalyzedInvocation> all)
+	/// <summary>Determines if a given AnalyzedInvocation is positionally inside any AIMapNamespace lambda body.</summary>
+	private static bool IsInsideAnyMapNamespaceLambda(AnalyzedInvocation ai, List<AnalyzedInvocation> all)
 	{
 		foreach (var other in all)
 		{
-			if (other is not AIAddNamespace ns) continue;
+			if (other is not AIMapNamespace ns) continue;
 			if (ns.LambdaBodyStart < 0 || ns.LambdaBodyEnd < 0) continue;
 			if (!string.Equals(ns.FilePath, ai.FilePath, StringComparison.Ordinal)) continue;
 			if (ai.SpanStart > ns.LambdaBodyStart && ai.SpanStart < ns.LambdaBodyEnd)
@@ -1027,26 +1062,26 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			switch (ai)
 			{
-				case AIGlobalOptions g when isRoot:
+				case AIUseGlobalOptions g when isRoot:
 					app.GlobalOptionsModel = g.Model;
 					break;
-				case AIGlobalOptions when !isRoot:
+				case AIUseGlobalOptions when !isRoot:
 					context.ReportDiagnostic(Diagnostic.Create(
 						CommandNamespaceOptionsRequiresParent,
 						Location.None,
 						"T"));
 					break;
-				case AICommandNamespaceOptions ns when !isRoot:
+				case AIUseNamespaceOptions ns when !isRoot:
 					node.CommandNamespaceOptionsModel = ns.Model;
 					node.CommandNamespaceOptionsLocation = Location.None;
 					break;
-				case AICommandNamespaceOptions when isRoot:
+				case AIUseNamespaceOptions when isRoot:
 					context.ReportDiagnostic(Diagnostic.Create(
 						CommandNamespaceOptionsRequiresParent,
 						Location.None,
 						"T"));
 					break;
-				case AIAddCommand { TypeSnapshot: { } typeSnap }:
+				case AIMapCommand { TypeSnapshot: { } typeSnap }:
 				{
 					// Add<T> invocation — apply the pre-computed snapshot.
 					// At root level (isRoot=true), mergeOuterTypeSegment was false: add as child namespace.
@@ -1068,7 +1103,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					}
 					break;
 				}
-				case AIAddCommand ac:
+				case AIMapCommand ac:
 					foreach (var cmd in ac.Commands)
 					{
 						// Re-prefix with the current path (commands were analyzed with empty prefix).
@@ -1086,13 +1121,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 							node.Commands.Add(prefixed);
 					}
 					break;
-				case AIAddRootCommand rc when isRoot && rc.IsNamespaceRoot:
+				case AIMapRootCommand rc when isRoot && rc.IsNamespaceRoot:
 					context.ReportDiagnostic(Diagnostic.Create(AddNamespaceRootCommandOnlyInNamespace, Location.None));
 					break;
-				case AIAddRootCommand rc when !isRoot && !rc.IsNamespaceRoot:
+				case AIMapRootCommand rc when !isRoot && !rc.IsNamespaceRoot:
 					context.ReportDiagnostic(Diagnostic.Create(AddRootCommandOnlyAtAppRoot, Location.None));
 					break;
-				case AIAddRootCommand rc:
+				case AIMapRootCommand rc:
 				{
 					if (node.RootCommand is not null)
 					{
@@ -1111,17 +1146,17 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				case AIUseMiddleware:
 					// Handled at root level for global middleware (done before this method is called).
 					break;
-				case AIAddNamespace ns:
-					ProcessAnalyzedAddNamespace(context, allAnalyzed, ns, node, currentPath, app, isRoot);
+				case AIMapNamespace ns:
+					ProcessAnalyzedMapNamespace(context, allAnalyzed, ns, node, currentPath, app, isRoot);
 					break;
 			}
 		}
 	}
 
-	private static void ProcessAnalyzedAddNamespace(
+	private static void ProcessAnalyzedMapNamespace(
 		SourceProductionContext context,
 		List<AnalyzedInvocation> allAnalyzed,
-		AIAddNamespace ns,
+		AIMapNamespace ns,
 		RegistryNode parentNode,
 		ImmutableArray<string> parentPath,
 		AppEmitModel app,
@@ -1139,7 +1174,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				if (!string.Equals(other.FilePath, ns.FilePath, StringComparison.Ordinal)) continue;
 				if (other.SpanStart <= ns.LambdaBodyStart || other.SpanStart >= ns.LambdaBodyEnd) continue;
 				// Skip invocations that are nested inside a deeper lambda (not direct children).
-				if (IsInsideAnyNestedAddNamespaceLambda(other, allAnalyzed, ns)) continue;
+				if (IsInsideAnyNestedMapNamespaceLambda(other, allAnalyzed, ns)) continue;
 				childInvocations.Add(other);
 			}
 			childInvocations.Sort((a, b) =>
@@ -1184,11 +1219,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	}
 
 	/// <summary>Checks if an invocation is inside a nested AddNamespace lambda that is itself inside ns.</summary>
-	private static bool IsInsideAnyNestedAddNamespaceLambda(AnalyzedInvocation ai, List<AnalyzedInvocation> all, AIAddNamespace parent)
+	private static bool IsInsideAnyNestedMapNamespaceLambda(AnalyzedInvocation ai, List<AnalyzedInvocation> all, AIMapNamespace parent)
 	{
 		foreach (var other in all)
 		{
-			if (other is not AIAddNamespace nested) continue;
+			if (other is not AIMapNamespace nested) continue;
 			if (ReferenceEquals(nested, parent)) continue;
 			if (nested.LambdaBodyStart < 0 || nested.LambdaBodyEnd < 0) continue;
 			if (!string.Equals(nested.FilePath, ai.FilePath, StringComparison.Ordinal)) continue;
@@ -1634,18 +1669,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		node.RootCommand is null && node.Commands.Count == 0 && node.Children.Count == 0;
 
 
-	private static InvocationExpressionSyntax? FindParentAddNamespaceInvocation(InvocationExpressionSyntax invocation)
+	private static InvocationExpressionSyntax? FindParentMapNamespaceInvocation(InvocationExpressionSyntax invocation)
 	{
 		for (var n = invocation.Parent; n != null; n = n.Parent)
 		{
-			if (n is LambdaExpressionSyntax lambda && IsAddNamespaceConfigureLambda(lambda, out var addNamespaceInv))
+			if (n is LambdaExpressionSyntax lambda && IsMapNamespaceConfigureLambda(lambda, out var addNamespaceInv))
 				return addNamespaceInv;
 		}
 
 		return null;
 	}
 
-	private static bool IsAddNamespaceConfigureLambda(LambdaExpressionSyntax lambda, out InvocationExpressionSyntax addNamespaceInv)
+	private static bool IsMapNamespaceConfigureLambda(LambdaExpressionSyntax lambda, out InvocationExpressionSyntax addNamespaceInv)
 	{
 		addNamespaceInv = null!;
 		if (lambda.Parent is not ArgumentSyntax { Parent: ArgumentListSyntax al })
@@ -1653,7 +1688,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (al.Parent is not InvocationExpressionSyntax inv)
 			return false;
 		if (inv.Expression is not MemberAccessExpressionSyntax ma || ma.Name is not SimpleNameSyntax sns ||
-		    sns.Identifier.Text != "AddNamespace")
+		    sns.Identifier.Text != "MapNamespace")
 			return false;
 		var last = al.Arguments.Count - 1;
 		if (last < 0 || !ReferenceEquals(al.Arguments[last].Expression, lambda))
@@ -1667,7 +1702,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		Compilation compilation)
 	{
 		var model = compilation.GetSemanticModel(inv.SyntaxTree);
-		if (model.GetSymbolInfo(inv).Symbol is not IMethodSymbol method || method.Name != "Add" || !method.IsGenericMethod)
+		if (model.GetSymbolInfo(inv).Symbol is not IMethodSymbol method || method.Name != "Map" || !method.IsGenericMethod)
 			return false;
 		if (method.TypeArguments.Length != 1)
 			return false;
@@ -1676,7 +1711,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return SymbolEqualityComparer.Default.Equals(addType, namespaceEntryType);
 	}
 
-	private static void ExpandAddStringDelegate(
+	private static void ExpandMapStringDelegate(
 		SourceProductionContext context,
 		SemanticModel model,
 		InvocationExpressionSyntax invocation,
@@ -1824,7 +1859,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private const string RootDefaultInternalCommandName = "__argh_root";
 
-	private static void ExpandAddRootCommand(
+	private static void ExpandMapRootCommand(
 		SourceProductionContext context,
 		SemanticModel model,
 		InvocationExpressionSyntax invocation,
@@ -3179,7 +3214,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 
 		sb.AppendLine(
-			"\t\t\tthrow new InvalidOperationException(\"No pregenerated Argh DTO parser for \" + typeof(T).FullName + \". Register the type as GlobalOptions/CommandNamespaceOptions or use it with [AsParameters] on a command.\");");
+			"\t\t\tthrow new InvalidOperationException(\"No pregenerated Argh DTO parser for \" + typeof(T).FullName + \". Register the type as UseGlobalOptions/UseNamespaceOptions or use it with [AsParameters] on a command.\");");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
 

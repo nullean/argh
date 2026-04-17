@@ -45,7 +45,7 @@ public class HelpContentTests
 		var expected = ($"""
 			Usage: {CliHostPaths.CliHostAssemblyName} doc-lambda --line <string>
 
-			   Documented handler for lambda-style Add (XML appears in help).
+			   Documented handler for lambda-style Map (XML appears in help).
 
 			Global options:
 			  --help, -h       Show help.

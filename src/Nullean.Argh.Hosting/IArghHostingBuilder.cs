@@ -9,12 +9,12 @@ namespace Nullean.Argh.Hosting;
 /// </summary>
 public interface IArghHostingBuilder : IArghBuilder
 {
-	/// <inheritdoc cref="IArghBuilder.GlobalOptions{T}"/>
+	/// <inheritdoc cref="IArghBuilder.UseGlobalOptions{T}"/>
 	/// <remarks>Also registers <typeparamref name="T"/> in DI with <see cref="ServiceLifetime.Transient"/>.</remarks>
-	new IArghHostingBuilder GlobalOptions<T>() where T : class;
+	new IArghHostingBuilder UseGlobalOptions<T>() where T : class;
 
 	/// <summary>Registers global options in DI with an explicit lifetime (default registration uses <see cref="ServiceLifetime.Transient"/>).</summary>
-	IArghHostingBuilder GlobalOptions<T>(ServiceLifetime lifetime) where T : class;
+	IArghHostingBuilder UseGlobalOptions<T>(ServiceLifetime lifetime) where T : class;
 
 	/// <inheritdoc cref="IArghBuilder.UseMiddleware{TMiddleware}"/>
 	/// <remarks>Also registers <typeparamref name="TMiddleware"/> in DI with <see cref="ServiceLifetime.Transient"/>.</remarks>
@@ -24,33 +24,32 @@ public interface IArghHostingBuilder : IArghBuilder
 	IArghHostingBuilder UseMiddleware<TMiddleware>(ServiceLifetime lifetime) where TMiddleware : ICommandMiddleware;
 
 	/// <summary>Registers command handlers from <typeparamref name="T"/> as transient services (default lifetime).</summary>
-	new IArghHostingBuilder Add<T>() where T : class;
+	new IArghHostingBuilder Map<T>() where T : class;
 
 	/// <summary>Registers command handlers from <typeparamref name="T"/> with an explicit lifetime.</summary>
-	IArghHostingBuilder Add<T>(ServiceLifetime lifetime) where T : class;
+	IArghHostingBuilder Map<T>(ServiceLifetime lifetime) where T : class;
 
-	/// <summary>Registers command handlers from <typeparamref name="T"/> as transient services (delegates to <see cref="Add{T}(ServiceLifetime)"/>).</summary>
-	IArghHostingBuilder AddTransient<T>() where T : class;
+	/// <summary>Registers command handlers from <typeparamref name="T"/> as transient services (delegates to <see cref="Map{T}(ServiceLifetime)"/>).</summary>
+	IArghHostingBuilder MapTransient<T>() where T : class;
 
-	/// <summary>Registers command handlers from <typeparamref name="T"/> as scoped services (delegates to <see cref="Add{T}(ServiceLifetime)"/>).</summary>
-	IArghHostingBuilder AddScoped<T>() where T : class;
+	/// <summary>Registers command handlers from <typeparamref name="T"/> as scoped services (delegates to <see cref="Map{T}(ServiceLifetime)"/>).</summary>
+	IArghHostingBuilder MapScoped<T>() where T : class;
 
-	/// <summary>Registers command handlers from <typeparamref name="T"/> as singleton services (delegates to <see cref="Add{T}(ServiceLifetime)"/>).</summary>
-	IArghHostingBuilder AddSingleton<T>() where T : class;
+	/// <summary>Registers command handlers from <typeparamref name="T"/> as singleton services (delegates to <see cref="Map{T}(ServiceLifetime)"/>).</summary>
+	IArghHostingBuilder MapSingleton<T>() where T : class;
 
-	/// <inheritdoc cref="IArghBuilder.AddNamespace(string, string, Action{IArghBuilder})"/>
-	new IArghHostingBuilder AddNamespace(string name, string description, Action<IArghBuilder> configure);
+	/// <inheritdoc cref="IArghBuilder.MapNamespace(string, string, Action{IArghBuilder})"/>
+	new IArghHostingBuilder MapNamespace(string name, string description, Action<IArghBuilder> configure);
 
-	/// <inheritdoc cref="IArghBuilder.AddNamespace{T}(string)"/>
-	new IArghHostingBuilder AddNamespace<T>(string name) where T : class;
+	/// <inheritdoc cref="IArghBuilder.MapNamespace{T}(string)"/>
+	new IArghHostingBuilder MapNamespace<T>(string name) where T : class;
 
-	/// <inheritdoc cref="IArghBuilder.AddNamespace{T}(string, Action{IArghBuilder})"/>
-	new IArghHostingBuilder AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class;
+	/// <inheritdoc cref="IArghBuilder.MapNamespace{T}(string, Action{IArghBuilder})"/>
+	new IArghHostingBuilder MapNamespace<T>(string name, Action<IArghBuilder> configure) where T : class;
 
-	/// <inheritdoc cref="IArghBuilder.AddNamespace{T}(string, Action{IArghNamespaceBuilder})"/>
-	new IArghHostingBuilder AddNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class;
+	/// <inheritdoc cref="IArghBuilder.MapNamespace{T}(string, Action{IArghNamespaceBuilder})"/>
+	new IArghHostingBuilder MapNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class;
 
-	/// <inheritdoc cref="IArghBuilder.AddNamespace{T}(Action{IArghNamespaceBuilder})"/>
-	new IArghHostingBuilder AddNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class;
-
+	/// <inheritdoc cref="IArghBuilder.MapNamespace{T}(Action{IArghNamespaceBuilder})"/>
+	new IArghHostingBuilder MapNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class;
 }

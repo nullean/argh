@@ -1,7 +1,7 @@
 namespace Nullean.Argh;
 
 /// <summary>
-/// Populated by the source generator for <c>AddNamespace&lt;T&gt;(Action&lt;IArghNamespaceBuilder&gt;)</c> (no explicit segment string).
+/// Populated by the source generator for <c>MapNamespace&lt;T&gt;(Action&lt;IArghNamespaceBuilder&gt;)</c> (no explicit segment string).
 /// Uses generic static fields only (AOT-friendly, no reflection).
 /// </summary>
 public static class ArghNamespaceSegmentCodegen

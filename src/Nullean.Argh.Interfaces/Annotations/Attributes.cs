@@ -1,8 +1,8 @@
 namespace Nullean.Argh;
 
 /// <summary>
-/// On a handler type used with <c>AddNamespace&lt;T&gt;(...)</c>, names the CLI segment when using the
-/// overload of <c>AddNamespace&lt;T&gt;</c> without a <c>string name</c> argument. At runtime, this attribute is required for that overload.
+/// On a handler type used with <c>MapNamespace&lt;T&gt;(...)</c>, names the CLI segment when using the
+/// overload of <c>MapNamespace&lt;T&gt;</c> without a <c>string name</c> argument. At runtime, this attribute is required for that overload.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class NamespaceSegmentAttribute : Attribute
@@ -14,8 +14,8 @@ public sealed class NamespaceSegmentAttribute : Attribute
 }
 
 /// <summary>
-/// Marks a public method on a type registered with <c>Add&lt;T&gt;</c> or <c>AddNamespace&lt;T&gt;</c> as the
-/// default handler when that scope is selected with no deeper subcommand (same role as <c>AddNamespaceRootCommand</c>).
+/// Marks a public method on a type registered with <c>Map&lt;T&gt;</c> or <c>MapNamespace&lt;T&gt;</c> as the
+/// default handler when that scope is selected with no deeper subcommand (same role as <c>MapRoot</c> inside a namespace).
 /// </summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class DefaultCommandAttribute : Attribute;
@@ -68,7 +68,7 @@ public sealed class MiddlewareAttribute<TMiddleware> : Attribute where TMiddlewa
 
 /// <summary>
 /// Suppresses the AGH0021 diagnostic for this command method or handler class. Use when a command
-/// intentionally does not need access to the registered <c>GlobalOptions</c> or namespace options types.
+/// intentionally does not need access to the registered <c>UseGlobalOptions</c> or namespace options types.
 /// Apply to a <b>method</b> to opt out for that command only, or to a <b>class</b> to opt out for
 /// all commands defined on that class.
 /// Lambdas are always exempt from AGH0021 and do not need this attribute.

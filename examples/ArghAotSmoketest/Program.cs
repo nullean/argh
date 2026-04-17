@@ -2,6 +2,6 @@
 using Nullean.Argh;
 
 var app = new ArghApp();
-app.Add("ping", () => { Console.WriteLine("pong"); return Task.FromResult(0); });
+app.Map("ping", () => { Console.WriteLine("pong"); return Task.FromResult(0); });
 
 return await app.RunAsync(args);

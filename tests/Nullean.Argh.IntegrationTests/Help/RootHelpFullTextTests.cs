@@ -44,7 +44,7 @@ public class RootHelpFullTextTests
 			  dir-cmd    
 			  uri-cmd    
 			  point-cmd  
-			  doc-lambda   Documented handler for lambda-style Add (XML appears in help).
+			  doc-lambda   Documented handler for lambda-style Map (XML appears in help).
 			  lambda-cmd 
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);

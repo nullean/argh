@@ -21,7 +21,7 @@ public static class ArghHostRuntime
 /// </summary>
 /// <remarks>
 /// <para>
-/// For <c>app.Add&lt;T&gt;()</c> instance methods and <c>UseMiddleware&lt;T&gt;()</c> / <c>[Middleware&lt;T&gt;]</c>, generated code resolves
+/// For <c>app.Map&lt;T&gt;()</c> instance methods and <c>UseMiddleware&lt;T&gt;()</c> / <c>[Middleware&lt;T&gt;]</c>, generated code resolves
 /// <c>T</c> with <c>GetService(typeof(T))</c> (non-generic) when this provider is non-null; otherwise it uses <c>new T()</c>.
 /// </para>
 /// <para>

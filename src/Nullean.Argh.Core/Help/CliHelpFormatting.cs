@@ -23,7 +23,7 @@ public static class CliHelpFormatting
 	/// <summary>Placeholders such as <c>&lt;env&gt;</c> and type hints.</summary>
 	public static string Placeholder(string text) => Wrap(text, "\x1b[33m");
 
-	/// <summary>Yellow label for the opt-in default handler in root/namespace help (typically <c>(default command)</c>; see <c>AddRootCommand</c> / <c>AddNamespaceRootCommand</c>).</summary>
+	/// <summary>Yellow label for the opt-in default handler in root/namespace help (typically <c>(default command)</c>; see <c>MapRoot</c>).</summary>
 	public static string DefaultCommandLabel(string text) => Placeholder(text);
 
 	/// <summary>XML <c>summary</c> block in command help (below usage, above global options).</summary>

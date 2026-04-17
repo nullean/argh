@@ -11,30 +11,30 @@ internal static class CliRegistrationModule
 	{
 		IArghBuilder app = new ArghBuilder();
 		app.UseMiddleware<TestsGlobalMiddleware>();
-		app.GlobalOptions<TestGlobalCliOptions>();
-		app.AddRootCommand(CliRootDefault);
-		app.Add("hello", CliTestHandlers.Hello);
-		app.Add("enum-cmd", CliTestHandlers.EnumCmd);
-		app.Add("deploy", CliTestHandlers.Deploy);
-		app.Add("tags", CliTestHandlers.Tags);
-		app.Add("dry-run-cmd", CliTestHandlers.DryRunCmd);
-		app.Add("count-cmd", CliTestHandlers.CountCmd);
-		app.Add("file-cmd", CliTestHandlers.FileCmd);
-		app.Add("dir-cmd", CliTestHandlers.DirCmd);
-		app.Add("uri-cmd", CliTestHandlers.UriCmd);
-		app.Add("point-cmd", CliTestHandlers.PointCmd);
-		app.Add("doc-lambda", DocLambdaEcho);
+		app.UseGlobalOptions<TestGlobalCliOptions>();
+		app.MapRoot(CliRootDefault);
+		app.Map("hello", CliTestHandlers.Hello);
+		app.Map("enum-cmd", CliTestHandlers.EnumCmd);
+		app.Map("deploy", CliTestHandlers.Deploy);
+		app.Map("tags", CliTestHandlers.Tags);
+		app.Map("dry-run-cmd", CliTestHandlers.DryRunCmd);
+		app.Map("count-cmd", CliTestHandlers.CountCmd);
+		app.Map("file-cmd", CliTestHandlers.FileCmd);
+		app.Map("dir-cmd", CliTestHandlers.DirCmd);
+		app.Map("uri-cmd", CliTestHandlers.UriCmd);
+		app.Map("point-cmd", CliTestHandlers.PointCmd);
+		app.Map("doc-lambda", DocLambdaEcho);
 		// Anonymous lambdas have no XML docs; use a named handler (e.g. DocLambdaEcho) for help text.
-		app.Add("lambda-cmd", (string msg) => Console.Out.WriteLine($"lambda:{msg}"));
-		app.Add<DiProbeCommands>();
-		app.AddNamespace<StorageCliCommands>("storage", g =>
+		app.Map("lambda-cmd", (string msg) => Console.Out.WriteLine($"lambda:{msg}"));
+		app.Map<DiProbeCommands>();
+		app.MapNamespace<StorageCliCommands>("storage", g =>
 		{
-			g.CommandNamespaceOptions<TestStorageCommandNamespaceOptions>();
-			g.AddNamespaceRootCommand(StorageNamespaceRoot);
+			g.UseNamespaceOptions<TestStorageCommandNamespaceOptions>();
+			g.MapRoot(StorageNamespaceRoot);
 		});
 	}
 
-	/// <summary>Documented handler for lambda-style <c>Add</c> (XML appears in help).</summary>
+	/// <summary>Documented handler for lambda-style <c>Map</c> (XML appears in help).</summary>
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="line">-l,--line, Text line to echo.</param>
 	/// <example>doc-lambda --line hi</example>
@@ -51,4 +51,3 @@ internal static class CliRegistrationModule
 	internal static void StorageNamespaceRoot(TestStorageCommandNamespaceOptions o) =>
 		Console.Out.WriteLine("marker:storage-ns-root");
 }
-

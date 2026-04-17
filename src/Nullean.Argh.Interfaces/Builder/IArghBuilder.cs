@@ -9,37 +9,34 @@ namespace Nullean.Argh.Builder;
 public interface IArghBuilder
 {
 	/// <summary>Registers typed global options for the current scope.</summary>
-	IArghBuilder GlobalOptions<T>() where T : class;
+	IArghBuilder UseGlobalOptions<T>() where T : class;
 
 	/// <summary>Registers a named command backed by a method group or lambda.</summary>
-	IArghBuilder Add(string name, Delegate handler);
+	IArghBuilder Map(string name, Delegate handler);
 
 	/// <summary>Registers every public method on <typeparamref name="T"/> as a command.</summary>
-	IArghBuilder Add<T>() where T : class;
+	IArghBuilder Map<T>() where T : class;
 
-	/// <summary>Registers a default handler when no subcommand is given at the root.</summary>
-	IArghBuilder AddRootCommand(Delegate handler);
-
-	/// <summary>Registers a default handler for the current namespace when no deeper subcommand is given.</summary>
-	IArghBuilder AddNamespaceRootCommand(Delegate handler);
+	/// <summary>Registers a default handler when no subcommand is given at the current scope (app root or inside a namespace).</summary>
+	IArghBuilder MapRoot(Delegate handler);
 
 	/// <summary>Registers a nested command namespace with description and nested configuration.</summary>
-	IArghBuilder AddNamespace(string name, string description, Action<IArghBuilder> configure);
+	IArghBuilder MapNamespace(string name, string description, Action<IArghBuilder> configure);
 
 	/// <summary>Registers a nested namespace for handler type <typeparamref name="T"/> with an explicit segment name.</summary>
-	IArghBuilder AddNamespace<T>(string name) where T : class;
+	IArghBuilder MapNamespace<T>(string name) where T : class;
 
 	/// <summary>Registers a nested namespace with nested configuration.</summary>
-	IArghBuilder AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class;
+	IArghBuilder MapNamespace<T>(string name, Action<IArghBuilder> configure) where T : class;
 
 	/// <summary>Registers a nested namespace with namespace-builder configuration.</summary>
-	IArghBuilder AddNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class;
+	IArghBuilder MapNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class;
 
 	/// <summary>Registers a nested namespace using a segment from handler metadata.</summary>
-	IArghBuilder AddNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class;
+	IArghBuilder MapNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class;
 
 	/// <summary>Registers typed options for the current command namespace.</summary>
-	IArghBuilder CommandNamespaceOptions<T>() where T : class;
+	IArghBuilder UseNamespaceOptions<T>() where T : class;
 
 	/// <summary>Registers inline middleware for the current scope.</summary>
 	IArghBuilder UseMiddleware(Func<CommandContext, CommandMiddlewareDelegate, ValueTask> middleware);

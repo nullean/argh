@@ -25,32 +25,32 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		_inner = new ArghBuilder(app);
 	}
 
-	public IArghHostingBuilder Add<T>() where T : class =>
-		Add<T>(ServiceLifetime.Transient);
+	public IArghHostingBuilder Map<T>() where T : class =>
+		Map<T>(ServiceLifetime.Transient);
 
-	public IArghHostingBuilder Add<T>(ServiceLifetime lifetime) where T : class
+	public IArghHostingBuilder Map<T>(ServiceLifetime lifetime) where T : class
 	{
 		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), lifetime));
-		_ = _inner.Add<T>();
+		_ = _inner.Map<T>();
 		return this;
 	}
 
-	public IArghHostingBuilder AddTransient<T>() where T : class =>
-		Add<T>(ServiceLifetime.Transient);
+	public IArghHostingBuilder MapTransient<T>() where T : class =>
+		Map<T>(ServiceLifetime.Transient);
 
-	public IArghHostingBuilder AddScoped<T>() where T : class =>
-		Add<T>(ServiceLifetime.Scoped);
+	public IArghHostingBuilder MapScoped<T>() where T : class =>
+		Map<T>(ServiceLifetime.Scoped);
 
-	public IArghHostingBuilder AddSingleton<T>() where T : class =>
-		Add<T>(ServiceLifetime.Singleton);
+	public IArghHostingBuilder MapSingleton<T>() where T : class =>
+		Map<T>(ServiceLifetime.Singleton);
 
-	public IArghHostingBuilder GlobalOptions<T>() where T : class =>
-		GlobalOptions<T>(ServiceLifetime.Transient);
+	public IArghHostingBuilder UseGlobalOptions<T>() where T : class =>
+		UseGlobalOptions<T>(ServiceLifetime.Transient);
 
-	public IArghHostingBuilder GlobalOptions<T>(ServiceLifetime lifetime) where T : class
+	public IArghHostingBuilder UseGlobalOptions<T>(ServiceLifetime lifetime) where T : class
 	{
 		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), lifetime));
-		_ = _inner.GlobalOptions<T>();
+		_ = _inner.UseGlobalOptions<T>();
 		return this;
 	}
 
@@ -64,7 +64,7 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
-	public IArghHostingBuilder AddNamespace(string name, string description, Action<IArghBuilder> configure)
+	public IArghHostingBuilder MapNamespace(string name, string description, Action<IArghBuilder> configure)
 	{
 		_ = description;
 		var childApp = _inner.App.CreateChildApp(name);
@@ -72,10 +72,10 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
-	/// <inheritdoc cref="IArghBuilder.AddNamespace{T}(string, Action{IArghBuilder})"/>
-	/// <remarks>Registers <typeparamref name="T"/> with the same default lifetime as <see cref="Add{T}()"/> so handler instances resolve from DI without a separate <c>Add&lt;T&gt;()</c> inside the callback.</remarks>
+	/// <inheritdoc cref="IArghBuilder.MapNamespace{T}(string, Action{IArghNamespaceBuilder})"/>
+	/// <remarks>Registers <typeparamref name="T"/> with the same default lifetime as <see cref="Map{T}()"/> so handler instances resolve from DI without a separate <c>Map&lt;T&gt;()</c> inside the callback.</remarks>
 
-	public IArghHostingBuilder AddNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
+	public IArghHostingBuilder MapNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
 	{
 		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), ServiceLifetime.Transient));
 		var childApp = _inner.App.CreateChildApp(name);
@@ -83,23 +83,23 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
-	public IArghHostingBuilder AddNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class
+	public IArghHostingBuilder MapNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class
 	{
 		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), ServiceLifetime.Transient));
 		var seg = ArghNamespaceSegmentCodegen.Get<T>();
 		if (seg is null)
 			throw new InvalidOperationException(
-				"AddNamespace<" + typeof(T).Name + ">(Action<IArghNamespaceBuilder>) requires the Argh source generator to emit a namespace segment for this type. Use AddNamespace<" + typeof(T).Name + ">(string name, ...) with an explicit segment, or ensure the project references Nullean.Argh.Core (analyzer).");
+				"MapNamespace<" + typeof(T).Name + ">(Action<IArghNamespaceBuilder>) requires the Argh source generator to emit a namespace segment for this type. Use MapNamespace<" + typeof(T).Name + ">(string name, ...) with an explicit segment, or ensure the project references Nullean.Argh.Core (analyzer).");
 
 		var childApp = _inner.App.CreateChildApp(seg);
 		configure(new ArghHostingNamespaceBuilder(_services, childApp, seg));
 		return this;
 	}
 
-	public IArghHostingBuilder AddNamespace<T>(string name) where T : class =>
-		AddNamespace<T>(name, static _ => { });
+	public IArghHostingBuilder MapNamespace<T>(string name) where T : class =>
+		MapNamespace<T>(name, static _ => { });
 
-	public IArghHostingBuilder AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
+	public IArghHostingBuilder MapNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
 	{
 		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), ServiceLifetime.Transient));
 		var childApp = _inner.App.CreateChildApp(name);
@@ -107,51 +107,45 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.GlobalOptions<T>() where T : class
+	IArghBuilder IArghBuilder.UseGlobalOptions<T>() where T : class
 	{
-		_ = GlobalOptions<T>();
+		_ = UseGlobalOptions<T>();
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.Add(string name, Delegate handler)
+	IArghBuilder IArghBuilder.Map(string name, Delegate handler)
 	{
-		_ = _inner.Add(name, handler);
+		_ = _inner.Map(name, handler);
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.Add<T>() where T : class =>
-		Add<T>();
+	IArghBuilder IArghBuilder.Map<T>() where T : class =>
+		Map<T>();
 
-	IArghBuilder IArghBuilder.AddRootCommand(Delegate handler)
+	IArghBuilder IArghBuilder.MapRoot(Delegate handler)
 	{
-		_ = _inner.AddRootCommand(handler);
+		_ = _inner.MapRoot(handler);
 		return this;
 	}
 
-	IArghBuilder IArghBuilder.AddNamespaceRootCommand(Delegate handler)
+	IArghBuilder IArghBuilder.MapNamespace(string name, string description, Action<IArghBuilder> configure) =>
+		MapNamespace(name, description, configure);
+
+	IArghBuilder IArghBuilder.MapNamespace<T>(string name) where T : class =>
+		MapNamespace<T>(name);
+
+	IArghBuilder IArghBuilder.MapNamespace<T>(string name, Action<IArghBuilder> configure) where T : class =>
+		MapNamespace<T>(name, configure);
+
+	IArghBuilder IArghBuilder.MapNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class =>
+		MapNamespace<T>(name, configure);
+
+	IArghBuilder IArghBuilder.MapNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class =>
+		MapNamespace<T>(configure);
+
+	IArghBuilder IArghBuilder.UseNamespaceOptions<T>() where T : class
 	{
-		_ = _inner.AddNamespaceRootCommand(handler);
-		return this;
-	}
-
-	IArghBuilder IArghBuilder.AddNamespace(string name, string description, Action<IArghBuilder> configure) =>
-		AddNamespace(name, description, configure);
-
-	IArghBuilder IArghBuilder.AddNamespace<T>(string name) where T : class =>
-		AddNamespace<T>(name);
-
-	IArghBuilder IArghBuilder.AddNamespace<T>(string name, Action<IArghBuilder> configure) where T : class =>
-		AddNamespace<T>(name, configure);
-
-	IArghBuilder IArghBuilder.AddNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class =>
-		AddNamespace<T>(name, configure);
-
-	IArghBuilder IArghBuilder.AddNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class =>
-		AddNamespace<T>(configure);
-
-	IArghBuilder IArghBuilder.CommandNamespaceOptions<T>() where T : class
-	{
-		_ = _inner.CommandNamespaceOptions<T>();
+		_ = _inner.UseNamespaceOptions<T>();
 		return this;
 	}
 
