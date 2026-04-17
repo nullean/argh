@@ -2,7 +2,7 @@
 
 Build full-featured .NET CLIs without writing a parser.
 
-Register commands on [`ArghApp`](src/Nullean.Argh.Core/ArghApp.cs). A Roslyn source generator emits parsing, routing, dispatch, and help into your assembly at build time — no reflection, no runtime overhead, trimming- and AOT-safe by default.
+Methods become commands, XML docs become help text, records become option sets. A Roslyn source generator emits parsing, routing, dispatch, and help into your assembly at build time — no reflection, no runtime overhead, trimming- and AOT-safe by default.
 
 *Inspired by [ConsoleAppFramework](https://github.com/Cysharp/ConsoleAppFramework) (Cysharp) — same source-generated direction, different API and packaging.*
 
@@ -17,32 +17,53 @@ Register commands on [`ArghApp`](src/Nullean.Argh.Core/ArghApp.cs). A Roslyn sou
 - [Namespaces](#namespaces)
 - [Parameters and binding](#parameters-and-binding)
 - [Object binding](#object-binding)
+- [Fuzzy matching](#fuzzy-matching)
 - [Help and XML documentation](#help-and-xml-documentation)
 - [Middleware](#middleware)
 - [Dependency injection](#dependency-injection)
 - [Hosting](#hosting)
 - [Routing API](#routing-api)
 - [Shell completions](#shell-completions)
+- [Schema JSON](#schema-json)
 - [License and links](#license-and-links)
 
 ## Features
 
-- **Your XML doc is your help text** — enable `GenerateDocumentationFile` and summaries, remarks, param descriptions, and `<example>` blocks appear in `--help` output automatically. No separate attribute layer, no string duplication.
-- **Everything is generated C#** — the source generator emits a typed dispatch tree, option parsers, and help printers directly into your assembly. Read the generated code, step through it in a debugger, ship it trimmed or AOT-compiled.
-- **Grouped commands that feel like `MapGroup`** — nested namespaces with their own help pages, scoped option types, and separate listings. If you've used ASP.NET minimal APIs, the registration model is immediately familiar.
-- **`[AsParameters]` binding** — records expand into flags or positionals without a custom bind loop. `[AsParameters("prefix")]` adds a long-name prefix across all members.
-- **Host-ready** — [`Nullean.Argh.Hosting`](https://www.nuget.org/packages/Nullean.Argh.Hosting) plugs the same model into `Microsoft.Extensions.DependencyInjection` and `IHost`: DI lifetimes, `CancellationToken` linked to the host, and `IHostApplicationLifetime` integration.
+- **XML docs are your help text**
+  - Summaries, param descriptions, remarks, and `<example>` blocks appear in `--help` automatically
+  - No separate attribute layer, no string duplication
+- **Everything is generated C#**
+  - Typed dispatch tree, option parsers, and help printers emitted directly into your assembly
+  - Read it, step through it in a debugger, ship it trimmed or AOT-compiled
+- **`MapGroup`-style namespaces**
+  - Nested command groups with their own help pages and scoped option types
+  - Immediately familiar if you've used ASP.NET minimal APIs
+- **DTO binding with `[AsParameters]`**
+  - Records and classes expand into flags without a custom bind loop
+  - Optional prefix (`[AsParameters("app")]`) namespaces all long names
+- **Shell completions built-in**
+  - Generated lookup tables for subcommands, namespaces, and flags — no extra package
+  - One install command per shell (bash, zsh, fish)
+- **Agent-ready schema**
+  - `myapp __schema` emits a full JSON description of commands, options, summaries, and examples
+  - Feed it to an LLM, a docs generator, or diff it in CI to catch breaking changes
+- **Fuzzy matching**
+  - Typos produce actionable errors with the correct qualified path and a `--help` suggestion
+  - No silent no-match
+- **Zero-dep or ME.* native**
+  - `Nullean.Argh` — no `Microsoft.Extensions.*` dependency
+  - `Nullean.Argh.Hosting` — same registration surface, plugs into `IHost` and DI
 
 ## Packages
 
-**Add a single top-level NuGet package:** use **`Nullean.Argh`** for a console-only CLI, or **`Nullean.Argh.Hosting`** for `Microsoft.Extensions.*` and the generic host. Each pulls in **`Nullean.Argh.Core`** (runtime + analyzer) and **`Nullean.Argh.Interfaces`** transitively — you do not reference Core or Interfaces manually for normal apps.
+**Which package do I need?** `Nullean.Argh` for a standalone console app; `Nullean.Argh.Hosting` for `Microsoft.Extensions.*` / generic host integration. Everything else is pulled in transitively — you do not reference `Core` or `Interfaces` manually for normal apps.
 
 | Package | When to use | Role |
 |--------|-------------|------|
-| [`Nullean.Argh`](https://www.nuget.org/packages/Nullean.Argh) | Default for **console** apps | Metapackage — references **Core** + **Interfaces**. No `Microsoft.Extensions.*` dependency. |
-| [`Nullean.Argh.Hosting`](https://www.nuget.org/packages/Nullean.Argh.Hosting) | `IHost`, DI lifetimes, ME.* | `AddArgh` / [`ArghHostingBuilder`](src/Nullean.Argh.Hosting/ArghHostingBuilder.cs). Depends on **Core** + **Interfaces** only — not the metapackage. |
-| [`Nullean.Argh.Core`](https://www.nuget.org/packages/Nullean.Argh.Core) | Advanced: runtime + analyzer without the metapackage | `ArghApp`, `ArghRuntime`, help, embedded analyzer. No `Microsoft.Extensions.*`. |
-| [`Nullean.Argh.Interfaces`](https://www.nuget.org/packages/Nullean.Argh.Interfaces) | Shared libraries (e.g. reusable middleware or parsers) | Attributes, `IArghBuilder`, middleware/parser contracts. Zero external dependencies. Reference directly only when you intentionally avoid Core. |
+| [`Nullean.Argh`](https://www.nuget.org/packages/Nullean.Argh) | Default for **console** apps | Zero-dep console package. References **Core** + **Interfaces**. No `Microsoft.Extensions.*` dependency. |
+| [`Nullean.Argh.Hosting`](https://www.nuget.org/packages/Nullean.Argh.Hosting) | `IHost`, DI lifetimes, ME.* | `AddArgh` / [`ArghHostingBuilder`](src/Nullean.Argh.Hosting/ArghHostingBuilder.cs). Depends on **Core** + **Interfaces** only. |
+| [`Nullean.Argh.Core`](https://www.nuget.org/packages/Nullean.Argh.Core) | — | Shared runtime pulled in by both user-facing packages. Contains `ArghApp`, runtime, help, and the embedded source generator. Not referenced directly in normal apps. |
+| [`Nullean.Argh.Interfaces`](https://www.nuget.org/packages/Nullean.Argh.Interfaces) | Shared middleware / parser libraries | Reference directly only when building a shared library (e.g. reusable middleware or parsers) that other Argh-based apps will consume. Contains attributes, `IArghBuilder`, and middleware/parser contracts. Zero external dependencies. |
 
 **`Nullean.Argh.Generator`** is not a separate NuGet package — it ships embedded inside `Nullean.Argh.Core` under `analyzers/dotnet/cs`.
 
@@ -108,10 +129,10 @@ See [`AddArgh`](src/Nullean.Argh.Hosting/ArghHostingExtensions.cs) for exit beha
 
 ## Registration model
 
-Three forms, same registration surface:
+Three forms, same registration surface — all are fully supported. With class and method-group registration, XML doc comments on your handler methods flow directly into `--help` output. Lambdas skip that path.
 
 ```csharp
-// 1. Method group — preferred. Generator emits a direct typed call.
+// 1. Method group — direct typed dispatch.
 app.Add("deploy", DeployHandlers.Run);
 
 // 2. Lambda — convenient for simple one-liners.
@@ -123,7 +144,7 @@ app.Add<StorageHandlers>();
 
 | API | Purpose |
 |-----|---------|
-| `Add(name, handler)` | Bind a command name to a delegate. Prefer method groups; lambdas are supported via runtime storage with a different codegen path. |
+| `Add(name, handler)` | Bind a command name to a delegate. |
 | `Add<T>()` | Register every public method on `T` as a command (typically a static class of handlers). |
 | `AddRootCommand(handler)` | Default handler when no subcommand is given at the app root. |
 | `AddNamespaceRootCommand(handler)` | Default handler when a namespace is selected but no deeper command is. |
@@ -180,18 +201,49 @@ public static Task<int> Build(string outputDir, bool release = false) { … }
 |----------|-------|
 | Primitives | `string`, `int`, `long`, `double`, `float`, `decimal`, `bool`, `bool?` |
 | System | `enum`, `FileInfo`, `DirectoryInfo`, `Uri` |
-| Collections | `List<T>`, `T[]` — repeated flag or `[CollectionSyntax(Separator=",")]` for a single split value |
+| Collections | `List<T>`, `T[]` — repeated flag or `[CollectionSyntax(Separator=",")]` for a single comma-separated value |
 
-### `[AsParameters]` — DTO expansion
-
-A record or class parameter annotated with `[AsParameters]` expands its public properties into individual flags or positionals. Add a string to prefix all long names.
+Collections accept the flag multiple times, or a single comma-separated value via `[CollectionSyntax]`:
 
 ```csharp
+public static Task<int> Deploy(string[] targets, [CollectionSyntax(Separator = ",")] string[] tags) { … }
+// Repeated:   myapp deploy --targets web --targets api
+// Separator:  myapp deploy --targets web,api --tags blue,green
+```
+
+### Nullable bool — `--flag` / `--no-flag` pairs
+
+A `bool?` flag generates **both** `--flag` (sets `true`) and `--no-flag` (sets `false`). Omitting either leaves the value `null`, letting you distinguish "not specified" from an explicit false. Help output shows `--flag / --no-flag` for nullable bools.
+
+```csharp
+public static Task<int> Deploy(string env, bool? dryRun = null) { … }
+// myapp deploy staging               → dryRun is null
+// myapp deploy staging --dry-run     → dryRun is true
+// myapp deploy staging --no-dry-run  → dryRun is false
+```
+
+### DTO binding — `[AsParameters]`
+
+A record or class parameter annotated with `[AsParameters]` expands its members into individual flags or positionals. Works with **records** (constructor parameters) and **classes** (public settable properties). Add a string argument to prefix all long names.
+
+```csharp
+// Record — constructor parameters become flags
 public record DeployOptions(string Environment, bool DryRun = false);
 
 public static Task<int> Deploy([AsParameters] DeployOptions opts) { … }
 // myapp deploy --environment staging --dry-run
 
+// Class — public settable properties become flags
+public class BuildOptions
+{
+    public string OutputDir { get; set; } = "";
+    public bool Release { get; set; }
+}
+
+public static Task<int> Build([AsParameters] BuildOptions opts) { … }
+// myapp build --output-dir ./bin --release
+
+// Prefix — all long names get a common prefix
 public record AppOptions(string Name, string Version = "");
 public static Task<int> Configure([AsParameters("app")] AppOptions opts) { … }
 // myapp configure --app-name foo --app-version 2
@@ -247,13 +299,40 @@ app.AddNamespace<StorageHandlers>("storage", ns =>
 
 Parsing order in generated code: globals → namespace options along the path → command flags and positionals.
 
-> **Note:** commands are not currently required to declare the namespace options type as a parameter — the injection is optional.
+### Combining with `[AsParameters]`
+
+A command can extend a global or namespace options type and annotate it with `[AsParameters]` to inherit those flags alongside its own:
+
+```csharp
+public record DeployOptions(string Environment, bool DryRun = false) : StorageOptions;
+
+ns.Add("deploy", ([AsParameters] DeployOptions opts) => { … });
+// myapp storage deploy --connection-string "…" --environment staging --dry-run
+```
+
+> **Note:** commands under a namespace are required to declare the namespace options type as a parameter (enforced by analyzer AGH0021). Annotate the method with `[NoOptionsInjection]` to opt out.
+
+## Fuzzy matching
+
+Typos produce actionable errors with the correct qualified path and a `--help` suggestion:
+
+```
+$ myapp stoarge list
+Error: unknown command or namespace 'stoarge'. Did you mean 'storage'?
+
+Run 'myapp storage --help' for usage.
+Run 'myapp --help' for usage.
+```
+
+Inside a namespace, the suggestion includes the full path (`storage blob upload`, not just `upload`).
 
 ## Help and XML documentation
 
-This is the feature that removes a whole category of maintenance work. Write XML doc once; the generator reads it at build time and bakes the text into `--help` output. Your `.xml` doc file is not read at runtime.
+Write XML doc once; the generator reads it at build time and bakes the text into `--help` output. Your `.xml` doc file is not read at runtime. Enable `GenerateDocumentationFile` in your project file — it is not on by default.
 
-Enable `GenerateDocumentationFile` in your project file, then document your handlers normally:
+### Commands
+
+Document handler methods normally:
 
 ```csharp
 /// <summary>Deploy the application to the target environment.</summary>
@@ -287,19 +366,36 @@ Notes:
   without making changes. See also: myapp rollback <args>
 ```
 
+### Namespaces
+
+Put the `<summary>` (and optionally `<remarks>`) on the class `T` passed to `AddNamespace<T>`. The generator uses it as the namespace description in `myapp storage --help` and in the root command listing:
+
+```csharp
+/// <summary>Manage blob and file storage resources.</summary>
+/// <remarks>
+/// Requires a storage connection string via <c>--connection-string</c>
+/// or the <c>STORAGE_CONN</c> environment variable.
+/// </remarks>
+internal sealed class StorageCommands { … }
+
+app.AddNamespace<StorageCommands>("storage", ns => { … });
+```
+
+### Root app
+
+The root `myapp --help` shows a description when a root command is registered via `AddRootCommand`. The XML doc on that handler becomes the app-level overview:
+
+```csharp
+/// <summary>Manage and deploy your application's cloud resources.</summary>
+/// <remarks>
+/// Run <c>myapp &lt;command&gt; --help</c> for details on any command.
+/// </remarks>
+public static Task<int> Root() { … }
+
+app.AddRootCommand(Root);
+```
+
 In **remarks**, `<paramref>` to a flag becomes `--name`; `<see cref>` to another handler becomes that command's usage synopsis. See [`examples/XmlDocShowcase`](examples/XmlDocShowcase) for the full tag inventory.
-
-**Fuzzy matching.** Typos produce actionable errors with the correct qualified path:
-
-```
-$ myapp stoarge list
-Error: unknown command or namespace 'stoarge'. Did you mean 'storage'?
-
-Run 'myapp storage --help' for usage.
-Run 'myapp --help' for usage.
-```
-
-Inside a namespace, the suggestion includes the full path (`storage blob upload`, not just `upload`).
 
 ## Middleware
 
@@ -324,11 +420,13 @@ app.UseMiddleware<TimingMiddleware>();
 public static Task<int> Deploy(string environment) { … }
 ```
 
-[`ICommandMiddleware`](src/Nullean.Argh.Interfaces/Middleware/CommandMiddleware.cs) receives [`CommandContext`](src/Nullean.Argh.Interfaces/Middleware/CommandMiddleware.cs) with `CommandPath`, `Args`, `ExitCode`, and `CancellationToken`. Middleware does not run for `--help`, `--version`, `__completion`, or `__complete`. The pipeline is wired in generated code — not a runtime delegate chain.
+[`ICommandMiddleware`](src/Nullean.Argh.Interfaces/Middleware/CommandMiddleware.cs) receives [`CommandContext`](src/Nullean.Argh.Interfaces/Middleware/CommandMiddleware.cs) with `CommandPath`, `Args`, `ExitCode`, and `CancellationToken`. Middleware does not run for `--help`, `--version`, `__completion`, `__complete`, or `__schema`. The pipeline is wired in generated code — not a runtime delegate chain. Each middleware call is emitted as a direct invocation in the generated dispatch method; there is no runtime list to build or iterate.
 
 ## Dependency injection
 
-[`ArghServices.ServiceProvider`](src/Nullean.Argh.Core/Runtime/ArghHostRuntime.cs) is typed as `System.IServiceProvider` and set when running under a host. For `Add<T>()` instance methods and `UseMiddleware<T>()` / `[MiddlewareAttribute<T>]`, generated code resolves via `GetService(typeof(T))` when a provider is present; otherwise it falls back to `new T()`.
+When using `Nullean.Argh.Hosting`, DI integration is fully transparent — register your handler and middleware types in the service collection and the generated code resolves them automatically. No manual `ServiceProvider` wiring needed.
+
+For advanced use or when not using `Nullean.Argh.Hosting`: [`ArghServices.ServiceProvider`](src/Nullean.Argh.Core/Runtime/ArghHostRuntime.cs) is typed as `System.IServiceProvider` and set when running under a host. For `Add<T>()` instance methods and `UseMiddleware<T>()` / `[MiddlewareAttribute<T>]`, generated code resolves via `GetService(typeof(T))` when a provider is present; otherwise it falls back to `new T()`.
 
 ```csharp
 // Handler with an injected service
@@ -350,13 +448,31 @@ For native AOT / trimming, register handler and middleware types explicitly in D
 
 ## Hosting
 
-`Nullean.Argh.Hosting` does not depend on the `Nullean.Argh` metapackage — add it alone for hosted apps.
+`Nullean.Argh.Hosting` plugs the same command registration model into `IHost` and `Microsoft.Extensions.DependencyInjection` — no custom bootstrapping or glue code needed.
 
-`services.AddArgh(args, b => { … })` ([`AddArgh`](src/Nullean.Argh.Hosting/ArghHostingExtensions.cs)):
+`services.AddArgh(args, b => { … })` ([`AddArgh`](src/Nullean.Argh.Hosting/ArghHostingExtensions.cs)) mirrors the same `Add` / `Add<T>` / `GlobalOptions` / `UseMiddleware` / `AddNamespace` surface as `ArghApp`, and additionally lets you control DI lifetimes:
 
-- Registers your `ArghApp` configuration via [`ArghHostingBuilder`](src/Nullean.Argh.Hosting/ArghHostingBuilder.cs) — mirrors `Add`/`Add<T>`/`GlobalOptions`/`UseMiddleware`/`AddNamespace` and can register types with DI lifetimes.
-- Adds a hosted service that runs `ArghRuntime.RunAsync(args)` then `Environment.Exit` with the exit code so host output does not continue after the CLI finishes.
-- Links `CancellationToken` on command handlers to console cancellation and `IHostApplicationLifetime.ApplicationStopping`.
+```csharp
+builder.Services.AddArgh(args, b =>
+{
+    b.AddScoped<DeployCommands>();       // resolved per command invocation
+    b.AddSingleton<AuditMiddleware>();   // single instance for the process
+    b.Add("ping", PingHandlers.Run);    // static method — no DI lifetime needed
+    b.GlobalOptions<GlobalOptions>();
+});
+```
+
+| `IArghHostingBuilder` API | Purpose |
+|--------------------------|---------|
+| `Add<T>()` | Register `T` as transient and add all its public methods as commands. |
+| `AddTransient<T>()` / `AddScoped<T>()` / `AddSingleton<T>()` | Same, with an explicit DI lifetime. |
+| `GlobalOptions<T>()` | Register `T` as the global options type and add it to DI. |
+| `UseMiddleware<TMiddleware>()` | Register middleware as transient. |
+| `UseMiddleware<TMiddleware>(lifetime)` | Register middleware with an explicit DI lifetime. |
+
+`AddArgh` registers a hosted service that runs `ArghRuntime.RunAsync(args)` and then calls `Environment.Exit` with the exit code — the host does not continue after the CLI completes.
+
+`CancellationToken` parameters on command handlers are linked to console cancellation and `IHostApplicationLifetime.ApplicationStopping`.
 
 **Register `AddArgh` before other `IHostedService` registrations** if you want the CLI (including `--help`) to run first and exit without starting later background work. Services registered *before* `AddArgh` still get `StartAsync` on every invocation.
 
@@ -366,7 +482,7 @@ For native AOT / trimming, register handler and middleware types explicitly in D
 
 ## Shell completions
 
-**Tab completion** for subcommands, namespaces, and flags is included: the source generator emits **lookup tables** at compile time (same model as routing and `--help`), and a small `__complete` handler answers the shell with one candidate per line. **`--completions` is not reserved**—use `__completion` / `__complete` only for Argh’s integration.
+Tab completion for subcommands, namespaces, and flags is included out of the box: the source generator emits **lookup tables** at compile time (same model as routing and `--help`), and a small `__complete` handler answers the shell with one candidate per line. **`--completions` is not reserved** — use `__completion` / `__complete` only for Argh's integration.
 
 | Command | Purpose |
 |--------|---------|
@@ -384,7 +500,23 @@ mkdir -p ~/.config/fish/completions
 myapp __completion fish > ~/.config/fish/completions/myapp.fish
 ```
 
-Details: [`CompletionProtocol`](src/Nullean.Argh.Core/Help/CompletionProtocol.cs). `--cli-schema` JSON export is planned.
+Details: [`CompletionProtocol`](src/Nullean.Argh.Core/Help/CompletionProtocol.cs).
+
+## Schema JSON
+
+`myapp __schema` writes a JSON document to stdout describing your entire CLI — commands, namespaces, global and namespace options, summaries, remarks, usage, and examples. The output is generated at build time from the same source the generator uses for routing and help, so it is always in sync with your code.
+
+```
+myapp __schema > cli-schema.json
+```
+
+Use cases:
+
+- **LLM / agent tooling** — feed the schema to a language model to give it accurate, structured knowledge of your CLI's commands and options.
+- **Generated documentation** — pipe into a docs generator or templating step to keep reference docs in sync without manual maintenance.
+- **CI validation** — diff `cli-schema.json` across commits to catch unintentional breaking changes to the CLI surface.
+
+The shape is defined by [`ArghCliSchemaDocument`](src/Nullean.Argh.Core/Schema/ArghCliSchemaDocument.cs). Output is indented camelCase JSON. Reserved meta-commands (`__complete`, `__completion`, `__schema`) appear under `reservedMetaCommands`.
 
 ## License and links
 
