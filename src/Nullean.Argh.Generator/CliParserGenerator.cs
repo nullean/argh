@@ -1808,6 +1808,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			using Nullean.Argh.Help;
 			using Nullean.Argh.Matching;
 			using Nullean.Argh.Runtime;
+			using Nullean.Argh.Schema;
 
 			namespace Nullean.Argh
 			{
@@ -1871,6 +1872,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 							return 0;
 						}
 
+						if (CompletionProtocol.IsSchemaInvocation(args))
+						{
+							System.Console.Out.Write(ArghRuntime.FormatCliSchemaJson());
+							return 0;
+						}
+
 						if (args.Length > 0 && (args[0] == "--help" || args[0] == "-h"))
 						{
 							System.Console.Out.WriteLine("No commands are registered.");
@@ -1897,6 +1904,17 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					{
 						System.Console.Out.WriteLine("__ARGH_EMBED_ASM_VER__");
 					}
+
+					internal static ArghCliSchemaDocument BuildCliSchemaDocument() =>
+						new ArghCliSchemaDocument(
+							1,
+							"__ARGH_EMBED_ASM_NAME__",
+							"__ARGH_EMBED_ASM_VER__",
+							new[] { "__complete", "__completion", "__schema" },
+							Array.Empty<CliParameterSchema>(),
+							null,
+							Array.Empty<CliCommandSchema>(),
+							Array.Empty<CliNamespaceSchema>());
 				}
 
 				internal static class ArghGeneratedRuntimeRegistration
@@ -1906,6 +1924,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					{
 						ArghRuntime.RegisterRunner(ArghGenerated.RunAsync);
 						ArghRuntime.RegisterRoute(ArghGenerated.Route);
+						ArghRuntime.RegisterCliSchema(ArghGenerated.BuildCliSchemaDocument);
 					}
 				}
 			}
@@ -1927,6 +1946,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tArghRuntime.RegisterRunner(ArghGenerated.RunAsync);");
 		sb.AppendLine("\t\t\tArghRuntime.RegisterRoute(ArghGenerated.Route);");
+		sb.AppendLine("\t\t\tArghRuntime.RegisterCliSchema(ArghGenerated.BuildCliSchemaDocument);");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine("\t}");
 	}
@@ -2402,6 +2422,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("using Nullean.Argh.Help;");
 		sb.AppendLine("using Nullean.Argh.Matching;");
 		sb.AppendLine("using Nullean.Argh.Runtime;");
+		sb.AppendLine("using Nullean.Argh.Schema;");
 		sb.AppendLine();
 		sb.AppendLine("namespace Nullean.Argh");
 		sb.AppendLine("{");
@@ -2417,6 +2438,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t{");
 		EmitRootCompletionScriptBlock(sb, "\t\t\t", entryAssemblyName);
 		EmitRootCompleteBlock(sb, "\t\t\t");
+		EmitRootSchemaBlock(sb, "\t\t\t");
 		sb.AppendLine("\t\t\tif (args.Length == 0)");
 		sb.AppendLine("\t\t\t{");
 		if (app.Root.RootCommand is { } flatRoot)
@@ -2490,6 +2512,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		EmitFlatTryParseRoute(sb, commands, app.Root.RootCommand);
 		EmitArghGeneratedRouteArgsMethod(sb);
 		EmitDtoBindingMethods(sb, dtoTargets);
+		sb.AppendLine();
+		EmitBuildCliSchemaDocumentFlat(sb, app, entryAssemblyName, entryAssemblyVersion);
 		sb.AppendLine("\t}");
 		AppendArghRuntimeModuleInitializer(sb);
 		sb.AppendLine("}");
@@ -2569,6 +2593,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("using Nullean.Argh.Help;");
 		sb.AppendLine("using Nullean.Argh.Matching;");
 		sb.AppendLine("using Nullean.Argh.Runtime;");
+		sb.AppendLine("using Nullean.Argh.Schema;");
 		sb.AppendLine();
 		sb.AppendLine("namespace Nullean.Argh");
 		sb.AppendLine("{");
@@ -2659,6 +2684,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\treturn r;");
 		sb.AppendLine("\t\t}");
 		EmitDtoBindingMethods(sb, dtoTargets);
+		sb.AppendLine();
+		EmitBuildCliSchemaDocumentHierarchical(sb, app, entryAssemblyName, entryAssemblyVersion);
 		sb.AppendLine("\t}");
 		AppendArghRuntimeModuleInitializer(sb);
 		sb.AppendLine("}");
@@ -2704,6 +2731,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t{");
 		EmitRootCompletionScriptBlock(sb, "\t\t\t", entryAssemblyName);
 		EmitRootCompleteBlock(sb, "\t\t\t");
+		EmitRootSchemaBlock(sb, "\t\t\t");
 		sb.AppendLine("\t\t\tvar idx = new int[1];");
 		if (hasGlobal)
 			sb.AppendLine("\t\t\tif (!TryParseGlobalOptions(args, idx)) return 2;");

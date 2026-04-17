@@ -25,11 +25,17 @@ public static class CompletionProtocol
 		args is { Length: > 0 } && args[0] == "__completion";
 
 	/// <summary>
-	/// Returns <see langword="true"/> when <paramref name="args"/> starts a completion meta-invocation (<c>__complete</c> or <c>__completion</c>).
+	/// Returns <see langword="true"/> when <paramref name="args"/> is exactly <c>__schema</c> (JSON schema export).
+	/// </summary>
+	public static bool IsSchemaInvocation(string[] args) =>
+		args is { Length: 1 } && args[0] == "__schema";
+
+	/// <summary>
+	/// Returns <see langword="true"/> when <paramref name="args"/> starts a meta-invocation (<c>__complete</c>, <c>__completion</c>, or <c>__schema</c>).
 	/// Routing and middleware should ignore these (same as root <c>--help</c> / <c>--version</c> style bypasses).
 	/// </summary>
 	public static bool IsArghMetaCompletionInvocation(string[] args) =>
-		args is { Length: > 0 } && (args[0] == "__complete" || args[0] == "__completion");
+		args is { Length: > 0 } && (args[0] == "__complete" || args[0] == "__completion" || args[0] == "__schema");
 
 	/// <summary>
 	/// Parses <c>__completion bash|zsh|fish</c> for printing install scripts from <see cref="CompletionScriptTemplates"/>.

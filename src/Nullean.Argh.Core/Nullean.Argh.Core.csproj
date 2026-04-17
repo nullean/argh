@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <PackageReference Include="System.Memory" />
+    <PackageReference Include="System.Text.Json" />
   </ItemGroup>
 
   <ItemGroup>

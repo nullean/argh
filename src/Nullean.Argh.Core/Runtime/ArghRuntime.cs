@@ -1,3 +1,6 @@
+using System.Text.Json;
+using Nullean.Argh.Schema;
+
 namespace Nullean.Argh.Runtime;
 
 /// <summary>
@@ -8,6 +11,7 @@ public static class ArghRuntime
 {
 	private static Func<string[], Task<int>>? _runAsyncFunc;
 	private static Func<string[], RouteMatch?>? _routeFunc;
+	private static Func<ArghCliSchemaDocument>? _cliSchemaFactory;
 
 	/// <summary>
 	/// Registers the generated CLI runner. Called from emitted module initialization; not intended for app code.
@@ -20,6 +24,24 @@ public static class ArghRuntime
 	/// </summary>
 	public static void RegisterRoute(Func<string[], RouteMatch?> route) =>
 		_routeFunc = route ?? throw new ArgumentNullException(nameof(route));
+
+	/// <summary>
+	/// Registers the generated CLI schema document factory. Called from emitted module initialization; not intended for app code.
+	/// </summary>
+	public static void RegisterCliSchema(Func<ArghCliSchemaDocument> factory) =>
+		_cliSchemaFactory = factory ?? throw new ArgumentNullException(nameof(factory));
+
+	/// <summary>
+	/// Serializes the registered <see cref="ArghCliSchemaDocument"/> to indented JSON (camelCase), for <c>__schema</c> and programmatic use.
+	/// </summary>
+	public static string FormatCliSchemaJson()
+	{
+		if (_cliSchemaFactory is null)
+			throw new InvalidOperationException(
+				"CLI schema factory is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so ArghGenerated is emitted in this assembly.");
+
+		return JsonSerializer.Serialize(_cliSchemaFactory(), ArghCliSchemaJsonContext.Default.ArghCliSchemaDocument);
+	}
 
 	/// <summary>
 	/// Runs the source-generated CLI for the application assembly (same behavior as <c>ArghGenerated.RunAsync</c>).
