@@ -198,7 +198,32 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				{
 					Expression: MemberAccessExpressionSyntax { Name: SimpleNameSyntax name }
 				} && name.Identifier.Text is "Add" or "AddNamespace" or "AddRootCommand" or "AddNamespaceRootCommand" or "GlobalOptions" or "CommandNamespaceOptions" or "UseMiddleware",
-				static (ctx, _) => (InvocationExpressionSyntax)ctx.Node);
+				static (ctx, ct) =>
+				{
+					var invocation = (InvocationExpressionSyntax)ctx.Node;
+					if (invocation.Expression is not MemberAccessExpressionSyntax member)
+						return null;
+					var receiverType = ctx.SemanticModel.GetTypeInfo(member.Expression, ct).Type;
+					if (receiverType is null)
+						return null;
+					// Quick namespace check — Nullean.Argh types only
+					if (IsArghNamespace(receiverType))
+						return invocation;
+					if (receiverType is INamedTypeSymbol named)
+					{
+						foreach (var iface in named.AllInterfaces)
+						{
+							if (IsArghNamespace(iface))
+								return invocation;
+						}
+					}
+					return null;
+
+					static bool IsArghNamespace(ITypeSymbol t) =>
+						t.ContainingNamespace?.ToDisplayString().StartsWith("Nullean.Argh", StringComparison.Ordinal) == true;
+				})
+			.Where(x => x is not null)
+			.Select(static (x, _) => x!);
 
 		IncrementalValueProvider<(ImmutableArray<MetadataReference> MetadataReferences, Compilation Compilation)> refsAndCompilation =
 			context.MetadataReferencesProvider.Collect().Combine(context.CompilationProvider);
