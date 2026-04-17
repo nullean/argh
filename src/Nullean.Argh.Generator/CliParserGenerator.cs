@@ -409,6 +409,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private sealed record HandlerParam(
 		string Name,
 		string TypeMetadataName,
+		/// <summary>All ancestor metadata names of this parameter's type — used for subclass-aware options injection matching.</summary>
+		ImmutableArray<string> TypeAllBaseTypeMetadataNames,
 		bool IsInjectedParam,
 		bool IsAsParameters,
 		string? AsParametersPrefix,
@@ -1332,8 +1334,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var injected = false;
 			foreach (var mp in cmd.HandlerParamTypes)
 			{
+				// mp.TypeMetadataName == requiredMetaName: exact match
+				// mp.TypeAllBaseTypeMetadataNames.Contains(requiredMetaName): mp's type is a subclass of the required type
 				if (mp.TypeMetadataName == requiredMetaName ||
-				    requiredBaseNames.Contains(mp.TypeMetadataName))
+				    mp.TypeAllBaseTypeMetadataNames.Contains(requiredMetaName))
 				{
 					injected = true;
 					break;
@@ -1444,9 +1448,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				if (p.AsParametersOwnerParamName is not null) return true;
 				var handlerParam = cmd.HandlerParamTypes.FirstOrDefault(mp => mp.Name == p.SymbolName);
 				if (handlerParam is null) return true;
+				// Keep the param only if its type is NOT the options type and NOT a subclass of it.
+				// handlerParam.TypeAllBaseTypeMetadataNames.Contains(o.TypeMetadataName) = param's type inherits from the options type.
 				return !injChain.Any(o =>
 					o.TypeMetadataName == handlerParam.TypeMetadataName ||
-					o.AllBaseTypeMetadataNames.Contains(handlerParam.TypeMetadataName));
+					handlerParam.TypeAllBaseTypeMetadataNames.Contains(o.TypeMetadataName));
 			}).ToList();
 
 			// Add flattened options members as OptionsInjected so the flag parser handles them correctly.
@@ -6401,7 +6407,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						asParamBestCtor = ctorB.MoveToImmutable();
 					}
 				}
-				paramBuilder.Add(new HandlerParam(p.Name, GetMetadataName(p.Type), isInj, isAsParam, asParamPrefix, asParamTypeFq, asParamIsPublic, asParamIsGeneric, asParamBestCtor));
+				var paramBaseNames = p.Type is INamedTypeSymbol paramNt
+				? CollectBaseTypeMetadataNames(paramNt)
+				: ImmutableArray<string>.Empty;
+			paramBuilder.Add(new HandlerParam(p.Name, GetMetadataName(p.Type), paramBaseNames, isInj, isAsParam, asParamPrefix, asParamTypeFq, asParamIsPublic, asParamIsGeneric, asParamBestCtor));
 			}
 
 			// Handler location
