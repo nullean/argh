@@ -45,23 +45,25 @@ The build scripts in `build/scripts/` are F# using Bullseye targets. `./build.sh
 
 ## How the Generator Works
 
-`CliParserGenerator` (in `src/Nullean.Argh.Generator/`) scans the user's code for invocations of `Map`, `MapNamespace`, `MapRoot`, `UseGlobalOptions`, `UseNamespaceOptions`, and `UseMiddleware` on `IArghBuilder`/`ArghApp`. It:
+`CliParserGenerator` (in `src/Nullean.Argh.Generator/`) scans the user's code for invocations of `Add`, `AddNamespace`, `AddRootCommand`, `AddNamespaceRootCommand`, `GlobalOptions`, `CommandNamespaceOptions`, and `UseMiddleware` on `IArghBuilder`/`ArghApp`. It:
 
 1. **Filters** invocations by receiver namespace (`Nullean.Argh`) in the pipeline `CreateSyntaxProvider` transform before `Collect()`.
-2. **Builds** an `AppEmitModel` / `RegistryNode` tree from the filtered, semantically validated invocations.
-3. **Emits** into three generated files:
+2. **Analyzes** each invocation independently in the Select() step, producing symbol-free `AnalyzedInvocation` records that Roslyn can cache per invocation.
+3. **Builds** an `AppEmitModel` / `RegistryNode` tree from the cached records in `RegisterSourceOutput`.
+4. **Emits** into three generated files:
    - `ArghGenerated.g.cs` — dispatch switch tree, option parsers, help printers, completion tables, schema factory, module initializer
    - `ArghTypeBindingExtensions.g.cs` — C# 14 static extension methods for DTO binding (`[AsParameters]`)
    - `ArghNamespaceSegmentInitializer.g.cs` — module initializer for argless namespace segment registration
 
-The generator decides between **flat** (no namespaces, no global options) and **hierarchical** emit paths at generation time via `IsFlatCli()`. Every feature (help, completion, schema, dispatch) is implemented separately for each topology.
+The generator uses a single **hierarchical** emit path; flat CLIs (no namespaces, no global options) are handled as the depth-0 degenerate case.
 
 **Diagnostics** `AGH0001`–`AGH0022` are defined at the top of `CliParserGenerator.cs`. Errors halt code generation; warnings allow it to continue.
 
 **Key internal types** (all inside the partial `CliParserGenerator` class):
-- `ParameterModel` — fully de-symbolicated (no `ISymbol`); one instance per CLI flag/positional/injected param
-- `CommandModel` — one per handler method; holds `IMethodSymbol` and `INamedTypeSymbol` (only used inside `Execute()`, not in the incremental pipeline)
-- `RegistryNode` / `AppEmitModel` — mutable tree built during invocation traversal
+- `ParameterModel` — fully symbol-free; one instance per CLI flag/positional/injected param
+- `CommandModel` — fully symbol-free; one per handler method; flows through the incremental pipeline
+- `AnalyzedInvocation` subtypes (`AIAddCommand`, `AIAddNamespace`, etc.) — symbol-free pipeline records; all fields are strings, value types, or `ImmutableArray`s; no `ISymbol` or `Location` references
+- `RegistryNode` / `AppEmitModel` — mutable tree built during `TryBuildAppEmitModel` from cached records
 
 ## Testing
 

@@ -4,6 +4,8 @@ Build full-featured .NET CLIs without writing a parser.
 
 Methods become commands, XML docs become help text, records become option sets. A Roslyn source generator emits parsing, routing, dispatch, and help into your assembly at build time — no reflection, no runtime overhead, trimming- and AOT-safe by default.
 
+Write vanilla C# and get a fully functional CLI in return: rich `--help` output, shell tab-completions for bash, zsh, and fish, and a machine-readable JSON schema ready for agentic use cases — all without writing a single line of plumbing code for any of it.
+
 ***Heavily** Inspired by [ConsoleAppFramework](https://github.com/Cysharp/ConsoleAppFramework) (Cysharp) — rewritten from scratch with a different feature set, but ConsoleAppFramework laid out the path for source-generated CLI's in .NET.*
 
 ![Sample CLI help output (XmlDocShowcase)](https://cdn.jsdelivr.net/gh/nullean/argh@main/docs/assets/xml-doc-showcase-help.gif)
