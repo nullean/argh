@@ -17,23 +17,6 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine();
 	}
 
-	private static void EmitBuildCliSchemaDocumentFlat(StringBuilder sb, AppEmitModel app, string entryAssemblyName,
-		string entryAssemblyVersion)
-	{
-		sb.AppendLine("\t\tinternal static ArghCliSchemaDocument BuildCliSchemaDocument() =>");
-		sb.AppendLine("\t\t\tnew ArghCliSchemaDocument(");
-		sb.AppendLine("\t\t\t\t1,");
-		sb.AppendLine($"\t\t\t\t\"{Escape(entryAssemblyName)}\",");
-		sb.AppendLine($"\t\t\t\t\"{Escape(entryAssemblyVersion)}\",");
-		sb.AppendLine("\t\t\t\tnew[] { \"__complete\", \"__completion\", \"__schema\" },");
-		EmitSchemaGlobalOptionsExpression(sb, app, "\t\t\t\t");
-		sb.AppendLine(",");
-		EmitSchemaRootDefaultExpression(sb, app.Root.RootCommand, entryAssemblyName, "\t\t\t\t");
-		sb.AppendLine(",");
-		EmitSchemaFlatCommandsExpression(sb, app, entryAssemblyName, "\t\t\t\t");
-		sb.AppendLine(",");
-		sb.AppendLine("\t\t\t\tArray.Empty<CliNamespaceSchema>());");
-	}
 
 	private static void EmitBuildCliSchemaDocumentHierarchical(StringBuilder sb, AppEmitModel app,
 		string entryAssemblyName, string entryAssemblyVersion)
@@ -131,29 +114,6 @@ public sealed partial class CliParserGenerator
 		sb.Append(")");
 	}
 
-	private static void EmitSchemaFlatCommandsExpression(StringBuilder sb, AppEmitModel app, string entryAssemblyName,
-		string indent)
-	{
-		var cmds = app.AllCommands.Where(static c => !c.IsRootDefault).OrderBy(c => c.CommandName, StringComparer.Ordinal)
-			.ToList();
-		if (cmds.Count == 0)
-		{
-			sb.Append(indent);
-			sb.Append("Array.Empty<CliCommandSchema>()");
-			return;
-		}
-
-		sb.AppendLine(indent + "new CliCommandSchema[]");
-		sb.AppendLine(indent + "{");
-		foreach (var cmd in cmds)
-		{
-			EmitCliCommandSchemaBody(sb, cmd, entryAssemblyName, indent + "\t");
-			sb.AppendLine(",");
-		}
-
-		sb.Append(indent);
-		sb.Append("}");
-	}
 
 	private static void EmitSchemaRootCommandsExpression(StringBuilder sb, AppEmitModel app, string entryAssemblyName,
 		string indent)

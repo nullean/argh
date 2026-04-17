@@ -21,73 +21,11 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine();
 	}
 
-	private static void EmitCompletionForApp(StringBuilder sb, AppEmitModel app, bool hierarchical)
+	private static void EmitCompletionForApp(StringBuilder sb, AppEmitModel app)
 	{
-		if (hierarchical)
-			EmitCompletionHierarchical(sb, app);
-		else
-			EmitCompletionFlat(sb, app);
+		EmitCompletionHierarchical(sb, app);
 	}
 
-	private static void EmitCompletionFlat(StringBuilder sb, AppEmitModel app)
-	{
-		var cmds = app.AllCommands.Where(c => !c.IsRootDefault).OrderBy(c => c.CommandName, StringComparer.Ordinal).ToList();
-		sb.AppendLine("\t\tprivate static readonly string[] __c_flat_next = new string[]");
-		sb.AppendLine("\t\t{");
-		for (var i = 0; i < cmds.Count; i++)
-		{
-			sb.Append("\t\t\t\"").Append(Escape(cmds[i].CommandName)).Append('"');
-			sb.AppendLine(i < cmds.Count - 1 ? "," : "");
-		}
-
-		sb.AppendLine("\t\t};");
-		sb.AppendLine("\t\tprivate static readonly string[] __c_flat_meta = new string[] { \"--help\", \"-h\", \"--version\" };");
-		foreach (var cmd in cmds)
-		{
-			var flags = CollectCompletionFlagStrings(cmd.Parameters).ToArray();
-			sb.AppendLine($"\t\tprivate static readonly string[] __c_flat_flags_{cmd.RunMethodName} = new string[]");
-			sb.AppendLine("\t\t{");
-			for (var i = 0; i < flags.Length; i++)
-			{
-				sb.Append("\t\t\t\"").Append(Escape(flags[i])).Append('"');
-				sb.AppendLine(i < flags.Length - 1 ? "," : "");
-			}
-
-			sb.AppendLine("\t\t};");
-		}
-
-		sb.AppendLine("\t\tprivate static void Complete(CompletionShell shell, ReadOnlySpan<string> words)");
-		sb.AppendLine("\t\t{");
-		sb.AppendLine("\t\t\t_ = shell;");
-		sb.AppendLine("\t\t\tif (words.Length == 0)");
-		sb.AppendLine("\t\t\t{");
-		sb.AppendLine("\t\t\t\tCompletionWriter.WriteFiltered(__c_flat_next, \"\");");
-		sb.AppendLine("\t\t\t\treturn;");
-		sb.AppendLine("\t\t\t}");
-		sb.AppendLine("\t\t\tvar committed = words.Length > 1 ? words[..(words.Length - 1)].ToArray() : Array.Empty<string>();");
-		sb.AppendLine("\t\t\tvar partial = words[^1];");
-		sb.AppendLine("\t\t\tif (committed.Length == 0)");
-		sb.AppendLine("\t\t\t{");
-		sb.AppendLine("\t\t\t\tif (partial.Length > 0 && partial[0] == '-')");
-		sb.AppendLine("\t\t\t\t\tCompletionWriter.WriteFiltered(__c_flat_meta, partial);");
-		sb.AppendLine("\t\t\t\telse");
-		sb.AppendLine("\t\t\t\t\tCompletionWriter.WriteFiltered(__c_flat_next, partial);");
-		sb.AppendLine("\t\t\t\treturn;");
-		sb.AppendLine("\t\t\t}");
-		sb.AppendLine("\t\t\tvar cmd0 = committed[0];");
-		foreach (var cmd in cmds)
-		{
-			sb.AppendLine($"\t\t\tif (string.Equals(cmd0, \"{Escape(cmd.CommandName)}\", StringComparison.OrdinalIgnoreCase))");
-			sb.AppendLine("\t\t\t{");
-			sb.AppendLine("\t\t\t\tif (partial.Length > 0 && partial[0] == '-')");
-			sb.AppendLine($"\t\t\t\t\tCompletionWriter.WriteFiltered(__c_flat_flags_{cmd.RunMethodName}, partial);");
-			sb.AppendLine("\t\t\t\treturn;");
-			sb.AppendLine("\t\t\t}");
-		}
-
-		sb.AppendLine("\t\t}");
-		sb.AppendLine();
-	}
 
 	private static void EmitCompletionHierarchical(StringBuilder sb, AppEmitModel app)
 	{
