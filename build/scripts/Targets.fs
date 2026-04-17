@@ -44,14 +44,21 @@ let private test (arguments:ParseResults<Arguments>) =
     exec "dotnet" ["test"; "-c"; "RELEASE"; "--logger:GithubActions"; "--logger:pretty"] |> ignore
 
 let private generatePackages (arguments:ParseResults<Arguments>) =
+    if Paths.Output.Exists then Paths.Output.Delete(true)
     let output = Paths.RootRelative Paths.Output.FullName
     exec "dotnet" ["pack"; "-c"; "Release"; "-o"; output] |> ignore
 
 let private validatePackages (arguments:ParseResults<Arguments>) =
     let output = Paths.RootRelative <| Paths.Output.FullName
+    let ver = currentVersion.Value
+    /// Metapackage has no lib/*.dll in the nupkg (dependency-only); nupkg-validator requires assemblies.
+    let packageIdFromNupkgFile (nupkgRelativePath: string) =
+        Path.GetFileNameWithoutExtension(nupkgRelativePath).Replace("." + ver, "")
     let nugetPackages =
-        Paths.Output.GetFiles("*.nupkg") |> Seq.sortByDescending(fun f -> f.CreationTimeUtc)
-        |> Seq.map (fun p -> Paths.RootRelative p.FullName)
+        Paths.Output.GetFiles("*.nupkg")
+        |> Seq.sortByDescending(fun f -> f.CreationTimeUtc)
+        |> Seq.map (fun f -> Paths.RootRelative f.FullName)
+        |> Seq.filter (fun p -> packageIdFromNupkgFile p <> "Nullean.Argh")
 
     let jenkinsOnWindowsArgs =
         if Fake.Core.Environment.hasEnvironVar "JENKINS_URL" && Fake.Core.Environment.isWindows then ["-r"; "true"] else []
