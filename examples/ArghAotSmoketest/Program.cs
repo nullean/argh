@@ -1,7 +1,14 @@
 // Native AOT smoketest — CI publishes and runs this binary to guard trim/AOT compatibility.
-using Nullean.Argh;
+// Exercises AddArgh + Map&lt;T&gt; / MapNamespace&lt;T&gt; (DI registration + trim annotations).
+using ArghAotSmoketest;
+using Microsoft.Extensions.Hosting;
+using Nullean.Argh.Hosting;
 
-var app = new ArghApp();
-app.Map("ping", () => { Console.WriteLine("pong"); return Task.FromResult(0); });
+var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddArgh(args, app =>
+{
+	app.Map<SmokeCmds>();
+	app.MapNamespace<NsCmds>("ns", _ => { });
+});
 
-return await app.RunAsync(args);
+await builder.Build().RunAsync();

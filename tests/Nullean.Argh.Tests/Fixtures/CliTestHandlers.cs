@@ -16,6 +16,9 @@ internal enum TestColor
 /// <param name="Port">Listen port.</param>
 internal sealed record DeployCliArgs(string Env, int Port);
 
+/// <summary>Record with nullable value types for <see cref="AsParametersAttribute"/> binding coverage.</summary>
+internal sealed record NullableNumericAsParamsArgs(int? Rps, int? MaxPages);
+
 internal static class CliTestHandlers
 {
 	/// <summary>Greet someone by name.</summary>
@@ -36,6 +39,9 @@ internal static class CliTestHandlers
 
 	public static void Deploy(TestGlobalCliOptions g, [AsParameters("app")] DeployCliArgs args) =>
 		Console.Out.WriteLine($"deploy:{args.Env}:{args.Port}");
+
+	public static void NullableNumericAsParams(TestGlobalCliOptions g, [AsParameters("labs")] NullableNumericAsParamsArgs args) =>
+		Console.Out.WriteLine($"nullable-numeric:{args.Rps?.ToString() ?? "null"}:{args.MaxPages?.ToString() ?? "null"}");
 
 	public static void Tags(TestGlobalCliOptions g, List<string> tags) =>
 		Console.Out.WriteLine("tags:" + string.Join(",", tags));

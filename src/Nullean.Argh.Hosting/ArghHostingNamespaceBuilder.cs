@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Nullean.Argh;
 using Nullean.Argh.Builder;
@@ -22,7 +23,7 @@ public sealed class ArghHostingNamespaceBuilder : IArghNamespaceBuilder
 	/// <inheritdoc />
 	public string Segment { get; }
 
-	public IArghNamespaceBuilder UseGlobalOptions<T>() where T : class
+	public IArghNamespaceBuilder UseGlobalOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		_ = _host.UseGlobalOptions<T>();
 		return this;
@@ -34,7 +35,7 @@ public sealed class ArghHostingNamespaceBuilder : IArghNamespaceBuilder
 		return this;
 	}
 
-	public IArghNamespaceBuilder Map<T>() where T : class
+	public IArghNamespaceBuilder Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		_ = _host.Map<T>();
 		return this;
@@ -52,31 +53,31 @@ public sealed class ArghHostingNamespaceBuilder : IArghNamespaceBuilder
 		return this;
 	}
 
-	public IArghNamespaceBuilder MapNamespace<TNs>(string name) where TNs : class
+	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name) where TNs : class
 	{
 		_ = _host.MapNamespace<TNs>(name);
 		return this;
 	}
 
-	public IArghNamespaceBuilder MapNamespace<TNs>(string name, Action<IArghBuilder> configure) where TNs : class
+	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name, Action<IArghBuilder> configure) where TNs : class
 	{
 		_ = _host.MapNamespace<TNs>(name, configure);
 		return this;
 	}
 
-	public IArghNamespaceBuilder MapNamespace<TNs>(string name, Action<IArghNamespaceBuilder> configure) where TNs : class
+	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name, Action<IArghNamespaceBuilder> configure) where TNs : class
 	{
 		_ = _host.MapNamespace<TNs>(name, configure);
 		return this;
 	}
 
-	public IArghNamespaceBuilder MapNamespace<TNs>(Action<IArghNamespaceBuilder> configure) where TNs : class
+	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(Action<IArghNamespaceBuilder> configure) where TNs : class
 	{
 		_ = _host.MapNamespace<TNs>(configure);
 		return this;
 	}
 
-	public IArghNamespaceBuilder UseNamespaceOptions<T>() where T : class
+	public IArghNamespaceBuilder UseNamespaceOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		((IArghBuilder)_host).UseNamespaceOptions<T>();
 		return this;
@@ -88,7 +89,7 @@ public sealed class ArghHostingNamespaceBuilder : IArghNamespaceBuilder
 		return this;
 	}
 
-	public IArghNamespaceBuilder UseMiddleware<TMiddleware>() where TMiddleware : ICommandMiddleware
+	public IArghNamespaceBuilder UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>() where TMiddleware : ICommandMiddleware
 	{
 		_ = _host.UseMiddleware<TMiddleware>();
 		return this;
@@ -96,34 +97,38 @@ public sealed class ArghHostingNamespaceBuilder : IArghNamespaceBuilder
 
 	public Task<int> RunAsync(string[] args) => _host.RunAsync(args);
 
-	IArghBuilder IArghBuilder.UseGlobalOptions<T>() where T : class => UseGlobalOptions<T>();
+	IArghBuilder IArghBuilder.UseGlobalOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class =>
+		UseGlobalOptions<T>();
 
 	IArghBuilder IArghBuilder.Map(string name, Delegate handler) => Map(name, handler);
 
-	IArghBuilder IArghBuilder.Map<T>() where T : class => Map<T>();
+	IArghBuilder IArghBuilder.Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class => Map<T>();
 
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler) => MapRoot(handler);
 
 	IArghBuilder IArghBuilder.MapNamespace(string name, string description, Action<IArghBuilder> configure) =>
 		MapNamespace(name, description, configure);
 
-	IArghBuilder IArghBuilder.MapNamespace<TNs>(string name) where TNs : class => MapNamespace<TNs>(name);
+	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name) where TNs : class =>
+		MapNamespace<TNs>(name);
 
-	IArghBuilder IArghBuilder.MapNamespace<TNs>(string name, Action<IArghBuilder> configure) where TNs : class =>
+	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name, Action<IArghBuilder> configure) where TNs : class =>
 		MapNamespace<TNs>(name, configure);
 
-	IArghBuilder IArghBuilder.MapNamespace<TNs>(string name, Action<IArghNamespaceBuilder> configure) where TNs : class =>
+	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name, Action<IArghNamespaceBuilder> configure) where TNs : class =>
 		MapNamespace<TNs>(name, configure);
 
-	IArghBuilder IArghBuilder.MapNamespace<TNs>(Action<IArghNamespaceBuilder> configure) where TNs : class =>
+	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(Action<IArghNamespaceBuilder> configure) where TNs : class =>
 		MapNamespace<TNs>(configure);
 
-	IArghBuilder IArghBuilder.UseNamespaceOptions<T>() where T : class => UseNamespaceOptions<T>();
+	IArghBuilder IArghBuilder.UseNamespaceOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class =>
+		UseNamespaceOptions<T>();
 
 	IArghBuilder IArghBuilder.UseMiddleware(Func<CommandContext, CommandMiddlewareDelegate, ValueTask> middleware) =>
 		UseMiddleware(middleware);
 
-	IArghBuilder IArghBuilder.UseMiddleware<TMiddleware>() => UseMiddleware<TMiddleware>();
+	IArghBuilder IArghBuilder.UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>() =>
+		UseMiddleware<TMiddleware>();
 
 	Task<int> IArghBuilder.RunAsync(string[] args) => RunAsync(args);
 }

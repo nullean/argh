@@ -19,7 +19,7 @@ public readonly struct RouteMatch(string commandPath, string[] remainingArgs)
 /// <remarks>
 /// <para>
 /// Parameter binding for global options, group options, and <c>[AsParameters]</c> types is implemented as
-/// <b>pregenerated C#</b> in <c>ArghGenerated</c> (no reflection, AOT-safe), following the same idea as
+/// <b>pregenerated C#</b> in the per-assembly CLI entry type (no reflection, AOT-safe), following the same idea as
 /// <see href="https://github.com/Cysharp/ConsoleAppFramework/pull/237">ConsoleAppFramework PR #237</see>:
 /// the generator emits parsers and object construction (<c>new T(...)</c>) for each registered shape.
 /// </para>
@@ -31,7 +31,7 @@ public readonly struct RouteMatch(string commandPath, string[] remainingArgs)
 public static class ArghParser
 {
 	/// <summary>
-	/// Routes argv to a registered command without invoking handlers. Uses the same routing rules as <c>ArghGenerated.RunAsync</c>, then delegates to <see cref="ArghRuntime.Route"/> (registered from generated code).
+	/// Routes argv to a registered command without invoking handlers. Uses the same routing rules as the generated CLI <c>RunAsync</c>, then delegates to <see cref="ArghRuntime.Route"/> (registered from generated code).
 	/// </summary>
 	/// <returns>The matched command path and remaining arguments, or <see langword="null"/> when no command is matched.</returns>
 	public static RouteMatch? Route(string[] args)

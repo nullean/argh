@@ -31,5 +31,6 @@
     <Project Path="tests/Nullean.Argh.Tests.CliHost/Nullean.Argh.Tests.CliHost.csproj" />
     <Project Path="tests/Nullean.Argh.IntegrationTests/Nullean.Argh.IntegrationTests.csproj" />
     <Project Path="tests/Nullean.Argh.Tests/Nullean.Argh.Tests.csproj" />
+    <Project Path="tests/Argh.InternalsVisibleTo.Repro/Tests/Argh.InternalsVisibleTo.Repro.Tests.csproj" />
   </Folder>
 </Solution>
