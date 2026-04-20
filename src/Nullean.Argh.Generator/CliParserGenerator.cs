@@ -199,6 +199,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor UriSchemeOnNonUriParam = new(
+		"AGH0024",
+		"[UriScheme] applied to non-Uri parameter",
+		"'{0}' has [UriScheme] but its type is not Uri or Uri?; [UriScheme] only constrains Uri-typed parameters.",
+		"Argh",
+		DiagnosticSeverity.Warning,
+		isEnabledByDefault: true);
+
 	// ── Pre-compiled Regex patterns ── compiled once, reused for every handler method analyzed
 	private static readonly Regex SummaryXmlPattern =
 		new(@"<summary>\s*([\s\S]*?)\s*</summary>", RegexOptions.Compiled);
@@ -3338,7 +3346,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				: app.InjectionChains.TryGetValue(cmd.RunMethodName, out var precomputed3)
 					? precomputed3
 					: BuildOptionsInjectionChain(app, cmd);
-			EmitCommandRunner(sb, cmd, app.GlobalMiddleware, injectedOptions: injectedOpts);
+			EmitCommandRunner(sb, cmd, app.GlobalMiddleware, injectedOptions: injectedOpts, entryAssemblyName: entryAssemblyName);
 		}
 
 		if (app.GlobalOptionsModel is { Members: { Length: > 0 } } gomStore)
@@ -4700,6 +4708,225 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private static string AsParametersConstructedVarName(string methodParameterName) =>
 		"__as_" + Naming.SanitizeIdentifier(methodParameterName);
 
+	private static void EmitValidationChecks(
+		StringBuilder sb,
+		CommandModel cmd,
+		string failureExit,
+		string? entryAssemblyName)
+	{
+		foreach (var p in cmd.Parameters)
+		{
+			if (p.Kind == ParameterKind.Injected || p.Kind == ParameterKind.OptionsInjected)
+				continue;
+			if (p.Validations.IsDefaultOrEmpty)
+				continue;
+
+			var cliName = p.CliLongName;
+			var varName = p.LocalVarName;
+			var isNullable = !p.IsRequired;
+			var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None
+				&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string";
+
+			// Build the run-hint line (baked in as a string literal)
+			string? runHint = null;
+			if (entryAssemblyName is not null && !string.IsNullOrEmpty(cmd.CommandName))
+			{
+				var route = cmd.RoutePrefix.IsDefaultOrEmpty
+					? ""
+					: string.Join(" ", cmd.RoutePrefix) + " ";
+				runHint = $"Run '{Escape(entryAssemblyName)} {Escape(route)}{Escape(cmd.CommandName)} --help' for usage.";
+			}
+
+			foreach (var constraint in p.Validations)
+			{
+				switch (constraint)
+				{
+					case RangeConstraint r:
+					{
+						var guard = isNullableValueType ? $"{varName}.HasValue && (" : "";
+						var closeGuard = isNullableValueType ? ")" : "";
+						var access = isNullableValueType ? $"{varName}.Value" : varName;
+						sb.AppendLine($"\t\t\tif ({guard}{access} < {r.MinLiteral} || {access} > {r.MaxLiteral}{closeGuard})");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(r.MinLiteral.Trim('"'))} and {Escape(r.MaxLiteral.Trim('"'))}.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+					case StringLengthConstraint s:
+					{
+						// For required non-nullable strings: access with ! to avoid introducing a null-path
+						// in the condition (which would cause CS8604 at the handler call site).
+						// For optional strings: wrap with a null guard.
+						var sv = isNullable ? varName : varName + "!";
+						var nullPrefix = isNullable ? $"{varName} != null && " : "";
+						string cond;
+						string msg;
+						if (s.Min.HasValue && s.Max.HasValue)
+						{
+							cond = $"{nullPrefix}({sv}.Length < {s.Min} || {sv}.Length > {s.Max})";
+							msg = $"value must be between {s.Min} and {s.Max} characters.";
+						}
+						else if (s.Min.HasValue)
+						{
+							cond = $"{nullPrefix}{sv}.Length < {s.Min}";
+							msg = $"value must be at least {s.Min} characters.";
+						}
+						else
+						{
+							cond = $"{nullPrefix}{sv}.Length > {s.Max}";
+							msg = $"value must be at most {s.Max} characters.";
+						}
+						sb.AppendLine($"\t\t\tif ({cond})");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: {Escape(msg)}\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+					case RegexConstraint rx:
+					{
+						var rv = isNullable ? varName : varName + "!";
+						var cond = isNullable
+							? $"{varName} != null && !global::System.Text.RegularExpressions.Regex.IsMatch({rv}, @\"{EscapeVerbatimString(rx.Pattern)}\")"
+							: $"!global::System.Text.RegularExpressions.Regex.IsMatch({rv}, @\"{EscapeVerbatimString(rx.Pattern)}\")";
+						sb.AppendLine($"\t\t\tif ({cond})");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value does not match required pattern {Escape(rx.Pattern)}.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+					case AllowedValuesConstraint av:
+					{
+						var isStringType = p.TypeName == "string";
+						string cond;
+						if (isStringType)
+						{
+							var avv = isNullable ? varName : varName + "!";
+							var checks = av.Values
+								.Select(v => $"!string.Equals({avv}, {v}, global::System.StringComparison.Ordinal)")
+								.ToList();
+							var nullGuard = isNullable ? $"{varName} != null && " : "";
+							cond = $"{nullGuard}({string.Join(" && ", checks)})";
+						}
+						else
+						{
+							var checks = av.Values.Select(v => $"{varName} != {v}").ToList();
+							var nullGuard = isNullableValueType ? $"{varName}.HasValue && " : "";
+							var access = isNullableValueType ? $"{varName}.Value" : varName;
+							cond = $"{nullGuard}({string.Join(" && ", checks.Select(c => c.Replace(varName, access)))})";
+						}
+						var displayVals = string.Join(", ", av.Values.Select(v => v.Trim('"')));
+						sb.AppendLine($"\t\t\tif ({cond})");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be one of: {Escape(displayVals)}.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+					case DeniedValuesConstraint dv:
+					{
+						var isStringType = p.TypeName == "string";
+						string cond;
+						if (isStringType)
+						{
+							var dvv = isNullable ? varName : varName + "!";
+							var checks = dv.Values
+								.Select(v => $"string.Equals({dvv}, {v}, global::System.StringComparison.Ordinal)")
+								.ToList();
+							var nullGuard = isNullable ? $"{varName} != null && " : "";
+							cond = $"{nullGuard}({string.Join(" || ", checks)})";
+						}
+						else
+						{
+							var checks = dv.Values.Select(v => $"{varName} == {v}").ToList();
+							var nullGuard = isNullableValueType ? $"{varName}.HasValue && " : "";
+							var access = isNullableValueType ? $"{varName}.Value" : varName;
+							cond = $"{nullGuard}({string.Join(" || ", checks.Select(c => c.Replace(varName, access)))})";
+						}
+						var displayVals = string.Join(", ", dv.Values.Select(v => v.Trim('"')));
+						sb.AppendLine($"\t\t\tif ({cond})");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must not be: {Escape(displayVals)}.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+					case EmailConstraint:
+					{
+						// Simple email check: at least one char, @, at least one char (DataAnnotations-compatible)
+						var ev = isNullable ? varName : varName + "!";
+						var cond = isNullable
+							? $"{varName} != null && ({ev}.IndexOf('@') < 1 || {ev}.IndexOf('@') == {ev}.Length - 1)"
+							: $"({ev}.IndexOf('@') < 1 || {ev}.IndexOf('@') == {ev}.Length - 1)";
+						sb.AppendLine($"\t\t\tif ({cond})");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value is not a valid email address.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+					case UrlConstraint:
+					{
+						// Validates absolute URL with http, https, or ftp scheme
+						sb.AppendLine($"\t\t\tif ({(isNullable ? $"{varName} != null && " : "")}!");
+						sb.AppendLine($"\t\t\t\t(global::System.Uri.TryCreate({varName}, global::System.UriKind.Absolute, out var __urlCheck_{varName}) &&");
+						sb.AppendLine($"\t\t\t\t (__urlCheck_{varName}.Scheme == \"http\" || __urlCheck_{varName}.Scheme == \"https\" || __urlCheck_{varName}.Scheme == \"ftp\")))");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value is not a valid URL.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+					case UriSchemeConstraint us:
+					{
+						// varName is a Uri? or Uri instance (already parsed)
+						var access = isNullable ? $"{varName}!" : varName;
+						var schemeChecks = us.Schemes
+							.Select(s => $"{access}.Scheme != \"{Escape(s)}\"")
+							.ToList();
+						var nullGuard = isNullable ? $"{varName} != null && " : "";
+						var displaySchemes = string.Join(", ", us.Schemes);
+						sb.AppendLine($"\t\t\tif ({nullGuard}({string.Join(" && ", schemeChecks)}))");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: URI scheme must be one of: {Escape(displaySchemes)}.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+					case FileExtensionsConstraint fe:
+					{
+						// varName is a FileInfo? or FileInfo instance
+						var access = isNullable ? $"{varName}!" : varName;
+						var extChecks = fe.Extensions
+							.Select(ext => $"!string.Equals(global::System.IO.Path.GetExtension({access}.Name).TrimStart('.'), \"{Escape(ext)}\", global::System.StringComparison.OrdinalIgnoreCase)")
+							.ToList();
+						var nullGuard = isNullable ? $"{varName} != null && " : "";
+						var displayExts = string.Join(", ", fe.Extensions);
+						sb.AppendLine($"\t\t\tif ({nullGuard}({string.Join(" && ", extChecks)}))");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: extension must be one of: {Escape(displayExts)}.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	private static string EscapeVerbatimString(string s) => s.Replace("\"", "\"\"");
+
 	private static void EmitCommandRunner(
 		StringBuilder sb,
 		CommandModel cmd,
@@ -4709,7 +4936,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string? dtoResultTypeFq = null,
 		string? dtoOptionsTypeFq = null,
 		ImmutableArray<string>? dtoOptionsBestCtorParamOrder = null,
-		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions = default)
+		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions = default,
+		string? entryAssemblyName = null)
 	{
 		var anyRepeatedCollection = cmd.Parameters.Any(static p =>
 			p is { IsCollection: true, Kind: ParameterKind.Flag } && p.CollectionSeparator is null);
@@ -4950,6 +5178,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		if (emitDtoTryParse)
 		{
+			EmitValidationChecks(sb, cmd, failureExit, entryAssemblyName: null);
 			if (dtoOptionsTypeFq is not null)
 				EmitOptionsDtoConstructionAndReturn(sb, dtoOptionsTypeFq, cmd.Parameters, dtoOptionsBestCtorParamOrder);
 			else
@@ -4961,6 +5190,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 
 		EmitAsParametersConstruction(sb, cmd);
+
+		EmitValidationChecks(sb, cmd, failureExit, entryAssemblyName);
 
 		// Reconstruct options instances merging command-level flags with pre-parsed statics.
 		EmitOptionsReconstructLocals(sb, injectedOptions);
@@ -5858,13 +6089,175 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return false;
 	}
 
+	private static ImmutableArray<ValidationConstraint> ReadValidationConstraints(ISymbol attributeHost, CliScalarKind scalarKind)
+	{
+		var builder = ImmutableArray.CreateBuilder<ValidationConstraint>();
+		foreach (var attr in attributeHost.GetAttributes())
+		{
+			var fqn = attr.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
+			switch (fqn)
+			{
+				case "global::System.ComponentModel.DataAnnotations.RangeAttribute":
+					if (attr.ConstructorArguments.Length >= 2)
+						builder.Add(new RangeConstraint(attr.ConstructorArguments[0].ToCSharpString(), attr.ConstructorArguments[1].ToCSharpString()));
+					break;
+				case "global::System.ComponentModel.DataAnnotations.StringLengthAttribute":
+					if (attr.ConstructorArguments.Length >= 1)
+					{
+						var max = (int?)(int?)attr.ConstructorArguments[0].Value;
+						int? min = null;
+						foreach (var n in attr.NamedArguments)
+							if (n.Key == "MinimumLength") min = (int?)n.Value.Value;
+						builder.Add(new StringLengthConstraint(min, max));
+					}
+					break;
+				case "global::System.ComponentModel.DataAnnotations.MinLengthAttribute":
+					if (attr.ConstructorArguments.Length >= 1)
+						builder.Add(new StringLengthConstraint((int?)attr.ConstructorArguments[0].Value, null));
+					break;
+				case "global::System.ComponentModel.DataAnnotations.MaxLengthAttribute":
+					if (attr.ConstructorArguments.Length >= 1)
+						builder.Add(new StringLengthConstraint(null, (int?)attr.ConstructorArguments[0].Value));
+					break;
+				case "global::System.ComponentModel.DataAnnotations.LengthAttribute":
+					if (attr.ConstructorArguments.Length >= 2)
+						builder.Add(new StringLengthConstraint((int?)attr.ConstructorArguments[0].Value, (int?)attr.ConstructorArguments[1].Value));
+					break;
+				case "global::System.ComponentModel.DataAnnotations.RegularExpressionAttribute":
+					if (attr.ConstructorArguments.Length >= 1 && attr.ConstructorArguments[0].Value is string pat)
+						builder.Add(new RegexConstraint(pat));
+					break;
+				case "global::System.ComponentModel.DataAnnotations.AllowedValuesAttribute":
+					if (attr.ConstructorArguments.Length >= 1 && attr.ConstructorArguments[0].Kind == TypedConstantKind.Array)
+					{
+						var vals = attr.ConstructorArguments[0].Values.Select(v => v.ToCSharpString()).ToImmutableArray();
+						if (!vals.IsEmpty) builder.Add(new AllowedValuesConstraint(vals));
+					}
+					break;
+				case "global::System.ComponentModel.DataAnnotations.DeniedValuesAttribute":
+					if (attr.ConstructorArguments.Length >= 1 && attr.ConstructorArguments[0].Kind == TypedConstantKind.Array)
+					{
+						var vals = attr.ConstructorArguments[0].Values.Select(v => v.ToCSharpString()).ToImmutableArray();
+						if (!vals.IsEmpty) builder.Add(new DeniedValuesConstraint(vals));
+					}
+					break;
+				case "global::System.ComponentModel.DataAnnotations.EmailAddressAttribute":
+					builder.Add(new EmailConstraint());
+					break;
+				case "global::System.ComponentModel.DataAnnotations.UrlAttribute":
+					if (scalarKind == CliScalarKind.Uri)
+						builder.Add(new UriSchemeConstraint(ImmutableArray.Create("http", "https")));
+					else
+						builder.Add(new UrlConstraint());
+					break;
+				case "global::System.ComponentModel.DataAnnotations.FileExtensionsAttribute":
+				{
+					string? extsStr = null;
+					foreach (var n in attr.NamedArguments)
+						if (n.Key == "Extensions") extsStr = n.Value.Value as string;
+					extsStr ??= "png,jpg,jpeg,gif";
+					var exts = extsStr.Split(',').Select(e => e.Trim().TrimStart('.')).ToImmutableArray();
+					builder.Add(new FileExtensionsConstraint(exts));
+					break;
+				}
+				case "global::Nullean.Argh.UriSchemeAttribute":
+					if (attr.ConstructorArguments.Length >= 1 && attr.ConstructorArguments[0].Kind == TypedConstantKind.Array)
+					{
+						var schemes = attr.ConstructorArguments[0].Values
+							.Select(v => v.Value as string).Where(s => s is not null).Select(s => s!)
+							.ToImmutableArray();
+						if (!schemes.IsEmpty) builder.Add(new UriSchemeConstraint(schemes));
+					}
+					break;
+			}
+		}
+		return builder.ToImmutable();
+	}
+
+	private static string? BuildValidationLine(ParameterModel p)
+	{
+		var tokens = new List<string>();
+
+		// Enum members displayed as [allowed: …] on the validation line
+		if (p.ScalarKind == CliScalarKind.Enum && !p.EnumMemberNames.IsDefaultOrEmpty)
+		{
+			tokens.Add("[allowed: " + string.Join("|", p.EnumMemberNames) + "]");
+			if (p.EnumMemberDocs is { Count: > 0 } docs)
+			{
+				var memberDescParts = new List<string>();
+				foreach (var member in p.EnumMemberNames)
+					if (docs.TryGetValue(member, out var memberDoc) && !string.IsNullOrWhiteSpace(memberDoc))
+						memberDescParts.Add($"{member}: {memberDoc.Trim()}");
+				if (memberDescParts.Count > 0)
+					tokens.Add("(" + string.Join("; ", memberDescParts) + ")");
+			}
+		}
+
+		if (p.Validations.IsDefaultOrEmpty)
+			return tokens.Count > 0 ? string.Join(" ", tokens) : null;
+
+		foreach (var v in p.Validations)
+		{
+			switch (v)
+			{
+				case RangeConstraint r:
+					tokens.Add($"[range: {r.MinLiteral.Trim('"')}–{r.MaxLiteral.Trim('"')}]");
+					break;
+				case StringLengthConstraint s when s.Min.HasValue && s.Max.HasValue:
+					tokens.Add($"[length: {s.Min}–{s.Max}]");
+					break;
+				case StringLengthConstraint s when s.Min.HasValue:
+					tokens.Add($"[min-length: {s.Min}]");
+					break;
+				case StringLengthConstraint s when s.Max.HasValue:
+					tokens.Add($"[max-length: {s.Max}]");
+					break;
+				case RegexConstraint rx:
+					tokens.Add($"[pattern: {rx.Pattern}]");
+					break;
+				case AllowedValuesConstraint av:
+					tokens.Add("[allowed: " + string.Join("|", av.Values.Select(val => val.Trim('"'))) + "]");
+					break;
+				case DeniedValuesConstraint dv:
+					tokens.Add("[denied: " + string.Join("|", dv.Values.Select(val => val.Trim('"'))) + "]");
+					break;
+				case EmailConstraint:
+					tokens.Add("[email]");
+					break;
+				case UrlConstraint:
+					tokens.Add("[url]");
+					break;
+				case UriSchemeConstraint us:
+					tokens.Add("[schemes: " + string.Join("|", us.Schemes) + "]");
+					break;
+				case FileExtensionsConstraint fe:
+					tokens.Add("[extensions: " + string.Join("|", fe.Extensions) + "]");
+					break;
+			}
+		}
+
+		return tokens.Count > 0 ? string.Join(" ", tokens) : null;
+	}
+
 	private static void EmitHelpOptionRows(StringBuilder sb, IReadOnlyList<ParameterModel> rows, int maxOptWidth)
 	{
 		foreach (var p in rows)
 		{
 			var left = HelpLayout.FormatOptionLeftCell(p).PadRight(maxOptWidth);
 			var desc = BuildDescriptionSuffix(p, forPositional: false);
-			sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)}\");");
+			var validationLine = BuildValidationLine(p);
+			if (validationLine is null)
+			{
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)}\");");
+			}
+			else if (string.IsNullOrEmpty(desc))
+			{
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {{CliHelpFormatting.DocRemarksLine(\"{Escape(validationLine)}\")}}\");");
+			}
+			else
+			{
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)} {{CliHelpFormatting.DocRemarksLine(\"{Escape(validationLine)}\")}}\");");
+			}
 		}
 	}
 
@@ -5946,7 +6339,19 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					: $"[<{p.CliLongName}>]";
 				var nameCellPadded = nameCell.PadRight(maxArgWidth);
 				var desc = BuildDescriptionSuffix(p, forPositional: true);
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Placeholder(\"{Escape(nameCellPadded)}\")}}  {Escape(desc)}\");");
+				var argValidationLine = BuildValidationLine(p);
+				if (argValidationLine is null)
+				{
+					sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Placeholder(\"{Escape(nameCellPadded)}\")}}  {Escape(desc)}\");");
+				}
+				else if (string.IsNullOrEmpty(desc))
+				{
+					sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Placeholder(\"{Escape(nameCellPadded)}\")}}  {{CliHelpFormatting.DocRemarksLine(\"{Escape(argValidationLine)}\")}}\");");
+				}
+				else
+				{
+					sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Placeholder(\"{Escape(nameCellPadded)}\")}}  {Escape(desc)} {{CliHelpFormatting.DocRemarksLine(\"{Escape(argValidationLine)}\")}}\");");
+				}
 			}
 
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
@@ -6011,22 +6416,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		if (!string.IsNullOrWhiteSpace(p.Description))
 			parts.Add(p.Description.Trim());
-
-		if (p.ScalarKind == CliScalarKind.Enum && !p.EnumMemberNames.IsDefaultOrEmpty)
-		{
-			parts.Add("[values: " + string.Join(", ", p.EnumMemberNames) + "]");
-			if (p.EnumMemberDocs is { Count: > 0 } docs)
-			{
-				var memberDescParts = new List<string>();
-				foreach (var member in p.EnumMemberNames)
-				{
-					if (docs.TryGetValue(member, out var memberDoc) && !string.IsNullOrWhiteSpace(memberDoc))
-						memberDescParts.Add($"{member}: {memberDoc.Trim()}");
-				}
-				if (memberDescParts.Count > 0)
-					parts.Add("(" + string.Join("; ", memberDescParts) + ")");
-			}
-		}
 
 		if (p.Special == BoolSpecialKind.None)
 		{
@@ -6678,6 +7067,21 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
+	// ── Validation constraint types ─────────────────────────────────────────────
+	// All fields are value types, strings, or ImmutableArray<string> so these can be
+	// cached inside AnalyzedInvocation records in the Roslyn incremental pipeline.
+
+	private abstract record ValidationConstraint;
+	private sealed record RangeConstraint(string MinLiteral, string MaxLiteral) : ValidationConstraint;
+	private sealed record StringLengthConstraint(int? Min, int? Max) : ValidationConstraint;
+	private sealed record RegexConstraint(string Pattern) : ValidationConstraint;
+	private sealed record AllowedValuesConstraint(ImmutableArray<string> Values) : ValidationConstraint;
+	private sealed record DeniedValuesConstraint(ImmutableArray<string> Values) : ValidationConstraint;
+	private sealed record EmailConstraint : ValidationConstraint;
+	private sealed record UrlConstraint : ValidationConstraint;
+	private sealed record UriSchemeConstraint(ImmutableArray<string> Schemes) : ValidationConstraint;
+	private sealed record FileExtensionsConstraint(ImmutableArray<string> Extensions) : ValidationConstraint;
+
 	private sealed record ParameterModel(
 		string SymbolName,
 		string LocalVarName,
@@ -6710,7 +7114,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		bool AsParametersUseInit = false,
 		string? AsParametersClrName = null,
 		bool CollectionTargetIsArray = false,
-		ImmutableDictionary<string, string>? EnumMemberDocs = null)
+		ImmutableDictionary<string, string>? EnumMemberDocs = null,
+		ImmutableArray<ValidationConstraint> Validations = default)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
 
@@ -6834,6 +7239,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var required = ComputeRequired(p, bs);
 			var defLit = TryGetDefaultLiteral(p, bs);
 			var enumDocs = sk == CliScalarKind.Enum ? TryGetEnumDocs(p.Type) : null;
+			var validations = ReadValidationConstraints(p, sk);
 			return new ParameterModel(
 				p.Name,
 				SafeLocalName(p.Name),
@@ -6851,7 +7257,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				"",
 				null,
 				ImmutableArray<string>.Empty,
-				EnumMemberDocs: enumDocs);
+				EnumMemberDocs: enumDocs,
+				Validations: validations);
 		}
 
 		public static ParameterModel FromOptionsProperty(IPropertySymbol prop)
@@ -6868,6 +7275,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
 			var required = ComputeRequiredForOptionsType(prop.Type, bs);
 			var enumDocs = sk == CliScalarKind.Enum ? TryGetEnumDocs(prop.Type) : null;
+			var validations = ReadValidationConstraints(prop, sk);
 			return new ParameterModel(
 				prop.Name,
 				SafeLocalName(prop.Name),
@@ -6885,7 +7293,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				"",
 				null,
 				ImmutableArray<string>.Empty,
-				EnumMemberDocs: enumDocs);
+				EnumMemberDocs: enumDocs,
+				Validations: validations);
 		}
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field)
@@ -6946,6 +7355,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
 			var required = ComputeRequired(cp, bs);
 			var defLit = TryGetDefaultLiteral(cp, bs);
+			var validations = ReadValidationConstraints(cp, sk);
 			return new ParameterModel(
 				cp.Name,
 				local,
@@ -6967,7 +7377,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				AsParametersMemberOrder: memberOrder,
 				AsParametersTypeFq: typeFq,
 				AsParametersUseInit: false,
-				AsParametersClrName: cp.Name);
+				AsParametersClrName: cp.Name,
+				Validations: validations);
 		}
 
 		public static ParameterModel FromAsParametersInitProperty(
@@ -6994,6 +7405,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
 			var required = ComputeRequiredForOptionsType(prop.Type, bs);
+			var validations = ReadValidationConstraints(prop, sk);
 			return new ParameterModel(
 				prop.Name,
 				local,
@@ -7015,7 +7427,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				AsParametersMemberOrder: memberOrder,
 				AsParametersTypeFq: typeFq,
 				AsParametersUseInit: true,
-				AsParametersClrName: prop.Name);
+				AsParametersClrName: prop.Name,
+				Validations: validations);
 		}
 
 		private static bool ComputeRequiredForOptionsType(ITypeSymbol type, BoolSpecialKind bs)

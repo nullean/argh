@@ -25,6 +25,7 @@ Write vanilla C# and get a fully functional CLI in return: rich `--help` output,
 - [Dependency injection](#dependency-injection)
 - [Hosting](#hosting)
 - [Routing API](#routing-api)
+- [Validation](#validation)
 - [Shell completions](#shell-completions)
 - [Schema JSON](#schema-json)
 - [License and links](#license-and-links)
@@ -52,6 +53,9 @@ Write vanilla C# and get a fully functional CLI in return: rich `--help` output,
 - **Fuzzy matching**
   - Typos produce actionable errors with the correct qualified path and a `--help` suggestion
   - No silent no-match
+- **DataAnnotations validation**
+  - Annotate parameters and DTO members with `[Range]`, `[StringLength]`, `[RegularExpression]`, `[AllowedValues]`, and more
+  - Constraints appear in `--help`; violations print to stderr and exit with code 2 — no reflection, no runtime dependency
 - **Zero-dep or ME.* native**
   - `Nullean.Argh` — no `Microsoft.Extensions.*` dependency
   - `Nullean.Argh.Hosting` — same registration surface, plugs into `IHost` and DI
@@ -523,6 +527,55 @@ builder.Services.AddArgh(args, b =>
 ## Routing API
 
 [`ArghParser.Route(args)`](src/Nullean.Argh.Core/Runtime/ArghParser.cs) returns a [`RouteMatch`](src/Nullean.Argh.Core/Runtime/ArghParser.cs) (`CommandPath`, `RemainingArgs`) without invoking handlers — useful for tests and tooling.
+
+## Validation
+
+Annotate parameters (or `[AsParameters]` members) with standard `System.ComponentModel.DataAnnotations` attributes. The source generator reads the attributes at build time and emits inline validation checks — no reflection, no `Validator.ValidateObject` call, AOT-safe. Constraint hints appear in `--help` after the description; failures print to stderr and exit 2.
+
+```csharp
+public static void Deploy(
+    [Range(1, 65535)]                          int port,
+    [StringLength(64, MinimumLength = 2)]      string name,
+    [AllowedValues("dev", "staging", "prod")]  string env,
+    [RegularExpression(@"^[a-z0-9\-]+$")]      string slug,
+    [UriScheme("https")]                       Uri endpoint)
+{ … }
+```
+
+```
+$ myapp deploy --port 99999
+Error: --port: value must be between 1 and 65535.
+Run 'myapp deploy --help' for usage.
+
+$ myapp deploy --help
+Options:
+  --port <int>       [required] [range: 1–65535]
+  --name <string>    [required] [length: 2–64]
+  --env <string>     [required] [allowed: dev|staging|prod]
+  --slug <string>    [required] [pattern: ^[a-z0-9\-]+$]
+  --endpoint <uri>   [required] [schemes: https]
+```
+
+Supported attributes:
+
+| Attribute | Validates | Help token |
+|-----------|-----------|-----------|
+| `[Range(min, max)]` | numeric value is within bounds | `[range: min–max]` |
+| `[StringLength(max)]` / `[StringLength(max, MinimumLength = min)]` | string length | `[max-length: n]` / `[length: min–max]` |
+| `[MinLength(n)]` / `[MaxLength(n)]` | string length (alternative spelling) | `[min-length: n]` / `[max-length: n]` |
+| `[Length(min, max)]` (.NET 8) | string length range | `[length: min–max]` |
+| `[RegularExpression(pattern)]` | value matches regex | `[pattern: …]` |
+| `[AllowedValues(v1, v2, …)]` (.NET 8) | value is in the set | `[allowed: v1\|v2\|…]` |
+| `[DeniedValues(v1, v2, …)]` (.NET 8) | value is not in the set | `[denied: v1\|v2\|…]` |
+| `[EmailAddress]` | basic `user@host` shape | `[email]` |
+| `[Url]` on `string` | absolute URL (http/https/ftp) | `[url]` |
+| `[Url]` on `Uri` | scheme is http or https | `[schemes: http\|https]` |
+| `[FileExtensions(Extensions="json,yaml")]` | `FileInfo` extension | `[extensions: json\|yaml]` |
+| `[UriScheme("https")]` *(Argh-native)* | `Uri` scheme is in the list | `[schemes: https]` |
+
+Enum parameters automatically show `[allowed: Member1\|Member2]` in help — the enum type itself enforces the constraint, no extra attribute needed.
+
+Validation also runs through the `TryParseArgh` static extension emitted for `[AsParameters]` DTOs, so unit tests can assert constraints without spawning a subprocess.
 
 ## Shell completions
 

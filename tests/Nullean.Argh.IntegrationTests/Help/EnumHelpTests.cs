@@ -28,7 +28,7 @@ public class EnumHelpTests
 			  --verbose
 
 			Options:
-			  -c, --colour, --color <string>  [required] Pick a color. [values: Red, Blue]
+			  -c, --colour, --color <string>  [required] Pick a color. [allowed: Red|Blue]
 			  -n, --name <string>             [required] Display name
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		TrimLines(text).Should().Be(TrimLines(expected));
