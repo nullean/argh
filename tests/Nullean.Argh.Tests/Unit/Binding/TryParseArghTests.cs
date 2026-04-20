@@ -40,6 +40,28 @@ public class TryParseArghTests
 	}
 
 	[Fact]
+	public void TryParseArgh_static_on_AsParameters_record_binds_nullable_int_flags()
+	{
+		var ok = NullableNumericAsParamsArgs.TryParseArgh(
+			["--labs-rps", "10", "--labs-max-pages", "5"],
+			out var a);
+		ok.Should().BeTrue();
+		a.Should().NotBeNull();
+		a.Rps.Should().Be(10);
+		a.MaxPages.Should().Be(5);
+	}
+
+	[Fact]
+	public void TryParseArgh_static_on_AsParameters_omitted_nullable_int_flags_are_null()
+	{
+		var ok = NullableNumericAsParamsArgs.TryParseArgh([], out var a);
+		ok.Should().BeTrue();
+		a.Should().NotBeNull();
+		a.Rps.Should().BeNull();
+		a.MaxPages.Should().BeNull();
+	}
+
+	[Fact]
 	public void TryParseArgh_Type_extension_still_works_for_generic_dispatch()
 	{
 		var ok = typeof(TestGlobalCliOptions).TryParseArgh<TestGlobalCliOptions>(["--verbose"], out var o);

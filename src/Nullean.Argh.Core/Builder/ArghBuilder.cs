@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Nullean.Argh;
 using Nullean.Argh.Middleware;
 using Nullean.Argh.Runtime;
@@ -20,7 +21,7 @@ public sealed class ArghBuilder : IArghBuilder
 
 	internal ArghApp App => _app;
 
-	public IArghBuilder UseGlobalOptions<T>() where T : class
+	public IArghBuilder UseGlobalOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		_ = _app.UseGlobalOptions<T>();
 		return this;
@@ -32,7 +33,7 @@ public sealed class ArghBuilder : IArghBuilder
 		return this;
 	}
 
-	public IArghBuilder Map<T>() where T : class
+	public IArghBuilder Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		_ = _app.Map<T>();
 		return this;
@@ -50,31 +51,31 @@ public sealed class ArghBuilder : IArghBuilder
 		return this;
 	}
 
-	public IArghBuilder MapNamespace<T>(string name) where T : class
+	public IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name) where T : class
 	{
 		_ = _app.MapNamespace<T>(name);
 		return this;
 	}
 
-	public IArghBuilder MapNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
+	public IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghBuilder> configure) where T : class
 	{
 		_ = _app.MapNamespace<T>(name, configure);
 		return this;
 	}
 
-	public IArghBuilder MapNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
+	public IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
 	{
 		_ = _app.MapNamespace<T>(name, configure);
 		return this;
 	}
 
-	public IArghBuilder MapNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class
+	public IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(Action<IArghNamespaceBuilder> configure) where T : class
 	{
 		_ = _app.MapNamespace<T>(configure);
 		return this;
 	}
 
-	public IArghBuilder UseNamespaceOptions<T>() where T : class
+	public IArghBuilder UseNamespaceOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		_ = _app.UseNamespaceOptions<T>();
 		return this;
@@ -86,7 +87,7 @@ public sealed class ArghBuilder : IArghBuilder
 		return this;
 	}
 
-	public IArghBuilder UseMiddleware<TMiddleware>() where TMiddleware : ICommandMiddleware
+	public IArghBuilder UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>() where TMiddleware : ICommandMiddleware
 	{
 		_ = _app.UseMiddleware<TMiddleware>();
 		return this;

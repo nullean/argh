@@ -4,7 +4,7 @@ using Nullean.Argh.Schema;
 namespace Nullean.Argh.Runtime;
 
 /// <summary>
-/// Holds delegates to the application assembly's source-generated <see cref="Nullean.Argh.ArghGenerated"/> entry points,
+/// Holds delegates to the application assembly's source-generated CLI entry type in the <c>Nullean.Argh</c> namespace (name is derived per assembly),
 /// registered by a module initializer emitted with the generator (AOT-safe, no reflection).
 /// </summary>
 public static class ArghRuntime
@@ -38,19 +38,19 @@ public static class ArghRuntime
 	{
 		if (_cliSchemaFactory is null)
 			throw new InvalidOperationException(
-				"CLI schema factory is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so ArghGenerated is emitted in this assembly.");
+				"CLI schema factory is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so generated entry types are emitted in this assembly.");
 
 		return JsonSerializer.Serialize(_cliSchemaFactory(), ArghCliSchemaJsonContext.Default.ArghCliSchemaDocument);
 	}
 
 	/// <summary>
-	/// Runs the source-generated CLI for the application assembly (same behavior as <c>ArghGenerated.RunAsync</c>).
+	/// Runs the source-generated CLI for the application assembly (same behavior as the generated <c>RunAsync</c> on the per-assembly CLI entry type).
 	/// </summary>
 	public static Task<int> RunAsync(string[] args)
 	{
 		if (_runAsyncFunc is null)
 			throw new InvalidOperationException(
-				"CLI runner is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so ArghGenerated is emitted in this assembly.");
+				"CLI runner is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so generated entry types are emitted in this assembly.");
 
 		return _runAsyncFunc(args);
 	}
@@ -62,7 +62,7 @@ public static class ArghRuntime
 	{
 		if (_routeFunc is null)
 			throw new InvalidOperationException(
-				"CLI route delegate is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so ArghGenerated is emitted in this assembly.");
+				"CLI route delegate is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so generated entry types are emitted in this assembly.");
 
 		if (args is null)
 			throw new ArgumentNullException(nameof(args));

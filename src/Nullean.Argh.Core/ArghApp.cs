@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Nullean.Argh.Builder;
 using Nullean.Argh.Runtime;
 
@@ -15,7 +16,7 @@ public sealed partial class ArghApp : IArghBuilder
 	private ArghApp(string commandNamespacePath) => _commandNamespacePath = commandNamespacePath;
 
 	/// <summary>Parses typed options before routing; available to all commands (see namespace options).</summary>
-	public ArghApp UseGlobalOptions<T>() where T : class => this;
+	public ArghApp UseGlobalOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class => this;
 
 	/// <summary>Registers a named command backed by a method group or lambda.</summary>
 	public ArghApp Map(string name, Delegate handler)
@@ -26,7 +27,7 @@ public sealed partial class ArghApp : IArghBuilder
 	}
 
 	/// <summary>Registers every public method on <typeparamref name="T"/> as a command.</summary>
-	public ArghApp Map<T>() where T : class => this;
+	public ArghApp Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class => this;
 
 	/// <summary>
 	/// Registers a default handler when no subcommand or namespace segment applies at the current scope
@@ -54,21 +55,21 @@ public sealed partial class ArghApp : IArghBuilder
 	/// <summary>
 	/// Creates a nested namespace with no configure callback; equivalent to <c>MapNamespace&lt;T&gt;(name, _ =&gt; { })</c>.
 	/// </summary>
-	public ArghApp MapNamespace<T>(string name) where T : class =>
+	public ArghApp MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name) where T : class =>
 		MapNamespace<T>(name, static (IArghBuilder _) => { });
 
 	/// <summary>
 	/// Creates a nested namespace; the listing description is taken from the XML <c>&lt;summary&gt;</c> on <typeparamref name="T"/>.
 	/// Public commands on <typeparamref name="T"/> (and nested handler classes) are registered automatically—do not call <c>Map&lt;T&gt;()</c> again inside the configure callback.
 	/// </summary>
-	public ArghApp MapNamespace<T>(string name, Action<IArghBuilder> configure) where T : class
+	public ArghApp MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghBuilder> configure) where T : class
 	{
 		configure(new ArghBuilder(CreateChildApp(name)));
 		return this;
 	}
 
 	/// <summary>Like <see cref="MapNamespace{T}(string, Action{IArghBuilder})"/> but passes an <see cref="IArghNamespaceBuilder"/> that exposes <see cref="IArghNamespaceBuilder.Segment"/>.</summary>
-	public ArghApp MapNamespace<T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
+	public ArghApp MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
 	{
 		configure(new ArghNamespaceBuilder(CreateChildApp(name), name));
 		return this;
@@ -78,7 +79,7 @@ public sealed partial class ArghApp : IArghBuilder
 	/// Nested namespace where the segment is resolved at compile time (see <see cref="ArghNamespaceSegmentCodegen"/>).
 	/// Requires the source generator to emit registration for <typeparamref name="T"/>.
 	/// </summary>
-	public ArghApp MapNamespace<T>(Action<IArghNamespaceBuilder> configure) where T : class
+	public ArghApp MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(Action<IArghNamespaceBuilder> configure) where T : class
 	{
 		var seg = ArghNamespaceSegmentCodegen.Get<T>();
 		if (seg is null)
@@ -99,7 +100,7 @@ public sealed partial class ArghApp : IArghBuilder
 	}
 
 	/// <summary>Typed options for the current namespace; <typeparamref name="T"/> must inherit the parent options type (enforced at compile time).</summary>
-	public ArghApp UseNamespaceOptions<T>() where T : class => this;
+	public ArghApp UseNamespaceOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class => this;
 
 	/// <summary>Runs the source-generated CLI for this application (see <see cref="ArghRuntime.RunAsync"/>).</summary>
 	public Task<int> RunAsync(string[] args) => ArghRuntime.RunAsync(args);

@@ -17,7 +17,7 @@ public static class ArghHostingExtensions
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="args">Arguments for source analysis and for forwarding to the generated runner.</param>
-	/// <param name="configure">Fluent registration; must mirror commands passed to the generated <c>ArghGenerated</c> entry.</param>
+	/// <param name="configure">Fluent registration; must mirror commands passed to the source-generated CLI entry type in the app assembly.</param>
 	/// <remarks>
 	/// <para>
 	/// Requires a generic host (e.g. <c>Host.CreateApplicationBuilder</c>) so <see cref="IHostApplicationLifetime"/> is available.
@@ -61,7 +61,7 @@ public static class ArghHostingExtensions
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="args">Arguments for source analysis and for forwarding to the runner.</param>
-	/// <param name="configure">Fluent registration; must mirror commands passed to the generated <c>ArghGenerated</c> entry.</param>
+	/// <param name="configure">Fluent registration; must mirror commands passed to the source-generated CLI entry type in the app assembly.</param>
 	/// <param name="runCliAsync">Custom CLI entry (e.g. tests); prefer the overload without this parameter that uses <see cref="ArghRuntime.RunAsync"/>.</param>
 	/// <remarks>
 	/// <para>

@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Nullean.Argh.Builder;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace Nullean.Argh.Builder;
 public interface IArghNamespaceBuilder : IArghBuilder
 {
 	/// <summary>Registers a nested namespace for handler type <typeparamref name="T"/> with an explicit segment name.</summary>
-	new IArghNamespaceBuilder MapNamespace<T>(string name) where T : class;
+	new IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name) where T : class;
 
 	/// <summary>Path segment for this namespace (not the full <c>a/b/c</c> path).</summary>
 	string Segment { get; }

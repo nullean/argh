@@ -15,6 +15,15 @@ public class AsParametersAndBindingTests
 	}
 
 	[Fact]
+	public void Nullable_numeric_AsParameters_binds_prefixed_flags()
+	{
+		var result = CliHostRunner.Run(
+			"nullable-numeric-as-params", "--labs-rps", "12", "--labs-max-pages", "3");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("nullable-numeric:12:3");
+	}
+
+	[Fact]
 	public void Tags_repeated_flags()
 	{
 		var result = CliHostRunner.Run("tags", "--tags", "a", "--tags", "b");

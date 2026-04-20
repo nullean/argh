@@ -34,18 +34,20 @@ public class RootHelpFullTextTests
 			            explicitly via MapNamespace<BlobCommands>.
 
 			Commands:
-			  hello        Greet someone by name.
-			  enum-cmd     Enum and short options.
-			  deploy     
-			  tags       
-			  dry-run-cmd
-			  count-cmd  
-			  file-cmd   
-			  dir-cmd    
-			  uri-cmd    
-			  point-cmd  
-			  doc-lambda   Documented handler for lambda-style Map (XML appears in help).
-			  lambda-cmd 
+			  hello                       Greet someone by name.
+			  enum-cmd                    Enum and short options.
+			  deploy                    
+			  nullable-numeric-as-params
+			  tags                      
+			  dry-run-cmd               
+			  count-cmd                 
+			  file-cmd                  
+			  dir-cmd                   
+			  uri-cmd                   
+			  point-cmd                 
+			  doc-lambda                  Documented handler for lambda-style Map (XML
+			                              appears in help).
+			  lambda-cmd                
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
 	}

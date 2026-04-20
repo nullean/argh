@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
@@ -2601,6 +2602,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			_ => null
 		};
 
+	/// <summary>Unique per compilation assembly so generated CLI types do not collide across referenced assemblies (e.g. CS0436 with InternalsVisibleTo).</summary>
+	private static string GetArghGeneratedRootTypeName(string assemblyName)
+	{
+		using var sha = SHA256.Create();
+		var h = sha.ComputeHash(Encoding.UTF8.GetBytes(assemblyName));
+		return "ArghGenerated_" + BitConverter.ToString(h, 0, 4).Replace("-", "");
+	}
+
 	private static string? TryGetStringConstant(SemanticModel model, ExpressionSyntax expr)
 	{
 		var lit = TryGetStringLiteral(expr);
@@ -2770,24 +2779,28 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				}
 			}
 			""";
+		var root = GetArghGeneratedRootTypeName(assemblyName);
 		var resolved = source
 			.Replace("__ARGH_EMBED_ASM_NAME__", Escape(assemblyName))
-			.Replace("__ARGH_EMBED_ASM_VER__", Escape(assemblyVersion));
+			.Replace("__ARGH_EMBED_ASM_VER__", Escape(assemblyVersion))
+			.Replace("internal static class ArghGeneratedRuntimeRegistration", "internal static class " + root + "RuntimeRegistration")
+			.Replace("public static class ArghGenerated", "public static class " + root)
+			.Replace("ArghGenerated.", root + ".");
 		context.AddSource("ArghGenerated.g.cs", SourceText.From(resolved, Encoding.UTF8));
 	}
 
 
-	private static void AppendArghRuntimeModuleInitializer(StringBuilder sb)
+	private static void AppendArghRuntimeModuleInitializer(StringBuilder sb, string rootTypeName)
 	{
 		sb.AppendLine();
-		sb.AppendLine("\tinternal static class ArghGeneratedRuntimeRegistration");
+		sb.AppendLine("\tinternal static class " + rootTypeName + "RuntimeRegistration");
 		sb.AppendLine("\t{");
 		sb.AppendLine("\t\t[System.Runtime.CompilerServices.ModuleInitializer]");
 		sb.AppendLine("\t\tinternal static void RegisterArghRuntime()");
 		sb.AppendLine("\t\t{");
-		sb.AppendLine("\t\t\tArghRuntime.RegisterRunner(ArghGenerated.RunAsync);");
-		sb.AppendLine("\t\t\tArghRuntime.RegisterRoute(ArghGenerated.Route);");
-		sb.AppendLine("\t\t\tArghRuntime.RegisterCliSchema(ArghGenerated.BuildCliSchemaDocument);");
+		sb.AppendLine("\t\t\tArghRuntime.RegisterRunner(" + rootTypeName + ".RunAsync);");
+		sb.AppendLine("\t\t\tArghRuntime.RegisterRoute(" + rootTypeName + ".Route);");
+		sb.AppendLine("\t\t\tArghRuntime.RegisterCliSchema(" + rootTypeName + ".BuildCliSchemaDocument);");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine("\t}");
 	}
@@ -2972,8 +2985,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		_ = referenceCapabilities;
 		_ = parseOptions;  // no longer needed for DTO building; kept in signature for future use
 		var dtoTargets = CollectDtoBindingTargets(app);
-		EmitHierarchical(context, app, dtoTargets, entryAssemblyName, entryAssemblyVersion);
-		EmitDtoTypeExtensions(context, dtoTargets);
+		var root = GetArghGeneratedRootTypeName(entryAssemblyName);
+		EmitHierarchical(context, app, dtoTargets, entryAssemblyName, entryAssemblyVersion, root);
+		EmitDtoTypeExtensions(context, dtoTargets, root);
 	}
 
 	private sealed record DtoBindingTarget(
@@ -3146,7 +3160,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void EmitDtoTypeExtensions(SourceProductionContext context, ImmutableArray<DtoBindingTarget> targets)
+	private static void EmitDtoTypeExtensions(
+		SourceProductionContext context,
+		ImmutableArray<DtoBindingTarget> targets,
+		string arghGeneratedRootTypeName)
 	{
 		if (targets.IsEmpty)
 			return;
@@ -3173,7 +3190,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var method = "TryParseDto_" + DtoMethodSuffix(fq);
 			sb.AppendLine($"\t\t\tif (typeof(T) == typeof({fq}))");
 			sb.AppendLine("\t\t\t{");
-			sb.AppendLine($"\t\t\t\tvar ok = ArghGenerated.{method}(args, out var v);");
+			sb.AppendLine($"\t\t\t\tvar ok = {arghGeneratedRootTypeName}.{method}(args, out var v);");
 			sb.AppendLine("\t\t\t\tvalue = (T?)(object?)v;");
 			sb.AppendLine("\t\t\t\treturn ok;");
 			sb.AppendLine("\t\t\t}");
@@ -3195,7 +3212,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\textension({fq})");
 			sb.AppendLine("\t\t{");
 			sb.AppendLine($"\t\t\t{vis} static bool TryParseArgh(string[] args, [NotNullWhen(true)] out {fq}? value) =>");
-			sb.AppendLine($"\t\t\t\tglobal::Nullean.Argh.ArghGenerated.{method}(args, out value);");
+			sb.AppendLine($"\t\t\t\tglobal::Nullean.Argh.{arghGeneratedRootTypeName}.{method}(args, out value);");
 			sb.AppendLine("\t\t}");
 			sb.AppendLine();
 		}
@@ -3207,7 +3224,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 
 
-	private static void EmitHierarchical(SourceProductionContext context, AppEmitModel app, ImmutableArray<DtoBindingTarget> dtoTargets, string entryAssemblyName, string entryAssemblyVersion)
+	private static void EmitHierarchical(
+		SourceProductionContext context,
+		AppEmitModel app,
+		ImmutableArray<DtoBindingTarget> dtoTargets,
+		string entryAssemblyName,
+		string entryAssemblyVersion,
+		string arghGeneratedRootTypeName)
 	{
 		var sb = new StringBuilder();
 		sb.AppendLine("// <auto-generated/>");
@@ -3228,7 +3251,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("namespace Nullean.Argh");
 		sb.AppendLine("{");
 		sb.AppendLine("\t/// <summary>Source-generated CLI entry point from <c>ArghApp</c> registrations. At the root, <c>__completion bash|zsh|fish</c> prints a shell script from <see cref=\"global::Nullean.Argh.Help.CompletionScriptTemplates\"/>; each <c>{0}</c> in the template is replaced with the entry assembly name (same effect as <c>string.Format</c>, but substitution uses <c>Replace</c> so shell scripts can contain literal braces).</summary>");
-		sb.AppendLine("\tpublic static class ArghGenerated");
+		sb.AppendLine("\tpublic static class " + arghGeneratedRootTypeName);
 		sb.AppendLine("\t{");
 
 		// Static fields that hold the parsed global/namespace options instances.
@@ -3320,7 +3343,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine();
 		EmitBuildCliSchemaDocumentHierarchical(sb, app, entryAssemblyName, entryAssemblyVersion);
 		sb.AppendLine("\t}");
-		AppendArghRuntimeModuleInitializer(sb);
+		AppendArghRuntimeModuleInitializer(sb, arghGeneratedRootTypeName);
 		sb.AppendLine("}");
 		context.AddSource("ArghGenerated.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
 	}
@@ -4394,9 +4417,23 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						var parseExpr = m.TypeName switch
 						{
 							"int" => $"int.TryParse({tmpName}Txt, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"int?" =>
+								$"int.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? (int?){tmpName}P : {tmpName}",
 							"long" => $"long.TryParse({tmpName}Txt, out var {tmpName}P) ? {tmpName}P : {tmpName}",
-							"double" => $"double.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? {tmpName}P : {tmpName}",
-							"float" => $"float.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"long?" =>
+								$"long.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? (long?){tmpName}P : {tmpName}",
+							"double" =>
+								$"double.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"double?" =>
+								$"double.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? (double?){tmpName}P : {tmpName}",
+							"float" =>
+								$"float.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"float?" =>
+								$"float.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? (float?){tmpName}P : {tmpName}",
+							"decimal" =>
+								$"decimal.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"decimal?" =>
+								$"decimal.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? (decimal?){tmpName}P : {tmpName}",
 							"string" or "string?" => $"{tmpName}Txt ?? {tmpName}",
 							_ => $"{tmpName}Txt != null ? {tmpName}Txt : {tmpName}"
 						};
@@ -5083,10 +5120,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return p.TypeName switch
 		{
 			"int" => "int",
+			"int?" => "int?",
 			"long" => "long",
+			"long?" => "long?",
 			"float" => "float",
+			"float?" => "float?",
 			"double" => "double",
+			"double?" => "double?",
 			"decimal" => "decimal",
+			"decimal?" => "decimal?",
 			"bool" => "bool",
 			"bool?" => "bool?",
 			_ => "string?"
@@ -5340,6 +5382,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return;
 		}
 
+		if (p.Special == BoolSpecialKind.None && p.TypeName is "int?" or "long?" or "float?" or "double?" or "decimal?")
+		{
+			EmitNullableNumericParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName);
+			return;
+		}
+
 		switch (p.Special)
 		{
 			case BoolSpecialKind.None when p.TypeName == "string":
@@ -5413,6 +5461,58 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					sb.AppendLine($"{ind}{targetVar} = {rawExpr}; // fallback");
 				break;
 		}
+	}
+
+	private static void EmitNullableNumericParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar,
+		string ind, bool outVarKeyword, string failureExit, string? helpMethodName)
+	{
+		var e = Escape(p.CliLongName);
+		var tmpVar = "__nullableNumericParsed_" + p.LocalVarName;
+		var parsedOut = "__nv_" + p.LocalVarName;
+		var csharpNullable = GetCSharpCliType(p);
+
+		sb.AppendLine($"{ind}{csharpNullable} {tmpVar} = null;");
+		sb.AppendLine($"{ind}if ({rawExpr} is not null)");
+		sb.AppendLine($"{ind}{{");
+
+		switch (p.TypeName)
+		{
+			case "int?":
+				sb.AppendLine(
+					$"{ind}\tif (!int.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, out var {parsedOut}))");
+				break;
+			case "long?":
+				sb.AppendLine(
+					$"{ind}\tif (!long.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, out var {parsedOut}))");
+				break;
+			case "float?":
+				sb.AppendLine(
+					$"{ind}\tif (!float.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var {parsedOut}))");
+				break;
+			case "double?":
+				sb.AppendLine(
+					$"{ind}\tif (!double.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var {parsedOut}))");
+				break;
+			case "decimal?":
+				sb.AppendLine(
+					$"{ind}\tif (!decimal.TryParse({rawExpr}, NumberStyles.Number, CultureInfo.InvariantCulture, out var {parsedOut}))");
+				break;
+			default:
+				throw new InvalidOperationException($"Unexpected nullable numeric type '{p.TypeName}'.");
+		}
+
+		sb.AppendLine($"{ind}\t{{");
+		sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid {p.TypeName.TrimEnd('?')} for --{e}: '{{{rawExpr}}}'.\");");
+		if (helpMethodName is not null) sb.AppendLine($"{ind}\t\t{helpMethodName}();");
+		sb.AppendLine($"{ind}\t\t{failureExit};");
+		sb.AppendLine($"{ind}\t}}");
+		sb.AppendLine($"{ind}\t{tmpVar} = {parsedOut};");
+		sb.AppendLine($"{ind}}}");
+
+		if (outVarKeyword)
+			sb.AppendLine($"{ind}var {targetVar} = {tmpVar};");
+		else
+			sb.AppendLine($"{ind}{targetVar} = {tmpVar};");
 	}
 
 	private static void EmitInvocation(
