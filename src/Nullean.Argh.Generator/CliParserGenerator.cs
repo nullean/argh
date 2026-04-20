@@ -191,8 +191,16 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
-	private static readonly DiagnosticDescriptor UriSchemeOnNonUriParam = new(
+	private static readonly DiagnosticDescriptor UseCliDescriptionConflictsWithMapRoot = new(
 		"AGH0023",
+		"UseCliDescription conflicts with MapRoot",
+		"UseCliDescription cannot be combined with MapRoot: the root command handler's XML summary is already shown as the description. Remove one or the other.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor UriSchemeOnNonUriParam = new(
+		"AGH0024",
 		"[UriScheme] applied to non-Uri parameter",
 		"'{0}' has [UriScheme] but its type is not Uri or Uri?; [UriScheme] only constrains Uri-typed parameters.",
 		"Argh",
@@ -216,6 +224,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	{
 		switch (methodName)
 		{
+			case "UseCliDescription":
 			case "MapNamespace":
 			case "MapRoot":
 			case "UseGlobalOptions":
@@ -418,6 +427,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private sealed class AppEmitModel
 	{
 		public OptionsTypeModel? GlobalOptionsModel;
+		public string RootSummary = "";
 		public readonly RegistryNode Root = new();
 		public ImmutableArray<CommandModel> AllCommands = ImmutableArray<CommandModel>.Empty;
 		public ImmutableArray<GlobalMiddlewareRegistration> GlobalMiddleware = ImmutableArray<GlobalMiddlewareRegistration>.Empty;
@@ -532,6 +542,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	/// <summary>A <c>UseMiddleware&lt;T&gt;()</c> invocation — only valid at root scope.</summary>
 	private sealed record AIUseMiddleware(string FilePath, int SpanStart, GlobalMiddlewareRegistration Registration)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
+	/// <summary>A <c>UseCliDescription(string)</c> invocation — only meaningful at root scope.</summary>
+	private sealed record AIUseCliDescription(string FilePath, int SpanStart, string Description)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>
@@ -721,6 +735,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var acc2 = new DiagnosticAccumulator();
 				var cmd = CommandModel.FromMethod(commandName, handler, parseOpts, ImmutableArray<string>.Empty, acc2, invocation.GetLocation());
 				return new AIMapCommand(filePath, spanStart, ImmutableArray.Create(cmd));
+			}
+			case "UseCliDescription":
+			{
+				if (invocation.ArgumentList.Arguments.Count < 1) return null;
+				var descExpr = invocation.ArgumentList.Arguments[0].Expression;
+				var desc = TryGetStringLiteral(descExpr) ?? "";
+				return new AIUseCliDescription(filePath, spanStart, desc);
 			}
 			case "MapRoot":
 			{
@@ -994,7 +1015,25 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 		app.GlobalMiddleware = mwBuilder.ToImmutable();
 
+		foreach (var ai in rootAnalyzed)
+		{
+			if (ai is AIUseCliDescription { Description: var desc } && !string.IsNullOrWhiteSpace(desc))
+			{
+				app.RootSummary = desc;
+				break;
+			}
+		}
+
 		ProcessAnalyzedInvocationsForNode(context, sorted, rootAnalyzed, app.Root, ImmutableArray<string>.Empty, app, isRoot: true);
+
+		if (!string.IsNullOrWhiteSpace(app.RootSummary) && app.Root.RootCommand is not null)
+		{
+			var descAi = rootAnalyzed.OfType<AIUseCliDescription>().FirstOrDefault();
+			var loc = descAi is not null
+				? Location.Create(descAi.FilePath, new Microsoft.CodeAnalysis.Text.TextSpan(descAi.SpanStart, 0), default)
+				: Location.None;
+			context.ReportDiagnostic(Diagnostic.Create(UseCliDescriptionConflictsWithMapRoot, loc));
+		}
 
 		ValidateCommandNamespaceOptionsChain(context, app.Root, parentEffectiveOptionsMetadataName: app.GlobalOptionsModel?.TypeMetadataName);
 		if (!ValidateNamespaceSegmentSanitizationCollisions(context, app.Root))
@@ -3452,6 +3491,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (app.Root.RootCommand is { } rootOverview)
 			EmitRootCommandHelpOverview(sb, rootOverview, "\t\t\t", app, entryAssemblyName);
+		else if (!string.IsNullOrWhiteSpace(app.RootSummary))
+		{
+			EmitCommandHelpDocPrologue(sb, "\t\t\t", null, app.RootSummary, false);
+			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
+		}
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
 		sb.AppendLine(

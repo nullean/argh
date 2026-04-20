@@ -418,7 +418,18 @@ app.MapNamespace<StorageCommands>("storage", ns => { … });
 
 ### Root app
 
-The root `myapp --help` shows a description when a root command is registered via `MapRoot`. The XML doc on that handler becomes the app-level overview:
+The root `myapp --help` shows a description in two ways:
+
+**`UseCliDescription`** — for apps with no default root command, set a plain one-liner shown beneath the `Usage:` line:
+
+```csharp
+app.UseCliDescription("Manage and deploy your application's cloud resources.");
+app.MapNamespace<StorageCommands>("storage", ns => { … });
+```
+
+`UseCliDescription` is on `IArghRootBuilder` (not `IArghBuilder`), so it is intentionally unavailable inside `MapNamespace` configure callbacks. It cannot be combined with `MapRoot`; the generator reports `AGH0023` if both are present.
+
+**`MapRoot`** — when you also want a default handler at the root, put the XML doc on that handler method. The summary and remarks become the app-level overview:
 
 ```csharp
 /// <summary>Manage and deploy your application's cloud resources.</summary>
