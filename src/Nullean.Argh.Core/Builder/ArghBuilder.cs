@@ -8,7 +8,7 @@ namespace Nullean.Argh.Builder;
 /// <summary>
 /// Default <see cref="IArghBuilder"/> implementation; holds an <see cref="ArghApp"/> for source generator analysis.
 /// </summary>
-public sealed class ArghBuilder : IArghBuilder
+public sealed class ArghBuilder : IArghRootBuilder
 {
 	private readonly ArghApp _app;
 
@@ -36,6 +36,12 @@ public sealed class ArghBuilder : IArghBuilder
 	public IArghBuilder Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		_ = _app.Map<T>();
+		return this;
+	}
+
+	public IArghRootBuilder UseCliDescription(string description)
+	{
+		_ = _app.UseCliDescription(description);
 		return this;
 	}
 

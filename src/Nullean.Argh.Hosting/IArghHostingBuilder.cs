@@ -6,9 +6,9 @@ using Nullean.Argh.Middleware;
 namespace Nullean.Argh.Hosting;
 
 /// <summary>
-/// <see cref="IArghBuilder"/> plus DI registration for command handler types when using the generic host.
+/// <see cref="IArghRootBuilder"/> plus DI registration for command handler types when using the generic host.
 /// </summary>
-public interface IArghHostingBuilder : IArghBuilder
+public interface IArghHostingBuilder : IArghRootBuilder
 {
 	/// <inheritdoc cref="IArghBuilder.UseGlobalOptions{T}"/>
 	/// <remarks>Also registers <typeparamref name="T"/> in DI with <see cref="ServiceLifetime.Transient"/>.</remarks>
