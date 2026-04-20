@@ -67,6 +67,19 @@ public sealed class CollectionSyntaxAttribute : Attribute
 public sealed class MiddlewareAttribute<TMiddleware> : Attribute where TMiddleware : Nullean.Argh.Middleware.ICommandMiddleware;
 
 /// <summary>
+/// Restricts the allowed URI schemes for a <see cref="System.Uri"/> parameter (e.g. <c>http</c>, <c>https</c>).
+/// Emits a parse error when the provided URI does not use one of the listed schemes.
+/// Only valid on <c>Uri</c> or <c>Uri?</c> parameters; applying it to other types produces diagnostic AGH0023.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
+public sealed class UriSchemeAttribute : Attribute
+{
+	public string[] Schemes { get; }
+
+	public UriSchemeAttribute(params string[] schemes) => Schemes = schemes;
+}
+
+/// <summary>
 /// Suppresses the AGH0021 diagnostic for this command method or handler class. Use when a command
 /// intentionally does not need access to the registered <c>UseGlobalOptions</c> or namespace options types.
 /// Apply to a <b>method</b> to opt out for that command only, or to a <b>class</b> to opt out for

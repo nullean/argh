@@ -27,6 +27,13 @@ internal static class CliRegistrationModule
 		app.Map("doc-lambda", DocLambdaEcho);
 		// Anonymous lambdas have no XML docs; use a named handler (e.g. DocLambdaEcho) for help text.
 		app.Map("lambda-cmd", (string msg) => Console.Out.WriteLine($"lambda:{msg}"));
+		app.Map("validate-range", ValidationCliHandlers.ValidateRange);
+		app.Map("validate-length", ValidationCliHandlers.ValidateLength);
+		app.Map("validate-regex", ValidationCliHandlers.ValidateRegex);
+		app.Map("validate-allowed", ValidationCliHandlers.ValidateAllowed);
+		app.Map("validate-email", ValidationCliHandlers.ValidateEmail);
+		app.Map("validate-uri-scheme", ValidationCliHandlers.ValidateUriScheme);
+		app.Map("validate-dto", ValidationCliHandlers.ValidateDto);
 		app.Map<DiProbeCommands>();
 		app.MapNamespace<StorageCliCommands>("storage", g =>
 		{

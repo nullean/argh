@@ -23,6 +23,7 @@
     <Compile Include="..\Nullean.Argh.Tests\Fixtures\CliTestHandlers.cs" Link="Fixtures\CliTestHandlers.cs" />
     <Compile Include="..\Nullean.Argh.Tests\Fixtures\GroupedCliCommands.cs" Link="Fixtures\GroupedCliCommands.cs" />
     <Compile Include="..\Nullean.Argh.Tests\Fixtures\TestsCliMiddleware.cs" Link="Fixtures\TestsCliMiddleware.cs" />
+    <Compile Include="..\Nullean.Argh.Tests\Fixtures\ValidationCliHandlers.cs" Link="Fixtures\ValidationCliHandlers.cs" />
   </ItemGroup>
 
 </Project>
