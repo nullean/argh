@@ -6,6 +6,9 @@ namespace Nullean.Argh.IntegrationTests.Help;
 
 public class HelpContentTests
 {
+	private static string TrimLines(string s) =>
+		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
+
 	[Fact]
 	public void HelloHelp_with_NO_COLOR_omits_ansi()
 	{
@@ -23,14 +26,17 @@ public class HelpContentTests
 
 			Global options:
 			  --help, -h       Show help.
-			  --verbose        
+			  --verbose
 
 			Options:
-			  --name <string>  [required]
+			  --name <string>  [required] The name to greet.
 
 			Notes:  See DocLambdaEcho; set name.
+
+			Examples:
+			  hello --name world
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
-		text.Should().Be(expected);
+		TrimLines(text).Should().Be(TrimLines(expected));
 	}
 
 	[Fact]
@@ -48,12 +54,15 @@ public class HelpContentTests
 			   Documented handler for lambda-style Map (XML appears in help).
 
 			Global options:
-			  --help, -h       Show help.
-			  --verbose        
+			  --help, -h           Show help.
+			  --verbose
 
 			Options:
-			  --line <string>  [required]
+			  -l, --line <string>  [required] Text line to echo.
+
+			Examples:
+			  doc-lambda --line hi
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
-		text.Should().Be(expected);
+		TrimLines(text).Should().Be(TrimLines(expected));
 	}
 }

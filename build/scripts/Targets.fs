@@ -78,6 +78,7 @@ let private generateApiChanges (arguments:ParseResults<Arguments>) =
     let nugetPackages =
         Paths.Output.GetFiles("*.nupkg") |> Seq.sortByDescending(fun f -> f.CreationTimeUtc)
         |> Seq.map (fun p -> Path.GetFileNameWithoutExtension(Paths.RootRelative p.FullName).Replace("." + currentVersion, ""))
+        |> Seq.filter (fun p -> p <> "Nullean.Argh")
     nugetPackages
     |> Seq.iter(fun p ->
         let outputFile =

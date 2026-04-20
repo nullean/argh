@@ -6,6 +6,9 @@ namespace Nullean.Argh.IntegrationTests.Help;
 
 public class EnumHelpTests
 {
+	private static string TrimLines(string s) =>
+		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
+
 	[Fact]
 	public void Enum_cmd_help_matches_expected_text()
 	{
@@ -21,13 +24,13 @@ public class EnumHelpTests
 			   Enum and short options.
 
 			Global options:
-			  --help, -h        Show help.
-			  --verbose         
+			  --help, -h                      Show help.
+			  --verbose
 
 			Options:
-			  --color <string>  [required] [values: Red, Blue]
-			  --name <string>   [required]
+			  -c, --colour, --color <string>  [required] Pick a color. [values: Red, Blue]
+			  -n, --name <string>             [required] Display name
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
-		text.Should().Be(expected);
+		TrimLines(text).Should().Be(TrimLines(expected));
 	}
 }

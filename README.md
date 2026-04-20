@@ -355,7 +355,7 @@ Inside a namespace, the suggestion includes the full path (`storage blob upload`
 
 ## Help and XML documentation
 
-Write XML doc once; the generator reads it at build time and bakes the text into `--help` output. Your `.xml` doc file is not read at runtime. Enable `GenerateDocumentationFile` in your project file — it is not on by default.
+Write XML doc once; the generator reads it at build time and bakes the text into `--help` output. No `.xml` doc file is read at runtime — the generator accesses doc comments directly through the Roslyn compilation model, so `GenerateDocumentationFile` is not required.
 
 ### Commands
 

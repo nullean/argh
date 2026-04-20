@@ -6,6 +6,9 @@ namespace Nullean.Argh.IntegrationTests.ParseErrors;
 
 public class ParseErrorTests
 {
+	private static string TrimLines(string s) =>
+		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
+
 	[Fact]
 	public void Missing_required_flag_returns_exit_2()
 	{
@@ -29,13 +32,16 @@ public class ParseErrorTests
 
 			Global options:
 			  --help, -h       Show help.
-			  --verbose        
+			  --verbose
 
 			Options:
-			  --name <string>  [required]
+			  --name <string>  [required] The name to greet.
 
 			Notes:  See DocLambdaEcho; set name.
+
+			Examples:
+			  hello --name world
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
-		ConsoleOutput.Normalize(CliHostRunner.StdoutText(result)).Should().Be(expectedOut);
+		TrimLines(ConsoleOutput.Normalize(CliHostRunner.StdoutText(result))).Should().Be(TrimLines(expectedOut));
 	}
 }
