@@ -24,6 +24,12 @@ public sealed partial class ArghApp
 		return this;
 	}
 
+	IArghRootBuilder IArghRootBuilder.UseCliDescription(string description)
+	{
+		_ = UseCliDescription(description);
+		return this;
+	}
+
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler)
 	{
 		_ = MapRoot(handler);

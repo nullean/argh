@@ -7,7 +7,7 @@ namespace Nullean.Argh;
 /// <summary>
 /// Fluent registration surface. Call sites are analyzed by the source generator; these methods are no-ops at runtime.
 /// </summary>
-public sealed partial class ArghApp : IArghBuilder
+public sealed partial class ArghApp : IArghRootBuilder
 {
 	private readonly string _commandNamespacePath;
 	private static readonly Dictionary<string, Delegate> Lambdas = new(StringComparer.OrdinalIgnoreCase);
@@ -28,6 +28,9 @@ public sealed partial class ArghApp : IArghBuilder
 
 	/// <summary>Registers every public method on <typeparamref name="T"/> as a command.</summary>
 	public ArghApp Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class => this;
+
+	/// <summary>Sets a one-line description shown in root <c>--help</c> output. Analyzed by the source generator; no-op at runtime.</summary>
+	public ArghApp UseCliDescription(string description) => this;
 
 	/// <summary>
 	/// Registers a default handler when no subcommand or namespace segment applies at the current scope

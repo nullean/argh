@@ -123,6 +123,12 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 	IArghBuilder IArghBuilder.Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class =>
 		Map<T>();
 
+	IArghRootBuilder IArghRootBuilder.UseCliDescription(string description)
+	{
+		_ = _inner.UseCliDescription(description);
+		return this;
+	}
+
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler)
 	{
 		_ = _inner.MapRoot(handler);
