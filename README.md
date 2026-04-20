@@ -357,8 +357,6 @@ Inside a namespace, the suggestion includes the full path (`storage blob upload`
 
 Write XML doc once; the generator reads it at build time and bakes the text into `--help` output. No `.xml` doc file is read at runtime — the generator accesses doc comments through the Roslyn compilation model, so **`GenerateDocumentationFile` is not required** for the usual developer inner loop or for routing/parsing/dispatch codegen.
 
-If you enable **`GenerateDocumentationFile`** anyway (for shipped XML docs, analyzers, or team policy), note it is **not on by default**; it can surface **CS1591** (missing XML comment on a public member) in existing codebases — add the missing comments, or scope `NoWarn`/`WarningsNotAsErrors` narrowly instead of silencing documentation warnings globally unless that is intentional.
-
 ### Test projects referencing Argh apps
 
 If a **test** assembly uses **`InternalsVisibleTo`** to see **`internal`** members of a referenced CLI project, older stacks sometimes hit **CS0436** because the same generated root type name could appear in more than one compilation. The generator emits a **stable, per-assembly** generated root type name so those collisions should not occur. If you must strip analyzers from a specific project (rare), use **`ExcludeAssets`** on the analyzer package reference or an MSBuild target that removes **`Nullean.Argh.Generator`** analyzers from that project only.
