@@ -847,7 +847,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		// Get XML docs if entry type is available.
 		if (namespaceEntryType is not null)
 		{
-			var (sx, rx) = Documentation.GetTypeDocumentation(namespaceEntryType.GetDocumentationCommentXml());
+			var typeXml = namespaceEntryType.GetDocumentationCommentXml();
+			if (string.IsNullOrWhiteSpace(typeXml))
+				typeXml = TryExtractFullDocumentationFromTypeTrivia(namespaceEntryType);
+			var (sx, rx) = Documentation.GetTypeDocumentation(typeXml);
 			nsSummaryXml = sx;
 			nsRemarksXml = rx;
 		}
@@ -3641,54 +3644,91 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	/// <summary>When <see cref="IMethodSymbol.GetDocumentationCommentXml"/> is empty (e.g. linked sources), recover <c>&lt;summary&gt;</c> from leading doc trivia.</summary>
-	private static string TryExtractSummaryDocumentationFragmentFromTrivia(IMethodSymbol method)
+	/// <summary>
+	/// Extracts the full doc-comment XML from a trivia list.
+	/// Works regardless of <c>DocumentationMode</c>: when <c>GenerateDocumentationFile</c> is unset the compiler
+	/// uses <c>DocumentationMode.None</c> and stores <c>///</c> lines as plain <c>SingleLineCommentTrivia</c>
+	/// rather than structured <c>SingleLineDocumentationCommentTrivia</c>. Both paths are handled here.
+	/// </summary>
+	private static string ExtractDocumentationFromTriviaList(SyntaxTriviaList triviaList)
 	{
-		foreach (var sr in method.DeclaringSyntaxReferences)
+		// Fast path: structured documentation trivia (DocumentationMode=Parse or Diagnose)
+		foreach (var trivia in triviaList)
 		{
-			if (sr.GetSyntax() is not MethodDeclarationSyntax m)
+			if (!trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) &&
+			    !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
 				continue;
-			foreach (var trivia in m.GetLeadingTrivia())
+			var stripped = DocTriviaStripPattern.Replace(trivia.ToFullString(), "").Trim();
+			if (stripped.Length > 0)
+				return stripped;
+		}
+
+		// Slow path: plain comment trivia (DocumentationMode=None, i.e. GenerateDocumentationFile not set).
+		// Collect consecutive /// lines immediately preceding the token.
+		var sb = new StringBuilder();
+		foreach (var trivia in triviaList)
+		{
+			if (trivia.IsKind(SyntaxKind.SingleLineCommentTrivia))
 			{
-				if (!trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) &&
-				    !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
+				var s = trivia.ToString();
+				if (s.StartsWith("///", StringComparison.Ordinal))
+				{
+					sb.AppendLine(s);
 					continue;
-				var full = trivia.ToFullString();
-				var match = SummaryXmlPattern.Match(full);
-				if (!match.Success)
-					continue;
-				var inner = match.Groups[1].Value;
-				inner = DocTriviaStripPattern.Replace(inner, "").Trim();
-				if (inner.Length == 0)
-					continue;
-				return "<summary>" + inner + "</summary>";
+				}
 			}
+			// Non-doc trivia resets the accumulator so we only keep the block immediately before the declaration.
+			if (!trivia.IsKind(SyntaxKind.WhitespaceTrivia) && !trivia.IsKind(SyntaxKind.EndOfLineTrivia))
+				sb.Clear();
+		}
+
+		if (sb.Length > 0)
+		{
+			var stripped = DocTriviaStripPattern.Replace(sb.ToString(), "").Trim();
+			if (stripped.Length > 0)
+				return stripped;
 		}
 
 		return "";
 	}
 
-	private static string TryExtractRemarksDocumentationFragmentFromTrivia(IMethodSymbol method)
+	private static string TryExtractFullDocumentationFromTrivia(IMethodSymbol method)
 	{
 		foreach (var sr in method.DeclaringSyntaxReferences)
 		{
 			if (sr.GetSyntax() is not MethodDeclarationSyntax m)
 				continue;
-			foreach (var trivia in m.GetLeadingTrivia())
-			{
-				if (!trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) &&
-				    !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
-					continue;
-				var full = trivia.ToFullString();
-				var match = RemarksXmlPattern.Match(full);
-				if (!match.Success)
-					continue;
-				var inner = match.Groups[1].Value;
-				inner = DocTriviaStripPattern.Replace(inner, "").Trim();
-				if (inner.Length == 0)
-					continue;
-				return "<remarks>" + inner + "</remarks>";
-			}
+			var result = ExtractDocumentationFromTriviaList(m.GetLeadingTrivia());
+			if (result.Length > 0)
+				return result;
+		}
+
+		return "";
+	}
+
+	private static string TryExtractFullDocumentationFromPropertyTrivia(IPropertySymbol prop)
+	{
+		foreach (var sr in prop.DeclaringSyntaxReferences)
+		{
+			if (sr.GetSyntax() is not PropertyDeclarationSyntax p)
+				continue;
+			var result = ExtractDocumentationFromTriviaList(p.GetLeadingTrivia());
+			if (result.Length > 0)
+				return result;
+		}
+
+		return "";
+	}
+
+	private static string TryExtractFullDocumentationFromTypeTrivia(INamedTypeSymbol type)
+	{
+		foreach (var sr in type.DeclaringSyntaxReferences)
+		{
+			if (sr.GetSyntax() is not BaseTypeDeclarationSyntax typeDecl)
+				continue;
+			var result = ExtractDocumentationFromTriviaList(typeDecl.GetLeadingTrivia());
+			if (result.Length > 0)
+				return result;
 		}
 
 		return "";
@@ -3743,12 +3783,16 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private static string GetTypeListingSummaryOneLiner(INamedTypeSymbol type)
 	{
-		var fromXml = Documentation.GetTypeSummaryLine(type.GetDocumentationCommentXml());
-		if (!string.IsNullOrWhiteSpace(fromXml))
-			return fromXml.Trim();
-
-		var trivia = TryExtractTypeSummaryFromTrivia(type);
-		return string.IsNullOrWhiteSpace(trivia) ? "" : trivia.Trim();
+		var xml = type.GetDocumentationCommentXml();
+		if (string.IsNullOrWhiteSpace(xml))
+			xml = TryExtractFullDocumentationFromTypeTrivia(type);
+		if (!string.IsNullOrWhiteSpace(xml))
+		{
+			var fromXml = Documentation.GetTypeSummaryLine(xml);
+			if (!string.IsNullOrWhiteSpace(fromXml))
+				return fromXml.Trim();
+		}
+		return "";
 	}
 
 	private static MethodDocumentation MergeMethodDocumentationFromTrivia(
@@ -3756,43 +3800,17 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		MethodDocumentation docs,
 		CSharpParseOptions parseOptions)
 	{
+		// GetDocumentationCommentXml() is empty when GenerateDocumentationFile is not set.
+		// In that case parse the full doc comment directly from syntax trivia so all fields
+		// (summary, remarks, params, examples) are recovered without requiring that MSBuild property.
 		if (string.IsNullOrWhiteSpace(docs.SummaryOneLiner))
 		{
-			var frag = TryExtractSummaryDocumentationFragmentFromTrivia(method);
-			if (frag.Length > 0)
+			var full = TryExtractFullDocumentationFromTrivia(method);
+			if (full.Length > 0)
 			{
-				var fromTrivia = Documentation.ParseMethod(frag, parseOptions);
+				var fromTrivia = Documentation.ParseMethod(full, parseOptions);
 				if (!string.IsNullOrWhiteSpace(fromTrivia.SummaryOneLiner))
-				{
-					docs = new MethodDocumentation(
-						fromTrivia.SummaryOneLiner,
-						docs.RemarksRendered,
-						docs.ExamplesRendered,
-						fromTrivia.SummaryInnerXml,
-						docs.RemarksInnerXml,
-						docs.ParamDocsRaw,
-						docs.ParamSeparators);
-				}
-			}
-		}
-
-		if (string.IsNullOrWhiteSpace(docs.RemarksRendered))
-		{
-			var rem = TryExtractRemarksDocumentationFragmentFromTrivia(method);
-			if (rem.Length > 0)
-			{
-				var fromTriviaRem = Documentation.ParseMethod(rem, parseOptions);
-				if (!string.IsNullOrWhiteSpace(fromTriviaRem.RemarksRendered))
-				{
-					docs = new MethodDocumentation(
-						docs.SummaryOneLiner,
-						fromTriviaRem.RemarksRendered,
-						docs.ExamplesRendered,
-						docs.SummaryInnerXml,
-						fromTriviaRem.RemarksInnerXml,
-						docs.ParamDocsRaw,
-						docs.ParamSeparators);
-				}
+					return fromTrivia;
 			}
 		}
 
@@ -6771,7 +6789,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var bs = ClassifyBool(cp.Type);
 			var cli = namePrefix + Naming.ToCliLongName(cp.Name);
 			var local = SafeLocalName(methodParamName + "_" + cp.Name);
-			var desc = Documentation.GetParamDocFromType(containingType, cp.Name);
+			var desc = Documentation.GetParamDocFromType(containingType, cp.Name, TryExtractFullDocumentationFromTypeTrivia(containingType));
 			var meta = new AsParametersMeta(methodParamName, memberOrder, typeFq, UseInit: false, cp.Name);
 			if (TryUnwrapCollectionType(cp.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
@@ -6821,7 +6839,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var bs = ClassifyBool(prop.Type);
 			var cli = namePrefix + Naming.ToCliLongName(prop.Name);
 			var local = SafeLocalName(methodParamName + "_" + prop.Name);
-			var desc = Documentation.GetPropertySummaryLine(prop);
+			var desc = Documentation.GetPropertySummaryLine(prop, TryExtractFullDocumentationFromPropertyTrivia(prop));
 			var meta = new AsParametersMeta(methodParamName, memberOrder, typeFq, UseInit: true, prop.Name);
 			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
@@ -7443,9 +7461,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return string.Concat(el.Nodes().Select(n => n.ToString()));
 		}
 
-		public static string GetParamDocFromType(INamedTypeSymbol type, string parameterName)
+		public static string GetParamDocFromType(INamedTypeSymbol type, string parameterName, string? fallbackXml = null)
 		{
 			var xml = type.GetDocumentationCommentXml();
+			if (string.IsNullOrWhiteSpace(xml))
+				xml = fallbackXml;
 			if (string.IsNullOrWhiteSpace(xml))
 				return "";
 			try
@@ -7468,9 +7488,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return "";
 		}
 
-		public static string GetPropertySummaryLine(IPropertySymbol prop)
+		public static string GetPropertySummaryLine(IPropertySymbol prop, string? fallbackXml = null)
 		{
 			var xml = prop.GetDocumentationCommentXml();
+			if (string.IsNullOrWhiteSpace(xml))
+				xml = fallbackXml;
 			if (string.IsNullOrWhiteSpace(xml))
 				return "";
 			try
