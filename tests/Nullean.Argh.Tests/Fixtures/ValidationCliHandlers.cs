@@ -34,6 +34,12 @@ internal static class ValidationCliHandlers
 	public static void ValidateUriScheme(TestGlobalCliOptions g, [UriScheme("https")] Uri endpoint) =>
 		Console.Out.WriteLine($"scheme:{endpoint.Scheme}");
 
+	/// <summary>Validate numeric range on non-nullable --page-per with default.</summary>
+	/// <param name="pagePer">Items per page.</param>
+	[NoOptionsInjection]
+	public static void ValidateNonNullableRange([Range(0, int.MaxValue)] int pagePer = 20) =>
+		Console.Out.WriteLine($"page-per:{pagePer}");
+
 	/// <summary>Validate DTO fields with range constraint.</summary>
 	[NoOptionsInjection]
 	public static void ValidateDto([AsParameters] ValidatedDtoArgs args) =>

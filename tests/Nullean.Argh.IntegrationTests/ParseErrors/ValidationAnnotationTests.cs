@@ -189,6 +189,33 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("[schemes: https]");
 	}
 
+	// ── [Range] on non-nullable value type with default ─────────────────────
+
+	[Fact]
+	public void NonNullableRange_default_value_succeeds()
+	{
+		var r = CliHostRunner.Run(NoColor, "validate-non-nullable-range");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("page-per:20");
+	}
+
+	[Fact]
+	public void NonNullableRange_valid_value_succeeds()
+	{
+		var r = CliHostRunner.Run(NoColor, "validate-non-nullable-range", "--page-per", "50");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("page-per:50");
+	}
+
+	[Fact]
+	public void NonNullableRange_negative_returns_exit_2()
+	{
+		var r = CliHostRunner.Run(NoColor, "validate-non-nullable-range", "--page-per", "-1");
+		r.ExitCode.Should().Be(2);
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
+			.Should().Contain("Error: --page-per: value must be between 0 and");
+	}
+
 	// ── [AsParameters] + [Range] ─────────────────────────────────────────────
 
 	[Fact]
