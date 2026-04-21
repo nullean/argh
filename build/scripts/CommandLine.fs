@@ -13,6 +13,9 @@ type Arguments =
     | [<CliPrefix(CliPrefix.None);Hidden;SubCommand>] ValidatePackages
     | [<CliPrefix(CliPrefix.None);Hidden;SubCommand>] GenerateReleaseNotes
     | [<CliPrefix(CliPrefix.None);Hidden;SubCommand>] GenerateApiChanges
+    | [<CliPrefix(CliPrefix.None);SubCommand>] UpdateSchema
+    | [<CliPrefix(CliPrefix.None);SubCommand>] ValidateSchema
+
     | [<CliPrefix(CliPrefix.None);SubCommand>] Release
 
     | [<CliPrefix(CliPrefix.None);Hidden;SubCommand>] CreateReleaseOnGithub
@@ -34,6 +37,9 @@ with
             | SingleTarget _ -> "Runs the provided sub command without running their dependencies"
             | Token _ -> "Token to be used to authenticate with github"
             | CleanCheckout _ -> "Skip the clean checkout check that guards the release/publish targets"
+
+            | UpdateSchema -> "Run the schema export tool and write schema/argh-cli-schema.json"
+            | ValidateSchema -> "Fail if schema/argh-cli-schema.json is out of date"
 
             | PristineCheck
             | GeneratePackages

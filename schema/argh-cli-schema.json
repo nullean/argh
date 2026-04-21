@@ -1,0 +1,358 @@
+{
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": [
+        "string",
+        "integer"
+      ],
+      "pattern": "^-?(?:0|[1-9]\\d*)$"
+    },
+    "entryAssembly": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reservedMetaCommands": {
+      "type": "array",
+      "items": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "globalOptions": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "shortName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "validations": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "min": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
+                },
+                "max": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
+                },
+                "pattern": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
+                },
+                "values": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "default": null
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "default": null
+          }
+        },
+        "required": [
+          "role",
+          "name",
+          "shortName",
+          "kind",
+          "required",
+          "summary"
+        ]
+      }
+    },
+    "rootDefault": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "usage": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/properties/globalOptions/items"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "summary",
+        "notes",
+        "usage",
+        "examples",
+        "parameters"
+      ]
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "path": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "usage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/globalOptions/items"
+            }
+          }
+        },
+        "required": [
+          "path",
+          "name",
+          "summary",
+          "notes",
+          "usage",
+          "examples",
+          "parameters"
+        ]
+      }
+    },
+    "namespaces": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "segment": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/globalOptions/items"
+            }
+          },
+          "defaultCommand": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "summary": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "notes": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "usage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "examples": {
+                "$ref": "#/properties/rootDefault/properties/examples"
+              },
+              "parameters": {
+                "$ref": "#/properties/rootDefault/properties/parameters"
+              }
+            },
+            "required": [
+              "kind",
+              "summary",
+              "notes",
+              "usage",
+              "examples",
+              "parameters"
+            ]
+          },
+          "commands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/commands/items"
+            }
+          },
+          "namespaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/namespaces/items"
+            }
+          }
+        },
+        "required": [
+          "segment",
+          "summary",
+          "notes",
+          "options",
+          "defaultCommand",
+          "commands",
+          "namespaces"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "entryAssembly",
+    "version",
+    "description",
+    "reservedMetaCommands",
+    "globalOptions",
+    "rootDefault",
+    "commands",
+    "namespaces"
+  ]
+}
