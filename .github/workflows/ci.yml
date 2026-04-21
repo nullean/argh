@@ -57,6 +57,8 @@ jobs:
       name: Build
     - run: ./build.sh test -s true
       name: Test
+    - run: ./build.sh validateschema -s true
+      name: Validate schema/argh-cli-schema.json is up to date
     - run: ./build.sh generatepackages -s true
       name: Generate local nuget packages
     - run: ./build.sh validatepackages -s true

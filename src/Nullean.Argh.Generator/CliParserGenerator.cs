@@ -3708,6 +3708,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			});
 		}
 
+		if (node.RootCommand is { } flagFallback)
+		{
+			sb.AppendLine("\t\t\tif (tok.Length > 0 && tok[0] == '-')");
+			sb.AppendLine("\t\t\t{");
+			sb.AppendLine($"\t\t\t\treturn await {flagFallback.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
+			sb.AppendLine("\t\t\t}");
+		}
+
 		sb.AppendLine("\t\t\t{");
 		EmitFuzzyDispatchDefault(sb, node, path, entryAssemblyName);
 		sb.AppendLine("\t\t\t}");
@@ -7745,8 +7753,23 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				return "arg";
 			if (!char.IsLetter(k[0]) && k[0] != '_')
 				return "v_" + k;
+			if (CSharpKeywords.Contains(k))
+				return "@" + k;
 			return k;
 		}
+
+		private static readonly HashSet<string> CSharpKeywords = new HashSet<string>(StringComparer.Ordinal)
+		{
+			"abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked",
+			"class", "const", "continue", "decimal", "default", "delegate", "do", "double", "else",
+			"enum", "event", "explicit", "extern", "false", "finally", "fixed", "float", "for",
+			"foreach", "goto", "if", "implicit", "in", "int", "interface", "internal", "is", "lock",
+			"long", "namespace", "new", "null", "object", "operator", "out", "override", "params",
+			"private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed", "short",
+			"sizeof", "stackalloc", "static", "string", "struct", "switch", "this", "throw", "true",
+			"try", "typeof", "uint", "ulong", "unchecked", "unsafe", "ushort", "using", "virtual",
+			"void", "volatile", "while"
+		};
 	}
 
 	private enum ParameterKind

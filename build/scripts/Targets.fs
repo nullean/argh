@@ -137,6 +137,32 @@ let private createReleaseOnGithub (arguments:ParseResults<Arguments>) =
 
     exec "dotnet" (["release-notes"] @ releaseArgs) |> ignore
 
+let private schemaToolBin () =
+    let name = "Nullean.Argh.SchemaExport"
+    if Fake.Core.Environment.isWindows then
+        sprintf ".artifacts/bin/%s/release/%s.exe" name name
+    else
+        sprintf ".artifacts/bin/%s/release/%s" name name
+
+let private updateSchema (arguments:ParseResults<Arguments>) =
+    exec "dotnet" ["build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport"] |> ignore
+    let schemaDir = "schema"
+    if not (Directory.Exists schemaDir) then Directory.CreateDirectory schemaDir |> ignore
+    exec (schemaToolBin()) ["--out"; "schema/argh-cli-schema.json"] |> ignore
+
+let private validateSchema (arguments:ParseResults<Arguments>) =
+    exec "dotnet" ["build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport"] |> ignore
+    let schemaPath = "schema/argh-cli-schema.json"
+    let tempPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".json")
+    try
+        exec (schemaToolBin()) ["--out"; tempPath] |> ignore
+        let generated = File.ReadAllText(tempPath).TrimEnd()
+        let existing = File.ReadAllText(schemaPath).TrimEnd()
+        if generated <> existing then
+            failwith "schema/argh-cli-schema.json is out of date. Run: ./build.sh updateschema"
+    finally
+        if File.Exists tempPath then File.Delete tempPath
+
 let private release (arguments:ParseResults<Arguments>) = printfn "release"
 
 let private publish (arguments:ParseResults<Arguments>) = printfn "publish"
@@ -156,6 +182,9 @@ let Setup (parsed:ParseResults<Arguments>) (subCommand:Arguments) =
 
     step Clean.Name clean
     cmd Build.Name None (Some [Clean.Name]) <| fun _ -> build parsed
+
+    step UpdateSchema.Name updateSchema
+    step ValidateSchema.Name validateSchema
 
     cmd Test.Name (Some [Build.Name;]) None <| fun _ -> test parsed
 
