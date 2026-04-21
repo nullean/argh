@@ -4734,7 +4734,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var varName = p.LocalVarName;
 			var isNullable = !p.IsRequired;
 			var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None
-				&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string";
+				&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string"
+				&& p.TypeName.EndsWith("?", StringComparison.Ordinal);
 
 			// Build the run-hint line (baked in as a string literal)
 			string? runHint = null;
