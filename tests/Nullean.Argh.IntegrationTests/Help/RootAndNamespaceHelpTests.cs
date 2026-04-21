@@ -43,6 +43,7 @@ public class RootAndNamespaceHelpTests
 			  file-cmd                   
 			  dir-cmd                    
 			  uri-cmd                    
+			  temporal-cmd               
 			  point-cmd                  
 			  doc-lambda                   Documented handler for lambda-style Map (XML
 			                               appears in help).
@@ -56,6 +57,7 @@ public class RootAndNamespaceHelpTests
 			  validate-non-nullable-range  Validate numeric range on non-nullable --page-per
 			                               with default.
 			  validate-dto                 Validate DTO fields with range constraint.
+			  validate-timespan-range      Validate TimeSpan inclusive range.
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
 		var fromCommands = text.Substring(text.IndexOf("Commands:", StringComparison.Ordinal));

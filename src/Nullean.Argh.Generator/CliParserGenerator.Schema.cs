@@ -361,6 +361,9 @@ public sealed partial class CliParserGenerator
 				case RangeConstraint r:
 					parts.Add($"new CliConstraintSchema(\"range\", Min: \"{Escape(r.MinLiteral)}\", Max: \"{Escape(r.MaxLiteral)}\")");
 					break;
+				case TimeSpanRangeConstraint ts:
+					parts.Add($"new CliConstraintSchema(\"timeSpanRange\", Min: \"{Escape(ts.MinLiteral)}\", Max: \"{Escape(ts.MaxLiteral)}\")");
+					break;
 				case StringLengthConstraint sl:
 					var slMin = sl.Min.HasValue ? $"\"{sl.Min.Value}\"" : "null";
 					var slMax = sl.Max.HasValue ? $"\"{sl.Max.Value}\"" : "null";

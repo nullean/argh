@@ -207,6 +207,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Warning,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor TimeSpanRangeOnNonTimeSpanParam = new(
+		"AGH0025",
+		"[TimeSpanRange] applied to non-TimeSpan parameter",
+		"'{0}' has [TimeSpanRange] but its type is not TimeSpan or TimeSpan?; [TimeSpanRange] only constrains TimeSpan-typed parameters.",
+		"Argh",
+		DiagnosticSeverity.Warning,
+		isEnabledByDefault: true);
+
 	// ── Pre-compiled Regex patterns ── compiled once, reused for every handler method analyzed
 	private static readonly Regex SummaryXmlPattern =
 		new(@"<summary>\s*([\s\S]*?)\s*</summary>", RegexOptions.Compiled);
@@ -651,6 +659,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		"AGH0020" => VacuousNamespace,
 		"AGH0021" => CommandMustInjectOptions,
 		"AGH0022" => NamespaceSegmentSanitizationCollision,
+		"AGH0023" => UseCliDescriptionConflictsWithMapRoot,
+		"AGH0024" => UriSchemeOnNonUriParam,
+		"AGH0025" => TimeSpanRangeOnNonTimeSpanParam,
 		_ => throw new ArgumentException($"Unknown diagnostic id: {id}")
 	};
 
@@ -4495,6 +4506,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 								$"decimal.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? {tmpName}P : {tmpName}",
 							"decimal?" =>
 								$"decimal.TryParse({tmpName}Txt, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var {tmpName}P) ? (decimal?){tmpName}P : {tmpName}",
+							"DateTime" =>
+								$"global::System.DateTime.TryParse({tmpName}Txt, System.Globalization.CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"DateTime?" =>
+								$"global::System.DateTime.TryParse({tmpName}Txt, System.Globalization.CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmpName}P) ? (global::System.DateTime?){tmpName}P : {tmpName}",
+							"DateTimeOffset" =>
+								$"global::System.DateTimeOffset.TryParse({tmpName}Txt, System.Globalization.CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"DateTimeOffset?" =>
+								$"global::System.DateTimeOffset.TryParse({tmpName}Txt, System.Globalization.CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmpName}P) ? (global::System.DateTimeOffset?){tmpName}P : {tmpName}",
+							"TimeSpan" =>
+								$"global::Nullean.Argh.ArghTimeSpan.TryParse({tmpName}Txt, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"TimeSpan?" =>
+								$"global::Nullean.Argh.ArghTimeSpan.TryParse({tmpName}Txt, out var {tmpName}P) ? (global::System.TimeSpan?){tmpName}P : {tmpName}",
+							"DateOnly" =>
+								$"global::System.DateOnly.TryParse({tmpName}Txt, System.Globalization.CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.None, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"DateOnly?" =>
+								$"global::System.DateOnly.TryParse({tmpName}Txt, System.Globalization.CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.None, out var {tmpName}P) ? (global::System.DateOnly?){tmpName}P : {tmpName}",
 							"string" or "string?" => $"{tmpName}Txt ?? {tmpName}",
 							_ => $"{tmpName}Txt != null ? {tmpName}Txt : {tmpName}"
 						};
@@ -4759,6 +4786,27 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif ({guard}{access} < {r.MinLiteral} || {access} > {r.MaxLiteral}{closeGuard})");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(r.MinLiteral.Trim('"'))} and {Escape(r.MaxLiteral.Trim('"'))}.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+					case TimeSpanRangeConstraint tsr:
+					{
+						var tsMin = "__tsRangeMin_" + varName;
+						var tsMax = "__tsRangeMax_" + varName;
+						sb.AppendLine($"\t\t\tif (!global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MinLiteral}, out var {tsMin}) || !global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MaxLiteral}, out var {tsMax}))");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: invalid TimeSpanRange bounds.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						var guard = isNullableValueType ? $"{varName}.HasValue && (" : "";
+						var closeGuard = isNullableValueType ? ")" : "";
+						var access = isNullableValueType ? $"{varName}.Value" : varName;
+						sb.AppendLine($"\t\t\tif ({guard}{access} < {tsMin} || {access} > {tsMax}{closeGuard})");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(tsr.MinLiteral.Trim('"'))} and {Escape(tsr.MaxLiteral.Trim('"'))}.\");");
 						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
@@ -5360,6 +5408,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			"double" => "double",
 			"decimal" => "decimal",
 			"bool" => "bool",
+			"DateTime" => "global::System.DateTime",
+			"DateTimeOffset" => "global::System.DateTimeOffset",
+			"TimeSpan" => "global::System.TimeSpan",
+			"DateOnly" => "global::System.DateOnly",
+			"DateTime?" => "global::System.DateTime?",
+			"DateTimeOffset?" => "global::System.DateTimeOffset?",
+			"TimeSpan?" => "global::System.TimeSpan?",
+			"DateOnly?" => "global::System.DateOnly?",
 			_ => "string"
 		};
 	}
@@ -5416,6 +5472,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			"decimal?" => "decimal?",
 			"bool" => "bool",
 			"bool?" => "bool?",
+			"DateTime" => "global::System.DateTime",
+			"DateTime?" => "global::System.DateTime?",
+			"DateTimeOffset" => "global::System.DateTimeOffset",
+			"DateTimeOffset?" => "global::System.DateTimeOffset?",
+			"TimeSpan" => "global::System.TimeSpan",
+			"TimeSpan?" => "global::System.TimeSpan?",
+			"DateOnly" => "global::System.DateOnly",
+			"DateOnly?" => "global::System.DateOnly?",
 			_ => "string?"
 		};
 	}
@@ -5673,6 +5737,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return;
 		}
 
+		if (p.Special == BoolSpecialKind.None && p.TypeName is "DateTime?" or "DateTimeOffset?" or "TimeSpan?" or "DateOnly?")
+		{
+			EmitNullableTemporalParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName);
+			return;
+		}
+
 		switch (p.Special)
 		{
 			case BoolSpecialKind.None when p.TypeName == "string":
@@ -5732,6 +5802,69 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				break;
+			case BoolSpecialKind.None when p.TypeName == "DateTime":
+			{
+				var tmp = "__dt_" + p.LocalVarName;
+				sb.AppendLine(
+					$"{ind}if (!global::System.DateTime.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))");
+				sb.AppendLine($"{ind}{{");
+				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTime for --{e}: '{{{rawExpr}}}'.\");");
+				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				sb.AppendLine($"{ind}\t{failureExit};");
+				sb.AppendLine($"{ind}}}");
+				if (outVarKeyword)
+					sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+				else
+					sb.AppendLine($"{ind}{targetVar} = {tmp};");
+				break;
+			}
+			case BoolSpecialKind.None when p.TypeName == "DateTimeOffset":
+			{
+				var tmp = "__dto_" + p.LocalVarName;
+				sb.AppendLine(
+					$"{ind}if (!global::System.DateTimeOffset.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))");
+				sb.AppendLine($"{ind}{{");
+				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTimeOffset for --{e}: '{{{rawExpr}}}'.\");");
+				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				sb.AppendLine($"{ind}\t{failureExit};");
+				sb.AppendLine($"{ind}}}");
+				if (outVarKeyword)
+					sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+				else
+					sb.AppendLine($"{ind}{targetVar} = {tmp};");
+				break;
+			}
+			case BoolSpecialKind.None when p.TypeName == "TimeSpan":
+			{
+				var tmp = "__ts_" + p.LocalVarName;
+				sb.AppendLine($"{ind}if (!global::Nullean.Argh.ArghTimeSpan.TryParse({rawExpr}, out var {tmp}))");
+				sb.AppendLine($"{ind}{{");
+				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid TimeSpan for --{e}: '{{{rawExpr}}}'.\");");
+				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				sb.AppendLine($"{ind}\t{failureExit};");
+				sb.AppendLine($"{ind}}}");
+				if (outVarKeyword)
+					sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+				else
+					sb.AppendLine($"{ind}{targetVar} = {tmp};");
+				break;
+			}
+			case BoolSpecialKind.None when p.TypeName == "DateOnly":
+			{
+				var tmp = "__do_" + p.LocalVarName;
+				sb.AppendLine(
+					$"{ind}if (!global::System.DateOnly.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.None, out var {tmp}))");
+				sb.AppendLine($"{ind}{{");
+				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateOnly for --{e}: '{{{rawExpr}}}'.\");");
+				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				sb.AppendLine($"{ind}\t{failureExit};");
+				sb.AppendLine($"{ind}}}");
+				if (outVarKeyword)
+					sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+				else
+					sb.AppendLine($"{ind}{targetVar} = {tmp};");
+				break;
+			}
 			case BoolSpecialKind.None when p.TypeName == "bool":
 				if (outVarKeyword)
 					sb.AppendLine(
@@ -5784,6 +5917,53 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				break;
 			default:
 				throw new InvalidOperationException($"Unexpected nullable numeric type '{p.TypeName}'.");
+		}
+
+		sb.AppendLine($"{ind}\t{{");
+		sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid {p.TypeName.TrimEnd('?')} for --{e}: '{{{rawExpr}}}'.\");");
+		if (helpMethodName is not null) sb.AppendLine($"{ind}\t\t{helpMethodName}();");
+		sb.AppendLine($"{ind}\t\t{failureExit};");
+		sb.AppendLine($"{ind}\t}}");
+		sb.AppendLine($"{ind}\t{tmpVar} = {parsedOut};");
+		sb.AppendLine($"{ind}}}");
+
+		if (outVarKeyword)
+			sb.AppendLine($"{ind}var {targetVar} = {tmpVar};");
+		else
+			sb.AppendLine($"{ind}{targetVar} = {tmpVar};");
+	}
+
+	private static void EmitNullableTemporalParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar,
+		string ind, bool outVarKeyword, string failureExit, string? helpMethodName)
+	{
+		var e = Escape(p.CliLongName);
+		var tmpVar = "__nullableTemporalParsed_" + p.LocalVarName;
+		var parsedOut = "__nt_" + p.LocalVarName;
+		var csharpNullable = GetCSharpCliType(p);
+
+		sb.AppendLine($"{ind}{csharpNullable} {tmpVar} = null;");
+		sb.AppendLine($"{ind}if ({rawExpr} is not null)");
+		sb.AppendLine($"{ind}{{");
+
+		switch (p.TypeName)
+		{
+			case "DateTime?":
+				sb.AppendLine(
+					$"{ind}\tif (!global::System.DateTime.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {parsedOut}))");
+				break;
+			case "DateTimeOffset?":
+				sb.AppendLine(
+					$"{ind}\tif (!global::System.DateTimeOffset.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {parsedOut}))");
+				break;
+			case "TimeSpan?":
+				sb.AppendLine($"{ind}\tif (!global::Nullean.Argh.ArghTimeSpan.TryParse({rawExpr}, out var {parsedOut}))");
+				break;
+			case "DateOnly?":
+				sb.AppendLine(
+					$"{ind}\tif (!global::System.DateOnly.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.None, out var {parsedOut}))");
+				break;
+			default:
+				throw new InvalidOperationException($"Unexpected nullable temporal type '{p.TypeName}'.");
 		}
 
 		sb.AppendLine($"{ind}\t{{");
@@ -6099,7 +6279,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return false;
 	}
 
-	private static ImmutableArray<ValidationConstraint> ReadValidationConstraints(ISymbol attributeHost, CliScalarKind scalarKind)
+	private static ImmutableArray<ValidationConstraint> ReadValidationConstraints(ISymbol attributeHost, CliScalarKind scalarKind,
+		string primitiveTypeName)
 	{
 		var builder = ImmutableArray.CreateBuilder<ValidationConstraint>();
 		foreach (var attr in attributeHost.GetAttributes())
@@ -6110,6 +6291,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				case "global::System.ComponentModel.DataAnnotations.RangeAttribute":
 					if (attr.ConstructorArguments.Length >= 2)
 						builder.Add(new RangeConstraint(attr.ConstructorArguments[0].ToCSharpString(), attr.ConstructorArguments[1].ToCSharpString()));
+					break;
+				case "global::Nullean.Argh.TimeSpanRangeAttribute":
+					if (primitiveTypeName is "TimeSpan" or "TimeSpan?" &&
+					    attr.ConstructorArguments.Length >= 2)
+						builder.Add(new TimeSpanRangeConstraint(
+							attr.ConstructorArguments[0].ToCSharpString(),
+							attr.ConstructorArguments[1].ToCSharpString()));
 					break;
 				case "global::System.ComponentModel.DataAnnotations.StringLengthAttribute":
 					if (attr.ConstructorArguments.Length >= 1)
@@ -6242,6 +6430,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					break;
 				case FileExtensionsConstraint fe:
 					tokens.Add("[extensions: " + string.Join("|", fe.Extensions) + "]");
+					break;
+				case TimeSpanRangeConstraint ts:
+					tokens.Add($"[time-span-range: {ts.MinLiteral.Trim('"')}–{ts.MaxLiteral.Trim('"')}]");
 					break;
 			}
 		}
@@ -7083,6 +7274,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private abstract record ValidationConstraint;
 	private sealed record RangeConstraint(string MinLiteral, string MaxLiteral) : ValidationConstraint;
+	private sealed record TimeSpanRangeConstraint(string MinLiteral, string MaxLiteral) : ValidationConstraint;
 	private sealed record StringLengthConstraint(int? Min, int? Max) : ValidationConstraint;
 	private sealed record RegexConstraint(string Pattern) : ValidationConstraint;
 	private sealed record AllowedValuesConstraint(ImmutableArray<string> Values) : ValidationConstraint;
@@ -7249,7 +7441,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var required = ComputeRequired(p, bs);
 			var defLit = TryGetDefaultLiteral(p, bs);
 			var enumDocs = sk == CliScalarKind.Enum ? TryGetEnumDocs(p.Type) : null;
-			var validations = ReadValidationConstraints(p, sk);
+			var validations = ReadValidationConstraints(p, sk, typeName);
 			return new ParameterModel(
 				p.Name,
 				SafeLocalName(p.Name),
@@ -7285,7 +7477,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
 			var required = ComputeRequiredForOptionsType(prop.Type, bs);
 			var enumDocs = sk == CliScalarKind.Enum ? TryGetEnumDocs(prop.Type) : null;
-			var validations = ReadValidationConstraints(prop, sk);
+			var validations = ReadValidationConstraints(prop, sk, typeName);
 			return new ParameterModel(
 				prop.Name,
 				SafeLocalName(prop.Name),
@@ -7365,7 +7557,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
 			var required = ComputeRequired(cp, bs);
 			var defLit = TryGetDefaultLiteral(cp, bs);
-			var validations = ReadValidationConstraints(cp, sk);
+			var validations = ReadValidationConstraints(cp, sk, typeName);
 			return new ParameterModel(
 				cp.Name,
 				local,
@@ -7415,7 +7607,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
 			var required = ComputeRequiredForOptionsType(prop.Type, bs);
-			var validations = ReadValidationConstraints(prop, sk);
+			var validations = ReadValidationConstraints(prop, sk, typeName);
 			return new ParameterModel(
 				prop.Name,
 				local,
@@ -7699,6 +7891,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (type.SpecialType == SpecialType.System_Boolean)
 				return "bool";
 
+			if (type is INamedTypeSymbol named)
+			{
+				var fq = named.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				switch (fq)
+				{
+					case "global::System.DateTime":
+						return "DateTime";
+					case "global::System.DateTimeOffset":
+						return "DateTimeOffset";
+					case "global::System.TimeSpan":
+						return "TimeSpan";
+					case "global::System.DateOnly":
+						return "DateOnly";
+				}
+			}
+
 			return "string";
 		}
 
@@ -7973,6 +8181,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				"decimal" => "<decimal>",
 				"bool" => "<bool>",
 				"bool?" => "<bool?>",
+				"DateTime" or "DateTime?" => "<dateTime>",
+				"DateTimeOffset" or "DateTimeOffset?" => "<dateTimeOffset>",
+				"TimeSpan" or "TimeSpan?" => "<timeSpan>",
+				"DateOnly" or "DateOnly?" => "<dateOnly>",
 				_ => "<value>"
 			};
 		}
