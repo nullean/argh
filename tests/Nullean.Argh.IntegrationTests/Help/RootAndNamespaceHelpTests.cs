@@ -33,27 +33,29 @@ public class RootAndNamespaceHelpTests
 			            explicitly via MapNamespace<BlobCommands>.
 
 			Commands:
-			  hello                       Greet someone by name.
-			  enum-cmd                    Enum and short options.
-			  deploy                    
-			  nullable-numeric-as-params
-			  tags                      
-			  dry-run-cmd               
-			  count-cmd                 
-			  file-cmd                  
-			  dir-cmd                   
-			  uri-cmd                   
-			  point-cmd                 
-			  doc-lambda                  Documented handler for lambda-style Map (XML
-			                              appears in help).
-			  lambda-cmd                
-			  validate-range              Validate numeric range on --port.
-			  validate-length             Validate string length on --name.
-			  validate-regex              Validate regex pattern on --slug.
-			  validate-allowed            Validate allowed values on --env.
-			  validate-email              Validate email format on --address.
-			  validate-uri-scheme         Validate URI scheme restriction on --endpoint.
-			  validate-dto                Validate DTO fields with range constraint.
+			  hello                        Greet someone by name.
+			  enum-cmd                     Enum and short options.
+			  deploy                     
+			  nullable-numeric-as-params 
+			  tags                       
+			  dry-run-cmd                
+			  count-cmd                  
+			  file-cmd                   
+			  dir-cmd                    
+			  uri-cmd                    
+			  point-cmd                  
+			  doc-lambda                   Documented handler for lambda-style Map (XML
+			                               appears in help).
+			  lambda-cmd                 
+			  validate-range               Validate numeric range on --port.
+			  validate-length              Validate string length on --name.
+			  validate-regex               Validate regex pattern on --slug.
+			  validate-allowed             Validate allowed values on --env.
+			  validate-email               Validate email format on --address.
+			  validate-uri-scheme          Validate URI scheme restriction on --endpoint.
+			  validate-non-nullable-range  Validate numeric range on non-nullable --page-per
+			                               with default.
+			  validate-dto                 Validate DTO fields with range constraint.
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		text.Should().Be(expected);
 		var fromCommands = text.Substring(text.IndexOf("Commands:", StringComparison.Ordinal));
