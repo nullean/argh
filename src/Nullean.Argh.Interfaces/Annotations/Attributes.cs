@@ -67,6 +67,24 @@ public sealed class CollectionSyntaxAttribute : Attribute
 public sealed class MiddlewareAttribute<TMiddleware> : Attribute where TMiddleware : Nullean.Argh.Middleware.ICommandMiddleware;
 
 /// <summary>
+/// Restricts a <see cref="System.TimeSpan"/> to an inclusive range. Minimum and maximum use the same syntax as CLI <see cref="TimeSpan"/> binding (compact <c>Ns</c>/<c>Nm</c>/<c>Nh</c>/<c>Nd</c> or invariant <see cref="TimeSpan"/> text).
+/// Only valid on <c>TimeSpan</c> or <c>TimeSpan?</c> parameters and properties.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
+public sealed class TimeSpanRangeAttribute : Attribute
+{
+	public TimeSpanRangeAttribute(string minimum, string maximum)
+	{
+		Minimum = minimum;
+		Maximum = maximum;
+	}
+
+	public string Minimum { get; }
+
+	public string Maximum { get; }
+}
+
+/// <summary>
 /// Restricts the allowed URI schemes for a <see cref="System.Uri"/> parameter (e.g. <c>http</c>, <c>https</c>).
 /// Emits a parse error when the provided URI does not use one of the listed schemes.
 /// Only valid on <c>Uri</c> or <c>Uri?</c> parameters; applying it to other types produces diagnostic AGH0023.

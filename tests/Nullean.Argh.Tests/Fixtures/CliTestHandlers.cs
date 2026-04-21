@@ -66,6 +66,12 @@ internal static class CliTestHandlers
 	public static void UriCmd(TestGlobalCliOptions g, Uri uri) =>
 		Console.Out.WriteLine($"uri:{uri.Host}");
 
+	/// <param name="g">Injected global CLI options.</param>
+	/// <param name="duration">Duration flag.</param>
+	/// <param name="on">A calendar date.</param>
+	public static void TemporalCmd(TestGlobalCliOptions g, TimeSpan duration, DateOnly on) =>
+		Console.Out.WriteLine($"temporal:{duration.TotalSeconds}:{on:yyyy-MM-dd}");
+
 	// For custom parser test
 	public static void PointCmd(TestGlobalCliOptions g, [ArgumentParser(typeof(PointParser))] Point point) =>
 		Console.Out.WriteLine($"point:{point.X},{point.Y}");

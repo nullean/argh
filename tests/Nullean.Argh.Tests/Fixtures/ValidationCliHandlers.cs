@@ -38,4 +38,8 @@ internal static class ValidationCliHandlers
 	[NoOptionsInjection]
 	public static void ValidateDto([AsParameters] ValidatedDtoArgs args) =>
 		Console.Out.WriteLine($"dto:{args.Count}");
+
+	/// <summary>Validate TimeSpan inclusive range.</summary>
+	public static void ValidateTimeSpanRange(TestGlobalCliOptions g, [TimeSpanRange("5m", "2h")] TimeSpan window) =>
+		Console.Out.WriteLine($"ts-range:{window.TotalMinutes}");
 }

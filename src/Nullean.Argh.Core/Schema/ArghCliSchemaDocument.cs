@@ -53,7 +53,7 @@ public sealed record CliParameterSchema(
 	CliConstraintSchema[]? Validations = null);
 
 /// <summary>A single validation constraint on a CLI parameter.</summary>
-/// <param name="Kind">One of: range, length, regex, allowed, denied, email, url.</param>
+/// <param name="Kind">One of: range, length, regex, allowed, denied, email, url, timeSpanRange.</param>
 public sealed record CliConstraintSchema(
 	string Kind,
 	string? Min = null,
