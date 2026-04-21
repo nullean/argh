@@ -26,6 +26,8 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\t\t1,");
 		sb.AppendLine($"\t\t\t\t\"{Escape(entryAssemblyName)}\",");
 		sb.AppendLine($"\t\t\t\t\"{Escape(entryAssemblyVersion)}\",");
+		EmitNullableStringArg(sb, "\t\t\t\t", string.IsNullOrWhiteSpace(app.RootSummary) ? null : app.RootSummary);
+		sb.AppendLine(",");
 		sb.AppendLine("\t\t\t\tnew[] { \"__complete\", \"__completion\", \"__schema\" },");
 		EmitSchemaGlobalOptionsExpression(sb, app, "\t\t\t\t");
 		sb.AppendLine(",");
@@ -341,8 +343,51 @@ public sealed partial class CliParserGenerator
 		var kind = Escape(SchemaParameterKind(p));
 		var req = p.IsRequired ? "true" : "false";
 		var summary = string.IsNullOrEmpty(p.Description) ? "null" : $"\"{Escape(p.Description)}\"";
+		var validations = BuildConstraintsExpression(p.Validations);
 		return
-			$"new CliParameterSchema(\"{role}\", \"{Escape(p.CliLongName)}\", {shortName}, \"{kind}\", {req}, {summary})";
+			$"new CliParameterSchema(\"{role}\", \"{Escape(p.CliLongName)}\", {shortName}, \"{kind}\", {req}, {summary}, {validations})";
+	}
+
+	private static string BuildConstraintsExpression(ImmutableArray<ValidationConstraint> validations)
+	{
+		if (validations.IsDefaultOrEmpty)
+			return "null";
+
+		var parts = new System.Collections.Generic.List<string>();
+		foreach (var v in validations)
+		{
+			switch (v)
+			{
+				case RangeConstraint r:
+					parts.Add($"new CliConstraintSchema(\"range\", Min: \"{Escape(r.MinLiteral)}\", Max: \"{Escape(r.MaxLiteral)}\")");
+					break;
+				case StringLengthConstraint sl:
+					var slMin = sl.Min.HasValue ? $"\"{sl.Min.Value}\"" : "null";
+					var slMax = sl.Max.HasValue ? $"\"{sl.Max.Value}\"" : "null";
+					parts.Add($"new CliConstraintSchema(\"length\", Min: {slMin}, Max: {slMax})");
+					break;
+				case RegexConstraint re:
+					parts.Add($"new CliConstraintSchema(\"regex\", Pattern: \"{Escape(re.Pattern)}\")");
+					break;
+				case AllowedValuesConstraint av:
+					parts.Add($"new CliConstraintSchema(\"allowed\", Values: new string[] {{ {string.Join(", ", av.Values.Select(val => $"\"{Escape(val)}\""))} }})");
+					break;
+				case DeniedValuesConstraint dv:
+					parts.Add($"new CliConstraintSchema(\"denied\", Values: new string[] {{ {string.Join(", ", dv.Values.Select(val => $"\"{Escape(val)}\""))} }})");
+					break;
+				case EmailConstraint:
+					parts.Add("new CliConstraintSchema(\"email\")");
+					break;
+				case UrlConstraint:
+					parts.Add("new CliConstraintSchema(\"url\")");
+					break;
+			}
+		}
+
+		if (parts.Count == 0)
+			return "null";
+
+		return $"new CliConstraintSchema[] {{ {string.Join(", ", parts)} }}";
 	}
 
 	private static string SchemaParameterKind(ParameterModel p)

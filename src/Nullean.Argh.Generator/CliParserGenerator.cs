@@ -2807,6 +2807,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 							1,
 							"__ARGH_EMBED_ASM_NAME__",
 							"__ARGH_EMBED_ASM_VER__",
+							null,
 							new[] { "__complete", "__completion", "__schema" },
 							Array.Empty<CliParameterSchema>(),
 							null,

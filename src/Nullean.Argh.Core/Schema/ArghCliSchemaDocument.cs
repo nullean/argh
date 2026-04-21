@@ -5,6 +5,7 @@ public sealed record ArghCliSchemaDocument(
 	int SchemaVersion,
 	string EntryAssembly,
 	string Version,
+	string? Description,
 	string[] ReservedMetaCommands,
 	CliParameterSchema[] GlobalOptions,
 	CliDefaultHandlerSchema? RootDefault,
@@ -48,4 +49,14 @@ public sealed record CliParameterSchema(
 	string? ShortName,
 	string Kind,
 	bool Required,
-	string? Summary);
+	string? Summary,
+	CliConstraintSchema[]? Validations = null);
+
+/// <summary>A single validation constraint on a CLI parameter.</summary>
+/// <param name="Kind">One of: range, length, regex, allowed, denied, email, url.</param>
+public sealed record CliConstraintSchema(
+	string Kind,
+	string? Min = null,
+	string? Max = null,
+	string? Pattern = null,
+	string[]? Values = null);
