@@ -97,16 +97,16 @@ internal static class CliTestHandlers
 	}
 }
 
-/// <summary>Handlers under <c>contentstack ai</c> for nested-namespace segment collision regression (AGH0022).</summary>
-internal static class ContentstackAiSegmentHandlers
+/// <summary>Handlers under <c>billing tools</c> for AGH0022 nested-namespace regression.</summary>
+internal static class BillingToolsHandlers
 {
-	public static void Ping(TestGlobalCliOptions g) =>
-		Console.Out.WriteLine("contentstack-ai-ping");
+	public static void Status(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine("billing-tools-status");
 }
 
-/// <summary>Handlers under <c>labs ai</c> for nested-namespace segment collision regression (AGH0022).</summary>
-internal static class LabsAiSegmentHandlers
+/// <summary>Handlers under <c>support tools</c> for AGH0022 nested-namespace regression.</summary>
+internal static class SupportToolsHandlers
 {
-	public static void Ping(TestGlobalCliOptions g) =>
-		Console.Out.WriteLine("labs-ai-ping");
+	public static void Status(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine("support-tools-status");
 }

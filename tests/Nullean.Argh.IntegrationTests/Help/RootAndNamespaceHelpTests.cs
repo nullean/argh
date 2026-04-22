@@ -27,12 +27,12 @@ public class RootAndNamespaceHelpTests
 			  --verbose   
 
 			Namespaces:
-			  di-probe      Instance command type for DI resolution tests
-			                (ArghServices.ServiceProvider).
-			  storage       Commands under storage. Nested BlobCommands must be registered
-			                explicitly via MapNamespace<BlobCommands>.
-			  contentstack  Contentstack tree
-			  labs          Labs tree
+			  di-probe  Instance command type for DI resolution tests
+			            (ArghServices.ServiceProvider).
+			  storage   Commands under storage. Nested BlobCommands must be registered
+			            explicitly via MapNamespace<BlobCommands>.
+			  billing   Billing commands
+			  support   Support commands
 
 			Commands:
 			  hello                        Greet someone by name.

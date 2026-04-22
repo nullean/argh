@@ -13,10 +13,10 @@ public class DuplicateNestedSegmentNameTests
 	[Fact]
 	public void Same_nested_segment_under_distinct_parent_namespaces_routes_correctly()
 	{
-		var cs = CliHostRunner.Run("contentstack", "ai", "ping");
-		CliHostRunner.StdoutText(cs).Trim().Should().Be("contentstack-ai-ping");
+		var billing = CliHostRunner.Run("billing", "tools", "status");
+		CliHostRunner.StdoutText(billing).Trim().Should().Be("billing-tools-status");
 
-		var labs = CliHostRunner.Run("labs", "ai", "ping");
-		CliHostRunner.StdoutText(labs).Trim().Should().Be("labs-ai-ping");
+		var support = CliHostRunner.Run("support", "tools", "status");
+		CliHostRunner.StdoutText(support).Trim().Should().Be("support-tools-status");
 	}
 }
