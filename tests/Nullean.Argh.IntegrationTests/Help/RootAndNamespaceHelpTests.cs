@@ -38,6 +38,8 @@ public class RootAndNamespaceHelpTests
 			  deploy                     
 			  nullable-numeric-as-params 
 			  optional-uri-as-params     
+			  prop-doc-as-params         
+			  param-comment-record       
 			  tags                       
 			  dry-run-cmd                
 			  count-cmd                  

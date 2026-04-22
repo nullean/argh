@@ -18,6 +18,8 @@ internal static class CliRegistrationModule
 		app.Map("deploy", CliTestHandlers.Deploy);
 		app.Map("nullable-numeric-as-params", CliTestHandlers.NullableNumericAsParams);
 		app.Map("optional-uri-as-params", CliTestHandlers.OptionalUriAsParams);
+		app.Map("prop-doc-as-params", CliTestHandlers.PropDocAsParams);
+		app.Map("param-comment-record", CliTestHandlers.ParamCommentRecordCmd);
 		app.Map("tags", CliTestHandlers.Tags);
 		app.Map("dry-run-cmd", CliTestHandlers.DryRunCmd);
 		app.Map("count-cmd", CliTestHandlers.CountCmd);

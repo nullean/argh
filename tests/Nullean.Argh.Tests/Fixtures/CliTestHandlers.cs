@@ -22,6 +22,20 @@ internal sealed record NullableNumericAsParamsArgs(int? Rps, int? MaxPages);
 /// <summary>Record with optional <see cref="Uri"/> for <see cref="AsParametersAttribute"/> binding coverage.</summary>
 internal sealed record OptionalUriAsParamsArgs(Uri? Endpoint);
 
+/// <summary>Init-only bound object for XML documentation in help output.</summary>
+internal sealed class PropDocBoundArgs
+{
+	/// <summary>Argh_help_doc_alpha_unique.</summary>
+	public string Alpha { get; init; } = "";
+
+	/// <summary>Argh_help_doc_beta_unique.</summary>
+	public int Beta { get; init; }
+}
+
+internal sealed record ParamCommentRecord(
+	/// <summary>Argh_help_doc_gamma_unique.</summary>
+	string Gamma);
+
 internal static class CliTestHandlers
 {
 	/// <summary>Greet someone by name.</summary>
@@ -48,6 +62,12 @@ internal static class CliTestHandlers
 
 	public static void OptionalUriAsParams(TestGlobalCliOptions g, [AsParameters] OptionalUriAsParamsArgs args) =>
 		Console.Out.WriteLine($"optional-uri:{args.Endpoint?.ToString() ?? "null"}");
+
+	public static void PropDocAsParams(TestGlobalCliOptions g, [AsParameters] PropDocBoundArgs args) =>
+		Console.Out.WriteLine($"prop-doc:{args.Alpha}:{args.Beta}");
+
+	public static void ParamCommentRecordCmd(TestGlobalCliOptions g, [AsParameters] ParamCommentRecord r) =>
+		Console.Out.WriteLine($"param-comment:{r.Gamma}");
 
 	public static void Tags(TestGlobalCliOptions g, List<string> tags) =>
 		Console.Out.WriteLine("tags:" + string.Join(",", tags));
