@@ -5702,6 +5702,30 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		if (p.ScalarKind == CliScalarKind.Uri)
 		{
+			// Optional Uri? must treat omitted flags as null (raw text is null), not run Uri.TryCreate on null/whitespace.
+			if (!p.IsRequired)
+			{
+				var csharpNullableUri = GetCSharpCliType(p);
+				var tmpUri = "__nullableUriParsed_" + p.LocalVarName;
+				sb.AppendLine($"{ind}{csharpNullableUri} {tmpUri} = null;");
+				sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
+				sb.AppendLine($"{ind}{{");
+				sb.AppendLine(
+					$"{ind}\tif (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
+				sb.AppendLine($"{ind}\t{{");
+				sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
+				if (helpMethodName is not null) sb.AppendLine($"{ind}\t\t{helpMethodName}();");
+				sb.AppendLine($"{ind}\t\t{failureExit};");
+				sb.AppendLine($"{ind}\t}}");
+				sb.AppendLine($"{ind}\t{tmpUri} = __uri;");
+				sb.AppendLine($"{ind}}}");
+				if (outVarKeyword)
+					sb.AppendLine($"{ind}var {targetVar} = {tmpUri};");
+				else
+					sb.AppendLine($"{ind}{targetVar} = {tmpUri};");
+				return;
+			}
+
 			sb.AppendLine($"{ind}if (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
 			sb.AppendLine($"{ind}{{");
 			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");

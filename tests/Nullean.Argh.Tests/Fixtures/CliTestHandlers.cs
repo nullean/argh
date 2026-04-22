@@ -19,6 +19,9 @@ internal sealed record DeployCliArgs(string Env, int Port);
 /// <summary>Record with nullable value types for <see cref="AsParametersAttribute"/> binding coverage.</summary>
 internal sealed record NullableNumericAsParamsArgs(int? Rps, int? MaxPages);
 
+/// <summary>Record with optional <see cref="Uri"/> for <see cref="AsParametersAttribute"/> binding coverage.</summary>
+internal sealed record OptionalUriAsParamsArgs(Uri? Endpoint);
+
 internal static class CliTestHandlers
 {
 	/// <summary>Greet someone by name.</summary>
@@ -42,6 +45,9 @@ internal static class CliTestHandlers
 
 	public static void NullableNumericAsParams(TestGlobalCliOptions g, [AsParameters("labs")] NullableNumericAsParamsArgs args) =>
 		Console.Out.WriteLine($"nullable-numeric:{args.Rps?.ToString() ?? "null"}:{args.MaxPages?.ToString() ?? "null"}");
+
+	public static void OptionalUriAsParams(TestGlobalCliOptions g, [AsParameters] OptionalUriAsParamsArgs args) =>
+		Console.Out.WriteLine($"optional-uri:{args.Endpoint?.ToString() ?? "null"}");
 
 	public static void Tags(TestGlobalCliOptions g, List<string> tags) =>
 		Console.Out.WriteLine("tags:" + string.Join(",", tags));
