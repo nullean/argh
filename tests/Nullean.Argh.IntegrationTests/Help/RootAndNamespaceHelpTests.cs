@@ -31,6 +31,8 @@ public class RootAndNamespaceHelpTests
 			            (ArghServices.ServiceProvider).
 			  storage   Commands under storage. Nested BlobCommands must be registered
 			            explicitly via MapNamespace<BlobCommands>.
+			  billing   Billing commands
+			  support   Support commands
 
 			Commands:
 			  hello                        Greet someone by name.

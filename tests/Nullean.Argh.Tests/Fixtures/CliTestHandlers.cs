@@ -116,3 +116,17 @@ internal static class CliTestHandlers
 		}
 	}
 }
+
+/// <summary>Handlers under <c>billing tools</c> for AGH0022 nested-namespace regression.</summary>
+internal static class BillingToolsHandlers
+{
+	public static void Status(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine("billing-tools-status");
+}
+
+/// <summary>Handlers under <c>support tools</c> for AGH0022 nested-namespace regression.</summary>
+internal static class SupportToolsHandlers
+{
+	public static void Status(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine("support-tools-status");
+}

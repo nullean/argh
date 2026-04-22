@@ -1090,7 +1090,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (other is not AIMapNamespace ns) continue;
 			if (ns.LambdaBodyStart < 0 || ns.LambdaBodyEnd < 0) continue;
 			if (!string.Equals(ns.FilePath, ai.FilePath, StringComparison.Ordinal)) continue;
-			if (ai.SpanStart > ns.LambdaBodyStart && ai.SpanStart < ns.LambdaBodyEnd)
+			// Inclusive lower bound: for expression-bodied lambdas (e.g. g => g.MapNamespace(...)),
+			// the nested invocation's SpanStart equals the lambda body's SpanStart and must count as inside.
+			if (ai.SpanStart >= ns.LambdaBodyStart && ai.SpanStart < ns.LambdaBodyEnd)
 				return true;
 		}
 		return false;
@@ -1220,7 +1222,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			foreach (var other in allAnalyzed)
 			{
 				if (!string.Equals(other.FilePath, ns.FilePath, StringComparison.Ordinal)) continue;
-				if (other.SpanStart <= ns.LambdaBodyStart || other.SpanStart >= ns.LambdaBodyEnd) continue;
+				if (other.SpanStart < ns.LambdaBodyStart || other.SpanStart >= ns.LambdaBodyEnd) continue;
 				// Skip invocations that are nested inside a deeper lambda (not direct children).
 				if (IsInsideAnyNestedMapNamespaceLambda(other, allAnalyzed, ns)) continue;
 				childInvocations.Add(other);
@@ -1275,10 +1277,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (ReferenceEquals(nested, parent)) continue;
 			if (nested.LambdaBodyStart < 0 || nested.LambdaBodyEnd < 0) continue;
 			if (!string.Equals(nested.FilePath, ai.FilePath, StringComparison.Ordinal)) continue;
-			// nested must itself be inside parent
-			if (nested.SpanStart <= parent.LambdaBodyStart || nested.SpanStart >= parent.LambdaBodyEnd) continue;
+			// nested must itself be inside parent (inclusive lower bound for expression-bodied lambdas).
+			if (nested.SpanStart < parent.LambdaBodyStart || nested.SpanStart >= parent.LambdaBodyEnd) continue;
 			// ai must be inside nested
-			if (ai.SpanStart > nested.LambdaBodyStart && ai.SpanStart < nested.LambdaBodyEnd)
+			if (ai.SpanStart >= nested.LambdaBodyStart && ai.SpanStart < nested.LambdaBodyEnd)
 				return true;
 		}
 		return false;
