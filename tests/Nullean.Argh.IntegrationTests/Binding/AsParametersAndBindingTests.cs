@@ -24,6 +24,22 @@ public class AsParametersAndBindingTests
 	}
 
 	[Fact]
+	public void Optional_Uri_AsParameters_omitted_flag_binds_null()
+	{
+		var result = CliHostRunner.Run("optional-uri-as-params");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("optional-uri:null");
+	}
+
+	[Fact]
+	public void Optional_Uri_AsParameters_passed_flag_binds_value()
+	{
+		var result = CliHostRunner.Run("optional-uri-as-params", "--endpoint", "https://example.com/path");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("optional-uri:https://example.com/path");
+	}
+
+	[Fact]
 	public void Tags_repeated_flags()
 	{
 		var result = CliHostRunner.Run("tags", "--tags", "a", "--tags", "b");

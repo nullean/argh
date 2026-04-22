@@ -37,6 +37,7 @@ public class RootAndNamespaceHelpTests
 			  enum-cmd                     Enum and short options.
 			  deploy                     
 			  nullable-numeric-as-params 
+			  optional-uri-as-params     
 			  tags                       
 			  dry-run-cmd                
 			  count-cmd                  
