@@ -3805,11 +3805,65 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	{
 		foreach (var sr in prop.DeclaringSyntaxReferences)
 		{
-			if (sr.GetSyntax() is not PropertyDeclarationSyntax p)
+			switch (sr.GetSyntax())
+			{
+				case PropertyDeclarationSyntax p:
+				{
+					var result = ExtractDocumentationFromTriviaList(p.GetLeadingTrivia());
+					if (result.Length > 0)
+						return result;
+					break;
+				}
+				// Positional record (and class primary-constructor) parameters: the public API is a property
+				// whose declaring syntax is the parameter, not a property declaration.
+				case ParameterSyntax par:
+				{
+					var result = ExtractDocumentationFromTriviaList(par.GetLeadingTrivia());
+					if (result.Length > 0)
+						return result;
+					break;
+				}
+			}
+		}
+
+		return "";
+	}
+
+	private static string TryExtractDocumentationFromParameterTrivia(IParameterSymbol param)
+	{
+		foreach (var sr in param.DeclaringSyntaxReferences)
+		{
+			if (sr.GetSyntax() is not ParameterSyntax par)
 				continue;
-			var result = ExtractDocumentationFromTriviaList(p.GetLeadingTrivia());
+			var result = ExtractDocumentationFromTriviaList(par.GetLeadingTrivia());
 			if (result.Length > 0)
 				return result;
+		}
+
+		return "";
+	}
+
+	private static string TryExtractFullDocumentationFromFieldTrivia(IFieldSymbol field)
+	{
+		foreach (var sr in field.DeclaringSyntaxReferences)
+		{
+			switch (sr.GetSyntax())
+			{
+				case FieldDeclarationSyntax fd:
+				{
+					var result = ExtractDocumentationFromTriviaList(fd.GetLeadingTrivia());
+					if (result.Length > 0)
+						return result;
+					break;
+				}
+				case VariableDeclaratorSyntax vd when vd.Parent is VariableDeclarationSyntax { Parent: FieldDeclarationSyntax fd }:
+				{
+					var result = ExtractDocumentationFromTriviaList(fd.GetLeadingTrivia());
+					if (result.Length > 0)
+						return result;
+					break;
+				}
+			}
 		}
 
 		return "";
@@ -7489,12 +7543,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		public static ParameterModel FromOptionsProperty(IPropertySymbol prop)
 		{
+			var docLine = Documentation.GetPropertySummaryLine(prop, TryExtractFullDocumentationFromPropertyTrivia(prop));
 			var bs = ClassifyBool(prop.Type);
 			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
 				return BuildCollectionParameterModel(prop.Type, elemType, prop, ParameterKind.Flag,
 					Naming.ToCliLongName(prop.Name), SafeLocalName(prop.Name), prop.Name,
-					isSeparateType: true, defaultLiteral: null, "", asParams: null);
+					isSeparateType: true, defaultLiteral: null, docLine, asParams: null);
 			}
 
 			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
@@ -7516,7 +7571,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				customValFq,
 				required,
 				null,
-				"",
+				docLine,
 				null,
 				ImmutableArray<string>.Empty,
 				EnumMemberDocs: enumDocs,
@@ -7525,12 +7580,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field)
 		{
+			var docLine = Documentation.GetFieldSummaryLine(field, TryExtractFullDocumentationFromFieldTrivia(field));
 			var bs = ClassifyBool(field.Type);
 			if (TryUnwrapCollectionType(field.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
 				return BuildCollectionParameterModel(field.Type, elemType, field, ParameterKind.Flag,
 					Naming.ToCliLongName(field.Name), SafeLocalName(field.Name), field.Name,
-					isSeparateType: true, defaultLiteral: null, "", asParams: null);
+					isSeparateType: true, defaultLiteral: null, docLine, asParams: null);
 			}
 
 			ClassifyScalarUnified(field.Type, field, bs, isSeparateType: true,
@@ -7550,7 +7606,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				customValFq,
 				required,
 				null,
-				"",
+				docLine,
 				null,
 				ImmutableArray<string>.Empty);
 		}
@@ -7569,6 +7625,19 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var cli = namePrefix + Naming.ToCliLongName(cp.Name);
 			var local = SafeLocalName(methodParamName + "_" + cp.Name);
 			var desc = Documentation.GetParamDocFromType(containingType, cp.Name, TryExtractFullDocumentationFromTypeTrivia(containingType));
+			if (string.IsNullOrWhiteSpace(desc))
+			{
+				var pxml = cp.GetDocumentationCommentXml();
+				if (!string.IsNullOrWhiteSpace(pxml))
+				{
+					desc = Documentation.GetParamDocFromXmlFragment(pxml, cp.Name);
+					if (string.IsNullOrWhiteSpace(desc))
+						desc = Documentation.GetTypeSummaryLine(pxml);
+				}
+			}
+
+			if (string.IsNullOrWhiteSpace(desc))
+				desc = Documentation.GetTypeSummaryLine(TryExtractDocumentationFromParameterTrivia(cp));
 			var meta = new AsParametersMeta(methodParamName, memberOrder, typeFq, UseInit: false, cp.Name);
 			if (TryUnwrapCollectionType(cp.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
@@ -8284,6 +8353,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var xml = type.GetDocumentationCommentXml();
 			if (string.IsNullOrWhiteSpace(xml))
 				xml = fallbackXml;
+			return GetParamDocFromXmlFragment(xml, parameterName);
+		}
+
+		/// <summary>Extracts <c>&lt;param name="…"&gt;</c> text from documentation XML (handles <c>&lt;member&gt;</c>-wrapped compiler output).</summary>
+		public static string GetParamDocFromXmlFragment(string? xml, string parameterName)
+		{
 			if (string.IsNullOrWhiteSpace(xml))
 				return "";
 			try
@@ -8292,8 +8367,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var root = doc.Root;
 				if (root is null)
 					return "";
-				foreach (var pe in root.Elements("param"))
+				foreach (var pe in root.Descendants())
 				{
+					if (!string.Equals(pe.Name.LocalName, "param", StringComparison.Ordinal))
+						continue;
 					if (string.Equals(pe.Attribute("name")?.Value, parameterName, StringComparison.Ordinal))
 						return FlattenParam(pe);
 				}
@@ -8311,20 +8388,17 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var xml = prop.GetDocumentationCommentXml();
 			if (string.IsNullOrWhiteSpace(xml))
 				xml = fallbackXml;
+			// Compiler / GetDocumentationCommentXml often wraps content in <member>; use the same
+			// summary resolution as types (descendant <summary>) so help text is not dropped.
+			return GetTypeSummaryLine(xml);
+		}
+
+		public static string GetFieldSummaryLine(IFieldSymbol field, string? fallbackXml = null)
+		{
+			var xml = field.GetDocumentationCommentXml();
 			if (string.IsNullOrWhiteSpace(xml))
-				return "";
-			try
-			{
-				var doc = XDocument.Parse("<root>" + xml + "</root>", LoadOptions.PreserveWhitespace);
-				var root = doc.Root;
-				if (root is null)
-					return "";
-				return FlattenBlock(root.Element("summary")).Replace("\r\n", "\n").Trim();
-			}
-			catch
-			{
-				return "";
-			}
+				xml = fallbackXml;
+			return GetTypeSummaryLine(xml);
 		}
 
 		/// <summary>First line of <c>&lt;summary&gt;</c> for a type symbol (handles <c>&lt;member&gt;</c>-wrapped XML from Roslyn).</summary>
