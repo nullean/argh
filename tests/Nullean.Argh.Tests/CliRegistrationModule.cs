@@ -45,6 +45,9 @@ internal static class CliRegistrationModule
 			g.MapRoot(StorageNamespaceRoot);
 			g.MapNamespace<StorageCliCommands.BlobCommands>("blob");
 		});
+		// Expression-bodied configure lambdas: nested MapNamespace must stay under each parent (AGH0022); same segment "ai" is OK.
+		app.MapNamespace("contentstack", "Contentstack tree", g => g.MapNamespace("ai", "AI segment", h => h.Map("ping", ContentstackAiSegmentHandlers.Ping)));
+		app.MapNamespace("labs", "Labs tree", g => g.MapNamespace("ai", "AI segment", h => h.Map("ping", LabsAiSegmentHandlers.Ping)));
 	}
 
 	/// <summary>Documented handler for lambda-style <c>Map</c> (XML appears in help).</summary>

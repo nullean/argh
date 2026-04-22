@@ -28,10 +28,12 @@ public class RootHelpFullTextTests
 			  --verbose   
 
 			Namespaces:
-			  di-probe  Instance command type for DI resolution tests
-			            (ArghServices.ServiceProvider).
-			  storage   Commands under storage. Nested BlobCommands must be registered
-			            explicitly via MapNamespace<BlobCommands>.
+			  di-probe      Instance command type for DI resolution tests
+			                (ArghServices.ServiceProvider).
+			  storage       Commands under storage. Nested BlobCommands must be registered
+			                explicitly via MapNamespace<BlobCommands>.
+			  contentstack  Contentstack tree
+			  labs          Labs tree
 
 			Commands:
 			  hello                        Greet someone by name.

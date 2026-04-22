@@ -96,3 +96,17 @@ internal static class CliTestHandlers
 		}
 	}
 }
+
+/// <summary>Handlers under <c>contentstack ai</c> for nested-namespace segment collision regression (AGH0022).</summary>
+internal static class ContentstackAiSegmentHandlers
+{
+	public static void Ping(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine("contentstack-ai-ping");
+}
+
+/// <summary>Handlers under <c>labs ai</c> for nested-namespace segment collision regression (AGH0022).</summary>
+internal static class LabsAiSegmentHandlers
+{
+	public static void Ping(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine("labs-ai-ping");
+}
