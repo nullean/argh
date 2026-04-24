@@ -14,6 +14,7 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 	private readonly IServiceCollection _services;
 	private readonly ArghBuilder _inner;
 
+	/// <summary>Initializes a new <see cref="ArghHostingBuilder"/> backed by <paramref name="services"/>.</summary>
 	public ArghHostingBuilder(IServiceCollection services)
 	{
 		_services = services ?? throw new ArgumentNullException(nameof(services));
@@ -26,9 +27,11 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		_inner = new ArghBuilder(app);
 	}
 
+	/// <inheritdoc />
 	public IArghHostingBuilder Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class =>
 		Map<T>(ServiceLifetime.Transient);
 
+	/// <inheritdoc />
 	public IArghHostingBuilder Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(ServiceLifetime lifetime) where T : class
 	{
 		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), lifetime));
@@ -36,18 +39,23 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
+	/// <inheritdoc />
 	public IArghHostingBuilder MapTransient<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class =>
 		Map<T>(ServiceLifetime.Transient);
 
+	/// <inheritdoc />
 	public IArghHostingBuilder MapScoped<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class =>
 		Map<T>(ServiceLifetime.Scoped);
 
+	/// <inheritdoc />
 	public IArghHostingBuilder MapSingleton<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class =>
 		Map<T>(ServiceLifetime.Singleton);
 
+	/// <inheritdoc />
 	public IArghHostingBuilder UseGlobalOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class =>
 		UseGlobalOptions<T>(ServiceLifetime.Transient);
 
+	/// <inheritdoc />
 	public IArghHostingBuilder UseGlobalOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(ServiceLifetime lifetime) where T : class
 	{
 		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), lifetime));
@@ -55,9 +63,11 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
+	/// <inheritdoc />
 	public IArghHostingBuilder UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>() where TMiddleware : ICommandMiddleware =>
 		UseMiddleware<TMiddleware>(ServiceLifetime.Transient);
 
+	/// <inheritdoc />
 	public IArghHostingBuilder UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>(ServiceLifetime lifetime) where TMiddleware : ICommandMiddleware
 	{
 		_services.Add(new ServiceDescriptor(typeof(TMiddleware), typeof(TMiddleware), lifetime));
@@ -65,6 +75,7 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
+	/// <inheritdoc />
 	public IArghHostingBuilder MapNamespace(string name, string description, Action<IArghBuilder> configure)
 	{
 		_ = description;
@@ -75,7 +86,6 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 
 	/// <inheritdoc cref="IArghBuilder.MapNamespace{T}(string, Action{IArghNamespaceBuilder})"/>
 	/// <remarks>Registers <typeparamref name="T"/> with the same default lifetime as <see cref="Map{T}()"/> so handler instances resolve from DI without a separate <c>Map&lt;T&gt;()</c> inside the callback.</remarks>
-
 	public IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
 	{
 		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), ServiceLifetime.Transient));
@@ -84,6 +94,7 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
+	/// <inheritdoc />
 	public IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(Action<IArghNamespaceBuilder> configure) where T : class
 	{
 		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), ServiceLifetime.Transient));
@@ -97,9 +108,11 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
+	/// <inheritdoc />
 	public IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name) where T : class =>
 		MapNamespace<T>(name, static _ => { });
 
+	/// <inheritdoc />
 	public IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghBuilder> configure) where T : class
 	{
 		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), ServiceLifetime.Transient));
@@ -108,60 +121,73 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.UseGlobalOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		_ = UseGlobalOptions<T>();
 		return this;
 	}
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.Map(string name, Delegate handler)
 	{
 		_ = _inner.Map(name, handler);
 		return this;
 	}
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class =>
 		Map<T>();
 
+	/// <inheritdoc />
 	IArghRootBuilder IArghRootBuilder.UseCliDescription(string description)
 	{
 		_ = _inner.UseCliDescription(description);
 		return this;
 	}
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler)
 	{
 		_ = _inner.MapRoot(handler);
 		return this;
 	}
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapNamespace(string name, string description, Action<IArghBuilder> configure) =>
 		MapNamespace(name, description, configure);
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name) where T : class =>
 		MapNamespace<T>(name);
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghBuilder> configure) where T : class =>
 		MapNamespace<T>(name, configure);
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghNamespaceBuilder> configure) where T : class =>
 		MapNamespace<T>(name, configure);
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(Action<IArghNamespaceBuilder> configure) where T : class =>
 		MapNamespace<T>(configure);
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.UseNamespaceOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		_ = _inner.UseNamespaceOptions<T>();
 		return this;
 	}
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.UseMiddleware(Func<CommandContext, CommandMiddlewareDelegate, ValueTask> middleware)
 	{
 		_ = _inner.UseMiddleware(middleware);
 		return this;
 	}
 
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>()
 	{
 		_ = UseMiddleware<TMiddleware>();

@@ -4,8 +4,17 @@ using System.Xml.Linq;
 
 namespace Nullean.Argh.Help;
 
+/// <summary>Renders XML doc comment inner XML as formatted, optionally ANSI-colored terminal text.</summary>
 public static class XmlDocumentationRenderer
 {
+	/// <summary>
+	/// Writes the content of an XML doc element (e.g. a <c>&lt;summary&gt;</c> or <c>&lt;remarks&gt;</c> inner XML)
+	/// to <paramref name="writer"/>, applying terminal formatting and indenting each output line with <paramref name="lineIndent"/>.
+	/// </summary>
+	/// <param name="writer">Target text writer.</param>
+	/// <param name="lineIndent">Prefix prepended to every output line.</param>
+	/// <param name="elementInnerXml">Raw inner XML of the doc element.</param>
+	/// <param name="isRemarks"><see langword="true"/> when rendering a <c>&lt;remarks&gt;</c> block (preserves line breaks); <see langword="false"/> for inline flow (collapses whitespace).</param>
 	public static void WriteIndentedDoc(TextWriter writer, string lineIndent, string elementInnerXml, bool isRemarks)
 	{
 		if (string.IsNullOrWhiteSpace(elementInnerXml))
