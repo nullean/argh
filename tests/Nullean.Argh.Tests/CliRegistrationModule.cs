@@ -43,6 +43,7 @@ internal static class CliRegistrationModule
 		app.Map("validate-dto", ValidationCliHandlers.ValidateDto);
 		app.Map("validate-timespan-range", ValidationCliHandlers.ValidateTimeSpanRange);
 		app.Map<DiProbeCommands>();
+		app.Map<CommandNameOverrideCommands>();
 		app.MapNamespace<StorageCliCommands>("storage", g =>
 		{
 			g.UseNamespaceOptions<TestStorageCommandNamespaceOptions>();

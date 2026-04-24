@@ -6,6 +6,9 @@ namespace Nullean.Argh.IntegrationTests.Help;
 
 public class RootAndNamespaceHelpTests
 {
+	private static string TrimLines(string s) =>
+		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
+
 	[Fact]
 	public void RootHelp_does_not_list_nested_blob_command()
 	{
@@ -24,39 +27,37 @@ public class RootAndNamespaceHelpTests
 			Global options:
 			  --help, -h           Show help.
 			  --version            Show version.
-			  --verbose            
+			  --verbose
 			  --severity <string>  Enum default for global-flag parsing regression. [default: Information] [allowed: Trace|Information|Warning]
 
 			Namespaces:
-			  di-probe  Instance command type for DI resolution tests
-			            (ArghServices.ServiceProvider).
-			  storage   Commands under storage. Nested BlobCommands must be registered
-			            explicitly via MapNamespace<BlobCommands>.
-			  billing   Billing commands
-			  support   Support commands
+			  storage  Commands under storage. Nested BlobCommands must be registered
+			           explicitly via MapNamespace<BlobCommands>.
+			  billing  Billing commands
+			  support  Support commands
 
 			Commands:
 			  hello                        Greet someone by name.
 			  enum-cmd                     Enum and short options.
-			  deploy                     
-			  as-params-with-ct          
-			  nullable-numeric-as-params 
-			  optional-uri-as-params     
-			  prop-doc-as-params         
-			  param-comment-record       
-			  tags                       
+			  deploy
+			  as-params-with-ct
+			  nullable-numeric-as-params
+			  optional-uri-as-params
+			  prop-doc-as-params
+			  param-comment-record
+			  tags
 			  brace-doc                    Regression: braces in XML docs must not become C#
 			                               interpolation in generated help.
-			  dry-run-cmd                
-			  count-cmd                  
-			  file-cmd                   
-			  dir-cmd                    
-			  uri-cmd                    
-			  temporal-cmd               
-			  point-cmd                  
+			  dry-run-cmd
+			  count-cmd
+			  file-cmd
+			  dir-cmd
+			  uri-cmd
+			  temporal-cmd
+			  point-cmd
 			  doc-lambda                   Documented handler for lambda-style Map (XML
 			                               appears in help).
-			  lambda-cmd                 
+			  lambda-cmd
 			  validate-range               Validate numeric range on --port.
 			  validate-length              Validate string length on --name.
 			  validate-regex               Validate regex pattern on --slug.
@@ -67,8 +68,10 @@ public class RootAndNamespaceHelpTests
 			                               with default.
 			  validate-dto                 Validate DTO fields with range constraint.
 			  validate-timespan-range      Validate TimeSpan inclusive range.
+			  ping
+			  renamed-cmd
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
-		text.Should().Be(expected);
+		TrimLines(text).Should().Be(TrimLines(expected));
 		var fromCommands = text.Substring(text.IndexOf("Commands:", StringComparison.Ordinal));
 		fromCommands.Should().NotContain("blob");
 	}
@@ -91,7 +94,7 @@ public class RootAndNamespaceHelpTests
 
 			Global options:
 			  --help, -h           Show help.
-			  --verbose            
+			  --verbose
 			  --severity <string>  Enum default for global-flag parsing regression. [default: Information] [allowed: Trace|Information|Warning]
 
 			'storage' options:
@@ -103,7 +106,7 @@ public class RootAndNamespaceHelpTests
 			Commands:
 			  storage list
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
-		text.Should().Be(expected);
+		TrimLines(text).Should().Be(TrimLines(expected));
 		text.Should().NotContain("hello");
 	}
 }

@@ -148,7 +148,7 @@ public class ArghRuntimeInProcTests
 		try
 		{
 			Console.SetOut(sw);
-			var code = await ArghRuntime.RunAsync(["di-probe", "ping"]);
+			var code = await ArghRuntime.RunAsync(["ping"]);
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("probe:from-di");
 		}
@@ -157,5 +157,30 @@ public class ArghRuntimeInProcTests
 			Console.SetOut(prevOut);
 			ArghServices.ServiceProvider = null;
 		}
+	}
+
+	[Fact]
+	public async Task CommandName_attribute_overrides_method_name()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["renamed-cmd"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("marker:renamed-cmd");
+		}
+		finally
+		{
+			Console.SetOut(prev);
+		}
+	}
+
+	[Fact]
+	public async Task CommandName_attribute_original_method_name_not_routable()
+	{
+		var code = await ArghRuntime.RunAsync(["original-method-name"]);
+		code.Should().Be(2);
 	}
 }

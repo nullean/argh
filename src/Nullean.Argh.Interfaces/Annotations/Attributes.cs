@@ -20,6 +20,20 @@ public sealed class NamespaceSegmentAttribute : Attribute
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class DefaultCommandAttribute : Attribute;
 
+/// <summary>
+/// Overrides the CLI command name for a method registered via <c>Map&lt;T&gt;</c> or <c>MapNamespace&lt;T&gt;</c>.
+/// Without this attribute the name is derived automatically from the method name (PascalCase → kebab-case,
+/// with <c>Async</c>/<c>Command</c>/<c>Handler</c> suffixes stripped).
+/// </summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class CommandNameAttribute : Attribute
+{
+	public CommandNameAttribute(string name) => Name = name;
+
+	/// <summary>The kebab-case CLI name for this command (e.g. <c>"my-command"</c>).</summary>
+	public string Name { get; }
+}
+
 /// <summary>Marks a parameter as a positional CLI argument (successive positions starting at 0).</summary>
 [AttributeUsage(AttributeTargets.Parameter)]
 public sealed class ArgumentAttribute : Attribute;
