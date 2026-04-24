@@ -24,6 +24,7 @@
     <Compile Include="..\Nullean.Argh.Tests\Fixtures\GroupedCliCommands.cs" Link="Fixtures\GroupedCliCommands.cs" />
     <Compile Include="..\Nullean.Argh.Tests\Fixtures\TestsCliMiddleware.cs" Link="Fixtures\TestsCliMiddleware.cs" />
     <Compile Include="..\Nullean.Argh.Tests\Fixtures\ValidationCliHandlers.cs" Link="Fixtures\ValidationCliHandlers.cs" />
+    <Compile Include="..\Nullean.Argh.Tests\Fixtures\RootAliasFixtures.cs" Link="Fixtures\RootAliasFixtures.cs" />
   </ItemGroup>
 
 </Project>

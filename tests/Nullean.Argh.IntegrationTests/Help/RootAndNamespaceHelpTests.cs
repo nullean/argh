@@ -32,10 +32,11 @@ public class RootAndNamespaceHelpTests
 			                     One of: <Trace|Information|Warning>
 
 			Namespaces:
-			  storage  Commands under storage. Nested BlobCommands must be registered
-			           explicitly via MapNamespace<BlobCommands>.
-			  billing  Billing commands
-			  support  Support commands
+			  storage      Commands under storage. Nested BlobCommands must be registered
+			               explicitly via MapNamespace<BlobCommands>.
+			  billing      Billing commands
+			  support      Support commands
+			  alias-scope  Root-alias integration test namespace.
 
 			Commands:
 			  hello                        Greet someone by name.

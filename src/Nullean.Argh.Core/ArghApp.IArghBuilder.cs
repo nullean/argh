@@ -77,6 +77,13 @@ public sealed partial class ArghApp
 	}
 
 	/// <inheritdoc />
+	IArghBuilder IArghBuilder.MapAndRootAlias<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
+	{
+		_ = MapAndRootAlias<T>();
+		return this;
+	}
+
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.UseNamespaceOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		_ = UseNamespaceOptions<T>();

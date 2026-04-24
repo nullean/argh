@@ -239,6 +239,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor MapAndRootAliasAmbiguousTarget = new(
+		"AGH0029",
+		"MapAndRootAlias<T> requires a [DefaultCommand] target",
+		"MapAndRootAlias<{0}> exposes multiple commands but none is marked [DefaultCommand]. Annotate exactly one method with [DefaultCommand] to designate the root alias target.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
 	// ── Pre-compiled Regex patterns ── compiled once, reused for every handler method analyzed
 	private static readonly Regex SummaryXmlPattern =
 		new(@"<summary>\s*([\s\S]*?)\s*</summary>", RegexOptions.Compiled);
@@ -267,6 +275,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				if (ma.Name is GenericNameSyntax gn && gn.TypeArgumentList.Arguments.Count > 0)
 					return true;
 				return inv.ArgumentList.Arguments.Count >= 2;
+			case "MapAndRootAlias":
+				return ma.Name is GenericNameSyntax gna && gna.TypeArgumentList.Arguments.Count > 0;
 			default:
 				return false;
 		}
@@ -437,6 +447,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private sealed class RegistryNode
 	{
 		public CommandModel? RootCommand;
+		/// <summary>Pointer to a named command that acts as the scope's root alias (set by <c>MapAndRootAlias&lt;T&gt;</c>).</summary>
+		public CommandModel? RootAlias;
 		public readonly List<CommandModel> Commands = new();
 		public readonly List<NamedCommandNamespaceChild> Children = new();
 		public Location? CommandNamespaceOptionsLocation;
@@ -592,6 +604,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private sealed record AIMapRootCommand(string FilePath, int SpanStart, CommandModel Cmd, bool IsNamespaceRoot)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
+	/// <summary>A <c>MapAndRootAlias&lt;T&gt;()</c> invocation — registers all T methods as named commands and marks one as the root alias.</summary>
+	private sealed record AIMapAndRootAlias(
+		string FilePath,
+		int SpanStart,
+		RegistryNodeSnapshot TypeSnapshot,
+		ImmutableArray<PendingDiagnostic> EmbeddedDiagnostics)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
 	/// <summary>
 	/// An <c>AddNamespace(…)</c> invocation.
 	/// LambdaBodyStart/End are character offsets into FilePath used to identify child invocations positionally.
@@ -630,7 +650,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ImmutableArray<CommandModel> Commands,
 		ImmutableArray<ChildNamespaceSnapshot> Children,
 		string SummaryInnerXml,
-		string RemarksInnerXml);
+		string RemarksInnerXml,
+		/// <summary>Alias target set by <c>MapAndRootAlias&lt;T&gt;</c> — a reference to a command already in <see cref="Commands"/>.</summary>
+		CommandModel? AliasCommand = null);
 
 	/// <summary>Symbol-free snapshot of a child namespace (nested type) produced during analysis.</summary>
 	private sealed record ChildNamespaceSnapshot(
@@ -689,6 +711,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		"AGH0026" => BoolFlagCollidesWithNullableNegation,
 		"AGH0027" => DuplicateCommandName,
 		"AGH0028" => ReadOnlySetInvalidElementType,
+		"AGH0029" => MapAndRootAliasAmbiguousTarget,
 		_ => throw new ArgumentException($"Unknown diagnostic id: {id}")
 	};
 
@@ -751,6 +774,16 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, mergeOuterTypeSegment: true, wrapper, parseOpts);
 				var snap = BuildRegistryNodeSnapshot(wrapper);
 				return new AIMapCommand(filePath, spanStart, ImmutableArray<CommandModel>.Empty, TypeSnapshot: snap);
+			}
+			case "MapAndRootAlias" when method.IsGenericMethod && method.TypeArguments.Length > 0:
+			{
+				if (method.TypeArguments[0] is not INamedTypeSymbol named || named.TypeKind == TypeKind.Error)
+					return null;
+				var acc = new DiagnosticAccumulator();
+				var wrapper = new RegistryNode();
+				AddMethodsFromTypeAccForAlias(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, wrapper, parseOpts);
+				var snap = BuildRegistryNodeSnapshot(wrapper);
+				return new AIMapAndRootAlias(filePath, spanStart, snap, acc.ToImmutable());
 			}
 			case "Map" when invocation.ArgumentList.Arguments.Count >= 2:
 			{
@@ -1001,7 +1034,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			node.Commands.ToImmutableArray(),
 			children.ToImmutable(),
 			node.SummaryInnerXml,
-			node.RemarksInnerXml);
+			node.RemarksInnerXml,
+			AliasCommand: node.RootAlias);
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────────
@@ -1169,6 +1203,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					ApplyRegistryNodeSnapshot(typeSnap, node, currentPath);
 					break;
 				}
+				case AIMapAndRootAlias alias:
+				{
+					foreach (var pd in alias.EmbeddedDiagnostics)
+						context.ReportDiagnostic(Diagnostic.Create(GetDescriptorById(pd.DescriptorId), pd.Span.ToLocation(), pd.Arg0, pd.Arg1));
+					if (node.RootAlias is not null || node.RootCommand is not null)
+					{
+						context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, Location.None));
+						break;
+					}
+					ApplyRegistryNodeSnapshot(alias.TypeSnapshot, node, currentPath);
+					break;
+				}
 				case AIMapCommand ac:
 					foreach (var cmd in ac.Commands)
 					{
@@ -1315,6 +1361,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			// Only set if not already set by an explicit AddNamespaceRootCommand in the lambda body.
 			target.RootCommand ??= prefixed;
 		}
+		CommandModel? prefixedAlias = null;
 		foreach (var cmd in snap.Commands)
 		{
 			var prefixed = cmd with
@@ -1323,7 +1370,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				RunMethodName = CommandModel.BuildRunMethodNameStatic(path, cmd.CommandName)
 			};
 			target.Commands.Add(prefixed);
+			// Track the re-prefixed alias if this command was designated as the alias target.
+			if (snap.AliasCommand is not null && cmd.CommandName == snap.AliasCommand.CommandName)
+				prefixedAlias = prefixed;
 		}
+		if (prefixedAlias is not null)
+			target.RootAlias ??= prefixedAlias;
 		foreach (var childSnap in snap.Children)
 		{
 			var childPath = AppendSegment(path, childSnap.Segment);
@@ -2174,6 +2226,57 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (defaultCommand is not null && SymbolEqualityComparer.Default.Equals(method, defaultCommand)) continue;
 			var cmdName = TryGetCommandNameAttribute(method) ?? Naming.ToCommandName(method.Name);
 			targetNode.Commands.Add(CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, acc, location));
+		}
+	}
+
+	/// <summary>
+	/// Variant of <see cref="AddMethodsFromTypeAcc"/> used by <c>MapAndRootAlias&lt;T&gt;</c>.
+	/// All public methods are registered as regular named commands (none extracted to RootCommand).
+	/// The [DefaultCommand]-marked method (or the sole method for single-method types) is also stored
+	/// in <see cref="RegistryNode.RootAlias"/> as the alias target.
+	/// </summary>
+	private static void AddMethodsFromTypeAccForAlias(
+		DiagnosticAccumulator acc,
+		Location location,
+		INamedTypeSymbol type,
+		ImmutableArray<string> routePrefix,
+		RegistryNode targetNode,
+		CSharpParseOptions parseOpts)
+	{
+		IMethodSymbol? defaultCommandMethod = null;
+		var publicOrdinaryMethods = new List<IMethodSymbol>();
+
+		foreach (var member in type.GetMembers())
+		{
+			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary) continue;
+			if (method.AssociatedSymbol is not null) continue;
+			if (method.DeclaredAccessibility != Accessibility.Public) continue;
+			publicOrdinaryMethods.Add(method);
+			if (!HasDefaultCommandAttribute(method)) continue;
+			if (defaultCommandMethod is not null)
+			{
+				acc.Add(MultipleDefaultCommandAttributes, method.Locations.FirstOrDefault() ?? location, type.Name);
+				continue;
+			}
+			defaultCommandMethod = method;
+		}
+
+		// Auto-select for single-method types; require [DefaultCommand] for multi-method types.
+		if (defaultCommandMethod is null)
+		{
+			if (publicOrdinaryMethods.Count == 1)
+				defaultCommandMethod = publicOrdinaryMethods[0];
+			else if (publicOrdinaryMethods.Count > 1)
+				acc.Add(MapAndRootAliasAmbiguousTarget, location, type.Name);
+		}
+
+		foreach (var method in publicOrdinaryMethods)
+		{
+			var cmdName = TryGetCommandNameAttribute(method) ?? Naming.ToCommandName(method.Name);
+			var cmd = CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, acc, location);
+			targetNode.Commands.Add(cmd);
+			if (defaultCommandMethod is not null && SymbolEqualityComparer.Default.Equals(method, defaultCommandMethod))
+				targetNode.RootAlias = cmd;
 		}
 	}
 
@@ -3732,6 +3835,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (app.Root.RootCommand is { } rootOverview)
 			EmitRootCommandHelpOverview(sb, rootOverview, "\t\t\t", app, entryAssemblyName);
+		else if (app.Root.RootAlias is { } rootAliasOverview)
+			EmitRootAliasHelpOverview(sb, rootAliasOverview, ImmutableArray<string>.Empty, "\t\t\t", entryAssemblyName);
 		else if (!string.IsNullOrWhiteSpace(app.RootSummary))
 		{
 			EmitCommandHelpDocPrologue(sb, "\t\t\t", null, app.RootSummary, false);
@@ -3824,6 +3929,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		if (node.RootCommand is { } nsRootOverview)
 			EmitRootCommandHelpOverview(sb, nsRootOverview, "\t\t\t", app, entryAssemblyName);
+		else if (node.RootAlias is { } nsAliasOverview)
+			EmitRootAliasHelpOverview(sb, nsAliasOverview, path, "\t\t\t", entryAssemblyName);
 		else if (!string.IsNullOrWhiteSpace(node.SummaryInnerXml))
 		{
 			EmitCommandHelpDocPrologue(sb, "\t\t\t", node.SummaryInnerXml, "", false);
@@ -3909,6 +4016,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t{");
 		if (node.RootCommand is { } dispatchRoot)
 			sb.AppendLine($"\t\t\t\treturn await {dispatchRoot.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
+		else if (node.RootAlias is { } dispatchAlias)
+			sb.AppendLine($"\t\t\t\treturn await {dispatchAlias.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
 		else
 		{
 			if (isRoot)
@@ -3948,11 +4057,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			});
 		}
 
-		if (node.RootCommand is { } flagFallback)
+		var flagFallbackMethod = node.RootCommand?.RunMethodName ?? node.RootAlias?.RunMethodName;
+		if (flagFallbackMethod is not null)
 		{
 			sb.AppendLine("\t\t\tif (tok.Length > 0 && tok[0] == '-')");
 			sb.AppendLine("\t\t\t{");
-			sb.AppendLine($"\t\t\t\treturn await {flagFallback.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
+			sb.AppendLine($"\t\t\t\treturn await {flagFallbackMethod}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
 			sb.AppendLine("\t\t\t}");
 		}
 
@@ -4341,6 +4451,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 		}
 
+		sb.AppendLine($"{indent}Console.Out.WriteLine();");
+	}
+
+	private static void EmitRootAliasHelpOverview(StringBuilder sb, CommandModel aliasCmd, ImmutableArray<string> path, string indent, string entryAssemblyName)
+	{
+		var fullCommandPath = path.IsDefaultOrEmpty
+			? $"{entryAssemblyName} {aliasCmd.CommandName}"
+			: $"{entryAssemblyName} {string.Join(" ", path)} {aliasCmd.CommandName}";
+		sb.AppendLine($"{indent}Console.Out.WriteLine(\" \" + CliHelpFormatting.DefaultCommandLabel(\"(default: {Escape(aliasCmd.CommandName)})\"));");
+		if (!string.IsNullOrWhiteSpace(aliasCmd.SummaryOneLiner))
+			sb.AppendLine($"{indent}Console.Out.WriteLine(\"    {Escape(aliasCmd.SummaryOneLiner)}\");");
+		sb.AppendLine($"{indent}Console.Out.WriteLine(\"    Alias for '{Escape(fullCommandPath)}'. Run '{Escape(fullCommandPath)} --help' for details.\");");
 		sb.AppendLine($"{indent}Console.Out.WriteLine();");
 	}
 
