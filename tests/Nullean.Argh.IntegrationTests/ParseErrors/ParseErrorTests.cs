@@ -31,12 +31,13 @@ public class ParseErrorTests
 			   Greet someone by name.
 
 			Global options:
-			  --help, -h           Show help.
-			  --verbose            
-			  --severity <string>  Enum default for global-flag parsing regression. [default: Information] [allowed: Trace|Information|Warning]
+			  --help, -h         Show help.
+			  --verbose
+			  --severity <enum>  Enum default for global-flag parsing regression. [default: Information]
+			                     One of: <Trace|Information|Warning>
 
 			Options:
-			  --name <string>      [required] The name to greet.
+			  --name <string>    [required] The name to greet.
 
 			Notes:  See DocLambdaEcho; set name.
 

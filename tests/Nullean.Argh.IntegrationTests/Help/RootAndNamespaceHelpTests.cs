@@ -25,10 +25,11 @@ public class RootAndNamespaceHelpTests
 			   Root default remarks for help layout tests.
 
 			Global options:
-			  --help, -h           Show help.
-			  --version            Show version.
+			  --help, -h         Show help.
+			  --version          Show version.
 			  --verbose
-			  --severity <string>  Enum default for global-flag parsing regression. [default: Information] [allowed: Trace|Information|Warning]
+			  --severity <enum>  Enum default for global-flag parsing regression. [default: Information]
+			                     One of: <Trace|Information|Warning>
 
 			Namespaces:
 			  storage  Commands under storage. Nested BlobCommands must be registered
@@ -93,12 +94,13 @@ public class RootAndNamespaceHelpTests
 			   Namespace default remarks for help layout tests.
 
 			Global options:
-			  --help, -h           Show help.
+			  --help, -h         Show help.
 			  --verbose
-			  --severity <string>  Enum default for global-flag parsing regression. [default: Information] [allowed: Trace|Information|Warning]
+			  --severity <enum>  Enum default for global-flag parsing regression. [default: Information]
+			                     One of: <Trace|Information|Warning>
 
 			'storage' options:
-			  --prefix <string>    [default: ]
+			  --prefix <string>  [default: ]
 
 			Namespaces:
 			  storage blob
