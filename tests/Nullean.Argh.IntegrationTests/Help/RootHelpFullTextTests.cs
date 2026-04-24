@@ -44,6 +44,7 @@ public class RootHelpFullTextTests
 			  deploy
 			  as-params-with-ct
 			  nullable-numeric-as-params
+			  multi-enum-as-params
 			  optional-uri-as-params
 			  prop-doc-as-params
 			  param-comment-record

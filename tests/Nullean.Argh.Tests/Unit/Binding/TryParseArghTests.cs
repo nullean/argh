@@ -99,4 +99,16 @@ public class TryParseArghTests
 		o.Should().NotBeNull();
 		o.Severity.Should().Be(FixtureSeverity.Warning);
 	}
+
+	[Fact]
+	public void TryParseArgh_mixed_nullability_multi_enum_DTO_parses_flags()
+	{
+		var ok = MultiEnumAsParamsArgs.TryParseArgh(
+			["--mix-severity", "Trace", "--mix-config-source", "Environment"],
+			out var a);
+		ok.Should().BeTrue();
+		a.Should().NotBeNull();
+		a.Severity.Should().Be(FixtureSeverity.Trace);
+		a.ConfigSource.Should().Be(FixtureConfigSource.Environment);
+	}
 }

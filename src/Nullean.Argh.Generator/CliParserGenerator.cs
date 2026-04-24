@@ -5983,16 +5983,17 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		if (p.ScalarKind == CliScalarKind.Enum && p.EnumTypeFq is not null)
 		{
-			sb.AppendLine($"{ind}if (!global::System.Enum.TryParse<{p.EnumTypeFq}>({rawExpr}, true, out var __ev) || !global::System.Enum.IsDefined(typeof({p.EnumTypeFq}), __ev))");
+			var evVar = "__ev_" + p.LocalVarName;
+			sb.AppendLine($"{ind}if (!global::System.Enum.TryParse<{p.EnumTypeFq}>({rawExpr}, true, out var {evVar}) || !global::System.Enum.IsDefined(typeof({p.EnumTypeFq}), {evVar}))");
 			sb.AppendLine($"{ind}{{");
 			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}: '{{{rawExpr}}}'.\");");
 			if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
 			sb.AppendLine($"{ind}\t{failureExit};");
 			sb.AppendLine($"{ind}}}");
 			if (outVarKeyword)
-				sb.AppendLine($"{ind}var {targetVar} = __ev;");
+				sb.AppendLine($"{ind}var {targetVar} = {evVar};");
 			else
-				sb.AppendLine($"{ind}{targetVar} = __ev;");
+				sb.AppendLine($"{ind}{targetVar} = {evVar};");
 			return;
 		}
 
