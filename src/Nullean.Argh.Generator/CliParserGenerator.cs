@@ -8563,7 +8563,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				return "--" + p.CliLongName;
 
 			if (p.Special == BoolSpecialKind.NullableBool)
-				return "--" + p.CliLongName + " / --no-" + p.CliLongName;
+				return "--[no-]" + p.CliLongName;
 
 			var th = TypeHint(p);
 			var sb = new StringBuilder();
