@@ -23,6 +23,13 @@ internal sealed record AsParamsWithCtArgs(string Env, int Port, CancellationToke
 /// <summary>Record with nullable value types for <see cref="AsParametersAttribute"/> binding coverage.</summary>
 internal sealed record NullableNumericAsParamsArgs(int? Rps, int? MaxPages);
 
+/// <summary>AsParameters: <see cref="FixtureSeverity"/> with default + <see cref="FixtureConfigSource"/>? (CS0136: one <c>out</c> per enum, not a shared <c>__ev</c>).</summary>
+internal sealed class MultiEnumAsParamsArgs
+{
+	public FixtureSeverity Severity { get; set; } = FixtureSeverity.Information;
+	public FixtureConfigSource? ConfigSource { get; set; }
+}
+
 /// <summary>Record with optional <see cref="Uri"/> for <see cref="AsParametersAttribute"/> binding coverage.</summary>
 internal sealed record OptionalUriAsParamsArgs(Uri? Endpoint);
 
@@ -66,6 +73,9 @@ internal static class CliTestHandlers
 
 	public static void NullableNumericAsParams(TestGlobalCliOptions g, [AsParameters("labs")] NullableNumericAsParamsArgs args) =>
 		Console.Out.WriteLine($"nullable-numeric:{args.Rps?.ToString() ?? "null"}:{args.MaxPages?.ToString() ?? "null"}");
+
+	public static void MultiEnumAsParams(TestGlobalCliOptions g, [AsParameters("mix")] MultiEnumAsParamsArgs args) =>
+		Console.Out.WriteLine($"multi-enum:{args.Severity}:{args.ConfigSource?.ToString() ?? "null"}");
 
 	public static void OptionalUriAsParams(TestGlobalCliOptions g, [AsParameters] OptionalUriAsParamsArgs args) =>
 		Console.Out.WriteLine($"optional-uri:{args.Endpoint?.ToString() ?? "null"}");
