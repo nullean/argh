@@ -223,6 +223,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor DuplicateCommandName = new(
+		"AGH0027",
+		"Duplicate command name in scope",
+		"The command name '{0}' is registered more than once in the same scope. Only the first registration is used; rename one command or use [CommandName] to assign a unique name.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
 	// ── Pre-compiled Regex patterns ── compiled once, reused for every handler method analyzed
 	private static readonly Regex SummaryXmlPattern =
 		new(@"<summary>\s*([\s\S]*?)\s*</summary>", RegexOptions.Compiled);
@@ -671,6 +679,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		"AGH0024" => UriSchemeOnNonUriParam,
 		"AGH0025" => TimeSpanRangeOnNonTimeSpanParam,
 		"AGH0026" => BoolFlagCollidesWithNullableNegation,
+		"AGH0027" => DuplicateCommandName,
 		_ => throw new ArgumentException($"Unknown diagnostic id: {id}")
 	};
 
@@ -727,12 +736,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				if (method.TypeArguments[0] is not INamedTypeSymbol named || named.TypeKind == TypeKind.Error)
 					return null;
-				// Use mergeOuterTypeSegment: false — at root this creates a child namespace wrapper.
-				// At namespace level (mergeOuterTypeSegment: true in old code), this also works:
-				// TryBuildAppEmitModel determines the merge behavior from context.
+				// Always hoist: merge the type's methods directly into the current scope (root or namespace).
 				var acc = new DiagnosticAccumulator();
 				var wrapper = new RegistryNode();
-				ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, mergeOuterTypeSegment: false, wrapper, parseOpts);
+				ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, mergeOuterTypeSegment: true, wrapper, parseOpts);
 				var snap = BuildRegistryNodeSnapshot(wrapper);
 				return new AIMapCommand(filePath, spanStart, ImmutableArray<CommandModel>.Empty, TypeSnapshot: snap);
 			}
@@ -1071,6 +1078,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		foreach (var c in flat)
 		{
 			var key = string.Join("/", c.RoutePrefix) + "/" + c.CommandName;
+			if (dedup.ContainsKey(key))
+			{
+				context.ReportDiagnostic(Diagnostic.Create(DuplicateCommandName, c.HandlerSpanInfo.ToLocation(), c.CommandName));
+				continue;
+			}
 			dedup[key] = c;
 		}
 
@@ -1142,24 +1154,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					break;
 				case AIMapCommand { TypeSnapshot: { } typeSnap }:
 				{
-					// Add<T> invocation — apply the pre-computed snapshot.
-					// At root level (isRoot=true), mergeOuterTypeSegment was false: add as child namespace.
-					// Inside namespace (isRoot=false), mergeOuterTypeSegment was true: merge directly.
-					if (!isRoot)
-					{
-						// Merge: snapshot has single child per type; extract its contents into current node.
-						foreach (var childSnap in typeSnap.Children)
-							ApplyRegistryNodeSnapshot(childSnap.Node, node, currentPath);
-						if (typeSnap.RootCommand is { } snapRc)
-							node.RootCommand ??= snapRc with { RoutePrefix = currentPath, RunMethodName = CommandModel.BuildRootDefaultRunMethodName(currentPath) };
-						foreach (var snapCmd in typeSnap.Commands)
-							node.Commands.Add(snapCmd with { RoutePrefix = currentPath, RunMethodName = CommandModel.BuildRunMethodNameStatic(currentPath, snapCmd.CommandName) });
-					}
-					else
-					{
-						// Not merged: add child namespaces directly.
-						ApplyRegistryNodeSnapshot(typeSnap, node, currentPath);
-					}
+					// Map<T> always hoists: merge the snapshot's commands directly into the current node.
+					ApplyRegistryNodeSnapshot(typeSnap, node, currentPath);
 					break;
 				}
 				case AIMapCommand ac:
@@ -2124,7 +2120,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (defaultCommand is not null && SymbolEqualityComparer.Default.Equals(method, defaultCommand))
 				continue;
 
-			var cmdName = Naming.ToCommandName(method.Name);
+			var cmdName = TryGetCommandNameAttribute(method) ?? Naming.ToCommandName(method.Name);
 			targetNode.Commands.Add(CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, context, invocation.GetLocation()));
 		}
 	}
@@ -2165,7 +2161,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (method.AssociatedSymbol is not null) continue;
 			if (method.DeclaredAccessibility != Accessibility.Public) continue;
 			if (defaultCommand is not null && SymbolEqualityComparer.Default.Equals(method, defaultCommand)) continue;
-			var cmdName = Naming.ToCommandName(method.Name);
+			var cmdName = TryGetCommandNameAttribute(method) ?? Naming.ToCommandName(method.Name);
 			targetNode.Commands.Add(CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, acc, location));
 		}
 	}
@@ -2180,6 +2176,21 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 
 		return false;
+	}
+
+	private static string? TryGetCommandNameAttribute(IMethodSymbol method)
+	{
+		foreach (var ad in method.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name == "CommandNameAttribute" &&
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh" &&
+			    ad.ConstructorArguments.Length == 1 &&
+			    ad.ConstructorArguments[0].Value is string name &&
+			    !string.IsNullOrWhiteSpace(name))
+				return name;
+		}
+
+		return null;
 	}
 
 	private static ExpressionSyntax? TryGetPropertyInitializerValueSyntax(IPropertySymbol prop)

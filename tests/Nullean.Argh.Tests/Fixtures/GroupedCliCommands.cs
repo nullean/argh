@@ -50,3 +50,11 @@ internal sealed class DiProbeCommands(IDiProbeService svc)
 	public void Ping(TestGlobalCliOptions g) =>
 		Console.Out.WriteLine($"probe:{svc.Marker}");
 }
+
+/// <summary>Commands whose CLI name is overridden via <c>[CommandName]</c>.</summary>
+internal sealed class CommandNameOverrideCommands
+{
+	[CommandName("renamed-cmd")]
+	public static void OriginalMethodName(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine("marker:renamed-cmd");
+}
