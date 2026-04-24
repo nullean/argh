@@ -15,25 +15,42 @@ public interface IArghBuilder
 	/// <summary>Registers a named command backed by a method group or lambda.</summary>
 	IArghBuilder Map(string name, Delegate handler);
 
-	/// <summary>Registers every public method on <typeparamref name="T"/> as a command.</summary>
+	/// <summary>
+	/// Hoists every public method on <typeparamref name="T"/> as a command into the current scope (root or namespace).
+	/// Methods are named by converting PascalCase to kebab-case; use <see cref="CommandNameAttribute"/> to override a name.
+	/// Annotate one method with <see cref="DefaultCommandAttribute"/> to make it the scope's default handler.
+	/// </summary>
 	IArghBuilder Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class;
 
 	/// <summary>Registers a default handler when no subcommand is given at the current scope (app root or inside a namespace).</summary>
 	IArghBuilder MapRoot(Delegate handler);
 
-	/// <summary>Registers a nested command namespace with description and nested configuration.</summary>
+	/// <summary>Registers a nested command namespace with an explicit description and nested configuration.</summary>
 	IArghBuilder MapNamespace(string name, string description, Action<IArghBuilder> configure);
 
-	/// <summary>Registers a nested namespace for handler type <typeparamref name="T"/> with an explicit segment name.</summary>
+	/// <summary>
+	/// Registers a nested namespace named <paramref name="name"/> whose description and commands come from <typeparamref name="T"/>.
+	/// Every public method on <typeparamref name="T"/> becomes a command inside the namespace.
+	/// </summary>
 	IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name) where T : class;
 
-	/// <summary>Registers a nested namespace with nested configuration.</summary>
+	/// <summary>
+	/// Registers a nested namespace named <paramref name="name"/> sourced from <typeparamref name="T"/>, with additional configuration.
+	/// Every public method on <typeparamref name="T"/> becomes a command inside the namespace.
+	/// </summary>
 	IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghBuilder> configure) where T : class;
 
-	/// <summary>Registers a nested namespace with namespace-builder configuration.</summary>
+	/// <summary>
+	/// Registers a nested namespace named <paramref name="name"/> sourced from <typeparamref name="T"/>, with namespace-builder configuration.
+	/// Every public method on <typeparamref name="T"/> becomes a command inside the namespace.
+	/// </summary>
 	IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghNamespaceBuilder> configure) where T : class;
 
-	/// <summary>Registers a nested namespace using a segment from handler metadata.</summary>
+	/// <summary>
+	/// Registers a nested namespace sourced from <typeparamref name="T"/>; the segment name is read from
+	/// <see cref="NamespaceSegmentAttribute"/> on <typeparamref name="T"/>.
+	/// Every public method on <typeparamref name="T"/> becomes a command inside the namespace.
+	/// </summary>
 	IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(Action<IArghNamespaceBuilder> configure) where T : class;
 
 	/// <summary>Registers typed options for the current command namespace.</summary>
