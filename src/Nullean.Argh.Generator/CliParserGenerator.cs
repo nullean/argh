@@ -6717,7 +6717,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		// Enum members displayed as [allowed: …] on the validation line
 		if (p.ScalarKind == CliScalarKind.Enum && !p.EnumMemberNames.IsDefaultOrEmpty)
 		{
-			tokens.Add("[allowed: " + string.Join("|", p.EnumMemberNames) + "]");
+			tokens.Add("One of: <" + string.Join("|", p.EnumMemberNames) + ">");
 			if (p.EnumMemberDocs is { Count: > 0 } docs)
 			{
 				var memberDescParts = new List<string>();
@@ -6780,14 +6780,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private static void EmitHelpOptionRows(StringBuilder sb, IReadOnlyList<ParameterModel> rows, int maxOptWidth)
 	{
+		var continuationIndent = new string(' ', maxOptWidth + 4);
 		foreach (var p in rows)
 		{
 			var left = HelpLayout.FormatOptionLeftCell(p).PadRight(maxOptWidth);
 			var desc = BuildDescriptionSuffix(p, forPositional: false);
 			var validationLine = BuildValidationLine(p);
+			var validationOnNewLine = validationLine != null && p.ScalarKind == CliScalarKind.Enum;
+
 			if (validationLine is null)
 			{
 				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {EscapeForHelpInterpolation(desc)}\");");
+			}
+			else if (validationOnNewLine)
+			{
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {EscapeForHelpInterpolation(desc)}\");");
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"{continuationIndent}{{CliHelpFormatting.DocRemarksLine(\"{Escape(validationLine)}\")}}\");");
 			}
 			else if (string.IsNullOrEmpty(desc))
 			{
@@ -8555,7 +8563,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				return "--" + p.CliLongName;
 
 			if (p.Special == BoolSpecialKind.NullableBool)
-				return "--" + p.CliLongName + " / --no-" + p.CliLongName;
+				return "--[no-]" + p.CliLongName;
 
 			var th = TypeHint(p);
 			var sb = new StringBuilder();
@@ -8585,7 +8593,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				case CliScalarKind.Collection:
 					return "<values>";
 				case CliScalarKind.Enum:
-					return "<string>";
+				return "<enum>";
 				case CliScalarKind.FileInfo:
 					return "<path>";
 				case CliScalarKind.DirectoryInfo:
