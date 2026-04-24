@@ -1,3 +1,4 @@
+using System.Threading;
 using Nullean.Argh;
 using Nullean.Argh.Parsing;
 
@@ -15,6 +16,9 @@ internal enum TestColor
 /// <param name="Env">Deployment environment name.</param>
 /// <param name="Port">Listen port.</param>
 internal sealed record DeployCliArgs(string Env, int Port);
+
+/// <summary><see cref="AsParametersAttribute"/> record with injected <see cref="CancellationToken"/> (must follow all CLI-bound members).</summary>
+internal sealed record AsParamsWithCtArgs(string Env, int Port, CancellationToken Ct);
 
 /// <summary>Record with nullable value types for <see cref="AsParametersAttribute"/> binding coverage.</summary>
 internal sealed record NullableNumericAsParamsArgs(int? Rps, int? MaxPages);
@@ -56,6 +60,9 @@ internal static class CliTestHandlers
 
 	public static void Deploy(TestGlobalCliOptions g, [AsParameters("app")] DeployCliArgs args) =>
 		Console.Out.WriteLine($"deploy:{args.Env}:{args.Port}");
+
+	public static void AsParamsWithCt(TestGlobalCliOptions g, [AsParameters("run")] AsParamsWithCtArgs args) =>
+		Console.Out.WriteLine($"as-params-ct:{args.Env}:{args.Port}:{args.Ct.CanBeCanceled}");
 
 	public static void NullableNumericAsParams(TestGlobalCliOptions g, [AsParameters("labs")] NullableNumericAsParamsArgs args) =>
 		Console.Out.WriteLine($"nullable-numeric:{args.Rps?.ToString() ?? "null"}:{args.MaxPages?.ToString() ?? "null"}");

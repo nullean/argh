@@ -40,6 +40,19 @@ public class TryParseArghTests
 	}
 
 	[Fact]
+	public void TryParseArgh_static_on_AsParameters_record_uses_default_CancellationToken_for_injected_member()
+	{
+		var ok = AsParamsWithCtArgs.TryParseArgh(
+			["--run-env", "z", "--run-port", "7"],
+			out var a);
+		ok.Should().BeTrue();
+		a.Should().NotBeNull();
+		a.Env.Should().Be("z");
+		a.Port.Should().Be(7);
+		a.Ct.CanBeCanceled.Should().BeFalse();
+	}
+
+	[Fact]
 	public void TryParseArgh_static_on_AsParameters_record_binds_nullable_int_flags()
 	{
 		var ok = NullableNumericAsParamsArgs.TryParseArgh(

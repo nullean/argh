@@ -2280,18 +2280,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	}
 
 
-	private static bool IsInjected(IParameterSymbol p)
+	private static bool IsInjectedType(ITypeSymbol type)
 	{
-		var t = p.Type;
-		if (t is INamedTypeSymbol named && named.TypeKind == TypeKind.Struct)
+		if (type is INamedTypeSymbol named && named.TypeKind == TypeKind.Struct)
 		{
 			var fq = named.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			if (fq == "global::System.Threading.CancellationToken")
-				return true;
+			return fq == "global::System.Threading.CancellationToken";
 		}
 
 		return false;
 	}
+
+	private static bool IsInjected(IParameterSymbol p) => IsInjectedType(p.Type);
 
 	private static bool HasArgumentAttribute(IParameterSymbol p)
 	{
@@ -4704,7 +4704,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				if (i > 0)
 					sb.Append(", ");
-				sb.Append(ctor[i].LocalVarName);
+				sb.Append(ctor[i].Kind == ParameterKind.Injected ? "ct" : ctor[i].LocalVarName);
 			}
 
 			sb.Append(")");
@@ -4713,7 +4713,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine();
 				sb.AppendLine("\t\t\t{");
 				foreach (var ip in init)
-					sb.AppendLine($"\t\t\t\t{ip.AsParametersClrName} = {ip.LocalVarName},");
+				{
+					var rhs = ip.Kind == ParameterKind.Injected ? "ct" : ip.LocalVarName;
+					sb.AppendLine($"\t\t\t\t{ip.AsParametersClrName} = {rhs},");
+				}
+
 				sb.AppendLine("\t\t\t};");
 			}
 			else
@@ -4749,7 +4753,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			if (i > 0)
 				sb.Append(", ");
-			sb.Append(ctor[i].LocalVarName);
+			sb.Append(ctor[i].Kind == ParameterKind.Injected
+				? "default(global::System.Threading.CancellationToken)"
+				: ctor[i].LocalVarName);
 		}
 
 		sb.Append(")");
@@ -4758,7 +4764,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine();
 			sb.AppendLine("\t\t\t{");
 			foreach (var ip in init)
-				sb.AppendLine($"\t\t\t\t{ip.AsParametersClrName} = {ip.LocalVarName},");
+			{
+				var rhs = ip.Kind == ParameterKind.Injected
+					? "default(global::System.Threading.CancellationToken)"
+					: ip.LocalVarName;
+				sb.AppendLine($"\t\t\t\t{ip.AsParametersClrName} = {rhs},");
+			}
+
 			sb.AppendLine("\t\t\t};");
 		}
 		else
@@ -7621,6 +7633,34 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			int memberOrder,
 			CSharpParseOptions parseOptions)
 		{
+			if (IsInjectedType(cp.Type))
+			{
+				var injCli = namePrefix + Naming.ToCliLongName(cp.Name);
+				var injLocal = SafeLocalName(methodParamName + "_" + cp.Name);
+				return new ParameterModel(
+					cp.Name,
+					injLocal,
+					injCli,
+					ParameterKind.Injected,
+					BoolSpecialKind.None,
+					CliScalarKind.Primitive,
+					"CancellationToken",
+					null,
+					ImmutableArray<string>.Empty,
+					null,
+					null,
+					false,
+					null,
+					"",
+					null,
+					ImmutableArray<string>.Empty,
+					AsParametersOwnerParamName: methodParamName,
+					AsParametersMemberOrder: memberOrder,
+					AsParametersTypeFq: typeFq,
+					AsParametersUseInit: false,
+					AsParametersClrName: cp.Name);
+			}
+
 			var isArg = HasArgumentAttribute(cp);
 			var kind = isArg ? ParameterKind.Positional : ParameterKind.Flag;
 			var bs = ClassifyBool(cp.Type);
@@ -7686,6 +7726,34 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			int memberOrder,
 			CSharpParseOptions parseOptions)
 		{
+			if (IsInjectedType(prop.Type))
+			{
+				var injCli = namePrefix + Naming.ToCliLongName(prop.Name);
+				var injLocal = SafeLocalName(methodParamName + "_" + prop.Name);
+				return new ParameterModel(
+					prop.Name,
+					injLocal,
+					injCli,
+					ParameterKind.Injected,
+					BoolSpecialKind.None,
+					CliScalarKind.Primitive,
+					"CancellationToken",
+					null,
+					ImmutableArray<string>.Empty,
+					null,
+					null,
+					false,
+					null,
+					"",
+					null,
+					ImmutableArray<string>.Empty,
+					AsParametersOwnerParamName: methodParamName,
+					AsParametersMemberOrder: memberOrder,
+					AsParametersTypeFq: typeFq,
+					AsParametersUseInit: true,
+					AsParametersClrName: prop.Name);
+			}
+
 			var isArg = HasArgumentAttribute(prop);
 			var kind = isArg ? ParameterKind.Positional : ParameterKind.Flag;
 			var bs = ClassifyBool(prop.Type);
@@ -7940,14 +8008,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return b.ToImmutable();
 		}
 
-		private static bool IsInjectedStatic(IParameterSymbol p)
-		{
-			if (p.Type is not INamedTypeSymbol named)
-				return false;
-
-			var fq = named.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			return fq == "global::System.Threading.CancellationToken";
-		}
+		private static bool IsInjectedStatic(IParameterSymbol p) => IsInjectedType(p.Type);
 
 		private static BoolSpecialKind ClassifyBool(ITypeSymbol type)
 		{

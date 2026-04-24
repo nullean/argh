@@ -38,6 +38,7 @@ public class RootAndNamespaceHelpTests
 			  hello                        Greet someone by name.
 			  enum-cmd                     Enum and short options.
 			  deploy                     
+			  as-params-with-ct          
 			  nullable-numeric-as-params 
 			  optional-uri-as-params     
 			  prop-doc-as-params         
