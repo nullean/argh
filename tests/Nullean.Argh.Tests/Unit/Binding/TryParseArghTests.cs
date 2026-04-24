@@ -81,4 +81,22 @@ public class TryParseArghTests
 		ok.Should().BeTrue();
 		o!.Verbose.Should().BeTrue();
 	}
+
+	[Fact]
+	public void TryParseArgh_global_non_nullable_enum_omitted_uses_property_initializer()
+	{
+		var ok = TestGlobalCliOptions.TryParseArgh([], out var o);
+		ok.Should().BeTrue();
+		o.Should().NotBeNull();
+		o.Severity.Should().Be(FixtureSeverity.Information);
+	}
+
+	[Fact]
+	public void TryParseArgh_global_non_nullable_enum_can_be_overridden_by_flag()
+	{
+		var ok = TestGlobalCliOptions.TryParseArgh(["--severity", "Warning"], out var o);
+		ok.Should().BeTrue();
+		o.Should().NotBeNull();
+		o.Severity.Should().Be(FixtureSeverity.Warning);
+	}
 }

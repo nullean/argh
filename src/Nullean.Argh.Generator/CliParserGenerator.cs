@@ -215,6 +215,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Warning,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor BoolFlagCollidesWithNullableNegation = new(
+		"AGH0026",
+		"Bool flag collides with nullable bool negation",
+		"Parameter '{0}' maps to '--{1}', which duplicates the negation flag generated for a nullable bool on the same command. Rename one of the parameters.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
 	// ── Pre-compiled Regex patterns ── compiled once, reused for every handler method analyzed
 	private static readonly Regex SummaryXmlPattern =
 		new(@"<summary>\s*([\s\S]*?)\s*</summary>", RegexOptions.Compiled);
@@ -662,6 +670,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		"AGH0023" => UseCliDescriptionConflictsWithMapRoot,
 		"AGH0024" => UriSchemeOnNonUriParam,
 		"AGH0025" => TimeSpanRangeOnNonTimeSpanParam,
+		"AGH0026" => BoolFlagCollidesWithNullableNegation,
 		_ => throw new ArgumentException($"Unknown diagnostic id: {id}")
 	};
 
@@ -690,7 +699,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				if (method.TypeArguments[0] is not INamedTypeSymbol go || go.TypeKind == TypeKind.Error)
 					return null;
-				var model = BuildOptionsTypeModel(go);
+				var model = BuildOptionsTypeModel(go, semanticModel.Compilation);
 				if (model is null) return null;
 				return new AIUseGlobalOptions(filePath, spanStart, model);
 			}
@@ -698,7 +707,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				if (method.TypeArguments[0] is not INamedTypeSymbol gt || gt.TypeKind == TypeKind.Error)
 					return null;
-				var model = BuildOptionsTypeModel(gt);
+				var model = BuildOptionsTypeModel(gt, semanticModel.Compilation);
 				if (model is null) return null;
 				return new AIUseNamespaceOptions(filePath, spanStart, model);
 			}
@@ -2173,7 +2182,136 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return false;
 	}
 
-	private static OptionsTypeModel? BuildOptionsTypeModel(INamedTypeSymbol type)
+	private static ExpressionSyntax? TryGetPropertyInitializerValueSyntax(IPropertySymbol prop)
+	{
+		foreach (var syntaxRef in prop.DeclaringSyntaxReferences)
+		{
+			if (syntaxRef.GetSyntax() is PropertyDeclarationSyntax { Initializer: { Value: var expr } })
+				return expr;
+		}
+
+		return null;
+	}
+
+	private static ExpressionSyntax? TryGetFieldInitializerValueSyntax(IFieldSymbol field)
+	{
+		foreach (var syntaxRef in field.DeclaringSyntaxReferences)
+		{
+			if (syntaxRef.GetSyntax() is VariableDeclaratorSyntax { Initializer: { Value: var expr } })
+				return expr;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Some initializer shapes yield a bare enum member name (e.g. <c>Information</c>). Emit must use a type-qualified form.
+	/// </summary>
+	private static string? QualifyOptionsEnumDefaultLiteral(
+		string? literal,
+		CliScalarKind sk,
+		string? enumFq,
+		ImmutableArray<string> enumMembers)
+	{
+		if (literal is null || sk != CliScalarKind.Enum || string.IsNullOrEmpty(enumFq))
+			return literal;
+		if (literal.StartsWith("global::", StringComparison.Ordinal) || literal.StartsWith("(", StringComparison.Ordinal))
+			return literal;
+		if (literal.Contains("::", StringComparison.Ordinal))
+			return literal;
+		foreach (var m in enumMembers)
+		{
+			if (!string.Equals(m, literal, StringComparison.Ordinal))
+				continue;
+			return enumFq + "." + literal;
+		}
+
+		return literal;
+	}
+
+	private static bool EnumConstantValuesEqual(object fieldConst, object literalConst)
+	{
+		if (Equals(fieldConst, literalConst))
+			return true;
+		try
+		{
+			return Convert.ToDecimal(fieldConst, CultureInfo.InvariantCulture) ==
+			       Convert.ToDecimal(literalConst, CultureInfo.InvariantCulture);
+		}
+		catch
+		{
+			return false;
+		}
+	}
+
+	private static string? TryFormatInitializerOperation(IOperation? op, INamedTypeSymbol? enumTypeHint = null)
+	{
+		while (op is IConversionOperation conv)
+			op = conv.Operand;
+		while (op is IParenthesizedOperation paren)
+			op = paren.Operand;
+
+		switch (op)
+		{
+			case IFieldReferenceOperation { Field: var ef } when ef.IsStatic && (ef.HasConstantValue || ef.ContainingType?.TypeKind == TypeKind.Enum):
+				return ef.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			case ILiteralOperation lit when lit.ConstantValue.HasValue && lit.ConstantValue.Value is { } v:
+			{
+				var enm = lit.Type is INamedTypeSymbol litEnum && litEnum.TypeKind == TypeKind.Enum
+					? litEnum
+					: enumTypeHint is { TypeKind: TypeKind.Enum } hintEnum
+						? hintEnum
+						: null;
+				if (enm is not null)
+				{
+					foreach (var m in enm.GetMembers())
+					{
+						if (m is not IFieldSymbol fld || !fld.HasConstantValue)
+							continue;
+						if (EnumConstantValuesEqual(fld.ConstantValue, lit.ConstantValue.Value))
+							return fld.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+					}
+
+					return null;
+				}
+
+				return v switch
+				{
+					string s => SymbolDisplay.FormatPrimitive(s, quoteStrings: true, useHexadecimalNumbers: false),
+					char ch => SymbolDisplay.FormatPrimitive(ch, quoteStrings: true, useHexadecimalNumbers: false),
+					bool b => b ? "true" : "false",
+					IFormattable => Convert.ToString(v, CultureInfo.InvariantCulture) ?? "default",
+					_ => "default"
+				};
+			}
+			default:
+				return null;
+		}
+	}
+
+	private static string? TryFormatOptionsInitializerExpression(Compilation compilation, ExpressionSyntax expr, ITypeSymbol? enumTypeHint = null)
+	{
+		var model = compilation.GetSemanticModel(expr.SyntaxTree);
+		var hint = enumTypeHint is INamedTypeSymbol namedHint && namedHint.TypeKind == TypeKind.Enum ? namedHint : null;
+		var fromOp = TryFormatInitializerOperation(model.GetOperation(expr), hint);
+		if (fromOp is not null)
+			return fromOp;
+
+		// Fallback when IOperation shape is unexpected (e.g. some enum constant shapes in property initializers).
+		var sym = model.GetSymbolInfo(expr).Symbol;
+		if (sym is IFieldSymbol { ContainingType.TypeKind: TypeKind.Enum } ef)
+			return ef.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+		return null;
+	}
+
+	private static string? TryGetOptionsPropertyDefaultLiteral(IPropertySymbol prop, Compilation compilation) =>
+		TryGetPropertyInitializerValueSyntax(prop) is { } expr ? TryFormatOptionsInitializerExpression(compilation, expr, prop.Type) : null;
+
+	private static string? TryGetOptionsFieldDefaultLiteral(IFieldSymbol field, Compilation compilation) =>
+		TryGetFieldInitializerValueSyntax(field) is { } expr ? TryFormatOptionsInitializerExpression(compilation, expr, field.Type) : null;
+
+	private static OptionsTypeModel? BuildOptionsTypeModel(INamedTypeSymbol type, Compilation compilation)
 	{
 		var members = ImmutableArray.CreateBuilder<ParameterModel>();
 		foreach (var member in type.GetMembers())
@@ -2186,11 +2324,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						continue;
 					if (prop.GetMethod is null || prop.SetMethod is null)
 						continue;
-					members.Add(ParameterModel.FromOptionsProperty(prop));
+					members.Add(ParameterModel.FromOptionsProperty(prop, TryGetOptionsPropertyDefaultLiteral(prop, compilation)));
 					break;
 				}
 				case IFieldSymbol field when field.DeclaredAccessibility == Accessibility.Public && !field.IsStatic:
-					members.Add(ParameterModel.FromOptionsField(field));
+					members.Add(ParameterModel.FromOptionsField(field, TryGetOptionsFieldDefaultLiteral(field, compilation)));
 					break;
 			}
 		}
@@ -2198,7 +2336,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var typeFq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 		var typeMetaName = GetMetadataNameStatic(type);
 		var baseNames = CollectBaseTypeMetadataNames(type);
-		var flattenedMembers = BuildFlattenedOptionsMembers(type);
+		var flattenedMembers = BuildFlattenedOptionsMembers(type, compilation);
 		var bestCtorParamOrder = ComputeBestCtorParamOrder(type, members.Count > 0 ? members.ToImmutable() : ImmutableArray<ParameterModel>.Empty);
 		var isPublic = type.DeclaredAccessibility == Accessibility.Public;
 		var isGeneric = type.TypeParameters.Length > 0;
@@ -2207,6 +2345,48 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return new OptionsTypeModel(typeFq, typeMetaName, baseNames, ImmutableArray<ParameterModel>.Empty, flattenedMembers, bestCtorParamOrder, isPublic, isGeneric);
 
 		return new OptionsTypeModel(typeFq, typeMetaName, baseNames, members.ToImmutable(), flattenedMembers, bestCtorParamOrder, isPublic, isGeneric);
+	}
+
+	private static ImmutableArray<ParameterModel> BuildFlattenedOptionsMembers(INamedTypeSymbol type, Compilation compilation)
+	{
+		var chain = new List<INamedTypeSymbol>();
+		for (var t = type; t is not null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)
+			chain.Add(t);
+
+		var members = ImmutableArray.CreateBuilder<ParameterModel>();
+		var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		for (var i = chain.Count - 1; i >= 0; i--)
+		{
+			var tt = chain[i];
+			foreach (var member in tt.GetMembers())
+			{
+				switch (member)
+				{
+					case IPropertySymbol prop when prop.DeclaredAccessibility == Accessibility.Public && !prop.IsStatic:
+					{
+						if (prop.IsIndexer)
+							continue;
+						if (prop.GetMethod is null || prop.SetMethod is null)
+							continue;
+						if (!seen.Add(prop.Name))
+							continue;
+
+						members.Add(ParameterModel.FromOptionsProperty(prop, TryGetOptionsPropertyDefaultLiteral(prop, compilation)));
+						break;
+					}
+					case IFieldSymbol field when field.DeclaredAccessibility == Accessibility.Public && !field.IsStatic:
+					{
+						if (!seen.Add(field.Name))
+							continue;
+
+						members.Add(ParameterModel.FromOptionsField(field, TryGetOptionsFieldDefaultLiteral(field, compilation)));
+						break;
+					}
+				}
+			}
+		}
+
+		return members.ToImmutable();
 	}
 
 	/// <summary>Pre-computes the parameter name order for the best public non-empty constructor (for symbol-free emit).</summary>
@@ -2423,6 +2603,72 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (prop.GetMethod is null)
 			return false;
 		return prop.SetMethod is not null;
+	}
+
+	private static void ReportBoolNegationSwitchConflicts(
+		SourceProductionContext context,
+		Location fallbackLocation,
+		ImmutableArray<ParameterModel> parameters,
+		IMethodSymbol method)
+	{
+		var locByParamName = new Dictionary<string, Location>(StringComparer.Ordinal);
+		foreach (var sym in method.Parameters)
+		{
+			if (sym.Locations.Length == 0)
+				continue;
+			var loc = sym.Locations[0];
+			if (loc.IsInSource)
+				locByParamName[sym.Name] = loc;
+		}
+
+		foreach (var nullable in parameters)
+		{
+			if (nullable.Kind != ParameterKind.Flag || nullable.Special != BoolSpecialKind.NullableBool)
+				continue;
+			var negCli = "no-" + nullable.CliLongName;
+			foreach (var plain in parameters)
+			{
+				if (plain.Kind != ParameterKind.Flag || plain.Special != BoolSpecialKind.Bool)
+					continue;
+				if (!string.Equals(plain.CliLongName, negCli, StringComparison.OrdinalIgnoreCase))
+					continue;
+				var loc = locByParamName.TryGetValue(plain.SymbolName, out var l) ? l : fallbackLocation;
+				context.ReportDiagnostic(Diagnostic.Create(BoolFlagCollidesWithNullableNegation, loc, plain.SymbolName, plain.CliLongName));
+			}
+		}
+	}
+
+	private static void ReportBoolNegationSwitchConflictsAcc(
+		DiagnosticAccumulator acc,
+		Location fallbackLocation,
+		ImmutableArray<ParameterModel> parameters,
+		IMethodSymbol method)
+	{
+		var locByParamName = new Dictionary<string, Location>(StringComparer.Ordinal);
+		foreach (var sym in method.Parameters)
+		{
+			if (sym.Locations.Length == 0)
+				continue;
+			var loc = sym.Locations[0];
+			if (loc.IsInSource)
+				locByParamName[sym.Name] = loc;
+		}
+
+		foreach (var nullable in parameters)
+		{
+			if (nullable.Kind != ParameterKind.Flag || nullable.Special != BoolSpecialKind.NullableBool)
+				continue;
+			var negCli = "no-" + nullable.CliLongName;
+			foreach (var plain in parameters)
+			{
+				if (plain.Kind != ParameterKind.Flag || plain.Special != BoolSpecialKind.Bool)
+					continue;
+				if (!string.Equals(plain.CliLongName, negCli, StringComparison.OrdinalIgnoreCase))
+					continue;
+				var loc = locByParamName.TryGetValue(plain.SymbolName, out var l) ? l : fallbackLocation;
+				acc.Add(BoolFlagCollidesWithNullableNegation, loc, plain.SymbolName, plain.CliLongName);
+			}
+		}
 	}
 
 	private static void ReportDuplicateCliNames(SourceProductionContext context, Location location, ImmutableArray<ParameterModel> parameters)
@@ -3125,48 +3371,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return map.Values
 			.OrderBy(t => t.TypeFq, StringComparer.Ordinal)
 			.ToImmutableArray();
-	}
-
-	private static ImmutableArray<ParameterModel> BuildFlattenedOptionsMembers(INamedTypeSymbol type)
-	{
-		var chain = new List<INamedTypeSymbol>();
-		for (var t = type; t is not null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)
-			chain.Add(t);
-
-		var members = ImmutableArray.CreateBuilder<ParameterModel>();
-		var seen = new HashSet<string>(StringComparer.Ordinal);
-		for (var i = chain.Count - 1; i >= 0; i--)
-		{
-			var tt = chain[i];
-			foreach (var member in tt.GetMembers())
-			{
-				switch (member)
-				{
-					case IPropertySymbol prop when prop.DeclaredAccessibility == Accessibility.Public && !prop.IsStatic:
-					{
-						if (prop.IsIndexer)
-							continue;
-						if (prop.GetMethod is null || prop.SetMethod is null)
-							continue;
-						if (!seen.Add(prop.Name))
-							continue;
-
-						members.Add(ParameterModel.FromOptionsProperty(prop));
-						break;
-					}
-					case IFieldSymbol field when field.DeclaredAccessibility == Accessibility.Public && !field.IsStatic:
-					{
-						if (!seen.Add(field.Name))
-							continue;
-
-						members.Add(ParameterModel.FromOptionsField(field));
-						break;
-					}
-				}
-			}
-		}
-
-		return members.ToImmutable();
 	}
 
 	private static string OptionsStaticFieldName(INamedTypeSymbol type) =>
@@ -4110,7 +4314,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var left = HelpLayout.FormatOptionLeftCell(p).PadRight(mw);
 				var desc = BuildDescriptionSuffix(p, forPositional: false);
 				sb.AppendLine(
-					$"{indent}Console.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)}\");");
+					$"{indent}Console.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {EscapeForHelpInterpolation(desc)}\");");
 			}
 		}
 
@@ -4268,23 +4472,27 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private static void EmitAllowedFlagPredicate(StringBuilder sb, ImmutableArray<ParameterModel> members)
 	{
-		sb.AppendLine("\t\t\tbool IsAllowedFlag(string name) => name switch");
-		sb.AppendLine("\t\t\t{");
+		var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		foreach (var p in members)
 		{
 			if (p.Kind != ParameterKind.Flag)
 				continue;
-			sb.AppendLine($"\t\t\t\t\"{Escape(p.CliLongName)}\" => true,");
+			allowed.Add(p.CliLongName);
 			foreach (var al in p.Aliases)
 			{
 				if (string.Equals(al, p.CliLongName, StringComparison.OrdinalIgnoreCase))
 					continue;
-				sb.AppendLine($"\t\t\t\t\"{Escape(al)}\" => true,");
+				allowed.Add(al);
 			}
 
 			if (p.Special == BoolSpecialKind.NullableBool)
-				sb.AppendLine($"\t\t\t\t\"no-{Escape(p.CliLongName)}\" => true,");
+				allowed.Add("no-" + p.CliLongName);
 		}
+
+		sb.AppendLine("\t\t\tbool IsAllowedFlag(string name) => name switch");
+		sb.AppendLine("\t\t\t{");
+		foreach (var n in allowed.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase))
+			sb.AppendLine($"\t\t\t\t\"{Escape(n)}\" => true,");
 
 		sb.AppendLine("\t\t\t\t_ => false");
 		sb.AppendLine("\t\t\t};");
@@ -4434,8 +4642,23 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				// Declare the local variable first (EmitParseAndAssign only assigns, does not declare).
 				sb.AppendLine($"\t\t\t{GetCSharpCliType(m)} {m.LocalVarName} = {GetCliInitializer(m)};");
-				sb.AppendLine($"\t\t\tflags.TryGetValue(\"{Escape(m.CliLongName)}\", out var {m.LocalVarName}Text);");
-				EmitParseAndAssign(sb, m, m.LocalVarName + "Text", m.LocalVarName, "return false", null);
+				var canOmitFlag = !m.IsRequired || m.DefaultValueLiteral is not null;
+				if (canOmitFlag)
+				{
+					sb.AppendLine($"\t\t\tif (flags.TryGetValue(\"{Escape(m.CliLongName)}\", out var {m.LocalVarName}Text) && {m.LocalVarName}Text is not null)");
+					sb.AppendLine("\t\t\t{");
+					EmitParseAndAssign(sb, m, m.LocalVarName + "Text", m.LocalVarName, "return false", null);
+					sb.AppendLine("\t\t\t}");
+				}
+				else
+				{
+					sb.AppendLine($"\t\t\tif (!flags.TryGetValue(\"{Escape(m.CliLongName)}\", out var {m.LocalVarName}Text) || {m.LocalVarName}Text is null)");
+					sb.AppendLine("\t\t\t{");
+					sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{Escape(m.CliLongName)}.\");");
+					sb.AppendLine("\t\t\t\treturn false;");
+					sb.AppendLine("\t\t\t}");
+					EmitParseAndAssign(sb, m, m.LocalVarName + "Text", m.LocalVarName, "return false", null);
+				}
 			}
 		}
 
@@ -5510,7 +5733,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		switch (p.ScalarKind)
 		{
 			case CliScalarKind.Enum when p.EnumTypeFq is not null:
-				return p.IsRequired ? p.EnumTypeFq : p.EnumTypeFq + "?";
+				// Optional on the CLI but backed by a non-nullable enum + default (e.g. options properties): keep a non-nullable temp.
+				if (p.IsRequired || p.DefaultValueLiteral is not null)
+					return p.EnumTypeFq;
+				return p.EnumTypeFq + "?";
 			case CliScalarKind.FileInfo:
 				return p.IsRequired ? "global::System.IO.FileInfo" : "global::System.IO.FileInfo?";
 			case CliScalarKind.DirectoryInfo:
@@ -5596,11 +5822,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return;
 		}
 
+		var boolSwitchNameCases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		foreach (var n in names)
+			boolSwitchNameCases.Add(n);
+		foreach (var n in noNames)
+			boolSwitchNameCases.Add(n);
+
 		sb.AppendLine("\t\t\tbool IsBoolSwitchName(string name) => name switch");
 		sb.AppendLine("\t\t\t{");
-		foreach (var n in names)
-			sb.AppendLine($"\t\t\t\t\"{Escape(n)}\" => true,");
-		foreach (var n in noNames)
+		foreach (var n in boolSwitchNameCases.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase))
 			sb.AppendLine($"\t\t\t\t\"{Escape(n)}\" => true,");
 
 		sb.AppendLine("\t\t\t\t_ => false");
@@ -5614,9 +5844,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 		else
 		{
+			var noNameCases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			foreach (var n in noNames)
+				noNameCases.Add(n);
 			sb.AppendLine("\t\t\tbool IsBoolSwitchNoName(string name) => name switch");
 			sb.AppendLine("\t\t\t{");
-			foreach (var n in noNames)
+			foreach (var n in noNameCases.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase))
 				sb.AppendLine($"\t\t\t\t\"{Escape(n)}\" => true,");
 			sb.AppendLine("\t\t\t\t_ => false");
 			sb.AppendLine("\t\t\t};");
@@ -6541,7 +6774,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var validationLine = BuildValidationLine(p);
 			if (validationLine is null)
 			{
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)}\");");
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {EscapeForHelpInterpolation(desc)}\");");
 			}
 			else if (string.IsNullOrEmpty(desc))
 			{
@@ -6549,7 +6782,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 			else
 			{
-				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {Escape(desc)} {{CliHelpFormatting.DocRemarksLine(\"{Escape(validationLine)}\")}}\");");
+				sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {EscapeForHelpInterpolation(desc)} {{CliHelpFormatting.DocRemarksLine(\"{Escape(validationLine)}\")}}\");");
 			}
 		}
 	}
@@ -6635,7 +6868,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var argValidationLine = BuildValidationLine(p);
 				if (argValidationLine is null)
 				{
-					sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Placeholder(\"{Escape(nameCellPadded)}\")}}  {Escape(desc)}\");");
+					sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Placeholder(\"{Escape(nameCellPadded)}\")}}  {EscapeForHelpInterpolation(desc)}\");");
 				}
 				else if (string.IsNullOrEmpty(desc))
 				{
@@ -6643,7 +6876,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				}
 				else
 				{
-					sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Placeholder(\"{Escape(nameCellPadded)}\")}}  {Escape(desc)} {{CliHelpFormatting.DocRemarksLine(\"{Escape(argValidationLine)}\")}}\");");
+					sb.AppendLine($"\t\t\tConsole.Out.WriteLine($\"  {{CliHelpFormatting.Placeholder(\"{Escape(nameCellPadded)}\")}}  {EscapeForHelpInterpolation(desc)} {{CliHelpFormatting.DocRemarksLine(\"{Escape(argValidationLine)}\")}}\");");
 				}
 			}
 
@@ -6724,6 +6957,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (p.DefaultValueLiteral is null)
 			return "";
 
+		if (p.ScalarKind == CliScalarKind.Enum && !p.EnumMemberNames.IsDefaultOrEmpty)
+		{
+			var lit = p.DefaultValueLiteral.Trim();
+			foreach (var member in p.EnumMemberNames)
+			{
+				if (string.Equals(lit, member, StringComparison.Ordinal))
+					return member;
+				if (lit.EndsWith("." + member, StringComparison.Ordinal))
+					return member;
+			}
+		}
+
 		return p.TypeName switch
 		{
 			"string" => p.DefaultValueLiteral.Trim('"'),
@@ -6748,6 +6993,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	}
 
 	private static string Escape(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
+
+	/// <summary>Doubles <c>{</c> and <c>}</c> so text can be embedded in generated C# <c>$"…"</c> without forming interpolation holes.</summary>
+	private static string EscapeInterpolationBraces(string s) =>
+		s.Replace("{", "{{").Replace("}", "}}");
+
+	private static string EscapeForHelpInterpolation(string s) => EscapeInterpolationBraces(Escape(s));
 
 	private static string EscapeDocXml(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
 
@@ -6925,6 +7176,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			var parameters = BuildParameterModels(method, parseOptions, context, diagnosticLocation);
 			ReportDuplicateCliNames(context, diagnosticLocation, parameters);
+			ReportBoolNegationSwitchConflicts(context, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayout(context, diagnosticLocation, parameters);
 			foreach (var p in parameters)
 			{
@@ -6983,6 +7235,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			var parameters = BuildParameterModels(method, parseOptions, context, diagnosticLocation);
 			ReportDuplicateCliNames(context, diagnosticLocation, parameters);
+			ReportBoolNegationSwitchConflicts(context, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayout(context, diagnosticLocation, parameters);
 			foreach (var p in parameters)
 			{
@@ -7039,6 +7292,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation);
 			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
+			ReportBoolNegationSwitchConflictsAcc(acc, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
 			foreach (var p in parameters)
 				if (p.IsCollection && p.Kind == ParameterKind.Positional)
@@ -7065,6 +7319,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation);
 			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
+			ReportBoolNegationSwitchConflictsAcc(acc, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
 			foreach (var p in parameters)
 				if (p.IsCollection && p.Kind == ParameterKind.Positional)
@@ -7555,7 +7810,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				Validations: validations);
 		}
 
-		public static ParameterModel FromOptionsProperty(IPropertySymbol prop)
+		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, string? defaultValueLiteral = null)
 		{
 			var docLine = Documentation.GetPropertySummaryLine(prop, TryExtractFullDocumentationFromPropertyTrivia(prop));
 			var bs = ClassifyBool(prop.Type);
@@ -7568,9 +7823,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
-			var required = ComputeRequiredForOptionsType(prop.Type, bs);
+			// A property initializer supplies a CLI default: the flag is not required on the command line.
+			var required = ComputeRequiredForOptionsType(prop.Type, bs) && defaultValueLiteral is null;
 			var enumDocs = sk == CliScalarKind.Enum ? TryGetEnumDocs(prop.Type) : null;
 			var validations = ReadValidationConstraints(prop, sk, typeName);
+			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			return new ParameterModel(
 				prop.Name,
 				SafeLocalName(prop.Name),
@@ -7584,7 +7841,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				parserFq,
 				customValFq,
 				required,
-				null,
+				defLit,
 				docLine,
 				null,
 				ImmutableArray<string>.Empty,
@@ -7592,7 +7849,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				Validations: validations);
 		}
 
-		public static ParameterModel FromOptionsField(IFieldSymbol field)
+		public static ParameterModel FromOptionsField(IFieldSymbol field, string? defaultValueLiteral = null)
 		{
 			var docLine = Documentation.GetFieldSummaryLine(field, TryExtractFullDocumentationFromFieldTrivia(field));
 			var bs = ClassifyBool(field.Type);
@@ -7605,7 +7862,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			ClassifyScalarUnified(field.Type, field, bs, isSeparateType: true,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
-			var required = ComputeRequiredForOptionsType(field.Type, bs);
+			var required = ComputeRequiredForOptionsType(field.Type, bs) && defaultValueLiteral is null;
+			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			return new ParameterModel(
 				field.Name,
 				SafeLocalName(field.Name),
@@ -7619,7 +7877,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				parserFq,
 				customValFq,
 				required,
-				null,
+				defLit,
 				docLine,
 				null,
 				ImmutableArray<string>.Empty);

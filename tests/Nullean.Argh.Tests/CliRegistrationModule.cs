@@ -22,6 +22,7 @@ internal static class CliRegistrationModule
 		app.Map("prop-doc-as-params", CliTestHandlers.PropDocAsParams);
 		app.Map("param-comment-record", CliTestHandlers.ParamCommentRecordCmd);
 		app.Map("tags", CliTestHandlers.Tags);
+		app.Map("brace-doc", CliTestHandlers.BraceDoc);
 		app.Map("dry-run-cmd", CliTestHandlers.DryRunCmd);
 		app.Map("count-cmd", CliTestHandlers.CountCmd);
 		app.Map("file-cmd", CliTestHandlers.FileCmd);

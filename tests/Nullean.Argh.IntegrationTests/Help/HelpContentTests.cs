@@ -25,11 +25,12 @@ public class HelpContentTests
 			   Greet someone by name.
 
 			Global options:
-			  --help, -h       Show help.
-			  --verbose
+			  --help, -h           Show help.
+			  --verbose            
+			  --severity <string>  Enum default for global-flag parsing regression. [default: Information] [allowed: Trace|Information|Warning]
 
 			Options:
-			  --name <string>  [required] The name to greet.
+			  --name <string>      [required] The name to greet.
 
 			Notes:  See DocLambdaEcho; set name.
 
@@ -55,7 +56,8 @@ public class HelpContentTests
 
 			Global options:
 			  --help, -h           Show help.
-			  --verbose
+			  --verbose            
+			  --severity <string>  Enum default for global-flag parsing regression. [default: Information] [allowed: Trace|Information|Warning]
 
 			Options:
 			  -l, --line <string>  [required] Text line to echo.
@@ -64,5 +66,17 @@ public class HelpContentTests
 			  doc-lambda --line hi
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		TrimLines(text).Should().Be(TrimLines(expected));
+	}
+
+	[Fact]
+	public void BraceDoc_help_shows_braces_from_xml_doc_without_breaking_build()
+	{
+		var result = CliHostRunner.Run(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
+			"brace-doc",
+			"--help");
+		result.ExitCode.Should().Be(0);
+		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
+		text.Should().Contain("Supports {version} and {owner} placeholders.");
 	}
 }

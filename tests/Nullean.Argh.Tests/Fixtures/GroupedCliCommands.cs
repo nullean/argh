@@ -1,9 +1,20 @@
 namespace Nullean.Argh.Tests.Fixtures;
 
+/// <summary>Enum used by <see cref="TestGlobalCliOptions"/> for global-option default parsing tests.</summary>
+internal enum FixtureSeverity
+{
+	Trace,
+	Information,
+	Warning
+}
+
 /// <summary>Global CLI flags (tests).</summary>
 internal class TestGlobalCliOptions
 {
 	public bool Verbose { get; set; }
+
+	/// <summary>Enum default for global-flag parsing regression.</summary>
+	public FixtureSeverity Severity { get; set; } = FixtureSeverity.Information;
 }
 
 /// <summary>Storage command namespace options; must inherit global options type.</summary>
