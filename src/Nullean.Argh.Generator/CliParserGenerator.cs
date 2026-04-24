@@ -1155,6 +1155,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				case AIMapCommand { TypeSnapshot: { } typeSnap }:
 				{
 					// Map<T> always hoists: merge the snapshot's commands directly into the current node.
+					if (typeSnap.RootCommand is { } snapRc && node.RootCommand is not null)
+						context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, snapRc.HandlerSpanInfo.ToLocation()));
 					ApplyRegistryNodeSnapshot(typeSnap, node, currentPath);
 					break;
 				}
