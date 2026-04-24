@@ -231,6 +231,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor ReadOnlySetInvalidElementType = new(
+		"AGH0028",
+		"IReadOnlySet<T> element type is not supported",
+		"IReadOnlySet<T> only supports value-type or enum element types; '{0}' is not allowed",
+		"Usage",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
 	// ── Pre-compiled Regex patterns ── compiled once, reused for every handler method analyzed
 	private static readonly Regex SummaryXmlPattern =
 		new(@"<summary>\s*([\s\S]*?)\s*</summary>", RegexOptions.Compiled);
@@ -680,6 +688,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		"AGH0025" => TimeSpanRangeOnNonTimeSpanParam,
 		"AGH0026" => BoolFlagCollidesWithNullableNegation,
 		"AGH0027" => DuplicateCommandName,
+		"AGH0028" => ReadOnlySetInvalidElementType,
 		_ => throw new ArgumentException($"Unknown diagnostic id: {id}")
 	};
 
@@ -2546,6 +2555,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var fq = def.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 				if (fq is "global::System.Collections.Generic.IEnumerable<T>"
 				    or "global::System.Collections.Generic.IReadOnlyList<T>"
+				    or "global::System.Collections.Generic.IReadOnlySet<T>"
 				    or "global::System.Collections.Generic.List<T>")
 				{
 					if (named.TypeArguments.Length == 1)
@@ -4876,7 +4886,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\t\t{");
 			sb.AppendLine("\t\t\t\t\tif (string.IsNullOrEmpty(__part)) continue;");
 			EmitParseFromString(sb, elemModel, "__part", "__ce_" + p.LocalVarName, indentExtra: "\t\t", outVarKeyword: true, failureExit: failureExit, helpMethodName: helpMethodName);
-			sb.AppendLine($"\t\t\t\t\t{acc}.Add(__ce_{p.LocalVarName});");
+			if (p.CollectionTargetIsReadOnlySet)
+			{
+				sb.AppendLine($"\t\t\t\t\tif (!{acc}.Add(__ce_{p.LocalVarName}))");
+				sb.AppendLine("\t\t\t\t\t{");
+				sb.AppendLine($"\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: duplicate value '{{__ce_{p.LocalVarName}}}' for --{flagKey}.\");");
+				sb.AppendLine($"\t\t\t\t\t\t{failureExit};");
+				sb.AppendLine("\t\t\t\t\t}");
+			}
+			else
+			{
+				sb.AppendLine($"\t\t\t\t\t{acc}.Add(__ce_{p.LocalVarName});");
+			}
 			sb.AppendLine("\t\t\t\t}");
 			sb.AppendLine("\t\t\t}");
 		}
@@ -4890,7 +4911,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\t\tforeach (var __raw in __rawList_{p.LocalVarName})");
 			sb.AppendLine("\t\t\t{");
 			EmitParseFromString(sb, elemModel, "__raw", "__ce_" + p.LocalVarName, indentExtra: "\t", outVarKeyword: true, failureExit: failureExit, helpMethodName: helpMethodName);
-			sb.AppendLine($"\t\t\t\t{acc}.Add(__ce_{p.LocalVarName});");
+			if (p.CollectionTargetIsReadOnlySet)
+			{
+				sb.AppendLine($"\t\t\t\tif (!{acc}.Add(__ce_{p.LocalVarName}))");
+				sb.AppendLine("\t\t\t\t{");
+				sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Error: duplicate value '{{__ce_{p.LocalVarName}}}' for --{flagKey}.\");");
+				sb.AppendLine($"\t\t\t\t\t{failureExit};");
+				sb.AppendLine("\t\t\t\t}");
+			}
+			else
+			{
+				sb.AppendLine($"\t\t\t\t{acc}.Add(__ce_{p.LocalVarName});");
+			}
 			sb.AppendLine("\t\t\t}");
 			if (p.IsRequired)
 			{
@@ -5676,8 +5708,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (p.IsCollection && p.Kind == ParameterKind.Flag)
 			{
 				var elemFq = GetElementCSharpFq(p);
+				var accType = p.CollectionTargetIsReadOnlySet
+					? "global::System.Collections.Generic.HashSet"
+					: "global::System.Collections.Generic.List";
 				sb.AppendLine(
-					$"\t\t\tvar {p.LocalVarName}_acc = new global::System.Collections.Generic.List<{elemFq}>();");
+					$"\t\t\tvar {p.LocalVarName}_acc = new {accType}<{elemFq}>();");
 				continue;
 			}
 
@@ -7204,6 +7239,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				if (p.IsCollection && p.Kind == ParameterKind.Positional)
 					context.ReportDiagnostic(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
+				if (p.CollectionTargetIsReadOnlySet && !p.ElementIsValueType)
+					context.ReportDiagnostic(Diagnostic.Create(ReadOnlySetInvalidElementType, diagnosticLocation, p.ElementTypeName));
 			}
 
 			var docs = MergeMethodDocumentationFromTrivia(
@@ -7263,6 +7300,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				if (p.IsCollection && p.Kind == ParameterKind.Positional)
 					context.ReportDiagnostic(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
+				if (p.CollectionTargetIsReadOnlySet && !p.ElementIsValueType)
+					context.ReportDiagnostic(Diagnostic.Create(ReadOnlySetInvalidElementType, diagnosticLocation, p.ElementTypeName));
 			}
 
 			var docs = MergeMethodDocumentationFromTrivia(
@@ -7317,8 +7356,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ReportBoolNegationSwitchConflictsAcc(acc, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
 			foreach (var p in parameters)
+			{
 				if (p.IsCollection && p.Kind == ParameterKind.Positional)
 					acc.Add(CollectionPositionalNotSupported, diagnosticLocation);
+				if (p.CollectionTargetIsReadOnlySet && !p.ElementIsValueType)
+					acc.Add(ReadOnlySetInvalidElementType, diagnosticLocation, p.ElementTypeName);
+			}
 			var docs = MergeMethodDocumentationFromTrivia(method, Documentation.ParseMethod(method.GetDocumentationCommentXml(), parseOptions), parseOptions);
 			var withDocs = ApplyParamDocumentation(parameters, method, docs.ParamDocsRaw);
 			withDocs = ApplyCollectionSeparatorsFromDocumentation(withDocs, method, docs.ParamSeparators);
@@ -7344,8 +7387,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ReportBoolNegationSwitchConflictsAcc(acc, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
 			foreach (var p in parameters)
+			{
 				if (p.IsCollection && p.Kind == ParameterKind.Positional)
 					acc.Add(CollectionPositionalNotSupported, diagnosticLocation);
+				if (p.CollectionTargetIsReadOnlySet && !p.ElementIsValueType)
+					acc.Add(ReadOnlySetInvalidElementType, diagnosticLocation, p.ElementTypeName);
+			}
 			var docs = MergeMethodDocumentationFromTrivia(method, Documentation.ParseMethod(method.GetDocumentationCommentXml(), parseOptions), parseOptions);
 			var withDocs = ApplyParamDocumentation(parameters, method, docs.ParamDocsRaw);
 			withDocs = ApplyCollectionSeparatorsFromDocumentation(withDocs, method, docs.ParamSeparators);
@@ -7685,6 +7732,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		bool AsParametersUseInit = false,
 		string? AsParametersClrName = null,
 		bool CollectionTargetIsArray = false,
+		bool CollectionTargetIsReadOnlySet = false,
+		bool ElementIsValueType = false,
 		ImmutableDictionary<string, string>? EnumMemberDocs = null,
 		ImmutableArray<ValidationConstraint> Validations = default)
 	{
@@ -7736,6 +7785,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				? ComputeRequiredForOptionsType(collectionType, BoolSpecialKind.None)
 				: ComputeRequired((IParameterSymbol)attributeHost, BoolSpecialKind.None);
 			var fq = collectionType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var defFq = (collectionType as INamedTypeSymbol)?.OriginalDefinition
+				.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
 			return new ParameterModel(
 				symbolName,
 				localVarName,
@@ -7763,6 +7814,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				ElementCustomValueTypeFq: cFq,
 				FullDeclaredTypeFq: fq,
 				CollectionTargetIsArray: collectionType is IArrayTypeSymbol,
+				CollectionTargetIsReadOnlySet: defFq == "global::System.Collections.Generic.IReadOnlySet<T>",
+				ElementIsValueType: elementType.IsValueType,
 				AsParametersOwnerParamName: asParams?.OwnerParamName,
 				AsParametersMemberOrder: asParams?.MemberOrder ?? -1,
 				AsParametersTypeFq: asParams?.TypeFq,
