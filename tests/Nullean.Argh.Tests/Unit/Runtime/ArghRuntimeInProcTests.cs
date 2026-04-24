@@ -183,4 +183,94 @@ public class ArghRuntimeInProcTests
 		var code = await ArghRuntime.RunAsync(["original-method-name"]);
 		code.Should().Be(2);
 	}
+
+	[Fact]
+	public async Task RunAsync_readonly_set_int_repeated_flags_unique()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["tag-set", "--tag-ids", "3", "--tag-ids", "1", "--tag-ids", "2"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("tag-set:1,2,3");
+		}
+		finally { Console.SetOut(prev); }
+	}
+
+	[Fact]
+	public async Task RunAsync_readonly_set_int_duplicate_returns_2()
+	{
+		var prev = Console.Error;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetError(sw);
+			var code = await ArghRuntime.RunAsync(["tag-set", "--tag-ids", "1", "--tag-ids", "1"]);
+			code.Should().Be(2);
+			sw.ToString().Should().Contain("duplicate");
+		}
+		finally { Console.SetError(prev); }
+	}
+
+	[Fact]
+	public async Task RunAsync_readonly_set_enum_repeated_flags_unique()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["color-set", "--colors", "Blue", "--colors", "Red"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("color-set:Red,Blue");
+		}
+		finally { Console.SetOut(prev); }
+	}
+
+	[Fact]
+	public async Task RunAsync_nullable_readonly_set_omitted_is_null()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["opt-tag-set"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("opt-tag-set:none");
+		}
+		finally { Console.SetOut(prev); }
+	}
+
+	[Fact]
+	public async Task RunAsync_nullable_readonly_set_with_values()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["opt-tag-set", "--tag-ids", "5", "--tag-ids", "10"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("opt-tag-set:5,10");
+		}
+		finally { Console.SetOut(prev); }
+	}
+
+	[Fact]
+	public async Task RunAsync_as_params_readonly_set_binds()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["as-params-tag-set", "--tag-ids", "7", "--tag-ids", "3"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("as-params-tag-set:3,7");
+		}
+		finally { Console.SetOut(prev); }
+	}
 }
