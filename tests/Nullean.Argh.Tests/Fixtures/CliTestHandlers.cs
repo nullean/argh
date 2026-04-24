@@ -72,6 +72,12 @@ internal static class CliTestHandlers
 	public static void Tags(TestGlobalCliOptions g, List<string> tags) =>
 		Console.Out.WriteLine("tags:" + string.Join(",", tags));
 
+	/// <summary>Regression: braces in XML docs must not become C# interpolation in generated help.</summary>
+	/// <param name="g">Injected global CLI options.</param>
+	/// <param name="description">Supports {version} and {owner} placeholders.</param>
+	public static void BraceDoc(TestGlobalCliOptions g, string? description = null) =>
+		Console.Out.WriteLine("brace-doc:" + (description ?? ""));
+
 	// For bool? test
 	public static void DryRunCmd(TestGlobalCliOptions g, bool? dryRun = null) =>
 		Console.Out.WriteLine($"dry-run:{dryRun?.ToString().ToLower() ?? "null"}");

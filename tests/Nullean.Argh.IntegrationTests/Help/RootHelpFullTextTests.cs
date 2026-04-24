@@ -23,9 +23,10 @@ public class RootHelpFullTextTests
 			   Root default remarks for help layout tests.
 
 			Global options:
-			  --help, -h  Show help.
-			  --version   Show version.
-			  --verbose   
+			  --help, -h           Show help.
+			  --version            Show version.
+			  --verbose            
+			  --severity <string>  Enum default for global-flag parsing regression. [default: Information] [allowed: Trace|Information|Warning]
 
 			Namespaces:
 			  di-probe  Instance command type for DI resolution tests
@@ -44,6 +45,8 @@ public class RootHelpFullTextTests
 			  prop-doc-as-params         
 			  param-comment-record       
 			  tags                       
+			  brace-doc                    Regression: braces in XML docs must not become C#
+			                               interpolation in generated help.
 			  dry-run-cmd                
 			  count-cmd                  
 			  file-cmd                   
