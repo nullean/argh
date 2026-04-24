@@ -84,6 +84,13 @@ public sealed class ArghNamespaceBuilder : IArghNamespaceBuilder
 	}
 
 	/// <inheritdoc />
+	public IArghNamespaceBuilder MapAndRootAlias<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
+	{
+		_ = _inner.MapAndRootAlias<T>();
+		return this;
+	}
+
+	/// <inheritdoc />
 	public IArghNamespaceBuilder UseNamespaceOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		_ = _inner.UseNamespaceOptions<T>();
@@ -119,6 +126,10 @@ public sealed class ArghNamespaceBuilder : IArghNamespaceBuilder
 
 	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler) => MapRoot(handler);
+
+	/// <inheritdoc />
+	IArghBuilder IArghBuilder.MapAndRootAlias<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class =>
+		MapAndRootAlias<T>();
 
 	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapNamespace(string name, string description, Action<IArghBuilder> configure) =>

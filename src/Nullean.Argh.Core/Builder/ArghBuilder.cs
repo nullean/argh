@@ -93,6 +93,13 @@ public sealed class ArghBuilder : IArghRootBuilder
 	}
 
 	/// <inheritdoc />
+	public IArghBuilder MapAndRootAlias<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
+	{
+		_ = _app.MapAndRootAlias<T>();
+		return this;
+	}
+
+	/// <inheritdoc />
 	public IArghBuilder UseNamespaceOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
 	{
 		_ = _app.UseNamespaceOptions<T>();

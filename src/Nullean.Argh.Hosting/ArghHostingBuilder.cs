@@ -154,6 +154,14 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 	}
 
 	/// <inheritdoc />
+	IArghBuilder IArghBuilder.MapAndRootAlias<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
+	{
+		_services.Add(new ServiceDescriptor(typeof(T), typeof(T), ServiceLifetime.Transient));
+		_ = _inner.MapAndRootAlias<T>();
+		return this;
+	}
+
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapNamespace(string name, string description, Action<IArghBuilder> configure) =>
 		MapNamespace(name, description, configure);
 

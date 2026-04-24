@@ -102,6 +102,12 @@ public sealed partial class ArghApp : IArghRootBuilder
 		return new ArghApp(childPath);
 	}
 
+	/// <summary>
+	/// Hoists every public method on <typeparamref name="T"/> as a named command and sets one as the scope's root alias.
+	/// Analyzed by the source generator; no-op at runtime.
+	/// </summary>
+	public ArghApp MapAndRootAlias<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class => this;
+
 	/// <summary>Typed options for the current namespace; <typeparamref name="T"/> must inherit the parent options type (enforced at compile time).</summary>
 	public ArghApp UseNamespaceOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class => this;
 

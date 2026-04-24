@@ -124,6 +124,13 @@ public sealed class ArghHostingNamespaceBuilder : IArghNamespaceBuilder
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler) => MapRoot(handler);
 
 	/// <inheritdoc />
+	IArghBuilder IArghBuilder.MapAndRootAlias<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class
+	{
+		((IArghBuilder)_host).MapAndRootAlias<T>();
+		return this;
+	}
+
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapNamespace(string name, string description, Action<IArghBuilder> configure) =>
 		MapNamespace(name, description, configure);
 
