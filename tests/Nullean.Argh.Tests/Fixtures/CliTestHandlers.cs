@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading;
 using Nullean.Argh;
 using Nullean.Argh.Parsing;
@@ -25,6 +26,10 @@ internal sealed record NullableNumericAsParamsArgs(int? Rps, int? MaxPages);
 
 /// <summary>Record with optional <see cref="Uri"/> for <see cref="AsParametersAttribute"/> binding coverage.</summary>
 internal sealed record OptionalUriAsParamsArgs(Uri? Endpoint);
+
+/// <summary>Record with <see cref="IReadOnlySet{T}"/> for set-binding coverage.</summary>
+/// <param name="TagIds">Set of integer tag IDs.</param>
+internal sealed record TagSetArgs(IReadOnlySet<int> TagIds);
 
 /// <summary>Init-only bound object for XML documentation in help output.</summary>
 internal sealed class PropDocBoundArgs
@@ -114,6 +119,19 @@ internal static class CliTestHandlers
 	// For custom parser test
 	public static void PointCmd(TestGlobalCliOptions g, [ArgumentParser(typeof(PointParser))] Point point) =>
 		Console.Out.WriteLine($"point:{point.X},{point.Y}");
+
+	// IReadOnlySet<T> handlers
+	public static void TagSet(TestGlobalCliOptions g, IReadOnlySet<int> tagIds) =>
+		Console.Out.WriteLine("tag-set:" + string.Join(",", tagIds.OrderBy(x => x)));
+
+	public static void ColorSet(TestGlobalCliOptions g, IReadOnlySet<TestColor> colors) =>
+		Console.Out.WriteLine("color-set:" + string.Join(",", colors.OrderBy(x => (int)x)));
+
+	public static void OptTagSet(TestGlobalCliOptions g, IReadOnlySet<int>? tagIds) =>
+		Console.Out.WriteLine("opt-tag-set:" + (tagIds is null or { Count: 0 } ? "none" : string.Join(",", tagIds.OrderBy(x => x))));
+
+	public static void AsParamsTagSet(TestGlobalCliOptions g, [AsParameters] TagSetArgs args) =>
+		Console.Out.WriteLine("as-params-tag-set:" + string.Join(",", args.TagIds.OrderBy(x => x)));
 
 	internal readonly record struct Point(int X, int Y);
 
