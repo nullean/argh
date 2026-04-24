@@ -15,6 +15,14 @@ public class AsParametersAndBindingTests
 	}
 
 	[Fact]
+	public void AsParameters_DTO_includes_injected_CancellationToken_from_runtime()
+	{
+		var result = CliHostRunner.Run("as-params-with-ct", "--run-env", "prod", "--run-port", "8080");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-ct:prod:8080:True");
+	}
+
+	[Fact]
 	public void Nullable_numeric_AsParameters_binds_prefixed_flags()
 	{
 		var result = CliHostRunner.Run(

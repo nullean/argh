@@ -18,6 +18,7 @@ Write vanilla C# and get a fully functional CLI in return: rich `--help` output,
 - [Registration model](#registration-model)
 - [Namespaces](#namespaces)
 - [Parameters and binding](#parameters-and-binding)
+- [CancellationToken (Ctrl+C)](#cancellationtoken-ctrlc)
 - [Object binding](#object-binding)
 - [Fuzzy matching](#fuzzy-matching)
 - [Help and XML documentation](#help-and-xml-documentation)
@@ -56,6 +57,8 @@ Write vanilla C# and get a fully functional CLI in return: rich `--help` output,
 - **DataAnnotations validation**
   - Annotate parameters and DTO members with `[Range]`, `[StringLength]`, `[RegularExpression]`, `[AllowedValues]`, and more
   - Constraints appear in `--help`; violations print to stderr and exit with code 2 — no reflection, no runtime dependency
+- **Cancellation on command handlers**
+  - Add `CancellationToken` to a handler signature — it is injected, not a flag; by default it tracks **Ctrl+C** (console cancel)
 - **Zero-dep or ME.* native**
   - `Nullean.Argh` — no `Microsoft.Extensions.*` dependency
   - `Nullean.Argh.Hosting` — same registration surface, plugs into `IHost` and DI
@@ -297,6 +300,35 @@ public static Task<int> Release([ArgumentParser(typeof(SemVerParser))] SemVer ve
 
 `IArgumentParser<T>` is in [`Nullean.Argh.Interfaces`](src/Nullean.Argh.Interfaces/Parsing/IArgumentParser.cs).
 
+### CancellationToken (Ctrl+C)
+
+Add `System.Threading.CancellationToken` as a **parameter of the command handler method** (alongside flags and positionals). It is **not** parsed from the command line and does not appear in `--help` — the source generator **injects** the token the runtime uses for cooperative cancellation.
+
+You can also add it on an **`[AsParameters]`** type as a **primary constructor parameter** or **`init` property** (same injection rules). Keep **CLI-bound members first** in declaration order: all `[Argument]` positionals must precede flags, and **`CancellationToken` must not appear between a flag and a later positional** (the usual pattern is to put the token **last** on the DTO).
+
+- **Console and `ArghApp`:** the token is cancelled when the user presses **Ctrl+C** (and on Windows, the console **break** signal). The process keeps running after cancel unless your handler exits; Argh only forwards cancellation to your code.
+- **`Nullean.Argh.Hosting` / `AddArgh`:** the same console token is **linked** with `IHostApplicationLifetime.ApplicationStopping`, so the parameter also cancels when the host is shutting down.
+- **`TryParseArgh` / generated `TryParseDto_*`:** injected `CancellationToken` members are set to **`default`** — there is no host or console token in that API, so the value is non-cancellable.
+
+```csharp
+public static async Task<int> Sync(
+    string source,
+    CancellationToken cancellationToken)
+{
+    await CopyTreeAsync(source, cancellationToken);
+    return 0;
+}
+// myapp sync --source ./data   (CancellationToken is not a CLI option)
+
+public record RunArgs(string Source, int Port, CancellationToken Ct);
+
+public static async Task<int> Run([AsParameters] RunArgs args)
+{
+    await Task.Delay(1, args.Ct);
+    return 0;
+}
+```
+
 ## Object binding
 
 Share state across commands without repeating parameters on every method signature.
@@ -520,7 +552,7 @@ builder.Services.AddArgh(args, b =>
 
 `AddArgh` registers a hosted service that runs `ArghRuntime.RunAsync(args)` and then calls `Environment.Exit` with the exit code — the host does not continue after the CLI completes.
 
-`CancellationToken` parameters on command handlers are linked to console cancellation and `IHostApplicationLifetime.ApplicationStopping`.
+`CancellationToken` on command handlers: see [CancellationToken (Ctrl+C)](#cancellationtoken-ctrlc) — with hosting, the injected token is linked to **Ctrl+C** and **`IHostApplicationLifetime.ApplicationStopping`**.
 
 **Register `AddArgh` before other `IHostedService` registrations** if you want the CLI (including `--help`) to run first and exit without starting later background work. Services registered *before* `AddArgh` still get `StartAsync` on every invocation.
 
