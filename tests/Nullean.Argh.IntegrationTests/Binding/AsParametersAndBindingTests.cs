@@ -54,4 +54,24 @@ public class AsParametersAndBindingTests
 		result.ExitCode.Should().Be(0);
 		CliHostRunner.StdoutText(result).Trim().Should().Be("tags:a,b");
 	}
+
+	[Fact]
+	public void AsParameters_CollectionSyntax_property_target_binds_supported_collections()
+	{
+		var result = CliHostRunner.Run(
+			"as-params-collection-syntax",
+			"--cs-tag-ids", "3,1,2",
+			"--cs-labels", "alpha|beta",
+			"--cs-ports", "80;443");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-collection-syntax:1,2,3:alpha,beta:80,443");
+	}
+
+	[Fact]
+	public void AsParameters_CollectionSyntax_property_target_rejects_readonlyset_duplicates()
+	{
+		var result = CliHostRunner.Run("as-params-collection-syntax", "--cs-tag-ids", "1,1", "--cs-labels", "x", "--cs-ports", "80");
+		result.ExitCode.Should().Be(2);
+		CliHostRunner.StderrText(result).Should().Contain("duplicate value");
+	}
 }
