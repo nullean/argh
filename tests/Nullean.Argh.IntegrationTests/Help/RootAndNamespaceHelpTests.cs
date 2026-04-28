@@ -53,6 +53,7 @@ public class RootAndNamespaceHelpTests
 			  color-set
 			  opt-tag-set
 			  as-params-tag-set
+			  as-params-collection-syntax
 			  brace-doc                    Regression: braces in XML docs must not become C#
 			                               interpolation in generated help.
 			  dry-run-cmd
