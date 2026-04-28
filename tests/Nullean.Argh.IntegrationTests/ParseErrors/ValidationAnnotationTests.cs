@@ -159,7 +159,18 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-email", "--help");
 		r.ExitCode.Should().Be(0);
-		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("[email]");
+		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(r));
+		text.Should().Contain("[email]");
+		text.Should().Contain("--address <email>");
+	}
+
+	[Fact]
+	public void Nullable_optional_string_email_uses_same_email_placeholder_as_required()
+	{
+		var r = CliHostRunner.Run(NoColor, "validate-email-opt", "--help");
+		r.ExitCode.Should().Be(0);
+		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(r));
+		text.Should().Contain("--mailbox <email>");
 	}
 
 	// ── [UriScheme] ──────────────────────────────────────────────────────────
@@ -186,7 +197,18 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-uri-scheme", "--help");
 		r.ExitCode.Should().Be(0);
-		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("[schemes: https]");
+		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(r));
+		text.Should().Contain("[schemes: https]");
+		text.Should().Contain("--endpoint <url>");
+	}
+
+	[Fact]
+	public void Nullable_optional_uri_https_uses_same_url_placeholder_as_required()
+	{
+		var r = CliHostRunner.Run(NoColor, "validate-uri-scheme-opt", "--help");
+		r.ExitCode.Should().Be(0);
+		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(r));
+		text.Should().Contain("--endpoint <url>");
 	}
 
 	// ── [Range] on non-nullable value type with default ─────────────────────

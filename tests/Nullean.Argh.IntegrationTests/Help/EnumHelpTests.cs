@@ -36,4 +36,16 @@ public class EnumHelpTests
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		TrimLines(text).Should().Be(TrimLines(expected));
 	}
+
+	[Fact]
+	public void ReadOnlySet_of_enum_lists_allowed_members_in_help()
+	{
+		var result = CliHostRunner.Run(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
+			"color-set",
+			"--help");
+		result.ExitCode.Should().Be(0);
+		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
+		text.Should().Contain("Combination of: <Red|Blue>");
+	}
 }

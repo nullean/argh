@@ -6974,6 +6974,21 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 		}
 
+		if (p.IsCollection && p.ElementScalarKind == CliScalarKind.Enum && !p.ElementEnumMemberNames.IsDefaultOrEmpty)
+		{
+			var label = p.CollectionTargetIsReadOnlySet ? "Combination of:" : "One or more of:";
+			tokens.Add(label + " <" + string.Join("|", p.ElementEnumMemberNames) + ">");
+			if (p.ElementEnumMemberDocs is { Count: > 0 } elemDocs)
+			{
+				var memberDescParts = new List<string>();
+				foreach (var member in p.ElementEnumMemberNames)
+					if (elemDocs.TryGetValue(member, out var memberDoc) && !string.IsNullOrWhiteSpace(memberDoc))
+						memberDescParts.Add($"{member}: {memberDoc.Trim()}");
+				if (memberDescParts.Count > 0)
+					tokens.Add("(" + string.Join("; ", memberDescParts) + ")");
+			}
+		}
+
 		if (p.Validations.IsDefaultOrEmpty)
 			return tokens.Count > 0 ? string.Join(" ", tokens) : null;
 
@@ -7023,6 +7038,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return tokens.Count > 0 ? string.Join(" ", tokens) : null;
 	}
 
+	private static bool HelpUsesEnumChoiceContinuationLayout(ParameterModel p) =>
+		p.ScalarKind == CliScalarKind.Enum
+		|| (p.IsCollection && p.ElementScalarKind == CliScalarKind.Enum && !p.ElementEnumMemberNames.IsDefaultOrEmpty);
+
 	private static void EmitHelpOptionRows(StringBuilder sb, IReadOnlyList<ParameterModel> rows, int maxOptWidth)
 	{
 		var continuationIndent = new string(' ', maxOptWidth + 4);
@@ -7031,7 +7050,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var left = HelpLayout.FormatOptionLeftCell(p).PadRight(maxOptWidth);
 			var desc = BuildDescriptionSuffix(p, forPositional: false);
 			var validationLine = BuildValidationLine(p);
-			var validationOnNewLine = validationLine != null && p.ScalarKind == CliScalarKind.Enum;
+			var validationOnNewLine = validationLine != null && HelpUsesEnumChoiceContinuationLayout(p);
 
 			if (validationLine is null)
 			{
@@ -7952,6 +7971,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		bool CollectionTargetIsReadOnlySet = false,
 		bool ElementIsValueType = false,
 		ImmutableDictionary<string, string>? EnumMemberDocs = null,
+		ImmutableDictionary<string, string>? ElementEnumMemberDocs = null,
 		ImmutableArray<ValidationConstraint> Validations = default)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
@@ -7997,6 +8017,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			ClassifyScalarForType(elementType, attributeHost, BoolSpecialKind.None,
 				out var elemSk, out var elemTn, out var eFq, out var eMem, out var pFq, out var cFq);
+			var elemEnumDocs = elemSk == CliScalarKind.Enum ? TryGetEnumDocs(elementType) : null;
 			var sep = TryGetCollectionSeparatorFromAttribute(attributeHost);
 			var required = isSeparateType
 				? ComputeRequiredForOptionsType(collectionType, BoolSpecialKind.None)
@@ -8033,6 +8054,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				CollectionTargetIsArray: collectionType is IArrayTypeSymbol,
 				CollectionTargetIsReadOnlySet: defFq == "global::System.Collections.Generic.IReadOnlySet<T>",
 				ElementIsValueType: elementType.IsValueType,
+				ElementEnumMemberDocs: elemEnumDocs,
 				AsParametersOwnerParamName: asParams?.OwnerParamName,
 				AsParametersMemberOrder: asParams?.MemberOrder ?? -1,
 				AsParametersTypeFq: asParams?.TypeFq,
@@ -8863,6 +8885,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		public static string TypeHint(ParameterModel p)
 		{
+			if (InferValidationDerivedTypeHint(p) is string vh)
+				return vh;
+
 			switch (p.ScalarKind)
 			{
 				case CliScalarKind.Collection:
@@ -8870,7 +8895,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				case CliScalarKind.Enum:
 				return "<enum>";
 				case CliScalarKind.FileInfo:
-					return "<path>";
+					return "<file>";
 				case CliScalarKind.DirectoryInfo:
 					return "<dir>";
 				case CliScalarKind.Uri:
@@ -8898,6 +8923,30 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				_ => "<value>"
 			};
 		}
+
+		private static string? InferValidationDerivedTypeHint(ParameterModel p)
+		{
+			if (p.Validations.IsDefaultOrEmpty || p.ScalarKind == CliScalarKind.Collection)
+				return null;
+
+			// Nullable reference/value does not switch placeholders: email is only for CLR string bindings; url for string/Uri scheme rules.
+			if (p.Validations.Any(static v => v is EmailConstraint))
+			{
+				if (HasClrSemanticStringBinding(p))
+					return "<email>";
+			}
+
+			if (p.Validations.Any(static v => v is UrlConstraint or UriSchemeConstraint))
+				return "<url>";
+
+			return null;
+		}
+
+		private static bool HasClrSemanticStringBinding(ParameterModel p) =>
+			p.ScalarKind == CliScalarKind.Primitive && IsClrStringParameterTypeName(p.TypeName);
+
+		private static bool IsClrStringParameterTypeName(string? typeName) =>
+			typeName is not null && (typeName == "string" || typeName == "string?");
 	}
 
 	private readonly record struct MethodDocumentation(

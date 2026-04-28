@@ -30,9 +30,17 @@ internal static class ValidationCliHandlers
 	public static void ValidateEmail(TestGlobalCliOptions g, [EmailAddress] string address) =>
 		Console.Out.WriteLine($"email:{address}");
 
+	/// <summary>Optional nullable mailbox (email).</summary>
+	public static void ValidateEmailOptional(TestGlobalCliOptions g, [EmailAddress] string? mailbox = null) =>
+		Console.Out.WriteLine($"mailbox:{mailbox ?? "(null)"}");
+
 	/// <summary>Validate URI scheme restriction on --endpoint.</summary>
 	public static void ValidateUriScheme(TestGlobalCliOptions g, [UriScheme("https")] Uri endpoint) =>
 		Console.Out.WriteLine($"scheme:{endpoint.Scheme}");
+
+	/// <summary>Optional nullable HTTPS endpoint.</summary>
+	public static void ValidateUriSchemeOptional(TestGlobalCliOptions g, [UriScheme("https")] Uri? endpoint = null) =>
+		Console.Out.WriteLine($"scheme:{endpoint?.Scheme ?? "(null)"}");
 
 	/// <summary>Validate numeric range on non-nullable --page-per with default.</summary>
 	/// <param name="pagePer">Items per page.</param>

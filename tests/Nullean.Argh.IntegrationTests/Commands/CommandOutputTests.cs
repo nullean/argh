@@ -71,6 +71,14 @@ public class CommandOutputTests
 	}
 
 	[Fact]
+	public void Uri_help_plain_parameter_uses_uri_placeholder()
+	{
+		var result = CliHostRunner.Run("uri-cmd", "--help");
+		result.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(result)).Should().Contain("--uri <uri>");
+	}
+
+	[Fact]
 	public void CustomParser_point()
 	{
 		var result = CliHostRunner.Run("point-cmd", "--point", "3,4");
