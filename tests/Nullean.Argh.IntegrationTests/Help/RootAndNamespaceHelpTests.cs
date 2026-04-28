@@ -76,6 +76,7 @@ public class RootAndNamespaceHelpTests
 			  validate-dto                          Validate DTO fields with range
 			                                        constraint.
 			  validate-email                        Validate email format on --address.
+			  validate-email-opt                    Optional nullable mailbox (email).
 			  validate-length                       Validate string length on --name.
 			  validate-non-nullable-range           Validate numeric range on non-nullable
 			                                        --page-per with default.
@@ -84,6 +85,7 @@ public class RootAndNamespaceHelpTests
 			  validate-timespan-range               Validate TimeSpan inclusive range.
 			  validate-uri-scheme                   Validate URI scheme restriction on
 			                                        --endpoint.
+			  validate-uri-scheme-opt               Optional nullable HTTPS endpoint.
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		TrimLines(text).Should().Be(TrimLines(expected));
 		var fromCommands = text.Substring(text.IndexOf("Commands:", StringComparison.Ordinal));

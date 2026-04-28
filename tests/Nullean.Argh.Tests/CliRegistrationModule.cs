@@ -46,7 +46,9 @@ internal static class CliRegistrationModule
 		app.Map("validate-regex", ValidationCliHandlers.ValidateRegex);
 		app.Map("validate-allowed", ValidationCliHandlers.ValidateAllowed);
 		app.Map("validate-email", ValidationCliHandlers.ValidateEmail);
+		app.Map("validate-email-opt", ValidationCliHandlers.ValidateEmailOptional);
 		app.Map("validate-uri-scheme", ValidationCliHandlers.ValidateUriScheme);
+		app.Map("validate-uri-scheme-opt", ValidationCliHandlers.ValidateUriSchemeOptional);
 		app.Map("validate-non-nullable-range", ValidationCliHandlers.ValidateNonNullableRange);
 		app.Map("validate-dto", ValidationCliHandlers.ValidateDto);
 		app.Map("validate-timespan-range", ValidationCliHandlers.ValidateTimeSpanRange);
