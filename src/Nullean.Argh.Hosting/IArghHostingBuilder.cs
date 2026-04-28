@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Nullean.Argh.Builder;
 using Nullean.Argh.Middleware;
 
@@ -53,4 +54,18 @@ public interface IArghHostingBuilder : IArghRootBuilder
 
 	/// <inheritdoc cref="IArghBuilder.MapNamespace{T}(Action{IArghNamespaceBuilder})"/>
 	new IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(Action<IArghNamespaceBuilder> configure) where T : class;
+
+	/// <summary>
+	/// Sets the minimum log level applied to all logging providers when <c>AddArgh</c> detects an intrinsic
+	/// command invocation (built-in or user-defined <c>[CommandIntrinsic]</c>). Log entries below this level
+	/// are suppressed, keeping intrinsic output clean.
+	/// <para>
+	/// Default: <see cref="LogLevel.Warning"/> (suppresses <c>Information</c> and below).
+	/// </para>
+	/// <para>
+	/// Set to <see cref="LogLevel.Trace"/> to re-enable all logs, or <see cref="LogLevel.None"/> to
+	/// suppress all logs including errors.
+	/// </para>
+	/// </summary>
+	IArghHostingBuilder IntrinsicLogLevelMinimum(LogLevel level);
 }

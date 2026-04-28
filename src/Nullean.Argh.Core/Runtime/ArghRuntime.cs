@@ -12,6 +12,7 @@ public static class ArghRuntime
 	private static Func<string[], Task<int>>? _runAsyncFunc;
 	private static Func<string[], RouteMatch?>? _routeFunc;
 	private static Func<ArghCliSchemaDocument>? _cliSchemaFactory;
+	private static Func<string[], bool>? _intrinsicFunc;
 
 	/// <summary>
 	/// Registers the generated CLI runner. Called from emitted module initialization; not intended for app code.
@@ -30,6 +31,19 @@ public static class ArghRuntime
 	/// </summary>
 	public static void RegisterCliSchema(Func<ArghCliSchemaDocument> factory) =>
 		_cliSchemaFactory = factory ?? throw new ArgumentNullException(nameof(factory));
+
+	/// <summary>
+	/// Registers the generated intrinsic command detector. Called from emitted module initialization; not intended for app code.
+	/// </summary>
+	public static void RegisterIntrinsic(Func<string[], bool> detector) =>
+		_intrinsicFunc = detector ?? throw new ArgumentNullException(nameof(detector));
+
+	/// <summary>
+	/// Returns <see langword="true"/> if <paramref name="args"/> route to a user-defined <c>[CommandIntrinsic]</c> command.
+	/// Does not check built-in intrinsic commands; use <see cref="ArghApp.IsIntrinsicCommand"/> for the full check.
+	/// </summary>
+	internal static bool IsUserIntrinsicCommand(string[] args) =>
+		_intrinsicFunc?.Invoke(args) ?? false;
 
 	/// <summary>
 	/// Serializes the registered <see cref="ArghCliSchemaDocument"/> to indented JSON (camelCase), for <c>__schema</c> and programmatic use.

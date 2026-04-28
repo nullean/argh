@@ -42,7 +42,11 @@ public static class ArghHostingExtensions
 		if (configure is null)
 			throw new ArgumentNullException(nameof(configure));
 
-		configure(new ArghHostingBuilder(services));
+		var builder = new ArghHostingBuilder(services);
+		configure(builder);
+
+		if (ArghApp.IsIntrinsicCommand(args))
+			services.AddLogging(logging => logging.AddFilter(null, builder.IntrinsicLogLevelMinimumValue));
 
 		services.AddSingleton(sp => new ArghHostingContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
 		services.AddSingleton<IHostedService>(sp => new ArghHostingCliService(
@@ -94,7 +98,11 @@ public static class ArghHostingExtensions
 		if (runCliAsync is null)
 			throw new ArgumentNullException(nameof(runCliAsync));
 
-		configure(new ArghHostingBuilder(services));
+		var builder = new ArghHostingBuilder(services);
+		configure(builder);
+
+		if (ArghApp.IsIntrinsicCommand(args))
+			services.AddLogging(logging => logging.AddFilter(null, builder.IntrinsicLogLevelMinimumValue));
 
 		services.AddSingleton(sp => new ArghHostingContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
 		services.AddSingleton<IHostedService>(sp => new ArghHostingCliService(

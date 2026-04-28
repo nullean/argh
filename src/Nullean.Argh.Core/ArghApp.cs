@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Nullean.Argh.Builder;
+using Nullean.Argh.Help;
 using Nullean.Argh.Runtime;
 
 namespace Nullean.Argh;
@@ -117,4 +118,48 @@ public sealed partial class ArghApp : IArghRootBuilder
 	/// <summary>Gets the delegate stored for a lambda-registered command by its storage key.</summary>
 	public static Delegate? GetRegisteredLambda(string key) =>
 		Lambdas.TryGetValue(key, out var h) ? h : null;
+
+	/// <summary>
+	/// Returns <see langword="true"/> if <paramref name="args"/> resolve to a built-in intrinsic command
+	/// (<c>--help</c>, <c>-h</c>, <c>--version</c>, <c>__schema</c>, <c>__completion</c>, <c>__complete</c>)
+	/// or a user-defined command marked <c>[CommandIntrinsic]</c>.
+	/// <para>
+	/// This is the predicate used by <c>AddArgh</c> to suppress host startup logs for intrinsic invocations.
+	/// For the pre-host fast-exit path, use <see cref="TryArghIntrinsicCommand"/>.
+	/// </para>
+	/// </summary>
+	public static bool IsIntrinsicCommand(string[] args) =>
+		IsArghBuiltinIntrinsic(args) || ArghRuntime.IsUserIntrinsicCommand(args);
+
+	/// <summary>
+	/// Pre-host fast path for built-in intrinsic commands. If <paramref name="args"/> match a built-in
+	/// (<c>--help</c>, <c>-h</c>, <c>--version</c>, <c>__schema</c>, <c>__completion</c>, <c>__complete</c>),
+	/// the command is executed and the process exits via <see cref="Environment.Exit(int)"/>.
+	/// If <paramref name="args"/> do not match, this method returns normally and the caller should continue
+	/// building and running the host.
+	/// <para>
+	/// <b>Expert API.</b> Useful when host startup is expensive and you want zero overhead for built-in
+	/// intrinsic commands. Place this call before <c>Host.CreateApplicationBuilder</c>. When omitted,
+	/// <c>AddArgh</c> still suppresses startup logs for intrinsic commands automatically.
+	/// </para>
+	/// </summary>
+	/// <example>
+	/// <code>
+	/// await ArghApp.TryArghIntrinsicCommand(args); // exits here for --help, --version, __schema, etc.
+	/// var builder = Host.CreateApplicationBuilder(args);
+	/// builder.Services.AddArgh(args, b => { b.Map&lt;MyCommands&gt;(); });
+	/// await builder.Build().RunAsync();
+	/// </code>
+	/// </example>
+	public static async Task TryArghIntrinsicCommand(string[] args)
+	{
+		if (!IsArghBuiltinIntrinsic(args)) return;
+		var code = await ArghRuntime.RunAsync(args).ConfigureAwait(false);
+		Environment.Exit(code);
+	}
+
+	private static bool IsArghBuiltinIntrinsic(string[] args) =>
+		args is { Length: > 0 } &&
+		(CompletionProtocol.IsArghMetaCompletionInvocation(args) ||
+		 Array.Exists(args, static a => a is "--help" or "-h" or "--version"));
 }
