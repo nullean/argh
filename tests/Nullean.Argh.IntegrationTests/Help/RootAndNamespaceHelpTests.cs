@@ -32,57 +32,57 @@ public class RootAndNamespaceHelpTests
 			                     One of: <Trace|Information|Warning>
 
 			Namespaces:
+			  alias-followed  Root alias followed by additional mapped command classes.
+			  alias-scope     Root-alias integration test namespace.
+			  billing         Billing commands
 			  storage         Commands under storage. Nested BlobCommands must be registered
 			                  explicitly via MapNamespace<BlobCommands>.
-			  billing         Billing commands
 			  support         Support commands
-			  alias-scope     Root-alias integration test namespace.
-			  alias-followed  Root alias followed by additional mapped command classes.
 
 			Commands:
-			  hello                                 Greet someone by name.
-			  enum-cmd                              Enum and short options.
-			  deploy
-			  as-params-with-ct
-			  nullable-numeric-as-params
-			  multi-enum-as-params
-			  optional-uri-as-params
-			  prop-doc-as-params
-			  param-comment-record
-			  tags
-			  tag-set
-			  color-set
-			  opt-tag-set
-			  as-params-tag-set
 			  as-params-collection-syntax
 			  as-params-optional-collection-syntax
+			  as-params-tag-set
+			  as-params-with-ct
 			  brace-doc                             Regression: braces in XML docs must not
 			                                        become C# interpolation in generated
 			                                        help.
-			  dry-run-cmd
+			  color-set
 			  count-cmd
-			  file-cmd
+			  deploy
 			  dir-cmd
-			  uri-cmd
-			  temporal-cmd
-			  point-cmd
 			  doc-lambda                            Documented handler for lambda-style Map
 			                                        (XML appears in help).
+			  dry-run-cmd
+			  enum-cmd                              Enum and short options.
+			  file-cmd
+			  hello                                 Greet someone by name.
 			  lambda-cmd
-			  validate-range                        Validate numeric range on --port.
-			  validate-length                       Validate string length on --name.
-			  validate-regex                        Validate regex pattern on --slug.
+			  multi-enum-as-params
+			  nullable-numeric-as-params
+			  opt-tag-set
+			  optional-uri-as-params
+			  param-comment-record
+			  ping
+			  point-cmd
+			  prop-doc-as-params
+			  renamed-cmd
+			  tag-set
+			  tags
+			  temporal-cmd
+			  uri-cmd
 			  validate-allowed                      Validate allowed values on --env.
-			  validate-email                        Validate email format on --address.
-			  validate-uri-scheme                   Validate URI scheme restriction on
-			                                        --endpoint.
-			  validate-non-nullable-range           Validate numeric range on non-nullable
-			                                        --page-per with default.
 			  validate-dto                          Validate DTO fields with range
 			                                        constraint.
+			  validate-email                        Validate email format on --address.
+			  validate-length                       Validate string length on --name.
+			  validate-non-nullable-range           Validate numeric range on non-nullable
+			                                        --page-per with default.
+			  validate-range                        Validate numeric range on --port.
+			  validate-regex                        Validate regex pattern on --slug.
 			  validate-timespan-range               Validate TimeSpan inclusive range.
-			  ping
-			  renamed-cmd
+			  validate-uri-scheme                   Validate URI scheme restriction on
+			                                        --endpoint.
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		TrimLines(text).Should().Be(TrimLines(expected));
 		var fromCommands = text.Substring(text.IndexOf("Commands:", StringComparison.Ordinal));
