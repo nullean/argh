@@ -79,6 +79,8 @@ public class RootHelpFullTextTests
 			  validate-email                        Validate email format on --address.
 			  validate-email-opt                    Optional nullable mailbox (email).
 			  validate-existing-directory           Require directory to exist.
+			  validate-existing-directory-opt       Optional directory: [Existing] skips
+			                                        when omitted.
 			  validate-existing-file                Require path to reference an existing
 			                                        file.
 			  validate-expand-home-file             Expand ~ profile prefix before binding
@@ -86,8 +88,12 @@ public class RootHelpFullTextTests
 			  validate-length                       Validate string length on --name.
 			  validate-no-symlink-file              Existing file that must not be a
 			                                        symbolic link.
+			  validate-no-symlink-file-opt          Optional file: [RejectSymbolicLinks]
+			                                        skips when omitted.
 			  validate-non-existing-file            Require path to reference a non-existing
 			                                        file path.
+			  validate-non-existing-file-opt        Optional file path: [NonExisting] skips
+			                                        when omitted.
 			  validate-non-nullable-range           Validate numeric range on non-nullable
 			                                        --page-per with default.
 			  validate-range                        Validate numeric range on --port.

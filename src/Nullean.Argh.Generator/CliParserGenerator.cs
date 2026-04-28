@@ -6325,6 +6325,32 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		if (p.ScalarKind == CliScalarKind.FileInfo)
 		{
+			// Optional FileInfo? must omit new FileInfo when the flag was not provided (null), not pass null into the ctor (ArgumentNullException).
+			if (!p.IsRequired)
+			{
+				var csharpNullableFi = GetCSharpCliType(p);
+				var tmpFi = "__nullableFileInfo_" + Naming.SanitizeIdentifier(p.LocalVarName);
+				sb.AppendLine($"{ind}{csharpNullableFi} {tmpFi} = null;");
+				sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
+				sb.AppendLine($"{ind}{{");
+				var innerFi = ind + "\t";
+				string pathSrcOpt = $"{rawExpr}!";
+				if (p.ExpandUserProfileBeforeBind)
+				{
+					var expandedOpt = "__path_" + Naming.SanitizeIdentifier(p.LocalVarName);
+					sb.AppendLine($"{innerFi}var {expandedOpt} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+					pathSrcOpt = expandedOpt;
+				}
+
+				sb.AppendLine($"{innerFi}{tmpFi} = new global::System.IO.FileInfo({pathSrcOpt});");
+				sb.AppendLine($"{ind}}}");
+				if (outVarKeyword)
+					sb.AppendLine($"{ind}var {targetVar} = {tmpFi};");
+				else
+					sb.AppendLine($"{ind}{targetVar} = {tmpFi};");
+				return;
+			}
+
 			string pathSrc = $"{rawExpr}!";
 			if (p.ExpandUserProfileBeforeBind)
 			{
@@ -6342,6 +6368,32 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		if (p.ScalarKind == CliScalarKind.DirectoryInfo)
 		{
+			// Optional DirectoryInfo? must omit new DirectoryInfo when the flag was not provided (null), not pass null into the ctor (ArgumentNullException).
+			if (!p.IsRequired)
+			{
+				var csharpNullableDi = GetCSharpCliType(p);
+				var tmpDi = "__nullableDirectoryInfo_" + Naming.SanitizeIdentifier(p.LocalVarName);
+				sb.AppendLine($"{ind}{csharpNullableDi} {tmpDi} = null;");
+				sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
+				sb.AppendLine($"{ind}{{");
+				var innerDi = ind + "\t";
+				string pathSrcDirOpt = $"{rawExpr}!";
+				if (p.ExpandUserProfileBeforeBind)
+				{
+					var expandedOptDir = "__dir_" + Naming.SanitizeIdentifier(p.LocalVarName);
+					sb.AppendLine($"{innerDi}var {expandedOptDir} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+					pathSrcDirOpt = expandedOptDir;
+				}
+
+				sb.AppendLine($"{innerDi}{tmpDi} = new global::System.IO.DirectoryInfo({pathSrcDirOpt});");
+				sb.AppendLine($"{ind}}}");
+				if (outVarKeyword)
+					sb.AppendLine($"{ind}var {targetVar} = {tmpDi};");
+				else
+					sb.AppendLine($"{ind}{targetVar} = {tmpDi};");
+				return;
+			}
+
 			string pathSrcDir = $"{rawExpr}!";
 			if (p.ExpandUserProfileBeforeBind)
 			{
@@ -6363,7 +6415,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (!p.IsRequired)
 			{
 				var csharpNullableUri = GetCSharpCliType(p);
-				var tmpUri = "__nullableUriParsed_" + p.LocalVarName;
+				var tmpUri = "__nullableUriParsed_" + Naming.SanitizeIdentifier(p.LocalVarName);
 				sb.AppendLine($"{ind}{csharpNullableUri} {tmpUri} = null;");
 				sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
 				sb.AppendLine($"{ind}{{");
