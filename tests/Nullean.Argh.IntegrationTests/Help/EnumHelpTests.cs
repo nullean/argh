@@ -24,7 +24,7 @@ public class EnumHelpTests
 			   Enum and short options.
 
 			Global options:
-			  --help, -h                    Show help.
+			  -h, --help                    Show help.
 			  --verbose
 			  --severity <enum>             Enum default for global-flag parsing regression. [default: Information]
 			                                One of: <Trace|Information|Warning>
