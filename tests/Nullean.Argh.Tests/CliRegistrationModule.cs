@@ -60,6 +60,12 @@ internal static class CliRegistrationModule
 		app.MapNamespace("support", "Support commands", g => g.MapNamespace("tools", "Shared tools segment", h => h.Map("status", SupportToolsHandlers.Status)));
 		// MapAndRootAlias: multi-command class; Build is [DefaultCommand] and also the root alias for this namespace.
 		app.MapNamespace("alias-scope", "Root-alias integration test namespace.", g => g.MapAndRootAlias<RootAliasTestCommands>());
+		app.MapNamespace("alias-followed", "Root alias followed by additional mapped command classes.", g =>
+		{
+			g.MapAndRootAlias<RootAliasSingleMethodCommands>();
+			g.Map<RootAliasFollowupDiffCommands>();
+			g.Map<RootAliasFollowupServeCommands>();
+		});
 	}
 
 	/// <summary>Documented handler for lambda-style <c>Map</c> (XML appears in help).</summary>

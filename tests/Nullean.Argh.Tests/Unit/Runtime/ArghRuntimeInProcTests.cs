@@ -273,4 +273,49 @@ public class ArghRuntimeInProcTests
 		}
 		finally { Console.SetOut(prev); }
 	}
+
+	[Fact]
+	public async Task RunAsync_alias_followed_namespace_default_routes_to_alias_target()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["alias-followed"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("marker:alias-followed-build");
+		}
+		finally { Console.SetOut(prev); }
+	}
+
+	[Fact]
+	public async Task RunAsync_alias_followed_namespace_first_followup_command_is_routable()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["alias-followed", "diff"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("marker:alias-followed-diff");
+		}
+		finally { Console.SetOut(prev); }
+	}
+
+	[Fact]
+	public async Task RunAsync_alias_followed_namespace_second_followup_command_is_routable()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["alias-followed", "serve"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("marker:alias-followed-serve");
+		}
+		finally { Console.SetOut(prev); }
+	}
 }
