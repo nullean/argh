@@ -28,6 +28,7 @@ internal static class CliRegistrationModule
 		app.Map("opt-tag-set", CliTestHandlers.OptTagSet);
 		app.Map("as-params-tag-set", CliTestHandlers.AsParamsTagSet);
 		app.Map("as-params-collection-syntax", CliTestHandlers.AsParamsCollectionSyntax);
+		app.Map("as-params-optional-collection-syntax", CliTestHandlers.AsParamsOptionalCollectionSyntax);
 		app.Map("brace-doc", CliTestHandlers.BraceDoc);
 		app.Map("dry-run-cmd", CliTestHandlers.DryRunCmd);
 		app.Map("count-cmd", CliTestHandlers.CountCmd);
@@ -61,6 +62,12 @@ internal static class CliRegistrationModule
 		app.MapNamespace("support", "Support commands", g => g.MapNamespace("tools", "Shared tools segment", h => h.Map("status", SupportToolsHandlers.Status)));
 		// MapAndRootAlias: multi-command class; Build is [DefaultCommand] and also the root alias for this namespace.
 		app.MapNamespace("alias-scope", "Root-alias integration test namespace.", g => g.MapAndRootAlias<RootAliasTestCommands>());
+		app.MapNamespace("alias-followed", "Root alias followed by additional mapped command classes.", g =>
+		{
+			g.MapAndRootAlias<RootAliasSingleMethodCommands>();
+			g.Map<RootAliasFollowupDiffCommands>();
+			g.Map<RootAliasFollowupServeCommands>();
+		});
 	}
 
 	/// <summary>Documented handler for lambda-style <c>Map</c> (XML appears in help).</summary>

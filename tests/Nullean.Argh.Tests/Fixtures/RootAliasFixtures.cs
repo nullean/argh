@@ -22,3 +22,28 @@ internal sealed class RootAliasTestCommands
 	public static void Serve(TestGlobalCliOptions g, int port = 3000, CancellationToken ct = default) =>
 		Console.Out.WriteLine($"marker:alias-serve port={port}");
 }
+
+/// <summary>Single-method alias target used to validate MapAndRootAlias followed by additional Map registrations.</summary>
+internal sealed class RootAliasSingleMethodCommands
+{
+	[DefaultCommand]
+	[CommandName("build")]
+	public static void Build(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine("marker:alias-followed-build");
+}
+
+/// <summary>First follow-up mapped command after a root alias registration.</summary>
+internal sealed class RootAliasFollowupDiffCommands
+{
+	[CommandName("diff")]
+	public static void Diff() =>
+		Console.Out.WriteLine("marker:alias-followed-diff");
+}
+
+/// <summary>Second follow-up mapped command after a root alias registration.</summary>
+internal sealed class RootAliasFollowupServeCommands
+{
+	[CommandName("serve")]
+	public static void Serve() =>
+		Console.Out.WriteLine("marker:alias-followed-serve");
+}

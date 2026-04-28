@@ -32,28 +32,31 @@ public class RootAndNamespaceHelpTests
 			                     One of: <Trace|Information|Warning>
 
 			Namespaces:
-			  alias-scope  Root-alias integration test namespace.
-			  billing      Billing commands
-			  storage      Commands under storage. Nested BlobCommands must be registered
-			               explicitly via MapNamespace<BlobCommands>.
-			  support      Support commands
+			  alias-followed  Root alias followed by additional mapped command classes.
+			  alias-scope     Root-alias integration test namespace.
+			  billing         Billing commands
+			  storage         Commands under storage. Nested BlobCommands must be registered
+			                  explicitly via MapNamespace<BlobCommands>.
+			  support         Support commands
 
 			Commands:
 			  as-params-collection-syntax
+			  as-params-optional-collection-syntax
 			  as-params-tag-set
 			  as-params-with-ct
-			  brace-doc                    Regression: braces in XML docs must not become C#
-			                               interpolation in generated help.
+			  brace-doc                             Regression: braces in XML docs must not
+			                                        become C# interpolation in generated
+			                                        help.
 			  color-set
 			  count-cmd
 			  deploy
 			  dir-cmd
-			  doc-lambda                   Documented handler for lambda-style Map (XML
-			                               appears in help).
+			  doc-lambda                            Documented handler for lambda-style Map
+			                                        (XML appears in help).
 			  dry-run-cmd
-			  enum-cmd                     Enum and short options.
+			  enum-cmd                              Enum and short options.
 			  file-cmd
-			  hello                        Greet someone by name.
+			  hello                                 Greet someone by name.
 			  lambda-cmd
 			  multi-enum-as-params
 			  nullable-numeric-as-params
@@ -68,16 +71,18 @@ public class RootAndNamespaceHelpTests
 			  tags
 			  temporal-cmd
 			  uri-cmd
-			  validate-allowed             Validate allowed values on --env.
-			  validate-dto                 Validate DTO fields with range constraint.
-			  validate-email               Validate email format on --address.
-			  validate-length              Validate string length on --name.
-			  validate-non-nullable-range  Validate numeric range on non-nullable --page-per
-			                               with default.
-			  validate-range               Validate numeric range on --port.
-			  validate-regex               Validate regex pattern on --slug.
-			  validate-timespan-range      Validate TimeSpan inclusive range.
-			  validate-uri-scheme          Validate URI scheme restriction on --endpoint.
+			  validate-allowed                      Validate allowed values on --env.
+			  validate-dto                          Validate DTO fields with range
+			                                        constraint.
+			  validate-email                        Validate email format on --address.
+			  validate-length                       Validate string length on --name.
+			  validate-non-nullable-range           Validate numeric range on non-nullable
+			                                        --page-per with default.
+			  validate-range                        Validate numeric range on --port.
+			  validate-regex                        Validate regex pattern on --slug.
+			  validate-timespan-range               Validate TimeSpan inclusive range.
+			  validate-uri-scheme                   Validate URI scheme restriction on
+			                                        --endpoint.
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		TrimLines(text).Should().Be(TrimLines(expected));
 		var fromCommands = text.Substring(text.IndexOf("Commands:", StringComparison.Ordinal));
