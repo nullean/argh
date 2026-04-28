@@ -112,6 +112,18 @@ public sealed class UriSchemeAttribute : Attribute
 }
 
 /// <summary>
+/// Marks a command method as intrinsic — a command that returns information about the CLI itself
+/// (e.g. version info, status, or diagnostic output) and does not perform application business logic.
+/// <para>
+/// When an intrinsic command is detected, <c>AddArgh</c> automatically suppresses host startup logs
+/// below <c>LogLevel.Warning</c> so the command output is not polluted by infrastructure noise.
+/// Override the threshold via <c>b.IntrinsicLogLevelMinimum(LogLevel)</c> on the hosting builder.
+/// </para>
+/// </summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class CommandIntrinsicAttribute : Attribute;
+
+/// <summary>
 /// Suppresses the AGH0021 diagnostic for this command method or handler class. Use when a command
 /// intentionally does not need access to the registered <c>UseGlobalOptions</c> or namespace options types.
 /// Apply to a <b>method</b> to opt out for that command only, or to a <b>class</b> to opt out for

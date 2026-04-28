@@ -2292,6 +2292,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return false;
 	}
 
+	private static bool HasCommandIntrinsicAttribute(IMethodSymbol method)
+	{
+		foreach (var ad in method.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name == "CommandIntrinsicAttribute" &&
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
+				return true;
+		}
+
+		return false;
+	}
+
 	private static string? TryGetCommandNameAttribute(IMethodSymbol method)
 	{
 		foreach (var ad in method.GetAttributes())
@@ -3219,6 +3231,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						System.Console.Out.WriteLine("__ARGH_EMBED_ASM_VER__");
 					}
 
+					internal static bool IsIntrinsicCommand(string[] args) => false;
+
 					internal static ArghCliSchemaDocument BuildCliSchemaDocument() =>
 						new ArghCliSchemaDocument(
 							1,
@@ -3240,6 +3254,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						ArghRuntime.RegisterRunner(ArghGenerated.RunAsync);
 						ArghRuntime.RegisterRoute(ArghGenerated.Route);
 						ArghRuntime.RegisterCliSchema(ArghGenerated.BuildCliSchemaDocument);
+						ArghRuntime.RegisterIntrinsic(ArghGenerated.IsIntrinsicCommand);
 					}
 				}
 			}
@@ -3266,6 +3281,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tArghRuntime.RegisterRunner(" + rootTypeName + ".RunAsync);");
 		sb.AppendLine("\t\t\tArghRuntime.RegisterRoute(" + rootTypeName + ".Route);");
 		sb.AppendLine("\t\t\tArghRuntime.RegisterCliSchema(" + rootTypeName + ".BuildCliSchemaDocument);");
+		sb.AppendLine("\t\t\tArghRuntime.RegisterIntrinsic(" + rootTypeName + ".IsIntrinsicCommand);");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine("\t}");
 	}
@@ -3746,6 +3762,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 
 		EmitTryParseRouteHierarchical(sb, app);
+		EmitIsIntrinsicCommand(sb, app);
 		EmitDispatchForNode(sb, app, app.Root, ImmutableArray<string>.Empty, "DispatchRoot", isRoot: true, entryAssemblyName);
 		sb.AppendLine("\t\tprivate static bool? ParseNullableBool(string? raw, bool fromYesSwitch)");
 		sb.AppendLine("\t\t{");
@@ -4519,6 +4536,36 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
+
+	private static void EmitIsIntrinsicCommand(StringBuilder sb, AppEmitModel app)
+	{
+		sb.AppendLine("\t\tinternal static bool IsIntrinsicCommand(string[] args)");
+		sb.AppendLine("\t\t{");
+		sb.AppendLine("\t\t\tif (args is null || args.Length == 0) return false;");
+
+		var intrinsicCommands = app.AllCommands.Where(static c => c.IsIntrinsic).ToList();
+		if (intrinsicCommands.Count == 0)
+		{
+			sb.AppendLine("\t\t\treturn false;");
+			sb.AppendLine("\t\t}");
+			sb.AppendLine();
+			return;
+		}
+
+		sb.AppendLine("\t\t\tvar match = Route(args);");
+		sb.AppendLine("\t\t\tif (match is null) return false;");
+		sb.AppendLine("\t\t\tswitch (match.Value.CommandPath)");
+		sb.AppendLine("\t\t\t{");
+		foreach (var cmd in intrinsicCommands)
+		{
+			var routePath = Escape(GetCommandRoutePath(cmd));
+			sb.AppendLine($"\t\t\t\tcase \"{routePath}\": return true;");
+		}
+		sb.AppendLine("\t\t\t\tdefault: return false;");
+		sb.AppendLine("\t\t\t}");
+		sb.AppendLine("\t\t}");
+		sb.AppendLine();
+	}
 
 	private static void EmitTryParseRouteHierarchical(StringBuilder sb, AppEmitModel app)
 	{
@@ -7375,7 +7422,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		bool IsRootDefault = false,
 		bool IsLambda = false,
 		string LambdaStorageKey = "",
-		string LambdaDelegateFq = "")
+		string LambdaDelegateFq = "",
+		bool IsIntrinsic = false)
 	{
 		public static CommandModel FromRootMethod(
 			IMethodSymbol method,
@@ -7493,7 +7541,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				docs.RemarksInnerXml,
 				docs.ExamplesRendered,
 				usage,
-				mwData);
+				mwData,
+				IsIntrinsic: HasCommandIntrinsicAttribute(method));
 		}
 
 		/// <summary>Overload for the per-invocation Select step — uses <see cref="DiagnosticAccumulator"/> instead of SourceProductionContext.</summary>
@@ -7554,7 +7603,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			var hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt && HasPublicParameterlessCtor(namedCt);
 			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) = ExtractHandlerAnalysis(method);
-			return new CommandModel(routePrefix, commandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData);
+			return new CommandModel(routePrefix, commandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData, IsIntrinsic: HasCommandIntrinsicAttribute(method));
 		}
 
 		private static ImmutableArray<ParameterModel> BuildParameterModels(

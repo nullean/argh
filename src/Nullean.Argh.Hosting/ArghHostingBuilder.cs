@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Nullean.Argh.Builder;
 using Nullean.Argh.Middleware;
 using Nullean.Argh.Runtime;
@@ -13,6 +14,9 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 {
 	private readonly IServiceCollection _services;
 	private readonly ArghBuilder _inner;
+	private LogLevel _intrinsicLogLevelMinimum = LogLevel.Warning;
+
+	internal LogLevel IntrinsicLogLevelMinimumValue => _intrinsicLogLevelMinimum;
 
 	/// <summary>Initializes a new <see cref="ArghHostingBuilder"/> backed by <paramref name="services"/>.</summary>
 	public ArghHostingBuilder(IServiceCollection services)
@@ -199,6 +203,13 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 	IArghBuilder IArghBuilder.UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>()
 	{
 		_ = UseMiddleware<TMiddleware>();
+		return this;
+	}
+
+	/// <inheritdoc />
+	public IArghHostingBuilder IntrinsicLogLevelMinimum(LogLevel level)
+	{
+		_intrinsicLogLevelMinimum = level;
 		return this;
 	}
 
