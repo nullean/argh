@@ -40,8 +40,8 @@ public class RootAndNamespaceHelpTests
 			  alias-followed  Root alias followed by additional mapped command classes.
 
 			Commands:
-			  hello                        Greet someone by name.
-			  enum-cmd                     Enum and short options.
+			  hello                                 Greet someone by name.
+			  enum-cmd                              Enum and short options.
 			  deploy
 			  as-params-with-ct
 			  nullable-numeric-as-params
@@ -55,8 +55,10 @@ public class RootAndNamespaceHelpTests
 			  opt-tag-set
 			  as-params-tag-set
 			  as-params-collection-syntax
-			  brace-doc                    Regression: braces in XML docs must not become C#
-			                               interpolation in generated help.
+			  as-params-optional-collection-syntax
+			  brace-doc                             Regression: braces in XML docs must not
+			                                        become C# interpolation in generated
+			                                        help.
 			  dry-run-cmd
 			  count-cmd
 			  file-cmd
@@ -64,19 +66,21 @@ public class RootAndNamespaceHelpTests
 			  uri-cmd
 			  temporal-cmd
 			  point-cmd
-			  doc-lambda                   Documented handler for lambda-style Map (XML
-			                               appears in help).
+			  doc-lambda                            Documented handler for lambda-style Map
+			                                        (XML appears in help).
 			  lambda-cmd
-			  validate-range               Validate numeric range on --port.
-			  validate-length              Validate string length on --name.
-			  validate-regex               Validate regex pattern on --slug.
-			  validate-allowed             Validate allowed values on --env.
-			  validate-email               Validate email format on --address.
-			  validate-uri-scheme          Validate URI scheme restriction on --endpoint.
-			  validate-non-nullable-range  Validate numeric range on non-nullable --page-per
-			                               with default.
-			  validate-dto                 Validate DTO fields with range constraint.
-			  validate-timespan-range      Validate TimeSpan inclusive range.
+			  validate-range                        Validate numeric range on --port.
+			  validate-length                       Validate string length on --name.
+			  validate-regex                        Validate regex pattern on --slug.
+			  validate-allowed                      Validate allowed values on --env.
+			  validate-email                        Validate email format on --address.
+			  validate-uri-scheme                   Validate URI scheme restriction on
+			                                        --endpoint.
+			  validate-non-nullable-range           Validate numeric range on non-nullable
+			                                        --page-per with default.
+			  validate-dto                          Validate DTO fields with range
+			                                        constraint.
+			  validate-timespan-range               Validate TimeSpan inclusive range.
 			  ping
 			  renamed-cmd
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";

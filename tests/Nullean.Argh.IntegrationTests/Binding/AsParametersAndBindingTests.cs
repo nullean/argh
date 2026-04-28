@@ -74,4 +74,23 @@ public class AsParametersAndBindingTests
 		result.ExitCode.Should().Be(2);
 		CliHostRunner.StderrText(result).Should().Contain("duplicate value");
 	}
+
+	[Fact]
+	public void AsParameters_optional_init_property_with_CollectionSyntax_omitted_flag_binds_null()
+	{
+		var result = CliHostRunner.Run("as-params-optional-collection-syntax");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-optional-collection-syntax:none:null");
+	}
+
+	[Fact]
+	public void AsParameters_optional_init_property_with_CollectionSyntax_parses_csv_values()
+	{
+		var result = CliHostRunner.Run(
+			"as-params-optional-collection-syntax",
+			"--ocs-tag-ids", "3,1,2",
+			"--ocs-output", "dist");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-optional-collection-syntax:1,2,3:dist");
+	}
 }

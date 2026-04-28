@@ -44,6 +44,15 @@ internal sealed record CollectionSyntaxAsParamsArgs(
 	[property: CollectionSyntax(Separator = "|")] List<string> Labels,
 	[property: CollectionSyntax(Separator = ";")] int[] Ports);
 
+/// <summary>Init-property [AsParameters] DTO with optional collection syntax separator.</summary>
+internal sealed class OptionalCollectionSyntaxAsParamsArgs
+{
+	[CollectionSyntax(Separator = ",")]
+	public IReadOnlySet<int>? TagIds { get; init; }
+
+	public string? Output { get; init; }
+}
+
 /// <summary>Init-only bound object for XML documentation in help output.</summary>
 internal sealed class PropDocBoundArgs
 {
@@ -157,6 +166,13 @@ internal static class CliTestHandlers
 			+ string.Join(",", args.Labels)
 			+ ":"
 			+ string.Join(",", args.Ports));
+
+	public static void AsParamsOptionalCollectionSyntax(TestGlobalCliOptions g, [AsParameters("ocs")] OptionalCollectionSyntaxAsParamsArgs args) =>
+		Console.Out.WriteLine(
+			"as-params-optional-collection-syntax:"
+			+ (args.TagIds is null or { Count: 0 } ? "none" : string.Join(",", args.TagIds.OrderBy(x => x)))
+			+ ":"
+			+ (args.Output ?? "null"));
 
 	internal readonly record struct Point(int X, int Y);
 
