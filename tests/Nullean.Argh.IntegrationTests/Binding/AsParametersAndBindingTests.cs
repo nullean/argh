@@ -93,4 +93,15 @@ public class AsParametersAndBindingTests
 		result.ExitCode.Should().Be(0);
 		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-optional-collection-syntax:1,2,3:dist");
 	}
+
+	[Fact]
+	public void AsParameters_referenced_project_type_binds_flags()
+	{
+		var result = CliHostRunner.Run(
+			"as-params-referenced-dto",
+			"--path", "docs",
+			"--output", ".artifacts/site");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:.artifacts/site");
+	}
 }

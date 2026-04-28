@@ -771,7 +771,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				// Always hoist: merge the type's methods directly into the current scope (root or namespace).
 				var acc = new DiagnosticAccumulator();
 				var wrapper = new RegistryNode();
-				ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, mergeOuterTypeSegment: true, wrapper, parseOpts);
+				ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, mergeOuterTypeSegment: true, wrapper, parseOpts, semanticModel.Compilation);
 				var snap = BuildRegistryNodeSnapshot(wrapper);
 				return new AIMapCommand(filePath, spanStart, ImmutableArray<CommandModel>.Empty, TypeSnapshot: snap);
 			}
@@ -781,7 +781,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					return null;
 				var acc = new DiagnosticAccumulator();
 				var wrapper = new RegistryNode();
-				AddMethodsFromTypeAccForAlias(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, wrapper, parseOpts);
+				AddMethodsFromTypeAccForAlias(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, wrapper, parseOpts, semanticModel.Compilation);
 				var snap = BuildRegistryNodeSnapshot(wrapper);
 				return new AIMapAndRootAlias(filePath, spanStart, snap, acc.ToImmutable());
 			}
@@ -802,7 +802,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var handler = ResolveHandlerMethodForAnalyze(semanticModel, handlerExpr);
 				if (handler is null) return null;
 				var acc2 = new DiagnosticAccumulator();
-				var cmd = CommandModel.FromMethod(commandName, handler, parseOpts, ImmutableArray<string>.Empty, acc2, invocation.GetLocation());
+				var cmd = CommandModel.FromMethod(commandName, handler, parseOpts, ImmutableArray<string>.Empty, acc2, invocation.GetLocation(), semanticModel.Compilation);
 				return new AIMapCommand(filePath, spanStart, ImmutableArray.Create(cmd));
 			}
 			case "UseCliDescription":
@@ -856,7 +856,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var handler = ResolveHandlerMethodForAnalyze(semanticModel, handlerExpr);
 		if (handler is null) return null;
 		var acc = new DiagnosticAccumulator();
-		var cmd = CommandModel.FromRootMethod(handler, parseOpts, ImmutableArray<string>.Empty, acc, invocation.GetLocation());
+		var cmd = CommandModel.FromRootMethod(handler, parseOpts, ImmutableArray<string>.Empty, acc, invocation.GetLocation(), semanticModel.Compilation);
 		return new AIMapRootCommand(filePath, spanStart, cmd, isNamespaceRoot);
 	}
 
@@ -972,7 +972,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var acc = new DiagnosticAccumulator();
 			var entryNode = new RegistryNode();
 			// Use mergeOuterTypeSegment=true — expand the type's own methods + nested classes
-			ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), namespaceEntryType, ImmutableArray<string>.Empty, mergeOuterTypeSegment: true, entryNode, parseOpts);
+			ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), namespaceEntryType, ImmutableArray<string>.Empty, mergeOuterTypeSegment: true, entryNode, parseOpts, semanticModel.Compilation);
 			entryTypeSnapshot = BuildRegistryNodeSnapshot(entryNode);
 		}
 
@@ -1001,18 +1001,19 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ImmutableArray<string> routePrefix,
 		bool mergeOuterTypeSegment,
 		RegistryNode attachTo,
-		CSharpParseOptions parseOpts)
+		CSharpParseOptions parseOpts,
+		Compilation? compilation)
 	{
 		if (mergeOuterTypeSegment)
 		{
-			AddMethodsFromTypeAcc(acc, location, type, routePrefix, attachTo, parseOpts);
+			AddMethodsFromTypeAcc(acc, location, type, routePrefix, attachTo, parseOpts, compilation);
 		}
 		else
 		{
 			var seg = Naming.ToTypeSegmentName(type.Name);
 			var wrapper = new RegistryNode();
 			var outerPrefix = AppendSegment(routePrefix, seg);
-			ExpandTypeRegistrationAcc(acc, location, type, outerPrefix, mergeOuterTypeSegment: true, wrapper, parseOpts);
+			ExpandTypeRegistrationAcc(acc, location, type, outerPrefix, mergeOuterTypeSegment: true, wrapper, parseOpts, compilation);
 			attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild
 			{
 				Segment = seg,
@@ -2195,7 +2196,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		INamedTypeSymbol type,
 		ImmutableArray<string> routePrefix,
 		RegistryNode targetNode,
-		CSharpParseOptions parseOpts)
+		CSharpParseOptions parseOpts,
+		Compilation? compilation)
 	{
 		IMethodSymbol? defaultCommand = null;
 		foreach (var member in type.GetMembers())
@@ -2216,7 +2218,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (targetNode.RootCommand is not null)
 				acc.Add(DuplicateRootCommand, location);
 			else
-				targetNode.RootCommand = CommandModel.FromRootMethod(defaultCommand, parseOpts, routePrefix, acc, location);
+				targetNode.RootCommand = CommandModel.FromRootMethod(defaultCommand, parseOpts, routePrefix, acc, location, compilation);
 		}
 		foreach (var member in type.GetMembers())
 		{
@@ -2225,7 +2227,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (method.DeclaredAccessibility != Accessibility.Public) continue;
 			if (defaultCommand is not null && SymbolEqualityComparer.Default.Equals(method, defaultCommand)) continue;
 			var cmdName = TryGetCommandNameAttribute(method) ?? Naming.ToCommandName(method.Name);
-			targetNode.Commands.Add(CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, acc, location));
+			targetNode.Commands.Add(CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, acc, location, compilation));
 		}
 	}
 
@@ -2241,7 +2243,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		INamedTypeSymbol type,
 		ImmutableArray<string> routePrefix,
 		RegistryNode targetNode,
-		CSharpParseOptions parseOpts)
+		CSharpParseOptions parseOpts,
+		Compilation? compilation)
 	{
 		IMethodSymbol? defaultCommandMethod = null;
 		var publicOrdinaryMethods = new List<IMethodSymbol>();
@@ -2273,7 +2276,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		foreach (var method in publicOrdinaryMethods)
 		{
 			var cmdName = TryGetCommandNameAttribute(method) ?? Naming.ToCommandName(method.Name);
-			var cmd = CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, acc, location);
+			var cmd = CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, acc, location, compilation);
 			targetNode.Commands.Add(cmd);
 			if (defaultCommandMethod is not null && SymbolEqualityComparer.Default.Equals(method, defaultCommandMethod))
 				targetNode.RootAlias = cmd;
@@ -2461,11 +2464,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						continue;
 					if (prop.GetMethod is null || prop.SetMethod is null)
 						continue;
-					members.Add(ParameterModel.FromOptionsProperty(prop, TryGetOptionsPropertyDefaultLiteral(prop, compilation)));
+					members.Add(ParameterModel.FromOptionsProperty(prop, compilation, TryGetOptionsPropertyDefaultLiteral(prop, compilation)));
 					break;
 				}
 				case IFieldSymbol field when field.DeclaredAccessibility == Accessibility.Public && !field.IsStatic:
-					members.Add(ParameterModel.FromOptionsField(field, TryGetOptionsFieldDefaultLiteral(field, compilation)));
+					members.Add(ParameterModel.FromOptionsField(field, compilation, TryGetOptionsFieldDefaultLiteral(field, compilation)));
 					break;
 			}
 		}
@@ -2508,7 +2511,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						if (!seen.Add(prop.Name))
 							continue;
 
-						members.Add(ParameterModel.FromOptionsProperty(prop, TryGetOptionsPropertyDefaultLiteral(prop, compilation)));
+						members.Add(ParameterModel.FromOptionsProperty(prop, compilation, TryGetOptionsPropertyDefaultLiteral(prop, compilation)));
 						break;
 					}
 					case IFieldSymbol field when field.DeclaredAccessibility == Accessibility.Public && !field.IsStatic:
@@ -2516,7 +2519,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						if (!seen.Add(field.Name))
 							continue;
 
-						members.Add(ParameterModel.FromOptionsField(field, TryGetOptionsFieldDefaultLiteral(field, compilation)));
+						members.Add(ParameterModel.FromOptionsField(field, compilation, TryGetOptionsFieldDefaultLiteral(field, compilation)));
 						break;
 					}
 				}
@@ -2939,6 +2942,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		IParameterSymbol methodParam,
 		INamedTypeSymbol type,
 		string? prefix,
+		Compilation? compilation,
 		CSharpParseOptions parseOptions)
 	{
 		var pfx = string.IsNullOrWhiteSpace(prefix) ? "" : Naming.ToCliLongName(prefix!.Trim()) + "-";
@@ -2953,7 +2957,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			foreach (var cp in primary.Parameters)
 			{
 				ctorNames.Add(cp.Name);
-				list.Add(ParameterModel.FromAsParametersCtorParameter(owner, typeFq, type, cp, pfx, order++, parseOptions));
+				list.Add(ParameterModel.FromAsParametersCtorParameter(owner, typeFq, type, cp, pfx, order++, compilation, parseOptions));
 			}
 		}
 		var chain = new List<INamedTypeSymbol>();
@@ -2970,7 +2974,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				if (!IsSettableForAsParameters(prop)) continue;
 				if (ctorNames.Contains(prop.Name)) continue;
 				if (!seenPropNames.Add(prop.Name)) continue;
-				list.Add(ParameterModel.FromAsParametersInitProperty(methodParamName: owner, typeFq, prop, pfx, order++, parseOptions));
+				list.Add(ParameterModel.FromAsParametersInitProperty(methodParamName: owner, typeFq, prop, pfx, order++, compilation, parseOptions));
 			}
 		}
 		if (list.Count == 0)
@@ -2984,9 +2988,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		HandlerParam handlerParam,
 		INamedTypeSymbol type,
 		string? prefix,
+		Compilation? compilation,
 		CSharpParseOptions parseOptions)
 	{
-		return FlattenAsParametersType(context, location, handlerParam.Name, type, prefix, parseOptions);
+		return FlattenAsParametersType(context, location, handlerParam.Name, type, prefix, compilation, parseOptions);
 	}
 
 	private static ImmutableArray<ParameterModel> FlattenAsParametersType(
@@ -2995,9 +3000,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		IParameterSymbol methodParam,
 		INamedTypeSymbol type,
 		string? prefix,
+		Compilation? compilation,
 		CSharpParseOptions parseOptions)
 	{
-		return FlattenAsParametersType(context, location, methodParam.Name, type, prefix, parseOptions);
+		return FlattenAsParametersType(context, location, methodParam.Name, type, prefix, compilation, parseOptions);
 	}
 
 	private static ImmutableArray<ParameterModel> FlattenAsParametersType(
@@ -3006,6 +3012,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string methodParamName,
 		INamedTypeSymbol type,
 		string? prefix,
+		Compilation? compilation,
 		CSharpParseOptions parseOptions)
 	{
 		var pfx = string.IsNullOrWhiteSpace(prefix) ? "" : Naming.ToCliLongName(prefix!.Trim()) + "-";
@@ -3028,6 +3035,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					cp,
 					pfx,
 					order++,
+					compilation,
 					parseOptions));
 			}
 		}
@@ -3061,6 +3069,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					prop,
 					pfx,
 					order++,
+					compilation,
 					parseOptions));
 			}
 		}
@@ -7430,9 +7439,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			CSharpParseOptions parseOptions,
 			ImmutableArray<string> routePrefix,
 			SourceProductionContext context,
-			Location diagnosticLocation)
+			Location diagnosticLocation,
+			Compilation? compilation = null)
 		{
-			var parameters = BuildParameterModels(method, parseOptions, context, diagnosticLocation);
+			var parameters = BuildParameterModels(method, parseOptions, context, diagnosticLocation, compilation);
 			ReportDuplicateCliNames(context, diagnosticLocation, parameters);
 			ReportBoolNegationSwitchConflicts(context, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayout(context, diagnosticLocation, parameters);
@@ -7491,9 +7501,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			CSharpParseOptions parseOptions,
 			ImmutableArray<string> routePrefix,
 			SourceProductionContext context,
-			Location diagnosticLocation)
+			Location diagnosticLocation,
+			Compilation? compilation = null)
 		{
-			var parameters = BuildParameterModels(method, parseOptions, context, diagnosticLocation);
+			var parameters = BuildParameterModels(method, parseOptions, context, diagnosticLocation, compilation);
 			ReportDuplicateCliNames(context, diagnosticLocation, parameters);
 			ReportBoolNegationSwitchConflicts(context, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayout(context, diagnosticLocation, parameters);
@@ -7551,9 +7562,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			CSharpParseOptions parseOptions,
 			ImmutableArray<string> routePrefix,
 			DiagnosticAccumulator acc,
-			Location diagnosticLocation)
+			Location diagnosticLocation,
+			Compilation? compilation = null)
 		{
-			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation);
+			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation, compilation);
 			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
 			ReportBoolNegationSwitchConflictsAcc(acc, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
@@ -7582,9 +7594,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			CSharpParseOptions parseOptions,
 			ImmutableArray<string> routePrefix,
 			DiagnosticAccumulator acc,
-			Location diagnosticLocation)
+			Location diagnosticLocation,
+			Compilation? compilation = null)
 		{
-			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation);
+			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation, compilation);
 			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
 			ReportBoolNegationSwitchConflictsAcc(acc, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
@@ -7610,7 +7623,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			IMethodSymbol method,
 			CSharpParseOptions parseOptions,
 			DiagnosticAccumulator acc,
-			Location diagnosticLocation)
+			Location diagnosticLocation,
+			Compilation? compilation = null)
 		{
 			var builder = ImmutableArray.CreateBuilder<ParameterModel>();
 			foreach (var p in method.Parameters)
@@ -7625,7 +7639,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					if (p.Type is not INamedTypeSymbol namedType || namedType.TypeKind == TypeKind.Error)
 						continue;
 					var prefix = GetAsParametersPrefix(p);
-					foreach (var pm in FlattenAsParametersTypeAcc(acc, diagnosticLocation, p, namedType, prefix, parseOptions))
+					foreach (var pm in FlattenAsParametersTypeAcc(acc, diagnosticLocation, p, namedType, prefix, compilation, parseOptions))
 						builder.Add(pm);
 					continue;
 				}
@@ -7638,7 +7652,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			IMethodSymbol method,
 			CSharpParseOptions parseOptions,
 			SourceProductionContext context,
-			Location diagnosticLocation)
+			Location diagnosticLocation,
+			Compilation? compilation = null)
 		{
 			var builder = ImmutableArray.CreateBuilder<ParameterModel>();
 			foreach (var p in method.Parameters)
@@ -7655,7 +7670,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						continue;
 
 					var prefix = GetAsParametersPrefix(p);
-					foreach (var pm in FlattenAsParametersType(context, diagnosticLocation, p, namedType, prefix, parseOptions))
+					foreach (var pm in FlattenAsParametersType(context, diagnosticLocation, p, namedType, prefix, compilation, parseOptions))
 						builder.Add(pm);
 					continue;
 				}
@@ -8087,9 +8102,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				Validations: validations);
 		}
 
-		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, string? defaultValueLiteral = null)
+		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, Compilation? compilation = null, string? defaultValueLiteral = null)
 		{
-			var docLine = Documentation.GetPropertySummaryLine(prop, TryExtractFullDocumentationFromPropertyTrivia(prop));
+			var docLine = Documentation.GetPropertySummaryLine(prop, compilation, TryExtractFullDocumentationFromPropertyTrivia(prop));
 			var bs = ClassifyBool(prop.Type);
 			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
@@ -8126,9 +8141,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				Validations: validations);
 		}
 
-		public static ParameterModel FromOptionsField(IFieldSymbol field, string? defaultValueLiteral = null)
+		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
 		{
-			var docLine = Documentation.GetFieldSummaryLine(field, TryExtractFullDocumentationFromFieldTrivia(field));
+			var docLine = Documentation.GetFieldSummaryLine(field, compilation, TryExtractFullDocumentationFromFieldTrivia(field));
 			var bs = ClassifyBool(field.Type);
 			if (TryUnwrapCollectionType(field.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
@@ -8166,6 +8181,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			IParameterSymbol cp,
 			string namePrefix,
 			int memberOrder,
+			Compilation? compilation,
 			CSharpParseOptions parseOptions)
 		{
 			if (IsInjectedType(cp.Type))
@@ -8201,10 +8217,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var bs = ClassifyBool(cp.Type);
 			var cli = namePrefix + Naming.ToCliLongName(cp.Name);
 			var local = SafeLocalName(methodParamName + "_" + cp.Name);
-			var desc = Documentation.GetParamDocFromType(containingType, cp.Name, TryExtractFullDocumentationFromTypeTrivia(containingType));
+			var desc = Documentation.GetParamDocFromType(containingType, cp.Name, compilation, TryExtractFullDocumentationFromTypeTrivia(containingType));
 			if (string.IsNullOrWhiteSpace(desc))
 			{
 				var pxml = cp.GetDocumentationCommentXml();
+				if (string.IsNullOrWhiteSpace(pxml))
+					pxml = Documentation.GetDocumentationXmlFromMetadataReference(cp, compilation);
 				if (!string.IsNullOrWhiteSpace(pxml))
 				{
 					desc = Documentation.GetParamDocFromXmlFragment(pxml, cp.Name);
@@ -8259,6 +8277,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			IPropertySymbol prop,
 			string namePrefix,
 			int memberOrder,
+			Compilation? compilation,
 			CSharpParseOptions parseOptions)
 		{
 			if (IsInjectedType(prop.Type))
@@ -8294,7 +8313,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var bs = ClassifyBool(prop.Type);
 			var cli = namePrefix + Naming.ToCliLongName(prop.Name);
 			var local = SafeLocalName(methodParamName + "_" + prop.Name);
-			var desc = Documentation.GetPropertySummaryLine(prop, TryExtractFullDocumentationFromPropertyTrivia(prop));
+			var desc = Documentation.GetPropertySummaryLine(prop, compilation, TryExtractFullDocumentationFromPropertyTrivia(prop));
 			var meta = new AsParametersMeta(methodParamName, memberOrder, typeFq, UseInit: true, prop.Name);
 			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
@@ -8946,9 +8965,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return string.Concat(el.Nodes().Select(n => n.ToString()));
 		}
 
-		public static string GetParamDocFromType(INamedTypeSymbol type, string parameterName, string? fallbackXml = null)
+		public static string GetParamDocFromType(INamedTypeSymbol type, string parameterName, Compilation? compilation = null, string? fallbackXml = null)
 		{
 			var xml = type.GetDocumentationCommentXml();
+			if (string.IsNullOrWhiteSpace(xml))
+				xml = GetDocumentationXmlFromMetadataReference(type, compilation);
 			if (string.IsNullOrWhiteSpace(xml))
 				xml = fallbackXml;
 			return GetParamDocFromXmlFragment(xml, parameterName);
@@ -8981,9 +9002,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return "";
 		}
 
-		public static string GetPropertySummaryLine(IPropertySymbol prop, string? fallbackXml = null)
+		public static string GetPropertySummaryLine(IPropertySymbol prop, Compilation? compilation = null, string? fallbackXml = null)
 		{
 			var xml = prop.GetDocumentationCommentXml();
+			if (string.IsNullOrWhiteSpace(xml))
+				xml = GetDocumentationXmlFromMetadataReference(prop, compilation);
 			if (string.IsNullOrWhiteSpace(xml))
 				xml = fallbackXml;
 			// Compiler / GetDocumentationCommentXml often wraps content in <member>; use the same
@@ -8991,12 +9014,103 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return GetTypeSummaryLine(xml);
 		}
 
-		public static string GetFieldSummaryLine(IFieldSymbol field, string? fallbackXml = null)
+		public static string GetFieldSummaryLine(IFieldSymbol field, Compilation? compilation = null, string? fallbackXml = null)
 		{
 			var xml = field.GetDocumentationCommentXml();
 			if (string.IsNullOrWhiteSpace(xml))
+				xml = GetDocumentationXmlFromMetadataReference(field, compilation);
+			if (string.IsNullOrWhiteSpace(xml))
 				xml = fallbackXml;
 			return GetTypeSummaryLine(xml);
+		}
+
+		public static string GetDocumentationXmlFromMetadataReference(ISymbol symbol, Compilation? compilation)
+		{
+			if (compilation is null)
+				return "";
+			var docId = symbol.GetDocumentationCommentId();
+			if (string.IsNullOrWhiteSpace(docId))
+				return "";
+			var containingAssembly = symbol.ContainingAssembly;
+			if (containingAssembly is null)
+				return "";
+
+#pragma warning disable RS1035 // Required to load companion XML docs for metadata references.
+			foreach (var reference in compilation.References)
+			{
+				if (compilation.GetAssemblyOrModuleSymbol(reference) is not IAssemblySymbol referenceAssembly)
+					continue;
+				if (!SymbolEqualityComparer.Default.Equals(referenceAssembly, containingAssembly))
+					continue;
+				var referenceDisplay = reference.Display;
+				if (string.IsNullOrWhiteSpace(referenceDisplay))
+					continue;
+				foreach (var xmlPath in GetXmlDocumentationCandidates(referenceDisplay!, containingAssembly.Name))
+				{
+					if (!global::System.IO.File.Exists(xmlPath))
+						continue;
+					try
+					{
+						var doc = XDocument.Load(xmlPath, LoadOptions.PreserveWhitespace);
+						var member = doc.Root?
+							.Element("members")?
+							.Elements("member")
+							.FirstOrDefault(m => string.Equals(m.Attribute("name")?.Value, docId, StringComparison.Ordinal));
+						if (member is not null)
+							return string.Concat(member.Nodes().Select(n => n.ToString()));
+					}
+					catch
+					{
+						// ignore malformed external XML docs
+					}
+				}
+			}
+#pragma warning restore RS1035
+
+			return "";
+		}
+
+		private static IEnumerable<string> GetXmlDocumentationCandidates(string referencePath, string assemblyName)
+		{
+			var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			static string NormalizePathSeparators(string p) => p.Replace('\\', '/');
+
+			var direct = global::System.IO.Path.ChangeExtension(referencePath, ".xml");
+			if (!string.IsNullOrWhiteSpace(direct) && yielded.Add(direct))
+				yield return direct;
+
+			var referenceDir = global::System.IO.Path.GetDirectoryName(referencePath);
+			if (!string.IsNullOrWhiteSpace(referenceDir))
+			{
+				var byAssemblyName = global::System.IO.Path.Combine(referenceDir!, assemblyName + ".xml");
+				if (yielded.Add(byAssemblyName))
+					yield return byAssemblyName;
+				var leaf = global::System.IO.Path.GetFileName(referenceDir);
+				if (string.Equals(leaf, "ref", StringComparison.OrdinalIgnoreCase) ||
+				    string.Equals(leaf, "refint", StringComparison.OrdinalIgnoreCase))
+				{
+					var parent = global::System.IO.Path.GetDirectoryName(referenceDir!);
+					if (!string.IsNullOrWhiteSpace(parent))
+					{
+						var sibling = global::System.IO.Path.Combine(parent, assemblyName + ".xml");
+						if (yielded.Add(sibling))
+							yield return sibling;
+					}
+				}
+			}
+
+			var normalized = NormalizePathSeparators(referencePath);
+			var objMarker = "/obj/";
+			var idxObj = normalized.IndexOf(objMarker, StringComparison.OrdinalIgnoreCase);
+			if (idxObj >= 0)
+			{
+				var binPath = normalized.Substring(0, idxObj) + "/bin/" + normalized.Substring(idxObj + objMarker.Length);
+				binPath = binPath.Replace("/refint/", "/").Replace("/ref/", "/");
+				var platformPath = binPath.Replace('/', global::System.IO.Path.DirectorySeparatorChar);
+				var binXml = global::System.IO.Path.ChangeExtension(platformPath, ".xml");
+				if (yielded.Add(binXml))
+					yield return binXml;
+			}
 		}
 
 		/// <summary>First line of <c>&lt;summary&gt;</c> for a type symbol (handles <c>&lt;member&gt;</c>-wrapped XML from Roslyn).</summary>

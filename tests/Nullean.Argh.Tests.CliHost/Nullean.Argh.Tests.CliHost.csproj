@@ -16,6 +16,7 @@
                       ReferenceOutputAssembly="false"
                       OutputItemType="Analyzer"
                       PrivateAssets="all" />
+    <ProjectReference Include="..\Nullean.Argh.Tests.ReferencedDtos\Nullean.Argh.Tests.ReferencedDtos.csproj" />
   </ItemGroup>
 
   <ItemGroup>

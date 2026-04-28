@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Nullean.Argh\Nullean.Argh.csproj" />
     <ProjectReference Include="..\..\src\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <ProjectReference Include="..\Nullean.Argh.Tests.ReferencedDtos\Nullean.Argh.Tests.ReferencedDtos.csproj" />
     <ProjectReference Include="..\Nullean.Argh.Tests.CliHost\Nullean.Argh.Tests.CliHost.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 

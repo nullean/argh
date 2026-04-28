@@ -43,6 +43,7 @@ public class RootHelpFullTextTests
 			Commands:
 			  as-params-collection-syntax
 			  as-params-optional-collection-syntax
+			  as-params-referenced-dto
 			  as-params-tag-set
 			  as-params-with-ct
 			  brace-doc                             Regression: braces in XML docs must not
