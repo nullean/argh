@@ -3885,7 +3885,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (app.Root.Children.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Namespaces:\"));");
-			foreach (var ch in app.Root.Children)
+			foreach (var ch in app.Root.Children.OrderBy(ch => ch.Segment, StringComparer.OrdinalIgnoreCase).ThenBy(ch => ch.Segment, StringComparer.Ordinal))
 			{
 				var sumArg = string.IsNullOrWhiteSpace(ch.SummaryOneLiner)
 					? "null"
@@ -3900,7 +3900,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (app.Root.Commands.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Commands:\"));");
-			foreach (var c in app.Root.Commands)
+			foreach (var c in app.Root.Commands.OrderBy(c => c.CommandName, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.CommandName, StringComparer.Ordinal))
 			{
 				var sumArg = string.IsNullOrWhiteSpace(c.SummaryOneLiner)
 					? "null"
@@ -3990,7 +3990,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (node.Children.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Namespaces:\"));");
-			foreach (var ch in node.Children)
+			foreach (var ch in node.Children.OrderBy(ch => ch.Segment, StringComparer.OrdinalIgnoreCase).ThenBy(ch => ch.Segment, StringComparer.Ordinal))
 			{
 				var fullNs = FormatQualifiedCliPath(path, ch.Segment);
 				var sumArg = string.IsNullOrWhiteSpace(ch.SummaryOneLiner)
@@ -4006,7 +4006,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (node.Commands.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Commands:\"));");
-			foreach (var c in node.Commands)
+			foreach (var c in node.Commands.OrderBy(c => c.CommandName, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.CommandName, StringComparer.Ordinal))
 			{
 				var fullCmd = FormatQualifiedCliPath(path, c.CommandName);
 				var sumArg = string.IsNullOrWhiteSpace(c.SummaryOneLiner)
