@@ -58,6 +58,10 @@ Write vanilla C# and get a fully functional CLI in return: rich `--help` output,
 - **DataAnnotations validation**
   - Annotate parameters and DTO members with `[Range]`, `[StringLength]`, `[RegularExpression]`, `[AllowedValues]`, and more
   - Constraints appear in `--help`; violations print to stderr and exit with code 2 — no reflection, no runtime dependency
+- **Filesystem path validation** *(for `FileInfo` / `DirectoryInfo`)*
+  - **`[Existing]`** / **`[NonExisting]`** — file vs. directory checks follow the parameter type (`File.Exists` / `Directory.Exists`, or both absent for non-existing)
+  - **`[ExpandUserProfile]`** — resolves `~/` before `FileInfo` / `DirectoryInfo` construction (`Path.GetFullPath` after replacing the profile prefix)
+  - **`[RejectSymbolicLinks]`** — rejects symlink / reparse-point paths (combined with existence checks where needed)
 - **Cancellation on command handlers**
   - Add `CancellationToken` to a handler signature — it is injected, not a flag; by default it tracks **Ctrl+C** (console cancel)
 - **Zero-dep or ME.* native**
@@ -610,7 +614,7 @@ If `TryArghIntrinsicCommand` is omitted, there is no breakage — the built-ins 
 
 ## Validation
 
-Annotate parameters (or `[AsParameters]` members) with standard `System.ComponentModel.DataAnnotations` attributes. The source generator reads the attributes at build time and emits inline validation checks — no reflection, no `Validator.ValidateObject` call, AOT-safe. Constraint hints appear in `--help` after the description; failures print to stderr and exit 2.
+Annotate parameters (or `[AsParameters]` members) with standard **`System.ComponentModel.DataAnnotations`** attributes, optionally combined with **`Nullean.Argh`** filesystem attributes where the parameter type is **`FileInfo`**, **`FileInfo?`**, **`DirectoryInfo`**, or **`DirectoryInfo?`**. The source generator reads the attributes at build time and emits inline validation checks — no reflection, no `Validator.ValidateObject` call, AOT-safe. Constraint hints appear in `--help` after the description; failures print to stderr and exit 2.
 
 ```csharp
 public static void Deploy(
@@ -619,6 +623,12 @@ public static void Deploy(
     [AllowedValues("dev", "staging", "prod")]  string env,
     [RegularExpression(@"^[a-z0-9\-]+$")]      string slug,
     [UriScheme("https")]                       Uri endpoint)
+{ … }
+
+// FileInfo / DirectoryInfo — compose DataAnnotations (e.g. [FileExtensions]) with Argh path traits:
+public static Task<int> Lint(
+    [Existing][FileExtensions(Extensions="json")][RejectSymbolicLinks] FileInfo manifest,
+    [ExpandUserProfile][Existing] DirectoryInfo outDir)
 { … }
 ```
 
@@ -636,7 +646,7 @@ Options:
   --endpoint <uri>   [required] [schemes: https]
 ```
 
-Supported attributes:
+### DataAnnotations
 
 | Attribute | Validates | Help token |
 |-----------|-----------|-----------|
@@ -654,6 +664,22 @@ Supported attributes:
 | `[UriScheme("https")]` *(Argh-native)* | `Uri` scheme is in the list | `[schemes: https]` |
 
 Enum parameters automatically show `[allowed: Member1\|Member2]` in help — the enum type itself enforces the constraint, no extra attribute needed.
+
+### Filesystem paths (`FileInfo` / `DirectoryInfo`)
+
+These attributes apply to **`FileInfo`** / **`FileInfo?`** or **`DirectoryInfo`** / **`DirectoryInfo?`** (including on `[AsParameters]` members). Incompatible combinations (such as **`[Existing]`** with **`[NonExisting]`** on the same parameter) are diagnosed at compile time. **`[RejectSymbolicLinks]`** runs before existence checks — a symlink to a real path still fails when symlink rejection is enabled.
+
+| Attribute | Applies to | Validates | Help token |
+|-----------|------------|-----------|------------|
+| `[Existing]` | `FileInfo` / `FileInfo?` | `File.Exists` | `[existing]` |
+| `[Existing]` | `DirectoryInfo` / `DirectoryInfo?` | `Directory.Exists` | `[existing]` |
+| `[NonExisting]` | `FileInfo` / `FileInfo?` **or** `DirectoryInfo` / `DirectoryInfo?` | neither `File.Exists` nor `Directory.Exists` | `[unused path]` |
+| `[RejectSymbolicLinks]` | `FileInfo`/`FileInfo?` **or** `DirectoryInfo`/`DirectoryInfo?` | not a symlink or reparse point | `[no symlinks]` |
+| `[ExpandUserProfile]` | `FileInfo` or `DirectoryInfo` | expands `~/`, `~\`, or bare `~` before binder constructs `*Info`, then `Path.GetFullPath` | `[expand ~ profile]` |
+
+Failures use stderr messages such as *file does not exist*, *directory does not exist*, *path already exists…*, or *path must not be a symbolic link or reparse point.* (exit code 2).
+
+**Schema (`__schema`):** validations include JSON **`kind`** values such as **`existing`**, **`nonExisting`**, **`rejectSymbolicLinks`**, and **`expandUserProfile`**.
 
 Validation also runs through the `TryParseArgh` static extension emitted for `[AsParameters]` DTOs, so unit tests can assert constraints without spawning a subprocess.
 

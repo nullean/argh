@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using Nullean.Argh;
 
 namespace Nullean.Argh.Tests.Fixtures;
@@ -56,4 +57,25 @@ internal static class ValidationCliHandlers
 	/// <summary>Validate TimeSpan inclusive range.</summary>
 	public static void ValidateTimeSpanRange(TestGlobalCliOptions g, [TimeSpanRange("5m", "2h")] TimeSpan window) =>
 		Console.Out.WriteLine($"ts-range:{window.TotalMinutes}");
+
+
+	/// <summary>Require path to reference an existing file.</summary>
+	public static void ValidateExistingFile(TestGlobalCliOptions g, [Existing] FileInfo file) =>
+		Console.Out.WriteLine($"file:{file.FullName}");
+
+	/// <summary>Require path to reference a non-existing file path.</summary>
+	public static void ValidateNonExistingFile(TestGlobalCliOptions g, [NonExisting] FileInfo path) =>
+		Console.Out.WriteLine($"path:{path.FullName}");
+
+	/// <summary>Require directory to exist.</summary>
+	public static void ValidateExistingDirectory(TestGlobalCliOptions g, [Existing] DirectoryInfo dir) =>
+		Console.Out.WriteLine($"dir:{dir.FullName}");
+
+	/// <summary>Expand <c>~</c> profile prefix before binding <see cref="FileInfo"/>.</summary>
+	public static void ValidateExpandHomeFile(TestGlobalCliOptions g, [ExpandUserProfile] FileInfo file) =>
+		Console.Out.WriteLine($"file:{file.FullName}");
+
+	/// <summary>Existing file that must not be a symbolic link.</summary>
+	public static void ValidateNoSymlinkFile(TestGlobalCliOptions g, [Existing][RejectSymbolicLinks] FileInfo file) =>
+		Console.Out.WriteLine($"file:{file.FullName}");
 }

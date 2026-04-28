@@ -247,6 +247,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor PathExistenceAttributesConflict = new(
+		"AGH0030",
+		"[Existing] and [NonExisting] conflict",
+		"Parameter '{0}' cannot declare both [Existing] and [NonExisting].",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor FilesystemPathAttributeTypeMismatch = new(
+		"AGH0032",
+		"Filesystem path attribute incompatible with parameter type",
+		"'{0}': {1}",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
 	// ── Pre-compiled Regex patterns ── compiled once, reused for every handler method analyzed
 	private static readonly Regex SummaryXmlPattern =
 		new(@"<summary>\s*([\s\S]*?)\s*</summary>", RegexOptions.Compiled);
@@ -712,6 +728,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		"AGH0027" => DuplicateCommandName,
 		"AGH0028" => ReadOnlySetInvalidElementType,
 		"AGH0029" => MapAndRootAliasAmbiguousTarget,
+		"AGH0030" => PathExistenceAttributesConflict,
+		"AGH0032" => FilesystemPathAttributeTypeMismatch,
 		_ => throw new ArgumentException($"Unknown diagnostic id: {id}")
 	};
 
@@ -1873,10 +1891,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string commandName,
 		ImmutableArray<string> routePrefix,
 		RegistryNode targetNode) =>
-		TryExpandLambdaDelegate(default, model, invocation, handlerExpr, commandName, routePrefix, targetNode);
+		TryExpandLambdaDelegate(null, model, invocation, handlerExpr, commandName, routePrefix, targetNode);
 
 	private static void TryExpandLambdaDelegate(
-		SourceProductionContext context,
+		SourceProductionContext? context,
 		SemanticModel model,
 		InvocationExpressionSyntax invocation,
 		ExpressionSyntax handlerExpr,
@@ -1919,7 +1937,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var paramBuilder = ImmutableArray.CreateBuilder<ParameterModel>();
 		foreach (var p in invokeMethod.Parameters)
 		{
-			paramBuilder.Add(ParameterModel.From(p));
+			paramBuilder.Add(ParameterModel.From(p, context, null, invocation.GetLocation()));
 		}
 		var parameters = paramBuilder.ToImmutable();
 		var usage = UsageSynopsis.Build(parameters);
@@ -2016,10 +2034,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ExpressionSyntax handlerExpr,
 		ImmutableArray<string> routePrefix,
 		RegistryNode targetNode) =>
-		TryExpandLambdaRootCommand(default, model, invocation, handlerExpr, routePrefix, targetNode);
+		TryExpandLambdaRootCommand(null, model, invocation, handlerExpr, routePrefix, targetNode);
 
 	private static void TryExpandLambdaRootCommand(
-		SourceProductionContext context,
+		SourceProductionContext? context,
 		SemanticModel model,
 		InvocationExpressionSyntax invocation,
 		ExpressionSyntax handlerExpr,
@@ -2049,7 +2067,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
 		var paramBuilder = ImmutableArray.CreateBuilder<ParameterModel>();
 		foreach (var p in invokeMethod.Parameters)
-			paramBuilder.Add(ParameterModel.From(p));
+			paramBuilder.Add(ParameterModel.From(p, context, null, invocation.GetLocation()));
 		var parameters = paramBuilder.ToImmutable();
 		var usage = UsageSynopsis.Build(parameters);
 		var runName = CommandModel.BuildRootDefaultRunMethodName(routePrefix);
@@ -2957,7 +2975,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			foreach (var cp in primary.Parameters)
 			{
 				ctorNames.Add(cp.Name);
-				list.Add(ParameterModel.FromAsParametersCtorParameter(owner, typeFq, type, cp, pfx, order++, compilation, parseOptions));
+				list.Add(ParameterModel.FromAsParametersCtorParameter(owner, typeFq, type, cp, pfx, order++, compilation, parseOptions,
+					null,
+					acc,
+					location));
 			}
 		}
 		var chain = new List<INamedTypeSymbol>();
@@ -2974,7 +2995,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				if (!IsSettableForAsParameters(prop)) continue;
 				if (ctorNames.Contains(prop.Name)) continue;
 				if (!seenPropNames.Add(prop.Name)) continue;
-				list.Add(ParameterModel.FromAsParametersInitProperty(methodParamName: owner, typeFq, prop, pfx, order++, compilation, parseOptions));
+				list.Add(ParameterModel.FromAsParametersInitProperty(methodParamName: owner, typeFq, prop, pfx, order++, compilation, parseOptions,
+					null,
+					acc,
+					location));
 			}
 		}
 		if (list.Count == 0)
@@ -3036,7 +3060,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					pfx,
 					order++,
 					compilation,
-					parseOptions));
+					parseOptions,
+					context,
+					null,
+					location));
 			}
 		}
 
@@ -3070,7 +3097,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					pfx,
 					order++,
 					compilation,
-					parseOptions));
+					parseOptions,
+					context,
+					null,
+					location));
 			}
 		}
 
@@ -5506,6 +5536,58 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine("\t\t\t}");
 						break;
 					}
+					case RejectSymbolicLinksConstraint:
+					{
+						var access = isNullable ? $"{varName}!" : varName;
+						var nullGuard = isNullable ? $"{varName} != null && " : "";
+						sb.AppendLine($"\t\t\tif ({nullGuard}global::Nullean.Argh.ArghIO.PathIsSymbolicOrReparsePoint({access}.FullName))");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path must not be a symbolic link or reparse point.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+					case ExistingPathConstraint:
+					{
+						var access = isNullable ? $"{varName}!" : varName;
+						var nullGuard = isNullable ? $"{varName} != null && " : "";
+						if (p.ScalarKind == CliScalarKind.FileInfo)
+						{
+							sb.AppendLine($"\t\t\tif ({nullGuard}!global::System.IO.File.Exists({access}.FullName))");
+							sb.AppendLine("\t\t\t{");
+							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: file does not exist.\");");
+							if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+							sb.AppendLine($"\t\t\t\t{failureExit};");
+							sb.AppendLine("\t\t\t}");
+						}
+						else
+						{
+							sb.AppendLine($"\t\t\tif ({nullGuard}!global::System.IO.Directory.Exists({access}.FullName))");
+							sb.AppendLine("\t\t\t{");
+							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: directory does not exist.\");");
+							if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+							sb.AppendLine($"\t\t\t\t{failureExit};");
+							sb.AppendLine("\t\t\t}");
+						}
+						break;
+					}
+					case NonExistingPathConstraint:
+					{
+						var access = isNullable ? $"{varName}!" : varName;
+						var nullGuard = isNullable ? $"{varName} != null && " : "";
+						sb.AppendLine($"\t\t\tif ({nullGuard}(global::System.IO.File.Exists({access}.FullName) || global::System.IO.Directory.Exists({access}.FullName)))");
+						sb.AppendLine("\t\t\t{");
+						if (p.ScalarKind == CliScalarKind.FileInfo)
+							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path already exists or is occupied by a directory.\");");
+						else
+							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path already exists.\");");
+						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
+
 					case FileExtensionsConstraint fe:
 					{
 						// varName is a FileInfo? or FileInfo instance
@@ -6243,19 +6325,35 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		if (p.ScalarKind == CliScalarKind.FileInfo)
 		{
+			string pathSrc = $"{rawExpr}!";
+			if (p.ExpandUserProfileBeforeBind)
+			{
+				var expandedName = "__path_" + Naming.SanitizeIdentifier(p.LocalVarName);
+				sb.AppendLine($"{ind}var {expandedName} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+				pathSrc = expandedName;
+			}
+
 			if (outVarKeyword)
-				sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.FileInfo({rawExpr}!);");
+				sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.FileInfo({pathSrc});");
 			else
-				sb.AppendLine($"{ind}{targetVar} = new global::System.IO.FileInfo({rawExpr}!);");
+				sb.AppendLine($"{ind}{targetVar} = new global::System.IO.FileInfo({pathSrc});");
 			return;
 		}
 
 		if (p.ScalarKind == CliScalarKind.DirectoryInfo)
 		{
+			string pathSrcDir = $"{rawExpr}!";
+			if (p.ExpandUserProfileBeforeBind)
+			{
+				var expandedDir = "__dir_" + Naming.SanitizeIdentifier(p.LocalVarName);
+				sb.AppendLine($"{ind}var {expandedDir} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+				pathSrcDir = expandedDir;
+			}
+
 			if (outVarKeyword)
-				sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.DirectoryInfo({rawExpr}!);");
+				sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.DirectoryInfo({pathSrcDir});");
 			else
-				sb.AppendLine($"{ind}{targetVar} = new global::System.IO.DirectoryInfo({rawExpr}!);");
+				sb.AppendLine($"{ind}{targetVar} = new global::System.IO.DirectoryInfo({pathSrcDir});");
 			return;
 		}
 
@@ -6862,6 +6960,99 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return false;
 	}
 
+
+	private static void ReportFilesystemPathAttributeIssues(
+		ISymbol host,
+		CliScalarKind scalarKind,
+		string declaredName,
+		DiagnosticAccumulator? acc,
+		SourceProductionContext? ctx,
+		Location? fallbackLocation)
+	{
+		Location loc = host.Locations.FirstOrDefault() ?? fallbackLocation ?? Location.None;
+
+		static void ReportFilesystemDiag(DiagnosticAccumulator? a, SourceProductionContext? c, DiagnosticDescriptor d, Location location,
+			string arg0)
+		{
+			if (c.HasValue)
+				c.Value.ReportDiagnostic(Diagnostic.Create(d, location, arg0));
+			else if (a is not null)
+				a.Add(d, location, arg0);
+		}
+
+		static void ReportFilesystemDiagTwo(DiagnosticAccumulator? a, SourceProductionContext? c, DiagnosticDescriptor d, Location location,
+			string arg0, string arg1)
+		{
+			if (c.HasValue)
+				c.Value.ReportDiagnostic(Diagnostic.Create(d, location, arg0, arg1));
+			else if (a is not null)
+				a.Add(d, location, arg0, arg1);
+		}
+
+		var hasExisting = false;
+		var hasNonExisting = false;
+		var hasExpandProfile = false;
+		var hasRejectSymlinks = false;
+
+		foreach (var attr in host.GetAttributes())
+		{
+			var fqn = attr.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
+			switch (fqn)
+			{
+				case "global::Nullean.Argh.ExistingAttribute":
+					hasExisting = true;
+					break;
+				case "global::Nullean.Argh.NonExistingAttribute":
+					hasNonExisting = true;
+					break;
+				case "global::Nullean.Argh.ExpandUserProfileAttribute":
+					hasExpandProfile = true;
+					break;
+				case "global::Nullean.Argh.RejectSymbolicLinksAttribute":
+					hasRejectSymlinks = true;
+					break;
+			}
+		}
+
+		if (hasExisting && hasNonExisting)
+			ReportFilesystemDiag(acc, ctx, PathExistenceAttributesConflict, loc, declaredName);
+
+		var isFileInfo = scalarKind == CliScalarKind.FileInfo;
+		var isDirInfo = scalarKind == CliScalarKind.DirectoryInfo;
+		var isFileOrDir = isFileInfo || isDirInfo;
+
+		if (hasExisting && !isFileOrDir)
+			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
+				"[Existing] only applies to FileInfo, FileInfo?, DirectoryInfo, or DirectoryInfo? parameters and properties.");
+
+		if (hasNonExisting && !isFileOrDir)
+			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
+				"[NonExisting] only applies to FileInfo, FileInfo?, DirectoryInfo, or DirectoryInfo? parameters and properties.");
+
+		if (hasExpandProfile && !isFileOrDir)
+			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
+				"[ExpandUserProfile] only applies to FileInfo or DirectoryInfo parameters and properties.");
+
+		if (hasRejectSymlinks && !isFileOrDir)
+			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
+				"[RejectSymbolicLinks] only applies to FileInfo or DirectoryInfo parameters and properties.");
+	}
+
+	private static bool TryReadExpandUserProfileBeforeBind(ISymbol host, CliScalarKind scalarKind)
+	{
+		foreach (var attr in host.GetAttributes())
+		{
+			if (attr.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ==
+			    "global::Nullean.Argh.ExpandUserProfileAttribute")
+			{
+				return scalarKind is CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo;
+			}
+		}
+
+		return false;
+	}
+
+
 	private static ImmutableArray<ValidationConstraint> ReadValidationConstraints(ISymbol attributeHost, CliScalarKind scalarKind,
 		string primitiveTypeName)
 	{
@@ -6950,9 +7141,55 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						if (!schemes.IsEmpty) builder.Add(new UriSchemeConstraint(schemes));
 					}
 					break;
+				case "global::Nullean.Argh.ExistingAttribute":
+					if (scalarKind is CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo)
+						builder.Add(new ExistingPathConstraint());
+					break;
+				case "global::Nullean.Argh.NonExistingAttribute":
+					if (scalarKind is CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo)
+						builder.Add(new NonExistingPathConstraint());
+					break;
+				case "global::Nullean.Argh.RejectSymbolicLinksAttribute":
+					if (scalarKind is CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo)
+						builder.Add(new RejectSymbolicLinksConstraint());
+					break;
 			}
 		}
-		return builder.ToImmutable();
+		return OrderPathValidations(builder.ToImmutable());
+	}
+
+	private static ImmutableArray<ValidationConstraint> OrderPathValidations(ImmutableArray<ValidationConstraint> validations)
+	{
+		if (validations.IsDefaultOrEmpty)
+			return validations;
+
+		var hasReject = false;
+		foreach (var c in validations)
+		{
+			if (c is RejectSymbolicLinksConstraint)
+			{
+				hasReject = true;
+				break;
+			}
+		}
+
+		if (!hasReject)
+			return validations;
+
+		var b = ImmutableArray.CreateBuilder<ValidationConstraint>(validations.Length);
+		foreach (var c in validations)
+		{
+			if (c is RejectSymbolicLinksConstraint)
+				b.Add(c);
+		}
+
+		foreach (var c in validations)
+		{
+			if (c is not RejectSymbolicLinksConstraint)
+				b.Add(c);
+		}
+
+		return b.ToImmutable();
 	}
 
 	private static string? BuildValidationLine(ParameterModel p)
@@ -6989,51 +7226,63 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 		}
 
-		if (p.Validations.IsDefaultOrEmpty)
-			return tokens.Count > 0 ? string.Join(" ", tokens) : null;
-
-		foreach (var v in p.Validations)
+		if (!p.Validations.IsDefaultOrEmpty)
 		{
-			switch (v)
+			foreach (var v in p.Validations)
 			{
-				case RangeConstraint r:
-					tokens.Add($"[range: {r.MinLiteral.Trim('"')}–{r.MaxLiteral.Trim('"')}]");
-					break;
-				case StringLengthConstraint s when s.Min.HasValue && s.Max.HasValue:
-					tokens.Add($"[length: {s.Min}–{s.Max}]");
-					break;
-				case StringLengthConstraint s when s.Min.HasValue:
-					tokens.Add($"[min-length: {s.Min}]");
-					break;
-				case StringLengthConstraint s when s.Max.HasValue:
-					tokens.Add($"[max-length: {s.Max}]");
-					break;
-				case RegexConstraint rx:
-					tokens.Add($"[pattern: {rx.Pattern}]");
-					break;
-				case AllowedValuesConstraint av:
-					tokens.Add("[allowed: " + string.Join("|", av.Values.Select(val => val.Trim('"'))) + "]");
-					break;
-				case DeniedValuesConstraint dv:
-					tokens.Add("[denied: " + string.Join("|", dv.Values.Select(val => val.Trim('"'))) + "]");
-					break;
-				case EmailConstraint:
-					tokens.Add("[email]");
-					break;
-				case UrlConstraint:
-					tokens.Add("[url]");
-					break;
-				case UriSchemeConstraint us:
-					tokens.Add("[schemes: " + string.Join("|", us.Schemes) + "]");
-					break;
-				case FileExtensionsConstraint fe:
-					tokens.Add("[extensions: " + string.Join("|", fe.Extensions) + "]");
-					break;
-				case TimeSpanRangeConstraint ts:
-					tokens.Add($"[time-span-range: {ts.MinLiteral.Trim('"')}–{ts.MaxLiteral.Trim('"')}]");
-					break;
+				switch (v)
+				{
+					case RangeConstraint r:
+						tokens.Add($"[range: {r.MinLiteral.Trim('"')}–{r.MaxLiteral.Trim('"')}]");
+						break;
+					case StringLengthConstraint s when s.Min.HasValue && s.Max.HasValue:
+						tokens.Add($"[length: {s.Min}–{s.Max}]");
+						break;
+					case StringLengthConstraint s when s.Min.HasValue:
+						tokens.Add($"[min-length: {s.Min}]");
+						break;
+					case StringLengthConstraint s when s.Max.HasValue:
+						tokens.Add($"[max-length: {s.Max}]");
+						break;
+					case RegexConstraint rx:
+						tokens.Add($"[pattern: {rx.Pattern}]");
+						break;
+					case AllowedValuesConstraint av:
+						tokens.Add("[allowed: " + string.Join("|", av.Values.Select(val => val.Trim('"'))) + "]");
+						break;
+					case DeniedValuesConstraint dv:
+						tokens.Add("[denied: " + string.Join("|", dv.Values.Select(val => val.Trim('"'))) + "]");
+						break;
+					case EmailConstraint:
+						tokens.Add("[email]");
+						break;
+					case UrlConstraint:
+						tokens.Add("[url]");
+						break;
+					case UriSchemeConstraint us:
+						tokens.Add("[schemes: " + string.Join("|", us.Schemes) + "]");
+						break;
+					case FileExtensionsConstraint fe:
+						tokens.Add("[extensions: " + string.Join("|", fe.Extensions) + "]");
+						break;
+					case ExistingPathConstraint:
+						tokens.Add("[existing]");
+						break;
+					case NonExistingPathConstraint:
+						tokens.Add("[unused path]");
+						break;
+					case RejectSymbolicLinksConstraint:
+						tokens.Add("[no symlinks]");
+						break;
+					case TimeSpanRangeConstraint ts:
+						tokens.Add($"[time-span-range: {ts.MinLiteral.Trim('"')}–{ts.MaxLiteral.Trim('"')}]");
+						break;
+				}
 			}
 		}
+
+		if (p.ExpandUserProfileBeforeBind)
+			tokens.Add("[expand ~ profile]");
 
 		return tokens.Count > 0 ? string.Join(" ", tokens) : null;
 	}
@@ -7662,7 +7911,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						builder.Add(pm);
 					continue;
 				}
-				builder.Add(ParameterModel.From(p));
+				builder.Add(ParameterModel.From(p, null, acc, diagnosticLocation));
 			}
 			return builder.ToImmutable();
 		}
@@ -7694,7 +7943,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					continue;
 				}
 
-				builder.Add(ParameterModel.From(p));
+				builder.Add(ParameterModel.From(p, context, null, diagnosticLocation));
 			}
 
 			return builder.ToImmutable();
@@ -7935,6 +8184,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private sealed record UrlConstraint : ValidationConstraint;
 	private sealed record UriSchemeConstraint(ImmutableArray<string> Schemes) : ValidationConstraint;
 	private sealed record FileExtensionsConstraint(ImmutableArray<string> Extensions) : ValidationConstraint;
+	private sealed record ExistingPathConstraint : ValidationConstraint;
+	private sealed record NonExistingPathConstraint : ValidationConstraint;
+	private sealed record RejectSymbolicLinksConstraint : ValidationConstraint;
 
 	private sealed record ParameterModel(
 		string SymbolName,
@@ -7972,6 +8224,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		bool ElementIsValueType = false,
 		ImmutableDictionary<string, string>? EnumMemberDocs = null,
 		ImmutableDictionary<string, string>? ElementEnumMemberDocs = null,
+		bool ExpandUserProfileBeforeBind = false,
 		ImmutableArray<ValidationConstraint> Validations = default)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
@@ -8064,7 +8317,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		// ── five factory methods ─────────────────────────────────────────────
 
-		public static ParameterModel From(IParameterSymbol p)
+		public static ParameterModel From(IParameterSymbol p, SourceProductionContext? reportCtx = null, DiagnosticAccumulator? reportAcc = null,
+			Location? reportFallbackLocation = null)
 		{
 			var isArg = HasArgumentAttribute(p);
 
@@ -8099,10 +8353,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			ClassifyScalarUnified(p.Type, p, bs, isSeparateType: false,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
+			if (reportCtx is not null || reportAcc is not null)
+				ReportFilesystemPathAttributeIssues(p, sk, p.Name, reportAcc, reportCtx, reportFallbackLocation);
+
 			var required = ComputeRequired(p, bs);
 			var defLit = TryGetDefaultLiteral(p, bs);
 			var enumDocs = sk == CliScalarKind.Enum ? TryGetEnumDocs(p.Type) : null;
 			var validations = ReadValidationConstraints(p, sk, typeName);
+			var expandProf = TryReadExpandUserProfileBeforeBind(p, sk);
 			return new ParameterModel(
 				p.Name,
 				SafeLocalName(p.Name),
@@ -8121,6 +8379,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				null,
 				ImmutableArray<string>.Empty,
 				EnumMemberDocs: enumDocs,
+				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations);
 		}
 
@@ -8142,6 +8401,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var enumDocs = sk == CliScalarKind.Enum ? TryGetEnumDocs(prop.Type) : null;
 			var validations = ReadValidationConstraints(prop, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
+			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
 			return new ParameterModel(
 				prop.Name,
 				SafeLocalName(prop.Name),
@@ -8160,6 +8420,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				null,
 				ImmutableArray<string>.Empty,
 				EnumMemberDocs: enumDocs,
+				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations);
 		}
 
@@ -8177,7 +8438,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ClassifyScalarUnified(field.Type, field, bs, isSeparateType: true,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
 			var required = ComputeRequiredForOptionsType(field.Type, bs) && defaultValueLiteral is null;
+			var validations = ReadValidationConstraints(field, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
+			var expandProf = TryReadExpandUserProfileBeforeBind(field, sk);
 			return new ParameterModel(
 				field.Name,
 				SafeLocalName(field.Name),
@@ -8194,7 +8457,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				defLit,
 				docLine,
 				null,
-				ImmutableArray<string>.Empty);
+				ImmutableArray<string>.Empty,
+				ExpandUserProfileBeforeBind: expandProf,
+				Validations: validations);
 		}
 		public static ParameterModel FromAsParametersCtorParameter(
 			string methodParamName,
@@ -8204,7 +8469,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			string namePrefix,
 			int memberOrder,
 			Compilation? compilation,
-			CSharpParseOptions parseOptions)
+			CSharpParseOptions parseOptions,
+			SourceProductionContext? reportCtx = null,
+			DiagnosticAccumulator? reportAcc = null,
+			Location? reportFallbackLocation = null)
 		{
 			if (IsInjectedType(cp.Type))
 			{
@@ -8265,9 +8533,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			ClassifyScalarUnified(cp.Type, cp, bs, isSeparateType: false,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
+			if (reportCtx is not null || reportAcc is not null)
+				ReportFilesystemPathAttributeIssues(cp, sk, cp.Name, reportAcc, reportCtx,
+					cp.Locations.FirstOrDefault() ?? reportFallbackLocation);
+
 			var required = ComputeRequired(cp, bs);
 			var defLit = TryGetDefaultLiteral(cp, bs);
 			var validations = ReadValidationConstraints(cp, sk, typeName);
+			var expandProf = TryReadExpandUserProfileBeforeBind(cp, sk);
 			return new ParameterModel(
 				cp.Name,
 				local,
@@ -8290,6 +8563,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				AsParametersTypeFq: typeFq,
 				AsParametersUseInit: false,
 				AsParametersClrName: cp.Name,
+				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations);
 		}
 
@@ -8300,7 +8574,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			string namePrefix,
 			int memberOrder,
 			Compilation? compilation,
-			CSharpParseOptions parseOptions)
+			CSharpParseOptions parseOptions,
+			SourceProductionContext? reportCtx = null,
+			DiagnosticAccumulator? reportAcc = null,
+			Location? reportFallbackLocation = null)
 		{
 			if (IsInjectedType(prop.Type))
 			{
@@ -8345,8 +8622,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
+			if (reportCtx is not null || reportAcc is not null)
+				ReportFilesystemPathAttributeIssues(prop, sk, prop.Name, reportAcc, reportCtx,
+					prop.Locations.FirstOrDefault() ?? reportFallbackLocation);
+
 			var required = ComputeRequiredForOptionsType(prop.Type, bs);
 			var validations = ReadValidationConstraints(prop, sk, typeName);
+			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
 			return new ParameterModel(
 				prop.Name,
 				local,
@@ -8369,6 +8651,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				AsParametersTypeFq: typeFq,
 				AsParametersUseInit: true,
 				AsParametersClrName: prop.Name,
+				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations);
 		}
 

@@ -256,4 +256,158 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
 			.Should().Contain("Error: --count: value must be between 1 and 100.");
 	}
+
+
+	// ── filesystem path validations (FileInfo / DirectoryInfo) ─────────────
+
+	[Fact]
+	public void ExistingFile_existing_temp_file_succeeds()
+	{
+		var tmp = Path.GetTempFileName();
+		try
+		{
+			var r = CliHostRunner.Run(NoColor, "validate-existing-file", "--file", tmp);
+			r.ExitCode.Should().Be(0);
+			ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain($"file:{Path.GetFullPath(tmp)}");
+		}
+		finally
+		{
+			try { File.Delete(tmp); }
+			catch { /* ignore */ }
+		}
+	}
+
+	[Fact]
+	public void ExistingFile_missing_returns_exit_2()
+	{
+		var path = Path.Combine(Path.GetTempPath(), "argh-missing-existing-" + Guid.NewGuid());
+		File.Exists(path).Should().BeFalse();
+		var r = CliHostRunner.Run(NoColor, "validate-existing-file", "--file", path);
+		r.ExitCode.Should().Be(2);
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --file: file does not exist.");
+	}
+
+	[Fact]
+	public void NonExistingFile_unused_path_succeeds()
+	{
+		var path = Path.Combine(Path.GetTempPath(), "argh-new-file-" + Guid.NewGuid());
+		File.Exists(path).Should().BeFalse();
+		try
+		{
+			var r =CliHostRunner.Run(NoColor, "validate-non-existing-file", "--path", path);
+			r.ExitCode.Should().Be(0);
+			ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain($"path:{Path.GetFullPath(path)}");
+		}
+		finally
+		{
+			if (File.Exists(path))
+				File.Delete(path);
+		}
+	}
+
+	[Fact]
+	public void NonExistingFile_conflict_with_existing_returns_exit_2()
+	{
+		var tmp = Path.GetTempFileName();
+		try
+		{
+			var r =CliHostRunner.Run(NoColor, "validate-non-existing-file", "--path", tmp);
+			r.ExitCode.Should().Be(2);
+			ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
+				.Should().Contain("path already exists or is occupied by a directory.");
+		}
+		finally { try { File.Delete(tmp); } catch { } }
+	}
+
+	[Fact]
+	public void ExistingDirectory_temp_directory_succeeds()
+	{
+		var dir = Path.Combine(Path.GetTempPath(), "argh-extdir-" + Guid.NewGuid());
+		Directory.CreateDirectory(dir);
+		try
+		{
+			var r =CliHostRunner.Run(NoColor, "validate-existing-directory", "--dir", dir);
+			r.ExitCode.Should().Be(0);
+			ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain($"dir:{Path.GetFullPath(dir)}");
+		}
+		finally { try { Directory.Delete(dir); } catch { } }
+	}
+
+	[Fact]
+	public void ExistingDirectory_missing_returns_exit_2()
+	{
+		var path = Path.Combine(Path.GetTempPath(), "argh-missing-dir-" + Guid.NewGuid());
+		Directory.Exists(path).Should().BeFalse();
+		var r =CliHostRunner.Run(NoColor, "validate-existing-directory", "--dir", path);
+		r.ExitCode.Should().Be(2);
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --dir: directory does not exist.");
+	}
+
+	[Fact]
+	public void ExpandHomeFile_tilde_under_profile_succeeds()
+	{
+		var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+		var leaf = "argh-expand-" + Guid.NewGuid().ToString("N");
+		var abs = Path.Combine(home, leaf);
+		File.WriteAllText(abs, "");
+		try
+		{
+			var prefix = OperatingSystem.IsWindows() ? $"~{Path.DirectorySeparatorChar}" : "~/";
+			var r = CliHostRunner.Run(NoColor, "validate-expand-home-file", "--file", prefix + leaf);
+			r.ExitCode.Should().Be(0);
+			ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain($"file:{Path.GetFullPath(abs)}");
+		}
+		finally { try { File.Delete(abs); } catch { } }
+	}
+
+	[Fact]
+	public void NoSymlinkFile_regular_temp_file_succeeds()
+	{
+		var tmp = Path.GetTempFileName();
+		try
+		{
+			var r =CliHostRunner.Run(NoColor, "validate-no-symlink-file", "--file", tmp);
+			r.ExitCode.Should().Be(0);
+			ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("file:");
+		}
+		finally { try { File.Delete(tmp); } catch { } }
+	}
+
+	[Fact]
+	public void NoSymlinkFile_symbolic_link_returns_exit_2()
+	{
+		var dir = Path.Combine(Path.GetTempPath(), "argh-symlink-" + Guid.NewGuid());
+		Directory.CreateDirectory(dir);
+		var target = Path.Combine(dir, "target.bin");
+		var link = Path.Combine(dir, "link.bin");
+		File.WriteAllText(target, "x");
+		try
+		{
+			try
+			{
+				File.CreateSymbolicLink(link, target);
+			}
+			catch (IOException ex)
+			{
+				Console.WriteLine("skip symlink test: " + ex.Message);
+				return;
+			}
+
+			var r =CliHostRunner.Run(NoColor, "validate-no-symlink-file", "--file", link);
+			r.ExitCode.Should().Be(2);
+			ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
+				.Should().Contain("must not be a symbolic link or reparse point.");
+		}
+		finally { try { Directory.Delete(dir, recursive: true); } catch { } }
+	}
+
+	[Fact]
+	public void ExistingFile_help_lists_existence_annotation()
+	{
+		var r =CliHostRunner.Run(NoColor, "validate-existing-file", "--help");
+		r.ExitCode.Should().Be(0);
+		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(r));
+		text.Should().Contain("[existing]");
+	}
+
 }

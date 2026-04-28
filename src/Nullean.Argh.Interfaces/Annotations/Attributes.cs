@@ -132,3 +132,29 @@ public sealed class CommandIntrinsicAttribute : Attribute;
 /// </summary>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class, Inherited = false)]
 public sealed class NoOptionsInjectionAttribute : Attribute;
+
+/// <summary>
+/// Validates that the path refers to existing storage: <see cref="System.IO.FileInfo"/> → file must exist;
+/// <see cref="System.IO.DirectoryInfo"/> → directory must exist.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
+public sealed class ExistingAttribute : Attribute;
+
+/// <summary>
+/// Validates that the path is unused: neither a file nor a directory may exist there.
+/// Use with <see cref="System.IO.FileInfo"/> or <see cref="System.IO.DirectoryInfo"/>; checks are the same.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
+public sealed class NonExistingAttribute : Attribute;
+
+/// <summary>Rejects symbolic links and other reparse points at the resolved path.</summary>
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
+public sealed class RejectSymbolicLinksAttribute : Attribute;
+
+/// <summary>
+/// Expands <c>~/</c> / <c>~\</c> and bare <c>~</c> to the user profile directory, then resolves to a full path.
+/// Only valid on <see cref="System.IO.FileInfo"/> or <see cref="System.IO.DirectoryInfo"/> parameters or properties.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
+public sealed class ExpandUserProfileAttribute : Attribute;
+

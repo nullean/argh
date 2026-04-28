@@ -77,7 +77,16 @@ public class RootAndNamespaceHelpTests
 			                                        constraint.
 			  validate-email                        Validate email format on --address.
 			  validate-email-opt                    Optional nullable mailbox (email).
+			  validate-existing-directory           Require directory to exist.
+			  validate-existing-file                Require path to reference an existing
+			                                        file.
+			  validate-expand-home-file             Expand ~ profile prefix before binding
+			                                        FileInfo.
 			  validate-length                       Validate string length on --name.
+			  validate-no-symlink-file              Existing file that must not be a
+			                                        symbolic link.
+			  validate-non-existing-file            Require path to reference a non-existing
+			                                        file path.
 			  validate-non-nullable-range           Validate numeric range on non-nullable
 			                                        --page-per with default.
 			  validate-range                        Validate numeric range on --port.
