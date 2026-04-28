@@ -2677,6 +2677,24 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private static string? TryGetCollectionSeparatorFromAttribute(ISymbol symbol)
 	{
+		var fromSymbol = TryGetCollectionSeparatorFromSymbol(symbol);
+		if (fromSymbol is not null)
+			return fromSymbol;
+
+		// Positional record members can target [CollectionSyntax] at the synthesized property
+		// ([property: ...]) instead of the constructor parameter ([param: ...]).
+		if (symbol is IParameterSymbol { ContainingSymbol: IMethodSymbol { MethodKind: MethodKind.Constructor } ctor } ctorParam)
+		{
+			var mirroredProperty = TryFindCtorMirroredProperty(ctor.ContainingType, ctorParam.Name);
+			if (mirroredProperty is not null)
+				return TryGetCollectionSeparatorFromSymbol(mirroredProperty);
+		}
+
+		return null;
+	}
+
+	private static string? TryGetCollectionSeparatorFromSymbol(ISymbol symbol)
+	{
 		foreach (var attr in symbol.GetAttributes())
 		{
 			if (attr.AttributeClass?.Name != "CollectionSyntaxAttribute")
@@ -2686,6 +2704,20 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				if (na.Key == "Separator" && na.Value.Value is string s && s.Length > 0)
 					return s;
 			}
+		}
+
+		return null;
+	}
+
+	private static IPropertySymbol? TryFindCtorMirroredProperty(INamedTypeSymbol type, string ctorParameterName)
+	{
+		foreach (var member in type.GetMembers())
+		{
+			if (member is not IPropertySymbol prop)
+				continue;
+			if (!string.Equals(prop.Name, ctorParameterName, StringComparison.OrdinalIgnoreCase))
+				continue;
+			return prop;
 		}
 
 		return null;

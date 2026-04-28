@@ -38,6 +38,12 @@ internal sealed record OptionalUriAsParamsArgs(Uri? Endpoint);
 /// <param name="TagIds">Set of integer tag IDs.</param>
 internal sealed record TagSetArgs(IReadOnlySet<int> TagIds);
 
+/// <summary>Record with property-targeted <see cref="CollectionSyntaxAttribute"/> on supported collection members.</summary>
+internal sealed record CollectionSyntaxAsParamsArgs(
+	[property: CollectionSyntax(Separator = ",")] IReadOnlySet<int> TagIds,
+	[property: CollectionSyntax(Separator = "|")] List<string> Labels,
+	[property: CollectionSyntax(Separator = ";")] int[] Ports);
+
 /// <summary>Init-only bound object for XML documentation in help output.</summary>
 internal sealed class PropDocBoundArgs
 {
@@ -142,6 +148,15 @@ internal static class CliTestHandlers
 
 	public static void AsParamsTagSet(TestGlobalCliOptions g, [AsParameters] TagSetArgs args) =>
 		Console.Out.WriteLine("as-params-tag-set:" + string.Join(",", args.TagIds.OrderBy(x => x)));
+
+	public static void AsParamsCollectionSyntax(TestGlobalCliOptions g, [AsParameters("cs")] CollectionSyntaxAsParamsArgs args) =>
+		Console.Out.WriteLine(
+			"as-params-collection-syntax:"
+			+ string.Join(",", args.TagIds.OrderBy(x => x))
+			+ ":"
+			+ string.Join(",", args.Labels)
+			+ ":"
+			+ string.Join(",", args.Ports));
 
 	internal readonly record struct Point(int X, int Y);
 

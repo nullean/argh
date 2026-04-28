@@ -27,6 +27,7 @@ internal static class CliRegistrationModule
 		app.Map("color-set", CliTestHandlers.ColorSet);
 		app.Map("opt-tag-set", CliTestHandlers.OptTagSet);
 		app.Map("as-params-tag-set", CliTestHandlers.AsParamsTagSet);
+		app.Map("as-params-collection-syntax", CliTestHandlers.AsParamsCollectionSyntax);
 		app.Map("brace-doc", CliTestHandlers.BraceDoc);
 		app.Map("dry-run-cmd", CliTestHandlers.DryRunCmd);
 		app.Map("count-cmd", CliTestHandlers.CountCmd);
