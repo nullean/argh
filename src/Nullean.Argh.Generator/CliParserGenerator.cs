@@ -7196,16 +7196,16 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	{
 		var tokens = new List<string>();
 
-		// Enum members displayed as [allowed: …] on the validation line
+		// Enum members displayed as [allowed: …] on the validation line (lowercase invariant; parsing is case-insensitive)
 		if (p.ScalarKind == CliScalarKind.Enum && !p.EnumMemberNames.IsDefaultOrEmpty)
 		{
-			tokens.Add("One of: <" + string.Join("|", p.EnumMemberNames) + ">");
+			tokens.Add("One of: <" + string.Join("|", p.EnumMemberNames.Select(m => m.ToLowerInvariant())) + ">");
 			if (p.EnumMemberDocs is { Count: > 0 } docs)
 			{
 				var memberDescParts = new List<string>();
 				foreach (var member in p.EnumMemberNames)
 					if (docs.TryGetValue(member, out var memberDoc) && !string.IsNullOrWhiteSpace(memberDoc))
-						memberDescParts.Add($"{member}: {memberDoc.Trim()}");
+						memberDescParts.Add($"{member.ToLowerInvariant()}: {memberDoc.Trim()}");
 				if (memberDescParts.Count > 0)
 					tokens.Add("(" + string.Join("; ", memberDescParts) + ")");
 			}
@@ -7214,13 +7214,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (p.IsCollection && p.ElementScalarKind == CliScalarKind.Enum && !p.ElementEnumMemberNames.IsDefaultOrEmpty)
 		{
 			var label = p.CollectionTargetIsReadOnlySet ? "Combination of:" : "One or more of:";
-			tokens.Add(label + " <" + string.Join("|", p.ElementEnumMemberNames) + ">");
+			tokens.Add(label + " <" + string.Join("|", p.ElementEnumMemberNames.Select(m => m.ToLowerInvariant())) + ">");
 			if (p.ElementEnumMemberDocs is { Count: > 0 } elemDocs)
 			{
 				var memberDescParts = new List<string>();
 				foreach (var member in p.ElementEnumMemberNames)
 					if (elemDocs.TryGetValue(member, out var memberDoc) && !string.IsNullOrWhiteSpace(memberDoc))
-						memberDescParts.Add($"{member}: {memberDoc.Trim()}");
+						memberDescParts.Add($"{member.ToLowerInvariant()}: {memberDoc.Trim()}");
 				if (memberDescParts.Count > 0)
 					tokens.Add("(" + string.Join("; ", memberDescParts) + ")");
 			}
@@ -7497,9 +7497,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			foreach (var member in p.EnumMemberNames)
 			{
 				if (string.Equals(lit, member, StringComparison.Ordinal))
-					return member;
+					return member.ToLowerInvariant();
 				if (lit.EndsWith("." + member, StringComparison.Ordinal))
-					return member;
+					return member.ToLowerInvariant();
 			}
 		}
 
