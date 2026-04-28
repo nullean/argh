@@ -2,6 +2,7 @@ using System.Linq;
 using System.Threading;
 using Nullean.Argh;
 using Nullean.Argh.Parsing;
+using Nullean.Argh.Tests.ReferencedDtos;
 
 namespace Nullean.Argh.Tests.Fixtures;
 
@@ -173,6 +174,9 @@ internal static class CliTestHandlers
 			+ (args.TagIds is null or { Count: 0 } ? "none" : string.Join(",", args.TagIds.OrderBy(x => x)))
 			+ ":"
 			+ (args.Output ?? "null"));
+
+	public static void AsParamsReferencedDto(TestGlobalCliOptions g, [AsParameters] IsolatedBuildOptions options) =>
+		Console.Out.WriteLine($"as-params-referenced:{options.Path ?? "null"}:{options.Output ?? "null"}");
 
 	internal readonly record struct Point(int X, int Y);
 
