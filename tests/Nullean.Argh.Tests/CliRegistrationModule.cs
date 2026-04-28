@@ -52,6 +52,11 @@ internal static class CliRegistrationModule
 		app.Map("validate-non-nullable-range", ValidationCliHandlers.ValidateNonNullableRange);
 		app.Map("validate-dto", ValidationCliHandlers.ValidateDto);
 		app.Map("validate-timespan-range", ValidationCliHandlers.ValidateTimeSpanRange);
+		app.Map("validate-existing-file", ValidationCliHandlers.ValidateExistingFile);
+		app.Map("validate-non-existing-file", ValidationCliHandlers.ValidateNonExistingFile);
+		app.Map("validate-existing-directory", ValidationCliHandlers.ValidateExistingDirectory);
+		app.Map("validate-expand-home-file", ValidationCliHandlers.ValidateExpandHomeFile);
+		app.Map("validate-no-symlink-file", ValidationCliHandlers.ValidateNoSymlinkFile);
 		app.Map<DiProbeCommands>();
 		app.Map<CommandNameOverrideCommands>();
 		app.MapNamespace<StorageCliCommands>("storage", g =>
