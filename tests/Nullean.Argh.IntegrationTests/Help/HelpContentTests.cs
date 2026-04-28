@@ -25,7 +25,7 @@ public class HelpContentTests
 			   Greet someone by name.
 
 			Global options:
-			  --help, -h         Show help.
+			  -h, --help         Show help.
 			  --verbose
 			  --severity <enum>  Enum default for global-flag parsing regression. [default: Information]
 			                     One of: <Trace|Information|Warning>
@@ -56,7 +56,7 @@ public class HelpContentTests
 			   Documented handler for lambda-style Map (XML appears in help).
 
 			Global options:
-			  --help, -h           Show help.
+			  -h, --help           Show help.
 			  --verbose
 			  --severity <enum>    Enum default for global-flag parsing regression. [default: Information]
 			                       One of: <Trace|Information|Warning>

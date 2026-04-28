@@ -425,7 +425,7 @@ Usage: myapp deploy <environment> [options]
    Deploy the application to the target environment.
 
 Global options:
-  --help, -h              Show help.
+  -h, --help              Show help.
 
 Arguments:
   <environment>           Target environment (staging, production).

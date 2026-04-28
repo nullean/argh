@@ -3908,10 +3908,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 		}
 
-		var widthCandidatesGlobalRoot = new List<int> { "--help, -h".Length, "--version".Length };
+		var widthCandidatesGlobalRoot = new List<int> { "-h, --help".Length, "--version".Length };
 		widthCandidatesGlobalRoot.AddRange(rootGlobalFlags.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
 		var maxOptWidthRoot = Math.Min(widthCandidatesGlobalRoot.Max(), 40);
-		maxOptWidthRoot = Math.Max(maxOptWidthRoot, "--help, -h".Length);
+		maxOptWidthRoot = Math.Max(maxOptWidthRoot, "-h, --help".Length);
 
 		var maxNsListingW = app.Root.Children.Count == 0 ? 0 : app.Root.Children.Max(ch => ch.Segment.Length);
 		var maxCmdListingW = app.Root.Commands.Count == 0 ? 0 : app.Root.Commands.Max(c => c.CommandName.Length);
@@ -3933,7 +3933,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
 		sb.AppendLine(
-			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("--help, -h".PadRight(maxOptWidthRoot))}\") + \"  Show help.\");");
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("-h, --help".PadRight(maxOptWidthRoot))}\") + \"  Show help.\");");
 		sb.AppendLine(
 			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("--version".PadRight(maxOptWidthRoot))}\") + \"  Show version.\");");
 		EmitHelpOptionRows(sb, rootGlobalFlags, maxOptWidthRoot);
@@ -3991,7 +3991,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var hasNsDoc = !string.IsNullOrWhiteSpace(node.SummaryInnerXml);
 		var showGlobalFlagsInNs = (node.RootCommand is not null || hasNsDoc) && globalFlagMembers.Count > 0;
 		var showNamespaceScopedOptionSections = node.RootCommand is not null || hasNsDoc;
-		var widthCandidatesNs = new List<int> { "--help, -h".Length };
+		var widthCandidatesNs = new List<int> { "-h, --help".Length };
 		if (showGlobalFlagsInNs)
 			widthCandidatesNs.AddRange(globalFlagMembers.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
 		if (showNamespaceScopedOptionSections)
@@ -4001,7 +4001,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 
 		var maxOptWidth = Math.Min(widthCandidatesNs.Max(), 40);
-		maxOptWidth = Math.Max(maxOptWidth, "--help, -h".Length);
+		maxOptWidth = Math.Max(maxOptWidth, "-h, --help".Length);
 
 		var maxChildNsListingW = 0;
 		if (node.Children.Count > 0)
@@ -4027,7 +4027,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
 		sb.AppendLine(
-			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("--help, -h".PadRight(maxOptWidth))}\") + \"  Show help.\");");
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("-h, --help".PadRight(maxOptWidth))}\") + \"  Show help.\");");
 		if (showGlobalFlagsInNs)
 			EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
 
@@ -4526,7 +4526,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (rootFlags.Count > 0)
 		{
 			var mw = Math.Min(
-				Math.Max(rootFlags.Max(p => HelpLayout.FormatOptionLeftCell(p).Length), "--help, -h".Length),
+				Math.Max(rootFlags.Max(p => HelpLayout.FormatOptionLeftCell(p).Length), "-h, --help".Length),
 				40);
 			sb.AppendLine($"{indent}Console.Out.WriteLine();");
 			sb.AppendLine($"{indent}Console.Out.WriteLine(CliHelpFormatting.Section(\"Options for this default:\"));");
@@ -7353,14 +7353,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			.Where(p => p.Kind == ParameterKind.Flag && !CommandFlagMatchesScopedKeys(p, scopedKeys))
 			.ToList();
 
-		var widthCandidates = new List<int> { "--help, -h".Length };
+		var widthCandidates = new List<int> { "-h, --help".Length };
 		widthCandidates.AddRange(globalFlagMembers.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
 		foreach ((_, var rows) in namespaceOptionSections)
 			widthCandidates.AddRange(rows.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
 
 		widthCandidates.AddRange(commandOnlyFlags.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
 		var maxOptWidth = Math.Min(widthCandidates.Max(), 40);
-		maxOptWidth = Math.Max(maxOptWidth, "--help, -h".Length);
+		maxOptWidth = Math.Max(maxOptWidth, "-h, --help".Length);
 
 		sb.AppendLine($"\t\tprivate static void PrintHelp_{cmd.RunMethodName}()");
 		sb.AppendLine("\t\t{");
@@ -7419,7 +7419,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Global options:\"));");
 		sb.AppendLine(
-			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("--help, -h".PadRight(maxOptWidth))}\") + \"  Show help.\");");
+			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("-h, --help".PadRight(maxOptWidth))}\") + \"  Show help.\");");
 		if (globalFlagMembers.Count > 0)
 			EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
 
@@ -8169,6 +8169,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
+	/// <summary>Parse options property/field <c>&lt;summary&gt;</c> lines that may start with <c>-x, --long, …</c> synopsis prefixes (same rules as handler <paramref/> docs).</summary>
+	private static (string Description, char? ShortOpt, ImmutableArray<string> Aliases) ParseOptionsFlagDocumentation(string? summaryLine)
+	{
+		if (string.IsNullOrWhiteSpace(summaryLine))
+			return ("", null, ImmutableArray<string>.Empty);
+		var d = ParamDocParser.Parse(summaryLine!.Trim());
+		return (d.Description, d.ShortOpt, d.Aliases);
+	}
+
 	// ── Validation constraint types ─────────────────────────────────────────────
 	// All fields are value types, strings, or ImmutableArray<string> so these can be
 	// cached inside AnalyzedInvocation records in the Roslyn incremental pipeline.
@@ -8266,7 +8275,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			bool isSeparateType,
 			string? defaultLiteral,
 			string description,
-			AsParametersMeta? asParams)
+			AsParametersMeta? asParams,
+			char? flagShortOpt = null,
+			ImmutableArray<string> synopsisAliasesFromSummary = default)
 		{
 			ClassifyScalarForType(elementType, attributeHost, BoolSpecialKind.None,
 				out var elemSk, out var elemTn, out var eFq, out var eMem, out var pFq, out var cFq);
@@ -8278,6 +8289,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var fq = collectionType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			var defFq = (collectionType as INamedTypeSymbol)?.OriginalDefinition
 				.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
+			var synopsisAliasesResolved = synopsisAliasesFromSummary.IsDefault
+				? ImmutableArray<string>.Empty
+				: synopsisAliasesFromSummary;
 			return new ParameterModel(
 				symbolName,
 				localVarName,
@@ -8293,8 +8307,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				required,
 				defaultLiteral,
 				description,
-				null,
-				ImmutableArray<string>.Empty,
+				flagShortOpt,
+				synopsisAliasesResolved,
 				IsCollection: true,
 				CollectionSeparator: sep,
 				ElementScalarKind: elemSk,
@@ -8385,13 +8399,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, Compilation? compilation = null, string? defaultValueLiteral = null)
 		{
-			var docLine = Documentation.GetPropertySummaryLine(prop, compilation, TryExtractFullDocumentationFromPropertyTrivia(prop));
+			var rawSummary = Documentation.GetPropertySummaryLine(prop, compilation, TryExtractFullDocumentationFromPropertyTrivia(prop));
+			var doc = ParseOptionsFlagDocumentation(rawSummary);
 			var bs = ClassifyBool(prop.Type);
 			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
 				return BuildCollectionParameterModel(prop.Type, elemType, prop, ParameterKind.Flag,
 					Naming.ToCliLongName(prop.Name), SafeLocalName(prop.Name), prop.Name,
-					isSeparateType: true, defaultLiteral: null, docLine, asParams: null);
+					isSeparateType: true, defaultLiteral: null, doc.Description, asParams: null,
+					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases);
 			}
 
 			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
@@ -8416,9 +8432,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				customValFq,
 				required,
 				defLit,
-				docLine,
-				null,
-				ImmutableArray<string>.Empty,
+				doc.Description,
+				doc.ShortOpt,
+				doc.Aliases,
 				EnumMemberDocs: enumDocs,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations);
@@ -8426,13 +8442,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
 		{
-			var docLine = Documentation.GetFieldSummaryLine(field, compilation, TryExtractFullDocumentationFromFieldTrivia(field));
+			var rawSummary = Documentation.GetFieldSummaryLine(field, compilation, TryExtractFullDocumentationFromFieldTrivia(field));
+			var doc = ParseOptionsFlagDocumentation(rawSummary);
 			var bs = ClassifyBool(field.Type);
 			if (TryUnwrapCollectionType(field.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
 				return BuildCollectionParameterModel(field.Type, elemType, field, ParameterKind.Flag,
 					Naming.ToCliLongName(field.Name), SafeLocalName(field.Name), field.Name,
-					isSeparateType: true, defaultLiteral: null, docLine, asParams: null);
+					isSeparateType: true, defaultLiteral: null, doc.Description, asParams: null,
+					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases);
 			}
 
 			ClassifyScalarUnified(field.Type, field, bs, isSeparateType: true,
@@ -8455,9 +8473,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				customValFq,
 				required,
 				defLit,
-				docLine,
-				null,
-				ImmutableArray<string>.Empty,
+				doc.Description,
+				doc.ShortOpt,
+				doc.Aliases,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations);
 		}
@@ -8612,12 +8630,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var bs = ClassifyBool(prop.Type);
 			var cli = namePrefix + Naming.ToCliLongName(prop.Name);
 			var local = SafeLocalName(methodParamName + "_" + prop.Name);
-			var desc = Documentation.GetPropertySummaryLine(prop, compilation, TryExtractFullDocumentationFromPropertyTrivia(prop));
+			var rawSummary = Documentation.GetPropertySummaryLine(prop, compilation, TryExtractFullDocumentationFromPropertyTrivia(prop));
+			var doc = ParseOptionsFlagDocumentation(rawSummary);
 			var meta = new AsParametersMeta(methodParamName, memberOrder, typeFq, UseInit: true, prop.Name);
 			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
 				return BuildCollectionParameterModel(prop.Type, elemType, prop, kind, cli, local, prop.Name,
-					isSeparateType: true, defaultLiteral: null, desc, meta);
+					isSeparateType: true, defaultLiteral: null, doc.Description, meta,
+					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases);
 			}
 
 			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
@@ -8643,9 +8663,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				customValFq,
 				required,
 				null,
-				desc,
-				null,
-				ImmutableArray<string>.Empty,
+				doc.Description,
+				doc.ShortOpt,
+				doc.Aliases,
 				AsParametersOwnerParamName: methodParamName,
 				AsParametersMemberOrder: memberOrder,
 				AsParametersTypeFq: typeFq,

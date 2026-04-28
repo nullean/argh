@@ -26,7 +26,7 @@ public class RootHelpFullTextTests
 			   Root default remarks for help layout tests.
 
 			Global options:
-			  --help, -h         Show help.
+			  -h, --help         Show help.
 			  --version          Show version.
 			  --verbose
 			  --severity <enum>  Enum default for global-flag parsing regression. [default: Information]
