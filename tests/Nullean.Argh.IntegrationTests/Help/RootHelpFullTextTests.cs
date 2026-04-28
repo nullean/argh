@@ -29,8 +29,8 @@ public class RootHelpFullTextTests
 			  -h, --help         Show help.
 			  --version          Show version.
 			  --verbose
-			  --severity <enum>  Enum default for global-flag parsing regression. [default: Information]
-			                     One of: <Trace|Information|Warning>
+			  --severity <enum>  Enum default for global-flag parsing regression. [default: information]
+			                     One of: <trace|information|warning>
 
 			Namespaces:
 			  alias-followed  Root alias followed by additional mapped command classes.

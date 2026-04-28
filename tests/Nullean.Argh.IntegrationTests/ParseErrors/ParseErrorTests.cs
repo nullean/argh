@@ -33,8 +33,8 @@ public class ParseErrorTests
 			Global options:
 			  -h, --help         Show help.
 			  --verbose
-			  --severity <enum>  Enum default for global-flag parsing regression. [default: Information]
-			                     One of: <Trace|Information|Warning>
+			  --severity <enum>  Enum default for global-flag parsing regression. [default: information]
+			                     One of: <trace|information|warning>
 
 			Options:
 			  --name <string>    [required] The name to greet.

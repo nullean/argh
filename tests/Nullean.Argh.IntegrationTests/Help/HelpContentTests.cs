@@ -27,8 +27,8 @@ public class HelpContentTests
 			Global options:
 			  -h, --help         Show help.
 			  --verbose
-			  --severity <enum>  Enum default for global-flag parsing regression. [default: Information]
-			                     One of: <Trace|Information|Warning>
+			  --severity <enum>  Enum default for global-flag parsing regression. [default: information]
+			                     One of: <trace|information|warning>
 
 			Options:
 			  --name <string>    [required] The name to greet.
@@ -58,8 +58,8 @@ public class HelpContentTests
 			Global options:
 			  -h, --help           Show help.
 			  --verbose
-			  --severity <enum>    Enum default for global-flag parsing regression. [default: Information]
-			                       One of: <Trace|Information|Warning>
+			  --severity <enum>    Enum default for global-flag parsing regression. [default: information]
+			                       One of: <trace|information|warning>
 
 			Options:
 			  -l, --line <string>  [required] Text line to echo.

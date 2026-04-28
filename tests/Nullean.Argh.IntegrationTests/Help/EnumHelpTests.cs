@@ -26,12 +26,12 @@ public class EnumHelpTests
 			Global options:
 			  -h, --help                    Show help.
 			  --verbose
-			  --severity <enum>             Enum default for global-flag parsing regression. [default: Information]
-			                                One of: <Trace|Information|Warning>
+			  --severity <enum>             Enum default for global-flag parsing regression. [default: information]
+			                                One of: <trace|information|warning>
 
 			Options:
 			  -c, --colour, --color <enum>  [required] Pick a color.
-			                                One of: <Red|Blue>
+			                                One of: <red|blue>
 			  -n, --name <string>           [required] Display name
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		TrimLines(text).Should().Be(TrimLines(expected));
@@ -46,6 +46,6 @@ public class EnumHelpTests
 			"--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
-		text.Should().Contain("Combination of: <Red|Blue>");
+		text.Should().Contain("Combination of: <red|blue>");
 	}
 }
