@@ -5030,7 +5030,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			else
 			{
 				sb.AppendLine($"\t\t\t\t{p.LocalVarName}Joined = null;");
-				sb.AppendLine("\t\t\t}");
 			}
 
 			sb.AppendLine($"\t\t\tif (!string.IsNullOrEmpty({p.LocalVarName}Joined))");
