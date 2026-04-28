@@ -344,6 +344,30 @@ public class ValidationAnnotationTests
 	}
 
 	[Fact]
+	public void ExistingDirectory_optional_omitted_does_not_run_existence_validation()
+	{
+		var r = CliHostRunner.Run(NoColor, "validate-existing-directory-opt");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("dir:(null)");
+	}
+
+	[Fact]
+	public void NonExistingFile_optional_omitted_does_not_validate()
+	{
+		var r = CliHostRunner.Run(NoColor, "validate-non-existing-file-opt");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("path:(null)");
+	}
+
+	[Fact]
+	public void NoSymlinkFile_optional_omitted_does_not_validate()
+	{
+		var r = CliHostRunner.Run(NoColor, "validate-no-symlink-file-opt");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("file:(null)");
+	}
+
+	[Fact]
 	public void ExpandHomeFile_tilde_under_profile_succeeds()
 	{
 		var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);

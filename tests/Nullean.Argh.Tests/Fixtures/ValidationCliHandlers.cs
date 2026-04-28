@@ -71,6 +71,14 @@ internal static class ValidationCliHandlers
 	public static void ValidateExistingDirectory(TestGlobalCliOptions g, [Existing] DirectoryInfo dir) =>
 		Console.Out.WriteLine($"dir:{dir.FullName}");
 
+	/// <summary>Optional directory: [Existing] skips when omitted.</summary>
+	public static void ValidateExistingOptionalDirectory(TestGlobalCliOptions g, [Existing] DirectoryInfo? dir = null) =>
+		Console.Out.WriteLine($"dir:{dir?.FullName ?? "(null)"}");
+
+	/// <summary>Optional file path: [NonExisting] skips when omitted.</summary>
+	public static void ValidateNonExistingOptionalFile(TestGlobalCliOptions g, [NonExisting] FileInfo? path = null) =>
+		Console.Out.WriteLine($"path:{path?.FullName ?? "(null)"}");
+
 	/// <summary>Expand <c>~</c> profile prefix before binding <see cref="FileInfo"/>.</summary>
 	public static void ValidateExpandHomeFile(TestGlobalCliOptions g, [ExpandUserProfile] FileInfo file) =>
 		Console.Out.WriteLine($"file:{file.FullName}");
@@ -78,4 +86,8 @@ internal static class ValidationCliHandlers
 	/// <summary>Existing file that must not be a symbolic link.</summary>
 	public static void ValidateNoSymlinkFile(TestGlobalCliOptions g, [Existing][RejectSymbolicLinks] FileInfo file) =>
 		Console.Out.WriteLine($"file:{file.FullName}");
+
+	/// <summary>Optional file: [RejectSymbolicLinks] skips when omitted.</summary>
+	public static void ValidateNoSymlinkOptionalFile(TestGlobalCliOptions g, [Existing][RejectSymbolicLinks] FileInfo? file = null) =>
+		Console.Out.WriteLine($"file:{file?.FullName ?? "(null)"}");
 }
