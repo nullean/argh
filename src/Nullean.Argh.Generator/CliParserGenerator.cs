@@ -4862,7 +4862,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 
 			if (p.Special == BoolSpecialKind.NullableBool)
+			{
 				allowed.Add("no-" + p.CliLongName);
+				foreach (var al in p.Aliases)
+				{
+					if (string.Equals(al, p.CliLongName, StringComparison.OrdinalIgnoreCase))
+						continue;
+					allowed.Add("no-" + al);
+				}
+			}
 		}
 
 		sb.AppendLine("\t\t\tbool IsAllowedFlag(string name) => name switch");
@@ -4896,7 +4904,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 
 			if (p.Special == BoolSpecialKind.NullableBool)
+			{
 				canonNames.Add("no-" + p.CliLongName);
+				foreach (var al in p.Aliases)
+				{
+					if (string.Equals(al, p.CliLongName, StringComparison.OrdinalIgnoreCase))
+						continue;
+					canonNames.Add("no-" + al);
+				}
+			}
 
 			if (p.ShortOpt is char ch)
 				shortChars.Add(ch);
@@ -6445,6 +6461,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return "default!";
 	}
 
+	/// <summary>
+	/// Global/namespace options flattened into a command via <see cref="FixOptionsParamsInCommands"/> use
+	/// <see cref="ParameterKind.OptionsInjected"/> but must still participate in long-name aliases, short-option
+	/// binding, and bare bool switch recognition the same as <see cref="ParameterKind.Flag"/>.
+	/// </summary>
+	private static bool IsEmittedFlagLike(ParameterKind kind) =>
+		kind is ParameterKind.Flag or ParameterKind.OptionsInjected;
+
 	private static void EmitBoolSwitchNames(StringBuilder sb, CommandModel cmd, bool suppressNoNameHelper = false)
 	{
 		var names = new List<string>();
@@ -6507,13 +6531,23 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var cases = new List<(string from, string to)>();
 		foreach (var p in cmd.Parameters)
 		{
-			if (p.Kind != ParameterKind.Flag)
+			if (!IsEmittedFlagLike(p.Kind))
 				continue;
 			foreach (var al in p.Aliases)
 			{
 				if (string.Equals(al, p.CliLongName, StringComparison.OrdinalIgnoreCase))
 					continue;
 				cases.Add((al, p.CliLongName));
+			}
+
+			if (p.Special == BoolSpecialKind.NullableBool)
+			{
+				foreach (var al in p.Aliases)
+				{
+					if (string.Equals(al, p.CliLongName, StringComparison.OrdinalIgnoreCase))
+						continue;
+					cases.Add(("no-" + al, "no-" + p.CliLongName));
+				}
 			}
 		}
 
@@ -6537,7 +6571,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var shortCases = new List<(char c, string Primary, bool IsBool)>();
 		foreach (var p in cmd.Parameters)
 		{
-			if (p.Kind != ParameterKind.Flag)
+			if (!IsEmittedFlagLike(p.Kind))
 				continue;
 			if (p.ShortOpt is not char ch)
 				continue;
