@@ -76,6 +76,13 @@ public class ArghRuntimeInProcTests
 	}
 
 	[Fact]
+	public async Task RunAsync_global_bool_after_namespace_command_is_bare_switch()
+	{
+		var code = await ArghRuntime.RunAsync(["storage", "list", "--verbose"]);
+		code.Should().Be(0);
+	}
+
+	[Fact]
 	public async Task RunAsync_AsParameters_prefixed_flags_bind_record()
 	{
 		var prev = Console.Out;
