@@ -22,7 +22,7 @@ public class RootHelpFullTextTests
 			Usage: {CliHostPaths.CliHostAssemblyName} <namespace|command> [options]
 
 			 (default command)
-			   Integration-test default when no subcommand is given at the app root.
+			   Integration-test default when no sub-command is given at the app root.
 			   Root default remarks for help layout tests.
 
 			Global options:
@@ -49,6 +49,8 @@ public class RootHelpFullTextTests
 			  brace-doc                             Regression: braces in XML docs must not
 			                                        become C# interpolation in generated
 			                                        help.
+			  build                                 Integration-test default when no
+			                                        sub-command is given at the app root.
 			  color-set
 			  count-cmd
 			  deploy
@@ -64,6 +66,7 @@ public class RootHelpFullTextTests
 			  nullable-numeric-as-params
 			  opt-tag-set
 			  optional-uri-as-params
+			  other
 			  param-comment-record
 			  ping
 			  point-cmd

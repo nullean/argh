@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Nullean.Argh;
 using Nullean.Argh.Builder;
 using Nullean.Argh.Tests.Fixtures;
 
@@ -12,7 +13,7 @@ internal static class CliRegistrationModule
 		IArghBuilder app = new ArghBuilder();
 		app.UseMiddleware<TestsGlobalMiddleware>();
 		app.UseGlobalOptions<TestGlobalCliOptions>();
-		app.MapRoot(CliRootDefault);
+		app.MapAndRootAlias<CliRootPrefetchAliasCommands>();
 		app.Map("hello", CliTestHandlers.Hello);
 		app.Map("enum-cmd", CliTestHandlers.EnumCmd);
 		app.Map("deploy", CliTestHandlers.Deploy);
@@ -88,10 +89,20 @@ internal static class CliRegistrationModule
 	internal static void DocLambdaEcho(TestGlobalCliOptions g, string line) =>
 		Console.Out.WriteLine($"doc-lambda:{line}");
 
-	/// <summary>Integration-test default when no subcommand is given at the app root.</summary>
-	/// <remarks>Root default remarks for help layout tests.</remarks>
-	internal static void CliRootDefault(TestGlobalCliOptions g) =>
-		Console.Out.WriteLine("marker:root-default");
+	/// <summary>Provides the app-root integration-test default via <c>MapAndRootAlias</c> alongside a sentinel flag.</summary>
+	internal sealed class CliRootPrefetchAliasCommands
+	{
+		/// <summary>Integration-test default when no sub-command is given at the app root.</summary>
+		/// <remarks>Root default remarks for help layout tests.</remarks>
+		/// <param name="g">Injected global CLI options.</param>
+		/// <param name="prefetchRegression">parses-before-dispatch sentinel for root-alias prefetch.</param>
+		[DefaultCommand]
+		public static void Build(TestGlobalCliOptions g, bool? prefetchRegression = null) =>
+			Console.Out.WriteLine(prefetchRegression == true ? "marker:root-default:prefetch" : "marker:root-default");
+
+		public static void Other(TestGlobalCliOptions g) =>
+			Console.Out.WriteLine("marker:root-other");
+	}
 
 	/// <summary>Integration-test default when only the <c>storage</c> namespace is selected.</summary>
 	/// <remarks>Namespace default remarks for help layout tests.</remarks>

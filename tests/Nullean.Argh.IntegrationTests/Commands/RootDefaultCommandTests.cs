@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Commands;
 
-/// <summary>Subprocess tests for <see cref="Nullean.Argh.Builder.IArghBuilder.MapRoot"/> at app root and inside a namespace.</summary>
+/// <summary>Subprocess tests for app-root <c>MapAndRootAlias</c> (and <c>MapRoot</c> in namespaces) defaults.</summary>
 public class RootDefaultCommandTests
 {
 	[Fact]
@@ -24,6 +24,14 @@ public class RootDefaultCommandTests
 	}
 
 	[Fact]
+	public void Root_alias_command_flag_before_subcommand_name_routes_to_default()
+	{
+		var result = CliHostRunner.Run("--prefetch-regression");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("marker:root-default:prefetch");
+	}
+
+	[Fact]
 	public void Namespace_only_with_required_namespace_options_invokes_namespace_root()
 	{
 		var result = CliHostRunner.Run("storage", "--prefix", "p1");
@@ -40,8 +48,7 @@ public class RootDefaultCommandTests
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		text.Should().Contain("(default command)");
-		text.Should().Contain("Integration-test default when no subcommand is given at the app root.");
-		text.Should().Contain("Root default remarks for help layout tests.");
+		text.Should().Contain("Integration-test default when no sub-command is given at the app root.");
 	}
 
 	[Fact]
