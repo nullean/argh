@@ -24,6 +24,14 @@ public class RootDefaultCommandTests
 	}
 
 	[Fact]
+	public void Global_short_verbose_only_invokes_root_default_handler()
+	{
+		var result = CliHostRunner.Run("-v");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("marker:root-default");
+	}
+
+	[Fact]
 	public void Root_alias_command_flag_before_subcommand_name_routes_to_default()
 	{
 		var result = CliHostRunner.Run("--prefetch-regression");

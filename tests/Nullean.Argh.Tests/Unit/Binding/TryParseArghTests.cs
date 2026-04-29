@@ -16,6 +16,15 @@ public class TryParseArghTests
 	}
 
 	[Fact]
+	public void TryParseArgh_static_on_options_type_binds_global_short_bool_without_value()
+	{
+		var ok = TestGlobalCliOptions.TryParseArgh(["-v"], out var o);
+		ok.Should().BeTrue();
+		o.Should().NotBeNull();
+		o.Verbose.Should().BeTrue();
+	}
+
+	[Fact]
 	public void TryParseArgh_static_on_command_namespace_options_binds_inherited_and_namespace_flags()
 	{
 		var ok = TestStorageCommandNamespaceOptions.TryParseArgh(

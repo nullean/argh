@@ -27,7 +27,7 @@ public class RootAndNamespaceHelpTests
 			Global options:
 			  -h, --help         Show help.
 			  --version          Show version.
-			  --verbose
+			  -v, --verbose
 			  --severity <enum>  Enum default for global-flag parsing regression. [default: information]
 			                     One of: <trace|information|warning>
 
@@ -128,7 +128,7 @@ public class RootAndNamespaceHelpTests
 
 			Global options:
 			  -h, --help         Show help.
-			  --verbose
+			  -v, --verbose
 			  --severity <enum>  Enum default for global-flag parsing regression. [default: information]
 			                     One of: <trace|information|warning>
 

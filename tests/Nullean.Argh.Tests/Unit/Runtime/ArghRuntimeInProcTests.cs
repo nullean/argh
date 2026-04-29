@@ -83,6 +83,20 @@ public class ArghRuntimeInProcTests
 	}
 
 	[Fact]
+	public async Task RunAsync_short_global_verbose_before_subcommand_peels_without_value()
+	{
+		var code = await ArghRuntime.RunAsync(["-v", "storage", "--prefix", "p", "list"]);
+		code.Should().Be(0);
+	}
+
+	[Fact]
+	public async Task RunAsync_short_global_verbose_after_namespace_command_is_bare_switch()
+	{
+		var code = await ArghRuntime.RunAsync(["storage", "list", "-v"]);
+		code.Should().Be(0);
+	}
+
+	[Fact]
 	public async Task RunAsync_AsParameters_prefixed_flags_bind_record()
 	{
 		var prev = Console.Out;

@@ -271,6 +271,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor DuplicateShortOption = new(
+		"AGH0033",
+		"Duplicate short option letter",
+		"The short option '-{0}' is used for more than one flag in the same parse scope: '--{1}' and '--{2}' ({3}).",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
 	// ── Pre-compiled Regex patterns ── compiled once, reused for every handler method analyzed
 	private static readonly Regex SummaryXmlPattern =
 		new(@"<summary>\s*([\s\S]*?)\s*</summary>", RegexOptions.Compiled);
@@ -738,6 +746,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		"AGH0029" => MapAndRootAliasAmbiguousTarget,
 		"AGH0030" => PathExistenceAttributesConflict,
 		"AGH0032" => FilesystemPathAttributeTypeMismatch,
+		"AGH0033" => DuplicateShortOption,
 		_ => throw new ArgumentException($"Unknown diagnostic id: {id}")
 	};
 
@@ -1169,6 +1178,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		ValidateCommandOptionsInjection(context, app);
 		FixOptionsParamsInCommands(app);
+		ValidateDuplicateShortOptionLetters(context, app);
 
 		return true;
 	}
@@ -2944,6 +2954,72 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			check(p.CliLongName);
 			foreach (var al in p.Aliases) check(al);
 			if (p.Special == BoolSpecialKind.NullableBool) check("no-" + p.CliLongName);
+		}
+	}
+
+	/// <summary>
+	/// Each generated <c>TryApplyShortFlag</c> groups all flag-like params in one scope (global prefetch, namespace
+	/// prefetch, or a single handler). Duplicate single-letter shortcuts would emit invalid duplicate <c>case</c> labels.
+	/// </summary>
+	private static void ValidateDuplicateShortOptionLetters(SourceProductionContext context, AppEmitModel app)
+	{
+		if (app.GlobalOptionsModel is { FlattenedMembers: var gm } && !gm.IsDefaultOrEmpty)
+			ReportDuplicateShortsAmongMembers(context, Location.None, gm, "global options");
+
+		static void walkNs(RegistryNode node, SourceProductionContext ctx)
+		{
+			if (node.CommandNamespaceOptionsModel is { FlattenedMembers: var nm } && !nm.IsDefaultOrEmpty)
+			{
+				var loc = node.CommandNamespaceOptionsLocation ?? Location.None;
+				ReportDuplicateShortsAmongMembers(ctx, loc, nm, "namespace-scoped options");
+			}
+
+			foreach (var ch in node.Children)
+				walkNs(ch.Node, ctx);
+		}
+
+		walkNs(app.Root, context);
+
+		foreach (var cmd in app.AllCommands)
+		{
+			if (cmd.Parameters.IsDefaultOrEmpty)
+				continue;
+			var loc = cmd.HandlerSpanInfo.ToLocation();
+			var scope =
+				cmd.RoutePrefix.IsDefaultOrEmpty
+					? $"command '{cmd.CommandName}'"
+					: $"command '{string.Join(" ", cmd.RoutePrefix)} {cmd.CommandName}'";
+			ReportDuplicateShortsAmongMembers(context, loc, cmd.Parameters, scope);
+		}
+	}
+
+	private static void ReportDuplicateShortsAmongMembers(
+		SourceProductionContext context,
+		Location location,
+		ImmutableArray<ParameterModel> members,
+		string scopeDescription)
+	{
+		var byChar = new Dictionary<char, string>();
+		foreach (var p in members)
+		{
+			if (!IsEmittedFlagLike(p.Kind))
+				continue;
+			if (p.ShortOpt is not char ch)
+				continue;
+			if (byChar.TryGetValue(ch, out var firstLong))
+			{
+				context.ReportDiagnostic(Diagnostic.Create(
+					DuplicateShortOption,
+					location,
+					ch.ToString(),
+					firstLong,
+					p.CliLongName,
+					scopeDescription));
+			}
+			else
+			{
+				byChar[ch] = p.CliLongName;
+			}
 		}
 	}
 
@@ -6483,6 +6559,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var noNames = new List<string>();
 		foreach (var p in cmd.Parameters)
 		{
+			if (!IsEmittedFlagLike(p.Kind))
+				continue;
 			if (p.Special == BoolSpecialKind.Bool)
 				names.Add(p.CliLongName);
 			if (p.Special == BoolSpecialKind.NullableBool)
@@ -9736,10 +9814,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		public static string FormatOptionLeftCell(ParameterModel p)
 		{
 			if (p.Special == BoolSpecialKind.Bool)
+			{
+				if (p.ShortOpt is char c)
+					return "-" + c + ", " + "--" + p.CliLongName;
 				return "--" + p.CliLongName;
+			}
 
 			if (p.Special == BoolSpecialKind.NullableBool)
+			{
+				if (p.ShortOpt is char nc)
+					return "-" + nc + ", " + "--[no-]" + p.CliLongName;
 				return "--[no-]" + p.CliLongName;
+			}
 
 			var th = TypeHint(p);
 			var sb = new StringBuilder();

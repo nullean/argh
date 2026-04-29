@@ -18,6 +18,7 @@ internal enum FixtureConfigSource
 /// <summary>Global CLI flags (tests).</summary>
 internal class TestGlobalCliOptions
 {
+	/// <summary>-v</summary>
 	public bool Verbose { get; set; }
 
 	/// <summary>Enum default for global-flag parsing regression.</summary>

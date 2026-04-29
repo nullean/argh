@@ -28,7 +28,7 @@ public class RootHelpFullTextTests
 			Global options:
 			  -h, --help         Show help.
 			  --version          Show version.
-			  --verbose
+			  -v, --verbose
 			  --severity <enum>  Enum default for global-flag parsing regression. [default: information]
 			                     One of: <trace|information|warning>
 
