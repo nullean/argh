@@ -154,7 +154,9 @@ internal static class CliTestHandlers
 		Console.Out.WriteLine("color-set:" + string.Join(",", colors.OrderBy(x => (int)x)));
 
 	public static void OptTagSet(TestGlobalCliOptions g, IReadOnlySet<int>? tagIds) =>
-		Console.Out.WriteLine("opt-tag-set:" + (tagIds is null or { Count: 0 } ? "none" : string.Join(",", tagIds.OrderBy(x => x))));
+		Console.Out.WriteLine(
+			"opt-tag-set:"
+			+ (tagIds is null ? "null" : tagIds.Count == 0 ? "empty" : string.Join(",", tagIds.OrderBy(x => x))));
 
 	public static void AsParamsTagSet(TestGlobalCliOptions g, [AsParameters] TagSetArgs args) =>
 		Console.Out.WriteLine("as-params-tag-set:" + string.Join(",", args.TagIds.OrderBy(x => x)));
@@ -171,7 +173,7 @@ internal static class CliTestHandlers
 	public static void AsParamsOptionalCollectionSyntax(TestGlobalCliOptions g, [AsParameters("ocs")] OptionalCollectionSyntaxAsParamsArgs args) =>
 		Console.Out.WriteLine(
 			"as-params-optional-collection-syntax:"
-			+ (args.TagIds is null or { Count: 0 } ? "none" : string.Join(",", args.TagIds.OrderBy(x => x)))
+			+ (args.TagIds is null ? "null" : args.TagIds.Count == 0 ? "empty" : string.Join(",", args.TagIds.OrderBy(x => x)))
 			+ ":"
 			+ (args.Output ?? "null"));
 

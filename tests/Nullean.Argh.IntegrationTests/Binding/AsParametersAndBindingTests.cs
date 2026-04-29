@@ -80,7 +80,7 @@ public class AsParametersAndBindingTests
 	{
 		var result = CliHostRunner.Run("as-params-optional-collection-syntax");
 		result.ExitCode.Should().Be(0);
-		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-optional-collection-syntax:none:null");
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-optional-collection-syntax:null:null");
 	}
 
 	[Fact]
