@@ -275,6 +275,21 @@ public class ArghRuntimeInProcTests
 	}
 
 	[Fact]
+	public async Task RunAsync_root_MapAndRootAlias_command_flag_prefetches_before_dispatch()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["--prefetch-regression"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("marker:root-default:prefetch");
+		}
+		finally { Console.SetOut(prev); }
+	}
+
+	[Fact]
 	public async Task RunAsync_alias_followed_namespace_default_routes_to_alias_target()
 	{
 		var prev = Console.Out;
