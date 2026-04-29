@@ -1666,6 +1666,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	{
 		if (node.RootCommand is not null && fixedById.TryGetValue(node.RootCommand.RunMethodName, out var fixedRoot))
 			node.RootCommand = fixedRoot;
+		if (node.RootAlias is not null && fixedById.TryGetValue(node.RootAlias.RunMethodName, out var fixedAlias))
+			node.RootAlias = fixedAlias;
 		foreach (var child in node.Children)
 			UpdateRegistryNodeRootCommands(child.Node, fixedById);
 	}
@@ -3780,11 +3782,25 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			EmitCommandRunner(sb, cmd, app.GlobalMiddleware, injectedOptions: injectedOpts, entryAssemblyName: entryAssemblyName);
 		}
 
-		if (app.GlobalOptionsModel is { Members: { Length: > 0 } } gomStore)
-			EmitOptionsTryParse(sb, "TryParseGlobalOptions", gomStore.FlattenedMembers,
-				storeTypeFq: gomStore.TypeFq,
-				storeFieldName: OptionsStaticFieldNameFq(gomStore.TypeFq),
-				storeBestCtorParamOrder: gomStore.BestCtorParamOrder);
+		{
+			var globalPrefetchMembers = CollectRootPrefetchGlobalMembers(app);
+			var deferRootPrefetch = CollectDeferredRootAliasPrefetchFlags(app);
+			if (globalPrefetchMembers.Length > 0 || deferRootPrefetch.Length > 0)
+			{
+				if (app.GlobalOptionsModel is { } g)
+				{
+					EmitOptionsTryParse(sb, "TryParseGlobalOptions",
+						globalPrefetchMembers,
+						storeTypeFq: g.TypeFq,
+						storeFieldName: OptionsStaticFieldNameFq(g.TypeFq),
+						storeBestCtorParamOrder: g.BestCtorParamOrder,
+						deferLeadingRootAliasFlags: deferRootPrefetch);
+				}
+				else
+					EmitOptionsTryParse(sb, "TryParseGlobalOptions", globalPrefetchMembers,
+						deferLeadingRootAliasFlags: deferRootPrefetch);
+			}
+		}
 
 		foreach ((var node, var path) in EnumerateCommandNamespaceNodesWithPath(app.Root, ImmutableArray<string>.Empty))
 		{
@@ -3861,14 +3877,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private static void EmitRunCoreHierarchical(StringBuilder sb, AppEmitModel app, string entryAssemblyName)
 	{
-		var hasGlobal = app.GlobalOptionsModel is { Members: { Length: > 0 } };
+		var hasLeadingOptionPrefetch =
+			CollectRootPrefetchGlobalMembers(app).Length > 0 || CollectDeferredRootAliasPrefetchFlags(app).Length > 0;
 		sb.AppendLine("\t\tprivate static async Task<int> RunCoreAsync(string[] args, CancellationToken ct)");
 		sb.AppendLine("\t\t{");
 		EmitRootCompletionScriptBlock(sb, "\t\t\t", entryAssemblyName);
 		EmitRootCompleteBlock(sb, "\t\t\t");
 		EmitRootSchemaBlock(sb, "\t\t\t");
 		sb.AppendLine("\t\t\tvar idx = new int[1];");
-		if (hasGlobal)
+		if (hasLeadingOptionPrefetch)
 			sb.AppendLine("\t\t\tif (!TryParseGlobalOptions(args, idx)) return 2;");
 
 		sb.AppendLine("\t\t\tif (idx[0] < args.Length && (args[idx[0]] == \"--help\" || args[idx[0]] == \"-h\"))");
@@ -3885,6 +3902,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t{");
 		if (app.Root.RootCommand is { } runCoreRoot)
 			sb.AppendLine($"\t\t\t\treturn await {runCoreRoot.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
+		else if (app.Root.RootAlias is { } runCoreAlias)
+			sb.AppendLine($"\t\t\t\treturn await {runCoreAlias.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
 		else
 		{
 			sb.AppendLine("\t\t\t\tPrintRootHelp();");
@@ -3899,7 +3918,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private static void EmitPrintRootHelpHierarchical(StringBuilder sb, AppEmitModel app, string entryAssemblyName)
 	{
 		var rootGlobalFlags = new List<ParameterModel>();
-		if (app.Root.RootCommand is not null && app.GlobalOptionsModel is OptionsTypeModel gomH && gomH.Members.Length > 0)
+		if ((app.Root.RootCommand is not null || app.Root.RootAlias is not null) &&
+		    app.GlobalOptionsModel is OptionsTypeModel gomH && gomH.Members.Length > 0)
 		{
 			foreach (var p in gomH.Members)
 			{
@@ -3924,7 +3944,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (app.Root.RootCommand is { } rootOverview)
 			EmitRootCommandHelpOverview(sb, rootOverview, "\t\t\t", app, entryAssemblyName);
 		else if (app.Root.RootAlias is { } rootAliasOverview)
-			EmitRootAliasHelpOverview(sb, rootAliasOverview, ImmutableArray<string>.Empty, "\t\t\t", entryAssemblyName);
+			// Preserve the legacy MapRoot root-help shape: "(default command)" plus handler docs — not the abbreviated
+			// root-alias synopsis (those details remain on the named sub-command's --help).
+			EmitRootCommandHelpOverview(sb, rootAliasOverview, "\t\t\t", app, entryAssemblyName, includeScopedDefaultHelpOptions: false);
 		else if (!string.IsNullOrWhiteSpace(app.RootSummary))
 		{
 			EmitCommandHelpDocPrologue(sb, "\t\t\t", null, app.RootSummary, false);
@@ -4515,7 +4537,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void EmitRootCommandHelpOverview(StringBuilder sb, CommandModel rootCmd, string indent, AppEmitModel app, string entryAssemblyName)
+	private static void EmitRootCommandHelpOverview(
+		StringBuilder sb,
+		CommandModel rootCmd,
+		string indent,
+		AppEmitModel app,
+		string entryAssemblyName,
+		bool includeScopedDefaultHelpOptions = true)
 	{
 		// "(default command)" is not an argv token — labels the opt-in default handler; summary/remarks from XML on the handler.
 		sb.AppendLine($"{indent}Console.Out.WriteLine(\" \" + CliHelpFormatting.DefaultCommandLabel(\"(default command)\"));");
@@ -4523,7 +4551,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var remarksXml = TransformRemarksInnerXmlForHelp(rootCmd.RemarksInnerXml, rootCmd, app.AllCommands, entryAssemblyName);
 		EmitRootDefaultDocumentationLines(sb, indent, remarksXml, rootCmd.RemarksRendered, true);
 		var rootFlags = rootCmd.Parameters.Where(static p => p.Kind == ParameterKind.Flag).ToList();
-		if (rootFlags.Count > 0)
+		if (includeScopedDefaultHelpOptions && rootFlags.Count > 0)
 		{
 			var mw = Math.Min(
 				Math.Max(rootFlags.Max(p => HelpLayout.FormatOptionLeftCell(p).Length), "-h, --help".Length),
@@ -4608,13 +4636,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private static void EmitTryParseRouteHierarchical(StringBuilder sb, AppEmitModel app)
 	{
-		var hasGlobal = app.GlobalOptionsModel is { Members: { Length: > 0 } };
+		var hasLeadingOptionPrefetch =
+			CollectRootPrefetchGlobalMembers(app).Length > 0 || CollectDeferredRootAliasPrefetchFlags(app).Length > 0;
 		sb.AppendLine("\t\tpublic static bool TryParseRoute(string[] args, out RouteMatch match)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tmatch = default;");
 		sb.AppendLine("\t\t\tif (CompletionProtocol.IsArghMetaCompletionInvocation(args)) return false;");
 		sb.AppendLine("\t\t\tvar idx = new int[1];");
-		if (hasGlobal)
+		if (hasLeadingOptionPrefetch)
 			sb.AppendLine("\t\t\tif (!TryParseGlobalOptions(args, idx)) return false;");
 		sb.AppendLine("\t\t\tif (args.Length == 0) return false;");
 		sb.AppendLine("\t\t\tif (idx[0] < args.Length && (args[idx[0]] == \"--help\" || args[idx[0]] == \"-h\")) return false;");
@@ -4624,6 +4653,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (app.Root.RootCommand is { } routeRoot)
 		{
 			var rp = Escape(GetCommandRoutePath(routeRoot));
+			sb.AppendLine($"\t\t\t\tmatch = new RouteMatch(\"{rp}\", TailFrom(args, idx[0]));");
+			sb.AppendLine("\t\t\t\treturn true;");
+		}
+		else if (app.Root.RootAlias is { } routeRa)
+		{
+			var rp = Escape(GetCommandRoutePath(routeRa));
 			sb.AppendLine($"\t\t\t\tmatch = new RouteMatch(\"{rp}\", TailFrom(args, idx[0]));");
 			sb.AppendLine("\t\t\t\treturn true;");
 		}
@@ -4658,6 +4693,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (node.RootCommand is { } routeNsRoot)
 		{
 			var rnp = Escape(GetCommandRoutePath(routeNsRoot));
+			sb.AppendLine($"\t\t\t\tmatch = new RouteMatch(\"{rnp}\", TailFrom(args, idx[0]));");
+			sb.AppendLine("\t\t\t\treturn true;");
+		}
+		else if (node.RootAlias is { } routeNsRa)
+		{
+			var rnp = Escape(GetCommandRoutePath(routeNsRa));
 			sb.AppendLine($"\t\t\t\tmatch = new RouteMatch(\"{rnp}\", TailFrom(args, idx[0]));");
 			sb.AppendLine("\t\t\t\treturn true;");
 		}
@@ -4706,6 +4747,72 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			EmitTryParseRouteForNode(sb, app, ch.Node, childPath, "TryParseRouteCommandNamespace_" + CommandNamespacePathKey(childPath), isRoot: false);
 		}
 	}
+
+	private static ImmutableArray<ParameterModel> CollectRootPrefetchGlobalMembers(AppEmitModel app) =>
+		app.GlobalOptionsModel?.FlattenedMembers ?? ImmutableArray<ParameterModel>.Empty;
+
+	/// <summary>
+	/// Union of prefetch parse sets (flattened globals + flattened root-alias-command flags).
+	/// Used to decide which leading flags can be peeled in <see cref="TryParseGlobalOptions"/> vs deferred to dispatch.
+	/// </summary>
+	private static ImmutableArray<ParameterModel> MergeRootPrefetchPredicateMembers(AppEmitModel app)
+	{
+		var globalFlattened = app.GlobalOptionsModel?.FlattenedMembers ?? ImmutableArray<ParameterModel>.Empty;
+		if (app.Root.RootAlias is not { } aliasCmd || aliasCmd.Parameters.IsDefaultOrEmpty)
+			return globalFlattened;
+
+		var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		foreach (var m in globalFlattened)
+			if (ParticipatesInOptionPrefetch(m.Kind))
+				seen.Add(m.CliLongName);
+
+		var trailing = ImmutableArray.CreateBuilder<ParameterModel>();
+		foreach (var p in aliasCmd.Parameters)
+		{
+			if (!ParticipatesInOptionPrefetch(p.Kind))
+				continue;
+
+			if (!seen.Add(p.CliLongName))
+				continue;
+
+			trailing.Add(p);
+		}
+
+		if (trailing.Count == 0)
+			return globalFlattened;
+
+		var merged = ImmutableArray.CreateBuilder<ParameterModel>(globalFlattened.Length + trailing.Count);
+		merged.AddRange(globalFlattened);
+		merged.AddRange(trailing);
+
+		return merged.ToImmutable();
+	}
+
+	/// <summary>
+	/// Root-alias-command flags minus anything already declared on <see cref="AppEmitModel.GlobalOptionsModel"/>.
+	/// When these appear as leading <c>-</c>-prefixed tokens, <see cref="TryParseGlobalOptions"/> must defer them
+	/// (break without consuming idx) so <c>DispatchRoot</c> can route them to <see cref="RegistryNode.RootAlias"/>.
+	/// </summary>
+	private static ImmutableArray<ParameterModel> CollectDeferredRootAliasPrefetchFlags(AppEmitModel app)
+	{
+		var merged = MergeRootPrefetchPredicateMembers(app);
+		var globals = CollectRootPrefetchGlobalMembers(app);
+		if (app.Root.RootAlias is null || merged.Length <= globals.Length)
+			return ImmutableArray<ParameterModel>.Empty;
+
+		var defer = ImmutableArray.CreateBuilder<ParameterModel>();
+		for (var i = globals.Length; i < merged.Length; i++)
+		{
+			var p = merged[i];
+			if (ParticipatesInOptionPrefetch(p.Kind))
+				defer.Add(p);
+		}
+
+		return defer.Count == 0 ? ImmutableArray<ParameterModel>.Empty : defer.ToImmutable();
+	}
+
+	private static bool ParticipatesInOptionPrefetch(ParameterKind kind) =>
+		kind == ParameterKind.Flag || kind == ParameterKind.OptionsInjected;
 
 	private static CommandModel SyntheticOptionsCommand(ImmutableArray<ParameterModel> members, string runMethodName) =>
 		new(
@@ -4761,14 +4868,68 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t};");
 	}
 
+	private static void EmitDeferLeadingRootAliasHelpers(StringBuilder sb, ImmutableArray<ParameterModel> defer)
+	{
+		if (defer.IsDefaultOrEmpty)
+		{
+			sb.AppendLine("\t\t\tbool ShouldDeferLeadingRootAliasCanon(string name) => false;");
+			sb.AppendLine("\t\t\tbool ShouldDeferLeadingShortFlag(char c) => false;");
+			return;
+		}
+
+		var canonNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		var shortChars = new HashSet<char>();
+		foreach (var p in defer)
+		{
+			canonNames.Add(p.CliLongName);
+			foreach (var al in p.Aliases)
+			{
+				if (string.Equals(al, p.CliLongName, StringComparison.OrdinalIgnoreCase))
+					continue;
+				canonNames.Add(al);
+			}
+
+			if (p.Special == BoolSpecialKind.NullableBool)
+				canonNames.Add("no-" + p.CliLongName);
+
+			if (p.ShortOpt is char ch)
+				shortChars.Add(ch);
+		}
+
+		sb.AppendLine("\t\t\tbool ShouldDeferLeadingRootAliasCanon(string name) => name switch");
+		sb.AppendLine("\t\t\t{");
+		foreach (var n in canonNames.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase))
+			sb.AppendLine($"\t\t\t\t\"{Escape(n)}\" => true,");
+
+		sb.AppendLine("\t\t\t\t_ => false");
+		sb.AppendLine("\t\t\t};");
+
+		if (shortChars.Count == 0)
+		{
+			sb.AppendLine("\t\t\tbool ShouldDeferLeadingShortFlag(char c) => false;");
+			return;
+		}
+
+		sb.AppendLine("\t\t\tbool ShouldDeferLeadingShortFlag(char c) => c switch");
+		sb.AppendLine("\t\t\t{");
+		foreach (var ch in shortChars.OrderBy(static x => x))
+			sb.AppendLine($"\t\t\t\t'{ch}' => true,");
+
+		sb.AppendLine("\t\t\t\t_ => false");
+		sb.AppendLine("\t\t\t};");
+	}
+
 	private static void EmitOptionsTryParse(
 		StringBuilder sb,
 		string methodName,
 		ImmutableArray<ParameterModel> members,
 		string? storeTypeFq = null,
 		string? storeFieldName = null,
-		ImmutableArray<string>? storeBestCtorParamOrder = null)
+		ImmutableArray<string>? storeBestCtorParamOrder = null,
+		ImmutableArray<ParameterModel>? deferLeadingRootAliasFlags = null)
 	{
+		var defer = deferLeadingRootAliasFlags ?? ImmutableArray<ParameterModel>.Empty;
+
 		var syn = SyntheticOptionsCommand(members, methodName);
 		sb.AppendLine($"\t\tprivate static bool {methodName}(string[] args, int[] idx)");
 		sb.AppendLine("\t\t{");
@@ -4777,6 +4938,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		EmitCanonFlagNameMethod(sb, syn);
 		EmitShortFlagMethods(sb, syn);
 		EmitAllowedFlagPredicate(sb, members);
+		EmitDeferLeadingRootAliasHelpers(sb, defer);
 		sb.AppendLine("\t\t\twhile (idx[0] < args.Length && args[idx[0]].Length > 0 && args[idx[0]][0] == '-')");
 		sb.AppendLine("\t\t\t{");
 		sb.AppendLine("\t\t\t\tif (args[idx[0]] == \"--help\" || args[idx[0]] == \"-h\" || args[idx[0]] == \"--version\")");
@@ -4790,6 +4952,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\tvar flagName = CanonFlagName(a.Substring(2, eq - 2));");
 		sb.AppendLine("\t\t\t\t\t\tif (!IsAllowedFlag(flagName))");
 		sb.AppendLine("\t\t\t\t\t\t{");
+		sb.AppendLine("\t\t\t\t\t\t\tif (ShouldDeferLeadingRootAliasCanon(flagName))");
+		sb.AppendLine("\t\t\t\t\t\t\t\tbreak;");
 		sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'.\");");
 		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
 		sb.AppendLine("\t\t\t\t\t\t}");
@@ -4802,6 +4966,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\tvar flagName = CanonFlagName(a.Substring(2));");
 		sb.AppendLine("\t\t\t\t\t\tif (!IsAllowedFlag(flagName))");
 		sb.AppendLine("\t\t\t\t\t\t{");
+		sb.AppendLine("\t\t\t\t\t\t\tif (ShouldDeferLeadingRootAliasCanon(flagName))");
+		sb.AppendLine("\t\t\t\t\t\t\t\tbreak;");
 		sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'.\");");
 		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
 		sb.AppendLine("\t\t\t\t\t\t}");
@@ -4835,7 +5001,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
 		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tif (!TryApplyShortFlag(shortKey[0], a.Substring(eqs + 1)))");
+		sb.AppendLine("\t\t\t\t\t\t{");
+		sb.AppendLine("\t\t\t\t\t\t\tif (ShouldDeferLeadingShortFlag(shortKey[0])) break;");
 		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
+		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tidx[0]++;");
 		sb.AppendLine("\t\t\t\t\t\tcontinue;");
 		sb.AppendLine("\t\t\t\t\t}");
@@ -4845,7 +5014,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\tif (IsShortBoolChar(sc))");
 		sb.AppendLine("\t\t\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\t\t\tif (!TryApplyShortFlag(sc, \"true\"))");
+		sb.AppendLine("\t\t\t\t\t\t\t{");
+		sb.AppendLine("\t\t\t\t\t\t\t\tif (ShouldDeferLeadingShortFlag(sc)) break;");
 		sb.AppendLine("\t\t\t\t\t\t\t\treturn false;");
+		sb.AppendLine("\t\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\t\tidx[0]++;");
 		sb.AppendLine("\t\t\t\t\t\t\tcontinue;");
 		sb.AppendLine("\t\t\t\t\t\t}");
@@ -4855,7 +5027,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
 		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tif (!TryApplyShortFlag(sc, args[idx[0] + 1]))");
+		sb.AppendLine("\t\t\t\t\t\t{");
+		sb.AppendLine("\t\t\t\t\t\t\tif (ShouldDeferLeadingShortFlag(sc)) break;");
 		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
+		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tidx[0] += 2;");
 		sb.AppendLine("\t\t\t\t\t\tcontinue;");
 		sb.AppendLine("\t\t\t\t\t}");
