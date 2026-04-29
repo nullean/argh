@@ -126,6 +126,8 @@ public sealed class CommandIntrinsicAttribute : Attribute;
 /// <summary>
 /// Suppresses the AGH0021 diagnostic for this command method or handler class. Use when a command
 /// intentionally does not need access to the registered <c>UseGlobalOptions</c> or namespace options types.
+/// Globals and namespace-scoped options still parse (<c>-h</c>, shorts, longs) after route segments —
+/// reconstructed instances are injected into middleware and Hosting; omitting eliminates only the handler parameter positions.
 /// Apply to a <b>method</b> to opt out for that command only, or to a <b>class</b> to opt out for
 /// all commands defined on that class.
 /// Lambdas are always exempt from AGH0021 and do not need this attribute.
