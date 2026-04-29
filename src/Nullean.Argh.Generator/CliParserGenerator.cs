@@ -5460,7 +5460,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 
 		var declType = p.FullDeclaredTypeFq ?? "object";
-		if (p.CollectionTargetIsArray)
+		var useNullWhenUnset = !p.IsRequired && p.DeclaredNullableAnnotated;
+		if (useNullWhenUnset)
+		{
+			if (p.CollectionTargetIsArray)
+				sb.AppendLine($"\t\t\t{declType} {p.LocalVarName} = {acc}.Count == 0 ? null : {acc}.ToArray();");
+			else
+				sb.AppendLine($"\t\t\t{declType} {p.LocalVarName} = {acc}.Count == 0 ? null : {acc};");
+		}
+		else if (p.CollectionTargetIsArray)
 			sb.AppendLine($"\t\t\t{declType} {p.LocalVarName} = {acc}.ToArray();");
 		else
 			sb.AppendLine($"\t\t\t{declType} {p.LocalVarName} = {acc};");
@@ -8752,6 +8760,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string? AsParametersClrName = null,
 		bool CollectionTargetIsArray = false,
 		bool CollectionTargetIsReadOnlySet = false,
+		/// <summary>True when the declared collection type uses NRT annotation (e.g. <c>IReadOnlySet&lt;int&gt;?</c>). Optional params with this shape default to null when no values were parsed.</summary>
+		bool DeclaredNullableAnnotated = false,
 		bool ElementIsValueType = false,
 		ImmutableDictionary<string, string>? EnumMemberDocs = null,
 		ImmutableDictionary<string, string>? ElementEnumMemberDocs = null,
@@ -8814,6 +8824,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var synopsisAliasesResolved = synopsisAliasesFromSummary.IsDefault
 				? ImmutableArray<string>.Empty
 				: synopsisAliasesFromSummary;
+			var declaredNullableAnnotated = collectionType.NullableAnnotation == NullableAnnotation.Annotated;
 			return new ParameterModel(
 				symbolName,
 				localVarName,
@@ -8842,6 +8853,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				FullDeclaredTypeFq: fq,
 				CollectionTargetIsArray: collectionType is IArrayTypeSymbol,
 				CollectionTargetIsReadOnlySet: defFq == "global::System.Collections.Generic.IReadOnlySet<T>",
+				DeclaredNullableAnnotated: declaredNullableAnnotated,
 				ElementIsValueType: elementType.IsValueType,
 				ElementEnumMemberDocs: elemEnumDocs,
 				AsParametersOwnerParamName: asParams?.OwnerParamName,

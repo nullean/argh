@@ -239,7 +239,7 @@ public class ArghRuntimeInProcTests
 			Console.SetOut(sw);
 			var code = await ArghRuntime.RunAsync(["opt-tag-set"]);
 			code.Should().Be(0);
-			sw.ToString().Trim().Should().Be("opt-tag-set:none");
+			sw.ToString().Trim().Should().Be("opt-tag-set:null");
 		}
 		finally { Console.SetOut(prev); }
 	}
