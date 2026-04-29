@@ -23,6 +23,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private const string IArghNamespaceBuilderMetadataName = "Nullean.Argh.Builder.IArghNamespaceBuilder";
 	private const string ArghNamespaceBuilderMetadataName = "Nullean.Argh.Builder.ArghNamespaceBuilder";
 
+	/// <summary>
+	/// Same as <see cref="SymbolDisplayFormat.FullyQualifiedFormat"/>, plus NRT modifiers so emitted collection locals match nullable annotations (e.g. <c>IReadOnlySet&lt;int&gt;?</c> for unset optional collections).
+	/// </summary>
+	private static readonly SymbolDisplayFormat FullyQualifiedFormatWithNullableRefAnnotations =
+		SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
+			SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions |
+			SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
 	private static readonly DiagnosticDescriptor CommandNamespaceOptionsMustExtendParent = new(
 		"AGH0004",
 		"Command namespace options type must extend the parent options type",
@@ -8852,12 +8860,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var required = isSeparateType
 				? ComputeRequiredForOptionsType(collectionType, BoolSpecialKind.None)
 				: ComputeRequired((IParameterSymbol)attributeHost, BoolSpecialKind.None);
-			var fq = collectionType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			var defFq = (collectionType as INamedTypeSymbol)?.OriginalDefinition
 				.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
 			var synopsisAliasesResolved = synopsisAliasesFromSummary.IsDefault
 				? ImmutableArray<string>.Empty
 				: synopsisAliasesFromSummary;
+			var fq = collectionType.ToDisplayString(FullyQualifiedFormatWithNullableRefAnnotations);
 			var declaredNullableAnnotated = collectionType.NullableAnnotation == NullableAnnotation.Annotated;
 			return new ParameterModel(
 				symbolName,
