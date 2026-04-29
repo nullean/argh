@@ -83,6 +83,117 @@ public class ArghRuntimeInProcTests
 	}
 
 	[Fact]
+	public async Task RunAsync_short_global_verbose_before_subcommand_peels_without_value()
+	{
+		var code = await ArghRuntime.RunAsync(["-v", "storage", "--prefix", "p", "list"]);
+		code.Should().Be(0);
+	}
+
+	[Fact]
+	public async Task RunAsync_short_global_verbose_after_namespace_command_is_bare_switch()
+	{
+		var code = await ArghRuntime.RunAsync(["storage", "list", "-v"]);
+		code.Should().Be(0);
+	}
+
+	[Fact]
+	public async Task RunAsync_global_enum_long_form_accepted_after_command_flags()
+	{
+		var code = await ArghRuntime.RunAsync(["hello", "--name", "t", "--severity", "trace"]);
+		code.Should().Be(0);
+	}
+
+	[Fact]
+	public async Task RunAsync_global_mode_short_after_command_flags_binds_value()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["hello", "--name", "t", "-m", "alpha"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("ok:t:alpha");
+		}
+		finally
+		{
+			Console.SetOut(prev);
+		}
+	}
+
+	[Fact]
+	public async Task RunAsync_global_mode_long_after_command_flags_binds_value()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["hello", "--name", "t", "--mode", "beta"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("ok:t:beta");
+		}
+		finally
+		{
+			Console.SetOut(prev);
+		}
+	}
+
+	[Fact]
+	public async Task RunAsync_global_mode_short_equals_form_after_command_flags_binds_value()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["hello", "--name", "t", "-m=gamma"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("ok:t:gamma");
+		}
+		finally
+		{
+			Console.SetOut(prev);
+		}
+	}
+
+	[Fact]
+	public async Task RunAsync_global_mode_short_before_command_matches_post_command_form()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["hello", "-m", "delta", "--name", "t"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("ok:t:delta");
+		}
+		finally
+		{
+			Console.SetOut(prev);
+		}
+	}
+
+	[Fact]
+	public async Task RunAsync_namespace_command_accepts_global_short_after_namespace_flags()
+	{
+		var prev = Console.Out;
+		var sw = new StringWriter();
+		try
+		{
+			Console.SetOut(sw);
+			var code = await ArghRuntime.RunAsync(["storage", "list", "--prefix", "p", "-m", "ns"]);
+			code.Should().Be(0);
+			sw.ToString().Trim().Should().Be("storage-list:ns");
+		}
+		finally
+		{
+			Console.SetOut(prev);
+		}
+	}
+
+	[Fact]
 	public async Task RunAsync_AsParameters_prefixed_flags_bind_record()
 	{
 		var prev = Console.Out;

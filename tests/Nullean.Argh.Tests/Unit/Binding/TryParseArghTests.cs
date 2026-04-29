@@ -16,6 +16,15 @@ public class TryParseArghTests
 	}
 
 	[Fact]
+	public void TryParseArgh_static_on_options_type_binds_global_short_bool_without_value()
+	{
+		var ok = TestGlobalCliOptions.TryParseArgh(["-v"], out var o);
+		ok.Should().BeTrue();
+		o.Should().NotBeNull();
+		o.Verbose.Should().BeTrue();
+	}
+
+	[Fact]
 	public void TryParseArgh_static_on_command_namespace_options_binds_inherited_and_namespace_flags()
 	{
 		var ok = TestStorageCommandNamespaceOptions.TryParseArgh(
@@ -98,6 +107,24 @@ public class TryParseArghTests
 		ok.Should().BeTrue();
 		o.Should().NotBeNull();
 		o.Severity.Should().Be(FixtureSeverity.Warning);
+	}
+
+	[Fact]
+	public void TryParseArgh_global_mode_short_option_binds_value()
+	{
+		var ok = TestGlobalCliOptions.TryParseArgh(["-m", "z"], out var o);
+		ok.Should().BeTrue();
+		o.Should().NotBeNull();
+		o.Mode.Should().Be("z");
+	}
+
+	[Fact]
+	public void TryParseArgh_global_mode_short_equals_form_binds_value()
+	{
+		var ok = TestGlobalCliOptions.TryParseArgh(["-m=z"], out var o);
+		ok.Should().BeTrue();
+		o.Should().NotBeNull();
+		o.Mode.Should().Be("z");
 	}
 
 	[Fact]

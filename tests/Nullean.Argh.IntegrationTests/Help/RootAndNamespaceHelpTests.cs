@@ -25,11 +25,12 @@ public class RootAndNamespaceHelpTests
 			   Root default remarks for help layout tests.
 
 			Global options:
-			  -h, --help         Show help.
-			  --version          Show version.
-			  --verbose
-			  --severity <enum>  Enum default for global-flag parsing regression. [default: information]
-			                     One of: <trace|information|warning>
+			  -h, --help           Show help.
+			  --version            Show version.
+			  -v, --verbose        
+			  --severity <enum>    Enum default for global-flag parsing regression. [default: information]
+			                       One of: <trace|information|warning>
+			  -m, --mode <string>  Test-only global mode label (non-bool global short-option coverage). [default: ]
 
 			Namespaces:
 			  alias-followed  Root alias followed by additional mapped command classes.
@@ -127,13 +128,14 @@ public class RootAndNamespaceHelpTests
 			   Namespace default remarks for help layout tests.
 
 			Global options:
-			  -h, --help         Show help.
-			  --verbose
-			  --severity <enum>  Enum default for global-flag parsing regression. [default: information]
-			                     One of: <trace|information|warning>
+			  -h, --help           Show help.
+			  -v, --verbose        
+			  --severity <enum>    Enum default for global-flag parsing regression. [default: information]
+			                       One of: <trace|information|warning>
+			  -m, --mode <string>  Test-only global mode label (non-bool global short-option coverage). [default: ]
 
 			'storage' options:
-			  --prefix <string>  [default: ]
+			  --prefix <string>    [default: ]
 
 			Namespaces:
 			  storage blob

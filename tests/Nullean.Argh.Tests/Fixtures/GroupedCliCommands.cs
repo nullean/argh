@@ -18,10 +18,14 @@ internal enum FixtureConfigSource
 /// <summary>Global CLI flags (tests).</summary>
 internal class TestGlobalCliOptions
 {
+	/// <summary>-v</summary>
 	public bool Verbose { get; set; }
 
 	/// <summary>Enum default for global-flag parsing regression.</summary>
 	public FixtureSeverity Severity { get; set; } = FixtureSeverity.Information;
+
+	/// <summary>-m, Test-only global mode label (non-bool global short-option coverage).</summary>
+	public string Mode { get; set; } = "";
 }
 
 /// <summary>Storage command namespace options; must inherit global options type.</summary>
@@ -33,7 +37,11 @@ internal sealed class TestStorageCommandNamespaceOptions : TestGlobalCliOptions
 /// <summary>Commands under <c>storage</c>. Nested <see cref="BlobCommands"/> must be registered explicitly via <c>MapNamespace&lt;BlobCommands&gt;</c>.</summary>
 internal sealed class StorageCliCommands
 {
-	public static void List(TestStorageCommandNamespaceOptions o) => Console.Out.WriteLine("storage-list");
+	public static void List(TestStorageCommandNamespaceOptions o)
+	{
+		var tail = string.IsNullOrEmpty(o.Mode) ? "" : ":" + o.Mode;
+		Console.Out.WriteLine("storage-list" + tail);
+	}
 
 	public sealed class BlobCommands
 	{

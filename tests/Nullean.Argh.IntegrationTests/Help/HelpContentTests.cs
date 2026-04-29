@@ -25,13 +25,14 @@ public class HelpContentTests
 			   Greet someone by name.
 
 			Global options:
-			  -h, --help         Show help.
-			  --verbose
-			  --severity <enum>  Enum default for global-flag parsing regression. [default: information]
-			                     One of: <trace|information|warning>
+			  -h, --help           Show help.
+			  -v, --verbose        
+			  --severity <enum>    Enum default for global-flag parsing regression. [default: information]
+			                       One of: <trace|information|warning>
+			  -m, --mode <string>  Test-only global mode label (non-bool global short-option coverage). [default: ]
 
 			Options:
-			  --name <string>    [required] The name to greet.
+			  --name <string>      [required] The name to greet.
 
 			Notes:  See DocLambdaEcho; set name.
 
@@ -57,9 +58,10 @@ public class HelpContentTests
 
 			Global options:
 			  -h, --help           Show help.
-			  --verbose
+			  -v, --verbose        
 			  --severity <enum>    Enum default for global-flag parsing regression. [default: information]
 			                       One of: <trace|information|warning>
+			  -m, --mode <string>  Test-only global mode label (non-bool global short-option coverage). [default: ]
 
 			Options:
 			  -l, --line <string>  [required] Text line to echo.
