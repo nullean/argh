@@ -63,6 +63,8 @@ public class RootAndNamespaceHelpTests
 			  hello                                 Greet someone by name.
 			  lambda-cmd
 			  multi-enum-as-params
+			  nin-hello                             Greet by name without a global-options
+			                                        handler parameter (-m still parses).
 			  nullable-numeric-as-params
 			  opt-tag-set
 			  optional-uri-as-params

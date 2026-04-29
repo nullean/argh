@@ -1168,12 +1168,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		app.AllCommands = dedup.Values.ToImmutableArray();
 		// GlobalOptionsModel is set during ProcessAnalyzedInvocationsForNode.
 
-		// Pre-compute injection chains once per command; reused by validation, FixOptionsParamsInCommands, and emit.
+		// Pre-compute injection chains once per command; reused by validation, FixOptionsParamsInCommands, EmitOptionsReconstructLocals, and emit.
+		// [NoOptionsInjection] only suppresses handler parameters and AGH0021 — globals/namespaced flags must still splice as OptionsInjected
+		// for short/long parsing and static-field reconstruction after the route segment.
 		app.InjectionChains = app.AllCommands.ToImmutableDictionary(
 			cmd => cmd.RunMethodName,
-			cmd => cmd.HandlerHasNoOptionsInjection
-				? ImmutableArray<(string, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>, ImmutableArray<string>?)>.Empty
-				: BuildOptionsInjectionChain(app, cmd),
+			cmd => BuildOptionsInjectionChain(app, cmd),
 			StringComparer.Ordinal);
 
 		ValidateCommandOptionsInjection(context, app);
@@ -1616,7 +1616,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var updated = ImmutableArray.CreateBuilder<CommandModel>(app.AllCommands.Length);
 		foreach (var cmd in app.AllCommands)
 		{
-			if (cmd.IsLambda || cmd.HandlerHasNoOptionsInjection)
+			// Lambdas have no reconstructed options-instance surface; globals still participate via leading prefetch only when applicable.
+			if (cmd.IsLambda)
 			{
 				updated.Add(cmd);
 				continue;
@@ -3545,7 +3546,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	/// <summary>
 	/// Returns <see langword="true"/> if the method or its containing type carries
-	/// <c>[NoOptionsInjection]</c>, suppressing AGH0021 and all options-injection codegen.
+	/// <c>[NoOptionsInjection]</c>, suppressing AGH0021 and handler-level options-parameter requirements.
+	/// Globals/namespaced flags still splice as <see cref="ParameterKind.OptionsInjected"/> for parsing/reconstruction.
 	/// </summary>
 	private static bool HasNoOptionsInjection(IMethodSymbol method)
 	{
@@ -3861,11 +3863,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		foreach (var cmd in app.AllCommands)
 		{
-			var injectedOpts = cmd.HandlerHasNoOptionsInjection
-				? ImmutableArray<(string, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>, ImmutableArray<string>?)>.Empty
-				: app.InjectionChains.TryGetValue(cmd.RunMethodName, out var precomputed3)
-					? precomputed3
-					: BuildOptionsInjectionChain(app, cmd);
+			var injectedOpts = app.InjectionChains.TryGetValue(cmd.RunMethodName, out var precomputed3)
+				? precomputed3
+				: BuildOptionsInjectionChain(app, cmd);
 			EmitCommandRunner(sb, cmd, app.GlobalMiddleware, injectedOptions: injectedOpts, entryAssemblyName: entryAssemblyName);
 		}
 

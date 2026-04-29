@@ -84,6 +84,12 @@ internal static class CliTestHandlers
 		Console.Out.WriteLine($"ok:{name}{mode}");
 	}
 
+	/// <summary>Greet by name without a global-options handler parameter (-m still parses).</summary>
+	/// <param name="name">The name.</param>
+	[NoOptionsInjection]
+	public static void NinHello(string name) =>
+		Console.Out.WriteLine($"nin:{name}");
+
 	/// <summary>Enum and short options.</summary>
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="color">-c,--colour, Pick a color.</param>

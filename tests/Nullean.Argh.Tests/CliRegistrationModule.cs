@@ -15,6 +15,7 @@ internal static class CliRegistrationModule
 		app.UseGlobalOptions<TestGlobalCliOptions>();
 		app.MapAndRootAlias<CliRootPrefetchAliasCommands>();
 		app.Map("hello", CliTestHandlers.Hello);
+		app.Map("nin-hello", CliTestHandlers.NinHello);
 		app.Map("enum-cmd", CliTestHandlers.EnumCmd);
 		app.Map("deploy", CliTestHandlers.Deploy);
 		app.Map("as-params-with-ct", CliTestHandlers.AsParamsWithCt);

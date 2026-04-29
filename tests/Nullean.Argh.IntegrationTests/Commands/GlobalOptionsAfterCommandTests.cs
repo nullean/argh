@@ -12,6 +12,14 @@ namespace Nullean.Argh.IntegrationTests.Commands;
 public class GlobalOptionsAfterCommandTests
 {
 	[Fact]
+	public void NinHello_NoOptionsInjection_globals_parse_after_route()
+	{
+		var result = CliHostRunner.Run("nin-hello", "--name", "who", "-m", "trail");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Contain("nin:who");
+	}
+
+	[Fact]
 	public void Hello_global_bool_short_after_command_flags()
 	{
 		var result = CliHostRunner.Run("hello", "--name", "x", "-v");
