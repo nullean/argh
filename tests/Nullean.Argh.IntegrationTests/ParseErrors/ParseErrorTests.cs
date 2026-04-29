@@ -6,9 +6,6 @@ namespace Nullean.Argh.IntegrationTests.ParseErrors;
 
 public class ParseErrorTests
 {
-	private static string TrimLines(string s) =>
-		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
-
 	[Fact]
 	public void Missing_required_flag_returns_exit_2()
 	{
@@ -24,26 +21,35 @@ public class ParseErrorTests
 		var result = CliHostRunner.Run(
 			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
 			"hello");
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(result)).Should().Be("Error: missing required flag --name.\n");
-		var expectedOut = ($"""
-			Usage: {CliHostPaths.CliHostAssemblyName} hello --name <string>
+		var err = ConsoleOutput.Normalize(CliHostRunner.StderrText(result));
+		err.Should().Contain("Error: missing required flag --name.");
+		err.Should().Contain("--name <string>");
+		err.Should().Contain($"Run '{CliHostPaths.CliHostAssemblyName} hello --help' for usage.");
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(result)).Should().BeEmpty();
+	}
 
-			   Greet someone by name.
+	[Fact]
+	public void Global_flag_missing_value_prints_flag_help_excerpt()
+	{
+		var result = CliHostRunner.Run(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
+			"--severity");
+		result.ExitCode.Should().Be(2);
+		var err = ConsoleOutput.Normalize(CliHostRunner.StderrText(result));
+		err.Should().Contain("Error: missing value for flag --severity.");
+		err.Should().Contain("--severity <enum>");
+		err.Should().Contain($"Run '{CliHostPaths.CliHostAssemblyName} --help' for usage.");
+	}
 
-			Global options:
-			  -h, --help         Show help.
-			  --verbose
-			  --severity <enum>  Enum default for global-flag parsing regression. [default: information]
-			                     One of: <trace|information|warning>
-
-			Options:
-			  --name <string>    [required] The name to greet.
-
-			Notes:  See DocLambdaEcho; set name.
-
-			Examples:
-			  hello --name world
-			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
-		TrimLines(ConsoleOutput.Normalize(CliHostRunner.StdoutText(result))).Should().Be(TrimLines(expectedOut));
+	[Fact]
+	public void Global_flag_typo_suggests_did_you_mean_and_prints_flag_help()
+	{
+		var result = CliHostRunner.Run(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
+			"--severiy", "trace");
+		result.ExitCode.Should().Be(2);
+		var err = ConsoleOutput.Normalize(CliHostRunner.StderrText(result));
+		err.Should().Contain("Error: unknown option '--severiy'. Did you mean '--severity'?");
+		err.Should().Contain("--severity <enum>");
 	}
 }

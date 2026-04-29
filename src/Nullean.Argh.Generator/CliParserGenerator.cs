@@ -3764,6 +3764,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		foreach (var cmd in app.AllCommands)
 			EmitCommandHelpPrinter(sb, cmd, app, entryAssemblyName);
 
+		foreach (var cmd in app.AllCommands)
+			EmitCommandFlagHelpToStdErrMethod(sb, cmd, app);
+
 		sb.AppendLine("\t\tprivate static void PrintVersion()");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine($"			Console.Out.WriteLine(\"{Escape(entryAssemblyVersion)}\");");
@@ -3784,7 +3787,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			EmitOptionsTryParse(sb, "TryParseGlobalOptions", gomStore.FlattenedMembers,
 				storeTypeFq: gomStore.TypeFq,
 				storeFieldName: OptionsStaticFieldNameFq(gomStore.TypeFq),
-				storeBestCtorParamOrder: gomStore.BestCtorParamOrder);
+				storeBestCtorParamOrder: gomStore.BestCtorParamOrder,
+				entryAssemblyName: entryAssemblyName);
 
 		foreach ((var node, var path) in EnumerateCommandNamespaceNodesWithPath(app.Root, ImmutableArray<string>.Empty))
 		{
@@ -3796,7 +3800,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					EmitOptionsTryParse(sb, CommandNamespaceOptionsParseMethodName(path), nsModel.FlattenedMembers,
 						storeTypeFq: nsModel.TypeFq,
 						storeFieldName: OptionsStaticFieldNameFq(nsModel.TypeFq),
-						storeBestCtorParamOrder: nsModel.BestCtorParamOrder);
+						storeBestCtorParamOrder: nsModel.BestCtorParamOrder,
+						entryAssemblyName: entryAssemblyName);
 			}
 		}
 
@@ -4767,9 +4772,29 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ImmutableArray<ParameterModel> members,
 		string? storeTypeFq = null,
 		string? storeFieldName = null,
-		ImmutableArray<string>? storeBestCtorParamOrder = null)
+		ImmutableArray<string>? storeBestCtorParamOrder = null,
+		string? entryAssemblyName = null)
 	{
 		var syn = SyntheticOptionsCommand(members, methodName);
+		var flagMembers = members.Where(static p => p.Kind == ParameterKind.Flag).ToList();
+		var widthCandidates = new List<int> { "-h, --help".Length };
+		widthCandidates.AddRange(flagMembers.Select(static p => HelpLayout.FormatOptionLeftCell(p).Length));
+		var maxOptWidth = flagMembers.Count == 0
+			? "-h, --help".Length
+			: Math.Max(Math.Min(widthCandidates.Max(), 40), "-h, --help".Length);
+
+		if (flagMembers.Count > 0)
+			EmitOptionsTryParseFlagHelpPrinter(sb, methodName, flagMembers, maxOptWidth);
+
+		var flagHelpMethodName = methodName + "_FlagHelp_ToStdErr";
+		var emitRunHint = !string.IsNullOrEmpty(entryAssemblyName);
+		var runHintFailUnknown = emitRunHint
+			? $"\t\t\t\t\tConsole.Error.WriteLine(\"Run '{Escape(entryAssemblyName!)} --help' for usage.\");"
+			: null;
+		var runHintMissingLong = emitRunHint
+			? $"\t\t\t\t\t\t\tConsole.Error.WriteLine(\"Run '{Escape(entryAssemblyName!)} --help' for usage.\");"
+			: null;
+
 		sb.AppendLine($"\t\tprivate static bool {methodName}(string[] args, int[] idx)");
 		sb.AppendLine("\t\t{");
 		sb.AppendLine("\t\t\tvar flags = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);");
@@ -4777,6 +4802,67 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		EmitCanonFlagNameMethod(sb, syn);
 		EmitShortFlagMethods(sb, syn);
 		EmitAllowedFlagPredicate(sb, members);
+
+		if (flagMembers.Count > 0)
+		{
+			sb.Append("\t\t\tvar __flagFuzzyCands = new string[] { ");
+			var sortedNames = flagMembers
+				.Select(static p => p.CliLongName)
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase)
+				.ToList();
+			for (var i = 0; i < sortedNames.Count; i++)
+			{
+				if (i > 0)
+					sb.Append(", ");
+				sb.Append('"').Append(Escape(sortedNames[i])).Append('"');
+			}
+
+			sb.AppendLine(" };");
+			sb.AppendLine("\t\t\tbool FailUnknownLongOption(string flagName)");
+			sb.AppendLine("\t\t\t{");
+			sb.AppendLine($"\t\t\t\tvar __matches = FuzzyMatch.FindClosest(flagName, __flagFuzzyCands, {FuzzyMaxDistance});");
+			sb.AppendLine("\t\t\t\tif (__matches.Count == 0)");
+			sb.AppendLine("\t\t\t\t{");
+			sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'.\");");
+			if (runHintFailUnknown is not null)
+			{
+				sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
+				sb.AppendLine(runHintFailUnknown);
+			}
+
+			sb.AppendLine("\t\t\t\t\treturn false;");
+			sb.AppendLine("\t\t\t\t}");
+			sb.AppendLine("\t\t\t\tif (__matches.Count == 1)");
+			sb.AppendLine("\t\t\t\t{");
+			sb.AppendLine("\t\t\t\t\tvar __m = __matches[0];");
+			sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'. Did you mean '--{__m}'?\");");
+			sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
+			sb.AppendLine($"\t\t\t\t\t{flagHelpMethodName}(__m);");
+			if (runHintFailUnknown is not null)
+			{
+				sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
+				sb.AppendLine(runHintFailUnknown);
+			}
+
+			sb.AppendLine("\t\t\t\t\treturn false;");
+			sb.AppendLine("\t\t\t\t}");
+			sb.AppendLine("\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'. Did you mean one of these?\");");
+			sb.AppendLine("\t\t\t\tConsole.Error.WriteLine();");
+			sb.AppendLine("\t\t\t\tforeach (var __m in __matches)");
+			sb.AppendLine("\t\t\t\t{");
+			sb.AppendLine($"\t\t\t\t\t{flagHelpMethodName}(__m);");
+			sb.AppendLine("\t\t\t\t}");
+			if (runHintFailUnknown is not null)
+			{
+				sb.AppendLine("\t\t\t\tConsole.Error.WriteLine();");
+				sb.AppendLine(runHintFailUnknown);
+			}
+			sb.AppendLine("\t\t\t\treturn false;");
+			sb.AppendLine("\t\t\t}");
+			sb.AppendLine();
+		}
+
 		sb.AppendLine("\t\t\twhile (idx[0] < args.Length && args[idx[0]].Length > 0 && args[idx[0]][0] == '-')");
 		sb.AppendLine("\t\t\t{");
 		sb.AppendLine("\t\t\t\tif (args[idx[0]] == \"--help\" || args[idx[0]] == \"-h\" || args[idx[0]] == \"--version\")");
@@ -4790,8 +4876,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\tvar flagName = CanonFlagName(a.Substring(2, eq - 2));");
 		sb.AppendLine("\t\t\t\t\t\tif (!IsAllowedFlag(flagName))");
 		sb.AppendLine("\t\t\t\t\t\t{");
-		sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'.\");");
-		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
+		if (flagMembers.Count > 0)
+			sb.AppendLine("\t\t\t\t\t\t\treturn FailUnknownLongOption(flagName);");
+		else
+		{
+			sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'.\");");
+			sb.AppendLine("\t\t\t\t\t\t\treturn false;");
+		}
+
 		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tvar flagValue = a.Substring(eq + 1);");
 		sb.AppendLine("\t\t\t\t\t\tflags[flagName] = flagValue;");
@@ -4802,8 +4894,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\tvar flagName = CanonFlagName(a.Substring(2));");
 		sb.AppendLine("\t\t\t\t\t\tif (!IsAllowedFlag(flagName))");
 		sb.AppendLine("\t\t\t\t\t\t{");
-		sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'.\");");
-		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
+		if (flagMembers.Count > 0)
+			sb.AppendLine("\t\t\t\t\t\t\treturn FailUnknownLongOption(flagName);");
+		else
+		{
+			sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'.\");");
+			sb.AppendLine("\t\t\t\t\t\t\treturn false;");
+		}
+
 		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tif (IsBoolSwitchName(flagName))");
 		sb.AppendLine("\t\t\t\t\t\t{");
@@ -4815,6 +4913,17 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\t\tif (idx[0] + 1 >= args.Length)");
 		sb.AppendLine("\t\t\t\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: missing value for flag --{flagName}.\");");
+		if (flagMembers.Count > 0)
+		{
+			sb.AppendLine("\t\t\t\t\t\t\t\tConsole.Error.WriteLine();");
+			sb.AppendLine($"\t\t\t\t\t\t\t\t{flagHelpMethodName}(flagName);");
+			if (runHintMissingLong is not null)
+			{
+				sb.AppendLine("\t\t\t\t\t\t\t\tConsole.Error.WriteLine();");
+				sb.AppendLine(runHintMissingLong);
+			}
+		}
+
 		sb.AppendLine("\t\t\t\t\t\t\t\treturn false;");
 		sb.AppendLine("\t\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\t\tflags[flagName] = args[idx[0] + 1];");
@@ -5096,7 +5205,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void EmitBindCollectionParameter(StringBuilder sb, ParameterModel p, bool multiFlagsAvailable, string failureExit = "return 2", string? helpMethodName = null)
+	private static void EmitBindCollectionParameter(StringBuilder sb, ParameterModel p, bool multiFlagsAvailable, string failureExit = "return 2", string? helpMethodName = null,
+		string? flagHelpStdErrMethodName = null, string? parseFailureRunHint = null)
 	{
 		var flagKey = Escape(p.CliLongName);
 		var acc = p.LocalVarName + "_acc";
@@ -5108,8 +5218,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				sb.AppendLine("\t\t\t{");
 				sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
-				if (helpMethodName is not null)
-					sb.AppendLine($"\t\t\t\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, "\t\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"\t\t\t\t{failureExit};");
 				sb.AppendLine("\t\t\t}");
 			}
@@ -5124,7 +5233,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\t\t\tforeach (var __part in {p.LocalVarName}Joined.Split(__sep_{p.LocalVarName}, StringSplitOptions.None))");
 			sb.AppendLine("\t\t\t\t{");
 			sb.AppendLine("\t\t\t\t\tif (string.IsNullOrEmpty(__part)) continue;");
-			EmitParseFromString(sb, elemModel, "__part", "__ce_" + p.LocalVarName, indentExtra: "\t\t", outVarKeyword: true, failureExit: failureExit, helpMethodName: helpMethodName);
+			EmitParseFromString(sb, elemModel, "__part", "__ce_" + p.LocalVarName, indentExtra: "\t\t", outVarKeyword: true, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
 			if (p.CollectionTargetIsReadOnlySet)
 			{
 				sb.AppendLine($"\t\t\t\t\tif (!{acc}.Add(__ce_{p.LocalVarName}))");
@@ -5149,7 +5258,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\t\t\t__rawList_{p.LocalVarName} = new List<string>();");
 			sb.AppendLine($"\t\t\tforeach (var __raw in __rawList_{p.LocalVarName})");
 			sb.AppendLine("\t\t\t{");
-			EmitParseFromString(sb, elemModel, "__raw", "__ce_" + p.LocalVarName, indentExtra: "\t", outVarKeyword: true, failureExit: failureExit, helpMethodName: helpMethodName);
+			EmitParseFromString(sb, elemModel, "__raw", "__ce_" + p.LocalVarName, indentExtra: "\t", outVarKeyword: true, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
 			if (p.CollectionTargetIsReadOnlySet)
 			{
 				sb.AppendLine($"\t\t\t\tif (!{acc}.Add(__ce_{p.LocalVarName}))");
@@ -5168,8 +5277,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine($"\t\t\tif ({acc}.Count == 0)");
 				sb.AppendLine("\t\t\t{");
 				sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
-				if (helpMethodName is not null)
-					sb.AppendLine($"\t\t\t\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, "\t\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"\t\t\t\t{failureExit};");
 				sb.AppendLine("\t\t\t}");
 			}
@@ -5323,7 +5431,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		StringBuilder sb,
 		CommandModel cmd,
 		string failureExit,
-		string? entryAssemblyName)
+		string? entryAssemblyName,
+		string? flagHelpStdErrMethodName = null)
 	{
 		foreach (var p in cmd.Parameters)
 		{
@@ -5361,7 +5470,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif ({guard}{access} < {r.MinLiteral} || {access} > {r.MaxLiteral}{closeGuard})");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(r.MinLiteral.Trim('"'))} and {Escape(r.MaxLiteral.Trim('"'))}.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5373,7 +5482,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif (!global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MinLiteral}, out var {tsMin}) || !global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MaxLiteral}, out var {tsMax}))");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: invalid TimeSpanRange bounds.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						var guard = isNullableValueType ? $"{varName}.HasValue && (" : "";
@@ -5382,7 +5491,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif ({guard}{access} < {tsMin} || {access} > {tsMax}{closeGuard})");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(tsr.MinLiteral.Trim('"'))} and {Escape(tsr.MaxLiteral.Trim('"'))}.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5414,7 +5523,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif ({cond})");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: {Escape(msg)}\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5428,7 +5537,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif ({cond})");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value does not match required pattern {Escape(rx.Pattern)}.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5457,7 +5566,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif ({cond})");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be one of: {Escape(displayVals)}.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5486,7 +5595,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif ({cond})");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must not be: {Escape(displayVals)}.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5501,7 +5610,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif ({cond})");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value is not a valid email address.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5514,7 +5623,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\t\t (__urlCheck_{varName}.Scheme == \"http\" || __urlCheck_{varName}.Scheme == \"https\" || __urlCheck_{varName}.Scheme == \"ftp\")))");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value is not a valid URL.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5531,7 +5640,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif ({nullGuard}({string.Join(" && ", schemeChecks)}))");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: URI scheme must be one of: {Escape(displaySchemes)}.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5543,7 +5652,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif ({nullGuard}global::Nullean.Argh.ArghIO.PathIsSymbolicOrReparsePoint({access}.FullName))");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path must not be a symbolic link or reparse point.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5557,7 +5666,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 							sb.AppendLine($"\t\t\tif ({nullGuard}!global::System.IO.File.Exists({access}.FullName))");
 							sb.AppendLine("\t\t\t{");
 							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: file does not exist.\");");
-							if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+							EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 							sb.AppendLine($"\t\t\t\t{failureExit};");
 							sb.AppendLine("\t\t\t}");
 						}
@@ -5566,7 +5675,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 							sb.AppendLine($"\t\t\tif ({nullGuard}!global::System.IO.Directory.Exists({access}.FullName))");
 							sb.AppendLine("\t\t\t{");
 							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: directory does not exist.\");");
-							if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+							EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 							sb.AppendLine($"\t\t\t\t{failureExit};");
 							sb.AppendLine("\t\t\t}");
 						}
@@ -5582,7 +5691,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path already exists or is occupied by a directory.\");");
 						else
 							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path already exists.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5600,7 +5709,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\tif ({nullGuard}({string.Join(" && ", extChecks)}))");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: extension must be one of: {Escape(displayExts)}.\");");
-						if (runHint is not null) sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{runHint}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 						sb.AppendLine($"\t\t\t\t{failureExit};");
 						sb.AppendLine("\t\t\t}");
 						break;
@@ -5629,6 +5738,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		var failureExit = emitDtoTryParse ? "return false" : "return 2";
 		var helpMethodName = emitDtoTryParse ? null : HelpPrinterMethodForCommand(cmd);
+		var flagHelpStdErrMethodName = emitDtoTryParse || cmd.IsRootDefault ? null : $"PrintHelp_{cmd.RunMethodName}_Flag_ToStdErr";
+		string? parseFailureRunHint = null;
+		if (!emitDtoTryParse && entryAssemblyName is not null && !string.IsNullOrEmpty(cmd.CommandName))
+		{
+			var routeForHint = cmd.RoutePrefix.IsDefaultOrEmpty ? "" : string.Join(" ", cmd.RoutePrefix) + " ";
+			parseFailureRunHint = $"Run '{Escape(entryAssemblyName)} {Escape(routeForHint)}{Escape(cmd.CommandName)} --help' for usage.";
+		}
 
 		if (emitDtoTryParse)
 		{
@@ -5712,7 +5828,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\t\tif (i + 1 >= args.Length)");
 		sb.AppendLine("\t\t\t\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: missing value for flag --{flagName}.\");");
-		if (helpMethodName is not null)
+		if (flagHelpStdErrMethodName is not null)
+		{
+			sb.AppendLine("\t\t\t\t\t\t\t\tConsole.Error.WriteLine();");
+			sb.AppendLine($"\t\t\t\t\t\t\t\t{flagHelpStdErrMethodName}(flagName);");
+			sb.AppendLine("\t\t\t\t\t\t\t\tConsole.Error.WriteLine();");
+			if (parseFailureRunHint is not null)
+				sb.AppendLine($"\t\t\t\t\t\t\t\tConsole.Error.WriteLine(\"{parseFailureRunHint}\");");
+		}
+		else if (helpMethodName is not null)
 			sb.AppendLine($"\t\t\t\t\t\t\t\t{helpMethodName}();");
 		sb.AppendLine($"\t\t\t\t\t\t\t\t{failureExit};");
 		sb.AppendLine("\t\t\t\t\t\t\t}");
@@ -5806,7 +5930,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			if (p.IsCollection && p.Kind == ParameterKind.Flag)
 			{
-				EmitBindCollectionParameter(sb, p, anyRepeatedCollection, failureExit, helpMethodName);
+				EmitBindCollectionParameter(sb, p, anyRepeatedCollection, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				continue;
 			}
 
@@ -5816,15 +5940,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				sb.AppendLine("\t\t\t{");
 				sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
-				if (helpMethodName is not null)
-					sb.AppendLine($"\t\t\t\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, "\t\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"\t\t\t\t{failureExit};");
 				sb.AppendLine("\t\t\t}");
 			}
 			else
 				sb.AppendLine($"\t\t\t\t{p.LocalVarName}Text = null;");
 
-			EmitParseAndAssign(sb, p, p.LocalVarName + "Text", p.LocalVarName, failureExit, helpMethodName);
+			EmitParseAndAssign(sb, p, p.LocalVarName + "Text", p.LocalVarName, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 		}
 
 		var posIndex = 0;
@@ -5844,7 +5967,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine("\t\t\t}");
 				sb.AppendLine("\t\t\telse");
 				sb.AppendLine("\t\t\t{");
-				EmitParseFromString(sb, p, $"positionals[{posIndex}]", p.LocalVarName, indentExtra: "\t", failureExit: failureExit, helpMethodName: helpMethodName);
+				EmitParseFromString(sb, p, $"positionals[{posIndex}]", p.LocalVarName, indentExtra: "\t", failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
 				sb.AppendLine("\t\t\t}");
 			}
 			else
@@ -5854,7 +5977,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine($"\t\t\t\t{p.LocalVarName} = {fallback};");
 				sb.AppendLine("\t\t\telse");
 				sb.AppendLine("\t\t\t{");
-				EmitParseFromString(sb, p, $"positionals[{posIndex}]", p.LocalVarName, indentExtra: "\t", failureExit: failureExit, helpMethodName: helpMethodName);
+				EmitParseFromString(sb, p, $"positionals[{posIndex}]", p.LocalVarName, indentExtra: "\t", failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
 				sb.AppendLine("\t\t\t}");
 			}
 
@@ -5876,7 +5999,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		EmitAsParametersConstruction(sb, cmd);
 
-		EmitValidationChecks(sb, cmd, failureExit, entryAssemblyName);
+		EmitValidationChecks(sb, cmd, failureExit, entryAssemblyName, flagHelpStdErrMethodName);
 
 		// Reconstruct options instances merging command-level flags with pre-parsed statics.
 		EmitOptionsReconstructLocals(sb, injectedOptions);
@@ -6285,7 +6408,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t};");
 	}
 
-	private static void EmitParseAndAssign(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string failureExit = "return 2", string? helpMethodName = null)
+	private static void EmitParseAndAssign(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string failureExit = "return 2", string? helpMethodName = null,
+		string? flagHelpStdErrMethodName = null, string? parseFailureRunHint = null)
 	{
 		if (!p.IsRequired && p.DefaultValueLiteral is not null)
 		{
@@ -6293,15 +6417,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\t\t\t{targetVar} = {p.DefaultValueLiteral};");
 			sb.AppendLine("\t\t\telse");
 			sb.AppendLine("\t\t\t{");
-			EmitParseFromString(sb, p, rawExpr, targetVar, indentExtra: "\t", outVarKeyword: false, failureExit: failureExit, helpMethodName: helpMethodName);
+			EmitParseFromString(sb, p, rawExpr, targetVar, indentExtra: "\t", outVarKeyword: false, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
 			sb.AppendLine("\t\t\t}");
 		}
 		else
-			EmitParseFromString(sb, p, rawExpr, targetVar, failureExit: failureExit, helpMethodName: helpMethodName);
+			EmitParseFromString(sb, p, rawExpr, targetVar, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
 	}
 
 	private static void EmitParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string indentExtra = "",
-		bool outVarKeyword = false, string failureExit = "return 2", string? helpMethodName = null)
+		bool outVarKeyword = false, string failureExit = "return 2", string? helpMethodName = null, string? flagHelpStdErrMethodName = null, string? parseFailureRunHint = null)
 	{
 		var ind = "\t\t\t" + indentExtra;
 		var e = Escape(p.CliLongName);
@@ -6313,7 +6437,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"{ind}if (!global::System.Enum.TryParse<{p.EnumTypeFq}>({rawExpr}, true, out var {evVar}) || !global::System.Enum.IsDefined(typeof({p.EnumTypeFq}), {evVar}))");
 			sb.AppendLine($"{ind}{{");
 			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}: '{{{rawExpr}}}'.\");");
-			if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+			EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 			sb.AppendLine($"{ind}\t{failureExit};");
 			sb.AppendLine($"{ind}}}");
 			if (outVarKeyword)
@@ -6423,7 +6547,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					$"{ind}\tif (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
 				sb.AppendLine($"{ind}\t{{");
 				sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
-				if (helpMethodName is not null) sb.AppendLine($"{ind}\t\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"{ind}\t\t{failureExit};");
 				sb.AppendLine($"{ind}\t}}");
 				sb.AppendLine($"{ind}\t{tmpUri} = __uri;");
@@ -6438,7 +6562,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"{ind}if (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
 			sb.AppendLine($"{ind}{{");
 			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
-			if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+			EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 			sb.AppendLine($"{ind}\t{failureExit};");
 			sb.AppendLine($"{ind}}}");
 			if (outVarKeyword)
@@ -6454,7 +6578,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"{ind}if (!__parser.TryParse({rawExpr}!, out var __pv))");
 			sb.AppendLine($"{ind}{{");
 			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}.\");");
-			if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+			EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 			sb.AppendLine($"{ind}\t{failureExit};");
 			sb.AppendLine($"{ind}}}");
 			if (outVarKeyword)
@@ -6466,13 +6590,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		if (p.Special == BoolSpecialKind.None && p.TypeName is "int?" or "long?" or "float?" or "double?" or "decimal?")
 		{
-			EmitNullableNumericParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName);
+			EmitNullableNumericParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 			return;
 		}
 
 		if (p.Special == BoolSpecialKind.None && p.TypeName is "DateTime?" or "DateTimeOffset?" or "TimeSpan?" or "DateOnly?")
 		{
-			EmitNullableTemporalParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName);
+			EmitNullableTemporalParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 			return;
 		}
 
@@ -6495,7 +6619,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!int.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid int for --{e}: '{{{rawExpr}}}'.\");");
-				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				break;
@@ -6504,7 +6628,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!long.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid long for --{e}: '{{{rawExpr}}}'.\");");
-				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				break;
@@ -6513,7 +6637,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!float.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid float for --{e}: '{{{rawExpr}}}'.\");");
-				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				break;
@@ -6522,7 +6646,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!double.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid double for --{e}: '{{{rawExpr}}}'.\");");
-				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				break;
@@ -6531,7 +6655,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!decimal.TryParse({rawExpr}, NumberStyles.Number, CultureInfo.InvariantCulture, {Out(targetVar)}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid decimal for --{e}: '{{{rawExpr}}}'.\");");
-				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				break;
@@ -6542,7 +6666,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!global::System.DateTime.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTime for --{e}: '{{{rawExpr}}}'.\");");
-				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				if (outVarKeyword)
@@ -6558,7 +6682,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!global::System.DateTimeOffset.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTimeOffset for --{e}: '{{{rawExpr}}}'.\");");
-				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				if (outVarKeyword)
@@ -6573,7 +6697,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine($"{ind}if (!global::Nullean.Argh.ArghTimeSpan.TryParse({rawExpr}, out var {tmp}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid TimeSpan for --{e}: '{{{rawExpr}}}'.\");");
-				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				if (outVarKeyword)
@@ -6589,7 +6713,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					$"{ind}if (!global::System.DateOnly.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.None, out var {tmp}))");
 				sb.AppendLine($"{ind}{{");
 				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateOnly for --{e}: '{{{rawExpr}}}'.\");");
-				if (helpMethodName is not null) sb.AppendLine($"{ind}\t{helpMethodName}();");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				sb.AppendLine($"{ind}\t{failureExit};");
 				sb.AppendLine($"{ind}}}");
 				if (outVarKeyword)
@@ -6615,7 +6739,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	}
 
 	private static void EmitNullableNumericParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar,
-		string ind, bool outVarKeyword, string failureExit, string? helpMethodName)
+		string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName = null, string? parseFailureRunHint = null)
 	{
 		var e = Escape(p.CliLongName);
 		var tmpVar = "__nullableNumericParsed_" + p.LocalVarName;
@@ -6654,7 +6778,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine($"{ind}\t{{");
 		sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid {p.TypeName.TrimEnd('?')} for --{e}: '{{{rawExpr}}}'.\");");
-		if (helpMethodName is not null) sb.AppendLine($"{ind}\t\t{helpMethodName}();");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 		sb.AppendLine($"{ind}\t\t{failureExit};");
 		sb.AppendLine($"{ind}\t}}");
 		sb.AppendLine($"{ind}\t{tmpVar} = {parsedOut};");
@@ -6667,7 +6791,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	}
 
 	private static void EmitNullableTemporalParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar,
-		string ind, bool outVarKeyword, string failureExit, string? helpMethodName)
+		string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName = null, string? parseFailureRunHint = null)
 	{
 		var e = Escape(p.CliLongName);
 		var tmpVar = "__nullableTemporalParsed_" + p.LocalVarName;
@@ -6701,7 +6825,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine($"{ind}\t{{");
 		sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid {p.TypeName.TrimEnd('?')} for --{e}: '{{{rawExpr}}}'.\");");
-		if (helpMethodName is not null) sb.AppendLine($"{ind}\t\t{helpMethodName}();");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 		sb.AppendLine($"{ind}\t\t{failureExit};");
 		sb.AppendLine($"{ind}\t}}");
 		sb.AppendLine($"{ind}\t{tmpVar} = {parsedOut};");
@@ -7373,6 +7497,108 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
+	/// <summary>Same layout as <see cref="EmitHelpOptionRows"/> but to stderr (parse errors).</summary>
+	private static void EmitHelpOptionRowsStdErr(StringBuilder sb, ParameterModel p, int maxOptWidth, string lineIndent)
+	{
+		var continuationIndent = new string(' ', maxOptWidth + 4);
+		var left = HelpLayout.FormatOptionLeftCell(p).PadRight(maxOptWidth);
+		var desc = BuildDescriptionSuffix(p, forPositional: false);
+		var validationLine = BuildValidationLine(p);
+		var validationOnNewLine = validationLine != null && HelpUsesEnumChoiceContinuationLayout(p);
+
+		if (validationLine is null)
+		{
+			sb.AppendLine(
+				$"{lineIndent}Console.Error.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {EscapeForHelpInterpolation(desc)}\");");
+		}
+		else if (validationOnNewLine)
+		{
+			sb.AppendLine(
+				$"{lineIndent}Console.Error.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {EscapeForHelpInterpolation(desc)}\");");
+			sb.AppendLine(
+				$"{lineIndent}Console.Error.WriteLine($\"{continuationIndent}{{CliHelpFormatting.DocRemarksLine(\"{Escape(validationLine)}\")}}\");");
+		}
+		else if (string.IsNullOrEmpty(desc))
+		{
+			sb.AppendLine(
+				$"{lineIndent}Console.Error.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {{CliHelpFormatting.DocRemarksLine(\"{Escape(validationLine)}\")}}\");");
+		}
+		else
+		{
+			sb.AppendLine(
+				$"{lineIndent}Console.Error.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {EscapeForHelpInterpolation(desc)} {{CliHelpFormatting.DocRemarksLine(\"{Escape(validationLine)}\")}}\");");
+		}
+	}
+
+	private static void EmitOptionsTryParseFlagHelpPrinter(
+		StringBuilder sb,
+		string parseMethodName,
+		List<ParameterModel> flagMembers,
+		int maxOptWidth)
+	{
+		if (flagMembers.Count == 0)
+			return;
+
+		var methodName = parseMethodName + "_FlagHelp_ToStdErr";
+		sb.AppendLine($"\t\tprivate static void {methodName}(string canonFlagName)");
+		sb.AppendLine("\t\t{");
+		sb.AppendLine("\t\t\tswitch (canonFlagName)");
+		sb.AppendLine("\t\t\t{");
+		foreach (var p in flagMembers.OrderBy(static x => x.CliLongName, StringComparer.OrdinalIgnoreCase))
+		{
+			sb.AppendLine($"\t\t\t\tcase \"{Escape(p.CliLongName)}\":");
+			EmitHelpOptionRowsStdErr(sb, p, maxOptWidth, "\t\t\t\t\t");
+			sb.AppendLine("\t\t\t\t\tbreak;");
+		}
+
+		sb.AppendLine("\t\t\t\tdefault:");
+		sb.AppendLine("\t\t\t\t\tbreak;");
+		sb.AppendLine("\t\t\t}");
+		sb.AppendLine("\t\t}");
+		sb.AppendLine();
+	}
+
+	/// <summary>After a CLI parse/validation error on stderr: optional flag rows (matching --help), then optional run hint.</summary>
+	private static void EmitAfterCliParseErrorHelp(
+		StringBuilder sb,
+		ParameterModel p,
+		string lineIndent,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint)
+	{
+		if (p.Kind == ParameterKind.Flag && flagHelpStdErrMethodName is not null)
+		{
+			sb.AppendLine($"{lineIndent}Console.Error.WriteLine();");
+			sb.AppendLine($"{lineIndent}{flagHelpStdErrMethodName}(\"{Escape(p.CliLongName)}\");");
+			sb.AppendLine($"{lineIndent}Console.Error.WriteLine();");
+			if (parseFailureRunHint is not null)
+				sb.AppendLine($"{lineIndent}Console.Error.WriteLine(\"{parseFailureRunHint}\");");
+		}
+		else if (helpMethodName is not null)
+			sb.AppendLine($"{lineIndent}{helpMethodName}();");
+	}
+
+	/// <summary>After a validation-check error: optional flag rows on stderr, then optional run hint.</summary>
+	private static void EmitValidationErrorFooter(
+		StringBuilder sb,
+		ParameterModel p,
+		string cliName,
+		string indent,
+		string? flagHelpStdErrMethodName,
+		string? runHint)
+	{
+		if (p.Kind == ParameterKind.Flag && flagHelpStdErrMethodName is not null)
+		{
+			sb.AppendLine($"{indent}Console.Error.WriteLine();");
+			sb.AppendLine($"{indent}{flagHelpStdErrMethodName}(\"{Escape(cliName)}\");");
+			sb.AppendLine($"{indent}Console.Error.WriteLine();");
+		}
+
+		if (runHint is not null)
+			sb.AppendLine($"{indent}Console.Error.WriteLine(\"{runHint}\");");
+	}
+
 	private static void EmitCommandHelpPrinter(StringBuilder sb, CommandModel cmd, AppEmitModel app, string entryAssemblyName)
 	{
 		if (cmd.IsRootDefault)
@@ -7510,6 +7736,74 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				else
 					sb.AppendLine($"\t\t\tConsole.Out.WriteLine(\"  {Escape(trimmed)}\");");
 			}
+		}
+
+		sb.AppendLine("\t\t}");
+		sb.AppendLine();
+	}
+
+	private static void EmitCommandFlagHelpToStdErrMethod(StringBuilder sb, CommandModel cmd, AppEmitModel app)
+	{
+		if (cmd.IsRootDefault)
+			return;
+
+		var globalFlagMembers = EnumerateFlagMembers(app.GlobalOptionsModel).ToList();
+		List<(string Segment, List<ParameterModel> Rows)> namespaceOptionSections = new();
+		var namespaceOptionChain = GetCommandNamespaceOptionChain(app, cmd.RoutePrefix);
+		var suppressedForNamespaceDisplay = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		AddCliKeys(globalFlagMembers, suppressedForNamespaceDisplay);
+		foreach ((var seg, var gom) in namespaceOptionChain)
+		{
+			var allInNamespace = EnumerateFlagMembers(gom).ToList();
+			var rows = allInNamespace.Where(p => !suppressedForNamespaceDisplay.Contains(p.CliLongName)).ToList();
+			AddCliKeys(allInNamespace, suppressedForNamespaceDisplay);
+			if (rows.Count > 0)
+				namespaceOptionSections.Add((seg, rows));
+		}
+
+		var scopedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		AddCliKeys(globalFlagMembers, scopedKeys);
+		foreach ((_, var gom) in namespaceOptionChain)
+			AddCliKeys(EnumerateFlagMembers(gom), scopedKeys);
+
+		var commandOnlyFlags = cmd.Parameters
+			.Where(p => p.Kind == ParameterKind.Flag && !CommandFlagMatchesScopedKeys(p, scopedKeys))
+			.ToList();
+
+		var widthCandidates = new List<int> { "-h, --help".Length };
+		widthCandidates.AddRange(globalFlagMembers.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		foreach ((_, var rows) in namespaceOptionSections)
+			widthCandidates.AddRange(rows.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+
+		widthCandidates.AddRange(commandOnlyFlags.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
+		var maxOptWidth = Math.Min(widthCandidates.Max(), 40);
+		maxOptWidth = Math.Max(maxOptWidth, "-h, --help".Length);
+
+		var byCanon = new Dictionary<string, ParameterModel>(StringComparer.OrdinalIgnoreCase);
+		foreach (var p in globalFlagMembers)
+			byCanon[p.CliLongName] = p;
+		foreach ((_, var rows) in namespaceOptionSections)
+			foreach (var p in rows)
+				byCanon[p.CliLongName] = p;
+		foreach (var p in commandOnlyFlags)
+			byCanon[p.CliLongName] = p;
+
+		sb.AppendLine($"\t\tprivate static void PrintHelp_{cmd.RunMethodName}_Flag_ToStdErr(string canonFlagName)");
+		sb.AppendLine("\t\t{");
+		if (byCanon.Count > 0)
+		{
+			sb.AppendLine("\t\t\tswitch (canonFlagName)");
+			sb.AppendLine("\t\t\t{");
+			foreach (var p in byCanon.Values.OrderBy(static x => x.CliLongName, StringComparer.OrdinalIgnoreCase))
+			{
+				sb.AppendLine($"\t\t\t\tcase \"{Escape(p.CliLongName)}\":");
+				EmitHelpOptionRowsStdErr(sb, p, maxOptWidth, "\t\t\t\t\t");
+				sb.AppendLine("\t\t\t\t\tbreak;");
+			}
+
+			sb.AppendLine("\t\t\t\tdefault:");
+			sb.AppendLine("\t\t\t\t\tbreak;");
+			sb.AppendLine("\t\t\t}");
 		}
 
 		sb.AppendLine("\t\t}");
