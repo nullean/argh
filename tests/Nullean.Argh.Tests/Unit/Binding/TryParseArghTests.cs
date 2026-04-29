@@ -110,6 +110,24 @@ public class TryParseArghTests
 	}
 
 	[Fact]
+	public void TryParseArgh_global_mode_short_option_binds_value()
+	{
+		var ok = TestGlobalCliOptions.TryParseArgh(["-m", "z"], out var o);
+		ok.Should().BeTrue();
+		o.Should().NotBeNull();
+		o.Mode.Should().Be("z");
+	}
+
+	[Fact]
+	public void TryParseArgh_global_mode_short_equals_form_binds_value()
+	{
+		var ok = TestGlobalCliOptions.TryParseArgh(["-m=z"], out var o);
+		ok.Should().BeTrue();
+		o.Should().NotBeNull();
+		o.Mode.Should().Be("z");
+	}
+
+	[Fact]
 	public void TryParseArgh_mixed_nullability_multi_enum_DTO_parses_flags()
 	{
 		var ok = MultiEnumAsParamsArgs.TryParseArgh(

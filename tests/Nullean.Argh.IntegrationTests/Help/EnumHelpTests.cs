@@ -25,9 +25,10 @@ public class EnumHelpTests
 
 			Global options:
 			  -h, --help                    Show help.
-			  -v, --verbose
+			  -v, --verbose                 
 			  --severity <enum>             Enum default for global-flag parsing regression. [default: information]
 			                                One of: <trace|information|warning>
+			  -m, --mode <string>           Test-only global mode label (non-bool global short-option coverage). [default: ]
 
 			Options:
 			  -c, --colour, --color <enum>  [required] Pick a color.

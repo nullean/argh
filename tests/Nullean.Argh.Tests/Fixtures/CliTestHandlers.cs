@@ -64,9 +64,11 @@ internal sealed class PropDocBoundArgs
 	public int Beta { get; init; }
 }
 
-internal sealed record ParamCommentRecord(
+internal sealed class ParamCommentRecord
+{
 	/// <summary>Argh_help_doc_gamma_unique.</summary>
-	string Gamma);
+	public string Gamma { get; init; } = "";
+}
 
 internal static class CliTestHandlers
 {
@@ -76,8 +78,11 @@ internal static class CliTestHandlers
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="name">The name to greet.</param>
 	[MiddlewareAttribute<TestsPerCommandMiddleware>]
-	public static void Hello(TestGlobalCliOptions g, string name) =>
-		Console.Out.WriteLine($"ok:{name}");
+	public static void Hello(TestGlobalCliOptions g, string name)
+	{
+		var mode = string.IsNullOrEmpty(g.Mode) ? "" : ":" + g.Mode;
+		Console.Out.WriteLine($"ok:{name}{mode}");
+	}
 
 	/// <summary>Enum and short options.</summary>
 	/// <param name="g">Injected global CLI options.</param>
