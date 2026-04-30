@@ -18,8 +18,8 @@ public class SchemaTests
 
 		using var doc = JsonDocument.Parse(stdout);
 		var root = doc.RootElement;
-		root.GetProperty("schemaVersion").GetInt32().Should().Be(1);
-		root.GetProperty("entryAssembly").GetString().Should().NotBeNullOrWhiteSpace();
+		root.GetProperty("schemaVersion").GetInt32().Should().Be(2);
+		root.GetProperty("name").GetString().Should().NotBeNullOrWhiteSpace();
 		root.GetProperty("version").GetString().Should().NotBeNullOrWhiteSpace();
 		root.TryGetProperty("description", out _).Should().BeTrue();
 		root.GetProperty("reservedMetaCommands").EnumerateArray().Select(e => e.GetString()).Should()
@@ -28,6 +28,22 @@ public class SchemaTests
 		root.TryGetProperty("rootDefault", out _).Should().BeTrue();
 		root.GetProperty("commands").ValueKind.Should().Be(JsonValueKind.Array);
 		root.GetProperty("namespaces").ValueKind.Should().Be(JsonValueKind.Array);
+	}
+
+	[Fact]
+	public void Schema_uses_json_schema_type_primitives_not_csharp_names()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var commands = doc.RootElement.GetProperty("commands");
+
+		// validate-range has an int? port parameter → type should be "integer"
+		var validateRange = commands.EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "validate-range");
+		var portParam = validateRange.GetProperty("parameters").EnumerateArray()
+			.FirstOrDefault(p => p.GetProperty("name").GetString() == "port");
+		portParam.GetProperty("type").GetString().Should().Be("integer");
 	}
 
 	[Fact]
@@ -71,5 +87,156 @@ public class SchemaTests
 		constraint.GetProperty("kind").GetString().Should().Be("allowed");
 		constraint.GetProperty("values").EnumerateArray().Select(v => v.GetString())
 			.Should().BeEquivalentTo(new[] { "\"dev\"", "\"staging\"", "\"prod\"" });
+	}
+
+	[Fact]
+	public void Schema_command_with_aliases_exposes_aliases_array()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var commands = doc.RootElement.GetProperty("commands");
+
+		// renamed-cmd has [CommandName("renamed-cmd", "rc")]
+		var renamedCmd = commands.EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "renamed-cmd");
+		renamedCmd.ValueKind.Should().Be(JsonValueKind.Object);
+		renamedCmd.GetProperty("aliases").EnumerateArray()
+			.Select(a => a.GetString()).Should().BeEquivalentTo(new[] { "rc" });
+	}
+
+	[Fact]
+	public void Schema_command_without_aliases_omits_aliases_field()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var commands = doc.RootElement.GetProperty("commands");
+
+		var helloCmd = commands.EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "hello");
+		helloCmd.ValueKind.Should().Be(JsonValueKind.Object);
+		helloCmd.TryGetProperty("aliases", out _).Should().BeFalse();
+	}
+
+	[Fact]
+	public void Schema_hidden_command_has_hidden_true()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var commands = doc.RootElement.GetProperty("commands");
+
+		var hiddenCmd = commands.EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "hidden-cmd");
+		hiddenCmd.ValueKind.Should().Be(JsonValueKind.Object);
+		hiddenCmd.GetProperty("hidden").GetBoolean().Should().BeTrue();
+
+		var visibleCmd = commands.EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "visible-cmd");
+		visibleCmd.ValueKind.Should().Be(JsonValueKind.Object);
+		visibleCmd.TryGetProperty("hidden", out _).Should().BeFalse();
+	}
+
+	[Fact]
+	public void Schema_hidden_parameter_has_hidden_true()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var commands = doc.RootElement.GetProperty("commands");
+
+		var cmd = commands.EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-hidden-param");
+		cmd.ValueKind.Should().Be(JsonValueKind.Object);
+
+		var internalIdParam = cmd.GetProperty("parameters").EnumerateArray()
+			.FirstOrDefault(p => p.GetProperty("name").GetString() == "internal-id");
+		internalIdParam.ValueKind.Should().Be(JsonValueKind.Object);
+		internalIdParam.GetProperty("hidden").GetBoolean().Should().BeTrue();
+
+		var nameParam = cmd.GetProperty("parameters").EnumerateArray()
+			.FirstOrDefault(p => p.GetProperty("name").GetString() == "name");
+		nameParam.ValueKind.Should().Be(JsonValueKind.Object);
+		nameParam.TryGetProperty("hidden", out _).Should().BeFalse();
+	}
+
+	[Fact]
+	public void Schema_default_value_is_emitted_for_parameters_with_defaults()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var commands = doc.RootElement.GetProperty("commands");
+
+		var cmd = commands.EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-default-value");
+		cmd.ValueKind.Should().Be(JsonValueKind.Object);
+
+		var levelParam = cmd.GetProperty("parameters").EnumerateArray()
+			.FirstOrDefault(p => p.GetProperty("name").GetString() == "level");
+		levelParam.ValueKind.Should().Be(JsonValueKind.Object);
+		levelParam.GetProperty("defaultValue").GetString().Should().Be("3");
+	}
+
+	[Fact]
+	public void Schema_repeatable_collection_has_repeatable_true()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var commands = doc.RootElement.GetProperty("commands");
+
+		// "tags" command has List<string> tags = repeated flag
+		var tagsCmd = commands.EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "tags");
+		tagsCmd.ValueKind.Should().Be(JsonValueKind.Object);
+
+		var tagsParam = tagsCmd.GetProperty("parameters").EnumerateArray()
+			.FirstOrDefault(p => p.GetProperty("name").GetString() == "tags");
+		tagsParam.ValueKind.Should().Be(JsonValueKind.Object);
+		tagsParam.GetProperty("repeatable").GetBoolean().Should().BeTrue();
+		tagsParam.GetProperty("type").GetString().Should().Be("array");
+		tagsParam.GetProperty("elementType").GetString().Should().Be("string");
+	}
+
+	[Fact]
+	public void Schema_separator_collection_has_separator_field()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var commands = doc.RootElement.GetProperty("commands");
+
+		var cmd = commands.EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-separator-list");
+		cmd.ValueKind.Should().Be(JsonValueKind.Object);
+
+		var idsParam = cmd.GetProperty("parameters").EnumerateArray()
+			.FirstOrDefault(p => p.GetProperty("name").GetString() == "ids");
+		idsParam.ValueKind.Should().Be(JsonValueKind.Object);
+		idsParam.GetProperty("separator").GetString().Should().Be(",");
+		idsParam.GetProperty("type").GetString().Should().Be("array");
+		idsParam.GetProperty("elementType").GetString().Should().Be("integer");
+		idsParam.TryGetProperty("repeatable", out _).Should().BeFalse();
+	}
+
+	[Fact]
+	public void Schema_enum_parameter_has_type_enum_and_enum_values()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var commands = doc.RootElement.GetProperty("commands");
+
+		// "enum-cmd" has an enum parameter
+		var enumCmd = commands.EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "enum-cmd");
+		enumCmd.ValueKind.Should().Be(JsonValueKind.Object);
+
+		var enumParam = enumCmd.GetProperty("parameters").EnumerateArray()
+			.FirstOrDefault(p => p.GetProperty("type").GetString() == "enum");
+		enumParam.ValueKind.Should().Be(JsonValueKind.Object);
+		enumParam.GetProperty("enumValues").EnumerateArray().Should().NotBeEmpty();
 	}
 }

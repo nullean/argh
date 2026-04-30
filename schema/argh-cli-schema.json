@@ -11,7 +11,7 @@
       ],
       "pattern": "^-?(?:0|[1-9]\\d*)$"
     },
-    "entryAssembly": {
+    "name": {
       "type": "string"
     },
     "version": {
@@ -52,7 +52,7 @@
               "null"
             ]
           },
-          "kind": {
+          "type": {
             "type": "string"
           },
           "required": {
@@ -63,6 +63,61 @@
               "string",
               "null"
             ]
+          },
+          "defaultValue": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "repeatable": {
+            "type": "boolean",
+            "default": false
+          },
+          "separator": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "aliases": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "default": null
+          },
+          "enumValues": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "default": null
+          },
+          "elementType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "hidden": {
+            "type": "boolean",
+            "default": false
           },
           "validations": {
             "type": [
@@ -124,7 +179,7 @@
           "role",
           "name",
           "shortName",
-          "kind",
+          "type",
           "required",
           "summary"
         ]
@@ -171,6 +226,10 @@
           "items": {
             "$ref": "#/properties/globalOptions/items"
           }
+        },
+        "hidden": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [
@@ -234,6 +293,23 @@
             "items": {
               "$ref": "#/properties/globalOptions/items"
             }
+          },
+          "aliases": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "default": null
+          },
+          "hidden": {
+            "type": "boolean",
+            "default": false
           }
         },
         "required": [
@@ -308,6 +384,10 @@
               },
               "parameters": {
                 "$ref": "#/properties/rootDefault/properties/parameters"
+              },
+              "hidden": {
+                "type": "boolean",
+                "default": false
               }
             },
             "required": [
@@ -346,7 +426,7 @@
   },
   "required": [
     "schemaVersion",
-    "entryAssembly",
+    "name",
     "version",
     "description",
     "reservedMetaCommands",

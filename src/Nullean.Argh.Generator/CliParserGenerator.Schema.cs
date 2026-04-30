@@ -23,7 +23,7 @@ public sealed partial class CliParserGenerator
 	{
 		sb.AppendLine("\t\tinternal static ArghCliSchemaDocument BuildCliSchemaDocument() =>");
 		sb.AppendLine("\t\t\tnew ArghCliSchemaDocument(");
-		sb.AppendLine("\t\t\t\t1,");
+		sb.AppendLine("\t\t\t\t2,");
 		sb.AppendLine($"\t\t\t\t\"{Escape(entryAssemblyName)}\",");
 		sb.AppendLine($"\t\t\t\t\"{Escape(entryAssemblyVersion)}\",");
 		EmitNullableStringArg(sb, "\t\t\t\t", string.IsNullOrWhiteSpace(app.RootSummary) ? null : app.RootSummary);
@@ -156,6 +156,18 @@ public sealed partial class CliParserGenerator
 		EmitExamplesStringArray(sb, cmd.ExamplesRendered, $"{indent}\t");
 		sb.AppendLine(",");
 		EmitSchemaParametersForCommand(sb, cmd.Parameters, $"{indent}\t");
+		if (!cmd.CommandAliases.IsDefaultOrEmpty)
+		{
+			sb.AppendLine(",");
+			var aliasArr = string.Join(", ", cmd.CommandAliases.Select(a => $"\"{Escape(a)}\""));
+			sb.Append($"{indent}\tAliases: new string[] {{ {aliasArr} }}");
+		}
+		if (cmd.IsHidden)
+		{
+			sb.AppendLine(",");
+			sb.Append($"{indent}\tHidden: true");
+		}
+		sb.AppendLine();
 		sb.Append(indent);
 		sb.Append(")");
 	}
@@ -340,12 +352,85 @@ public sealed partial class CliParserGenerator
 	{
 		var role = p.Kind == ParameterKind.Positional ? "positional" : "flag";
 		var shortName = p.ShortOpt is char c ? $"\"{Escape(c.ToString())}\"" : "null";
-		var kind = Escape(SchemaParameterKind(p));
+		var type = MapToJsonSchemaType(p.ScalarKind, p.TypeName);
 		var req = p.IsRequired ? "true" : "false";
 		var summary = string.IsNullOrEmpty(p.Description) ? "null" : $"\"{Escape(p.Description)}\"";
+
+		var sb = new StringBuilder();
+		sb.Append($"new CliParameterSchema(\"{role}\", \"{Escape(p.CliLongName)}\", {shortName}, \"{type}\", {req}, {summary}");
+
+		var defaultVal = GetSchemaDefaultValue(p);
+		if (defaultVal is not null)
+			sb.Append($", DefaultValue: \"{Escape(defaultVal)}\"");
+
+		if (p.IsCollection)
+		{
+			if (p.CollectionSeparator is null)
+				sb.Append(", Repeatable: true");
+			else
+				sb.Append($", Separator: \"{Escape(p.CollectionSeparator)}\"");
+		}
+
+		if (!p.Aliases.IsDefaultOrEmpty)
+		{
+			var aliasArr = string.Join(", ", p.Aliases.Select(a => $"\"{Escape(a)}\""));
+			sb.Append($", Aliases: new string[] {{ {aliasArr} }}");
+		}
+
+		if (type == "enum" && !p.EnumMemberNames.IsDefaultOrEmpty)
+		{
+			var enumArr = string.Join(", ", p.EnumMemberNames.Select(m => $"\"{Escape(m.ToLowerInvariant())}\""));
+			sb.Append($", EnumValues: new string[] {{ {enumArr} }}");
+		}
+
+		if (p.IsCollection)
+		{
+			var elemType = MapToJsonSchemaType(p.ElementScalarKind, p.ElementTypeName);
+			sb.Append($", ElementType: \"{elemType}\"");
+		}
+
+		if (p.IsHidden)
+			sb.Append(", Hidden: true");
+
 		var validations = BuildConstraintsExpression(p.Validations, p.ExpandUserProfileBeforeBind);
-		return
-			$"new CliParameterSchema(\"{role}\", \"{Escape(p.CliLongName)}\", {shortName}, \"{kind}\", {req}, {summary}, {validations})";
+		if (validations != "null")
+			sb.Append($", Validations: {validations}");
+
+		sb.Append(")");
+		return sb.ToString();
+	}
+
+	private static string? GetSchemaDefaultValue(ParameterModel p)
+	{
+		if (p.DefaultValueLiteral is null)
+			return null;
+		var formatted = FormatDefaultForHelp(p);
+		if (string.IsNullOrEmpty(formatted) || formatted == "null")
+			return null;
+		return formatted;
+	}
+
+	private static string MapToJsonSchemaType(CliScalarKind sk, string typeName)
+	{
+		if (sk == CliScalarKind.Enum)
+			return "enum";
+		if (sk == CliScalarKind.Collection)
+			return "array";
+		if (sk != CliScalarKind.Primitive)
+			return "string";
+
+		// GetSimpleTypeName returns nullable variants with a trailing '?' (e.g. "int?", "bool?")
+		var t = typeName.TrimEnd('?');
+		return t switch
+		{
+			"String" or "string" or "Char" or "char" => "string",
+			"Boolean" or "bool" => "boolean",
+			"Int16" or "Int32" or "Int64" or "UInt16" or "UInt32" or "UInt64"
+				or "Byte" or "SByte" or "short" or "int" or "long"
+				or "ushort" or "uint" or "ulong" or "byte" or "sbyte" => "integer",
+			"Single" or "Double" or "Decimal" or "float" or "double" or "decimal" => "number",
+			_ => "string"
+		};
 	}
 
 	private static string BuildConstraintsExpression(ImmutableArray<ValidationConstraint> validations, bool expandUserProfile)
@@ -411,20 +496,6 @@ case RejectSymbolicLinksConstraint:
 			return "null";
 
 		return $"new CliConstraintSchema[] {{ {string.Join(", ", parts)} }}";
-	}
-
-
-	private static string SchemaParameterKind(ParameterModel p)
-	{
-		if (p.ScalarKind == CliScalarKind.Collection)
-			return $"Collection<{p.ElementTypeName}>";
-		if (p.ScalarKind == CliScalarKind.Enum && !string.IsNullOrEmpty(p.EnumTypeFq))
-		{
-			var name = p.EnumTypeFq!.Split('.').Last();
-			return $"Enum:{name}";
-		}
-
-		return $"{p.ScalarKind}:{p.TypeName}";
 	}
 
 }
