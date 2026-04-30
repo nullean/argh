@@ -2346,19 +2346,56 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return false;
 	}
 
+	private static bool HasHiddenAttribute(ISymbol symbol)
+	{
+		foreach (var ad in symbol.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name == "HiddenAttribute" &&
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
+				return true;
+		}
+
+		return false;
+	}
+
 	private static string? TryGetCommandNameAttribute(IMethodSymbol method)
 	{
 		foreach (var ad in method.GetAttributes())
 		{
 			if (ad.AttributeClass?.Name == "CommandNameAttribute" &&
 			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh" &&
-			    ad.ConstructorArguments.Length == 1 &&
+			    ad.ConstructorArguments.Length >= 1 &&
 			    ad.ConstructorArguments[0].Value is string name &&
 			    !string.IsNullOrWhiteSpace(name))
 				return name;
 		}
 
 		return null;
+	}
+
+	private static ImmutableArray<string> TryGetCommandAliasesFromAttribute(IMethodSymbol method)
+	{
+		foreach (var ad in method.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name == "CommandNameAttribute" &&
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh" &&
+			    ad.ConstructorArguments.Length >= 2)
+			{
+				var aliasArg = ad.ConstructorArguments[1];
+				if (aliasArg.Kind == TypedConstantKind.Array)
+				{
+					var builder = ImmutableArray.CreateBuilder<string>();
+					foreach (var v in aliasArg.Values)
+					{
+						if (v.Value is string s && !string.IsNullOrWhiteSpace(s))
+							builder.Add(s);
+					}
+					return builder.ToImmutable();
+				}
+			}
+		}
+
+		return ImmutableArray<string>.Empty;
 	}
 
 	private static ExpressionSyntax? TryGetPropertyInitializerValueSyntax(IPropertySymbol prop)
@@ -4024,7 +4061,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		maxOptWidthRoot = Math.Max(maxOptWidthRoot, "-h, --help".Length);
 
 		var maxNsListingW = app.Root.Children.Count == 0 ? 0 : app.Root.Children.Max(ch => ch.Segment.Length);
-		var maxCmdListingW = app.Root.Commands.Count == 0 ? 0 : app.Root.Commands.Max(c => c.CommandName.Length);
+		var visibleRootCmds = app.Root.Commands.Where(static c => !c.IsHidden).ToList();
+		var maxCmdListingW = visibleRootCmds.Count == 0 ? 0 : visibleRootCmds.Max(c => c.CommandName.Length);
 
 		sb.AppendLine("\t\tprivate static void PrintRootHelp()");
 		sb.AppendLine("\t\t{");
@@ -4065,10 +4103,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		}
 
-		if (app.Root.Commands.Count > 0)
+		if (visibleRootCmds.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Commands:\"));");
-			foreach (var c in app.Root.Commands.OrderBy(c => c.CommandName, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.CommandName, StringComparer.Ordinal))
+			foreach (var c in visibleRootCmds.OrderBy(c => c.CommandName, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.CommandName, StringComparer.Ordinal))
 			{
 				var sumArg = string.IsNullOrWhiteSpace(c.SummaryOneLiner)
 					? "null"
@@ -4119,8 +4157,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (node.Children.Count > 0)
 			maxChildNsListingW = node.Children.Max(ch => FormatQualifiedCliPath(path, ch.Segment).Length);
 		var maxChildCmdListingW = 0;
-		if (node.Commands.Count > 0)
-			maxChildCmdListingW = node.Commands.Max(c => FormatQualifiedCliPath(path, c.CommandName).Length);
+		var visibleNodeCmds = node.Commands.Where(static c => !c.IsHidden).ToList();
+		if (visibleNodeCmds.Count > 0)
+			maxChildCmdListingW = visibleNodeCmds.Max(c => FormatQualifiedCliPath(path, c.CommandName).Length);
 
 		sb.AppendLine($"\t\tprivate static void PrintHelp_CommandNamespace_{key}()");
 		sb.AppendLine("\t\t{");
@@ -4171,10 +4210,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		}
 
-		if (node.Commands.Count > 0)
+		if (visibleNodeCmds.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Commands:\"));");
-			foreach (var c in node.Commands.OrderBy(c => c.CommandName, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.CommandName, StringComparer.Ordinal))
+			foreach (var c in visibleNodeCmds.OrderBy(c => c.CommandName, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.CommandName, StringComparer.Ordinal))
 			{
 				var fullCmd = FormatQualifiedCliPath(path, c.CommandName);
 				var sumArg = string.IsNullOrWhiteSpace(c.SummaryOneLiner)
@@ -8350,7 +8389,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		bool IsLambda = false,
 		string LambdaStorageKey = "",
 		string LambdaDelegateFq = "",
-		bool IsIntrinsic = false)
+		bool IsIntrinsic = false,
+		ImmutableArray<string> CommandAliases = default,
+		bool IsHidden = false)
 	{
 		public static CommandModel FromRootMethod(
 			IMethodSymbol method,
@@ -8471,7 +8512,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				docs.ExamplesRendered,
 				usage,
 				mwData,
-				IsIntrinsic: HasCommandIntrinsicAttribute(method));
+				IsIntrinsic: HasCommandIntrinsicAttribute(method),
+				CommandAliases: TryGetCommandAliasesFromAttribute(method),
+				IsHidden: HasHiddenAttribute(method));
 		}
 
 		/// <summary>Overload for the per-invocation Select step — uses <see cref="DiagnosticAccumulator"/> instead of SourceProductionContext.</summary>
@@ -8534,7 +8577,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			var hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt && HasPublicParameterlessCtor(namedCt);
 			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) = ExtractHandlerAnalysis(method);
-			return new CommandModel(routePrefix, commandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData, IsIntrinsic: HasCommandIntrinsicAttribute(method));
+			return new CommandModel(routePrefix, commandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData, IsIntrinsic: HasCommandIntrinsicAttribute(method), CommandAliases: TryGetCommandAliasesFromAttribute(method), IsHidden: HasHiddenAttribute(method));
 		}
 
 		private static ImmutableArray<ParameterModel> BuildParameterModels(
@@ -8886,7 +8929,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ImmutableDictionary<string, string>? EnumMemberDocs = null,
 		ImmutableDictionary<string, string>? ElementEnumMemberDocs = null,
 		bool ExpandUserProfileBeforeBind = false,
-		ImmutableArray<ValidationConstraint> Validations = default)
+		ImmutableArray<ValidationConstraint> Validations = default,
+		bool IsHidden = false)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
 
@@ -8980,7 +9024,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				AsParametersMemberOrder: asParams?.MemberOrder ?? -1,
 				AsParametersTypeFq: asParams?.TypeFq,
 				AsParametersUseInit: asParams?.UseInit ?? false,
-				AsParametersClrName: asParams?.ClrName);
+				AsParametersClrName: asParams?.ClrName,
+				IsHidden: HasHiddenAttribute(attributeHost));
 		}
 
 		// ── five factory methods ─────────────────────────────────────────────
@@ -9048,7 +9093,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				ImmutableArray<string>.Empty,
 				EnumMemberDocs: enumDocs,
 				ExpandUserProfileBeforeBind: expandProf,
-				Validations: validations);
+				Validations: validations,
+				IsHidden: HasHiddenAttribute(p));
 		}
 
 		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -9091,7 +9137,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				doc.Aliases,
 				EnumMemberDocs: enumDocs,
 				ExpandUserProfileBeforeBind: expandProf,
-				Validations: validations);
+				Validations: validations,
+				IsHidden: HasHiddenAttribute(prop));
 		}
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -9131,7 +9178,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				doc.ShortOpt,
 				doc.Aliases,
 				ExpandUserProfileBeforeBind: expandProf,
-				Validations: validations);
+				Validations: validations,
+				IsHidden: HasHiddenAttribute(field));
 		}
 		public static ParameterModel FromAsParametersCtorParameter(
 			string methodParamName,

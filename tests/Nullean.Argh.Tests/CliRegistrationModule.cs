@@ -64,6 +64,10 @@ internal static class CliRegistrationModule
 		app.Map("validate-no-symlink-file-opt", ValidationCliHandlers.ValidateNoSymlinkOptionalFile);
 		app.Map<DiProbeCommands>();
 		app.Map<CommandNameOverrideCommands>();
+		app.Map("schema-default-value", SchemaSpecificHandlers.SchemaDefaultValue);
+		app.Map("schema-separator-list", SchemaSpecificHandlers.SchemaSeparatorList);
+		app.Map("schema-hidden-param", SchemaSpecificHandlers.SchemaHiddenParam);
+		app.Map<SchemaHiddenCommands>();
 		app.MapNamespace<StorageCliCommands>("storage", g =>
 		{
 			g.UseNamespaceOptions<TestStorageCommandNamespaceOptions>();

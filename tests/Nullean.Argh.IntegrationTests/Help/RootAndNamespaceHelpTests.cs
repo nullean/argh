@@ -74,6 +74,12 @@ public class RootAndNamespaceHelpTests
 			  point-cmd
 			  prop-doc-as-params
 			  renamed-cmd
+			  schema-default-value                  Schema test: command with a default
+			                                        value on --level.
+			  schema-hidden-param                   Schema test: command with a hidden
+			                                        parameter.
+			  schema-separator-list                 Schema test: command with a
+			                                        separator-based collection on --ids.
 			  tag-set
 			  tags
 			  temporal-cmd
@@ -107,6 +113,7 @@ public class RootAndNamespaceHelpTests
 			  validate-uri-scheme                   Validate URI scheme restriction on
 			                                        --endpoint.
 			  validate-uri-scheme-opt               Optional nullable HTTPS endpoint.
+			  visible-cmd                           A command that is visible.
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		TrimLines(text).Should().Be(TrimLines(expected));
 		var fromCommands = text.Substring(text.IndexOf("Commands:", StringComparison.Ordinal));

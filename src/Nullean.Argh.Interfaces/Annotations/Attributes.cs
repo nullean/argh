@@ -24,14 +24,22 @@ public sealed class DefaultCommandAttribute : Attribute;
 /// Overrides the CLI command name for a method registered via <c>Map&lt;T&gt;</c> or <c>MapNamespace&lt;T&gt;</c>.
 /// Without this attribute the name is derived automatically from the method name (PascalCase → kebab-case,
 /// with <c>Async</c>/<c>Command</c>/<c>Handler</c> suffixes stripped).
+/// Additional arguments are treated as command aliases (e.g. <c>[CommandName("my-command", "mc")]</c>).
 /// </summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class CommandNameAttribute : Attribute
 {
-	public CommandNameAttribute(string name) => Name = name;
+	public CommandNameAttribute(string name, params string[] aliases)
+	{
+		Name = name;
+		Aliases = aliases;
+	}
 
 	/// <summary>The kebab-case CLI name for this command (e.g. <c>"my-command"</c>).</summary>
 	public string Name { get; }
+
+	/// <summary>Optional additional names this command can be invoked by.</summary>
+	public string[] Aliases { get; }
 }
 
 /// <summary>Marks a parameter as a positional CLI argument (successive positions starting at 0).</summary>
@@ -159,4 +167,12 @@ public sealed class RejectSymbolicLinksAttribute : Attribute;
 /// </summary>
 [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
 public sealed class ExpandUserProfileAttribute : Attribute;
+
+/// <summary>
+/// Marks a command method or parameter as hidden from user-facing help and autocomplete suggestions.
+/// The command or parameter still parses and works correctly, and appears in <c>__schema</c> output
+/// with <c>hidden: true</c> so tooling can suppress it selectively.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Parameter | AttributeTargets.Property)]
+public sealed class HiddenAttribute : Attribute;
 

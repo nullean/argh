@@ -69,7 +69,7 @@ internal sealed class DiProbeCommands(IDiProbeService svc)
 /// <summary>Commands whose CLI name is overridden via <c>[CommandName]</c>.</summary>
 internal sealed class CommandNameOverrideCommands
 {
-	[CommandName("renamed-cmd")]
+	[CommandName("renamed-cmd", "rc")]
 	public static void OriginalMethodName(TestGlobalCliOptions g) =>
 		Console.Out.WriteLine("marker:renamed-cmd");
 }
