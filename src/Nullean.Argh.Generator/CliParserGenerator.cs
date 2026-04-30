@@ -1687,6 +1687,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			node.RootCommand = fixedRoot;
 		if (node.RootAlias is not null && fixedById.TryGetValue(node.RootAlias.RunMethodName, out var fixedAlias))
 			node.RootAlias = fixedAlias;
+		// node.Commands is read by schema emission — fix it too so injected options params are stripped from schema output
+		for (var i = 0; i < node.Commands.Count; i++)
+		{
+			if (fixedById.TryGetValue(node.Commands[i].RunMethodName, out var fixedCmd))
+				node.Commands[i] = fixedCmd;
+		}
 		foreach (var child in node.Children)
 			UpdateRegistryNodeRootCommands(child.Node, fixedById);
 	}
