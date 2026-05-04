@@ -52,4 +52,35 @@ public class ParseErrorTests
 		err.Should().Contain("Error: unknown option '--severiy'. Did you mean '--severity'?");
 		err.Should().Contain("--severity <enum>");
 	}
+
+	[Fact]
+	public void Non_nullable_global_option_property_with_default_is_not_required()
+	{
+		// --severity is FixtureSeverity (non-nullable enum) with default FixtureSeverity.Information
+		var result = CliHostRunner.Run(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
+			"count-cmd", "--count", "1");
+		result.ExitCode.Should().Be(0);
+	}
+
+	[Fact]
+	public void Non_nullable_AsParameters_property_with_default_is_not_required()
+	{
+		// MultiEnumAsParamsArgs.Severity is FixtureSeverity (non-nullable) with default FixtureSeverity.Information
+		// [AsParameters("mix")] sets a flag prefix only, not a sub-command word
+		var result = CliHostRunner.Run(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
+			"multi-enum-as-params");
+		result.ExitCode.Should().Be(0);
+	}
+
+	[Fact]
+	public void Non_nullable_method_param_with_default_is_not_required()
+	{
+		// ValidateNonNullableRange has int pagePer = 20 (non-nullable with explicit default)
+		var result = CliHostRunner.Run(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
+			"validate-non-nullable-range");
+		result.ExitCode.Should().Be(0);
+	}
 }
