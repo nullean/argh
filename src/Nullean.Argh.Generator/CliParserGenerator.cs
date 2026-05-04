@@ -6769,6 +6769,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			EmitParseFromString(sb, p, rawExpr, targetVar, indentExtra: "\t", outVarKeyword: false, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
 			sb.AppendLine("\t\t\t}");
 		}
+		else if (!p.IsRequired && p.DefaultValueLiteral is null)
+		{
+			// Optional parameter with no explicit default: only parse when a value was actually provided.
+			// Guards against passing null into type-specific parsers (e.g. Enum.TryParse) when the flag is absent.
+			sb.AppendLine($"\t\t\tif ({rawExpr} is not null)");
+			sb.AppendLine("\t\t\t{");
+			EmitParseFromString(sb, p, rawExpr, targetVar, indentExtra: "\t", outVarKeyword: false, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
+			sb.AppendLine("\t\t\t}");
+		}
 		else
 			EmitParseFromString(sb, p, rawExpr, targetVar, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
 	}
@@ -9354,7 +9363,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				ReportFilesystemPathAttributeIssues(prop, sk, prop.Name, reportAcc, reportCtx,
 					prop.Locations.FirstOrDefault() ?? reportFallbackLocation);
 
-			var required = ComputeRequiredForOptionsType(prop.Type, bs);
+			var defaultValueLiteral = compilation is not null ? TryGetOptionsPropertyDefaultLiteral(prop, compilation) : null;
+			var required = ComputeRequiredForOptionsType(prop.Type, bs) && defaultValueLiteral is null;
+			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var validations = ReadValidationConstraints(prop, sk, typeName);
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
 			return new ParameterModel(
@@ -9370,7 +9381,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				parserFq,
 				customValFq,
 				required,
-				null,
+				defLit,
 				doc.Description,
 				doc.ShortOpt,
 				doc.Aliases,

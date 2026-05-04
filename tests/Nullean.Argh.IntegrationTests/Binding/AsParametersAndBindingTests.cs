@@ -104,4 +104,23 @@ public class AsParametersAndBindingTests
 		result.ExitCode.Should().Be(0);
 		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:.artifacts/site");
 	}
+
+	[Fact]
+	public void Non_nullable_AsParameters_property_with_default_uses_default_value_when_omitted()
+	{
+		// MultiEnumAsParamsArgs.Severity defaults to FixtureSeverity.Information when --mix-severity is not provided
+		// [AsParameters("mix")] is just a flag prefix, not a sub-command word
+		var result = CliHostRunner.Run("multi-enum-as-params");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("multi-enum:Information:null");
+	}
+
+	[Fact]
+	public void Non_nullable_method_param_with_default_uses_default_value_when_omitted()
+	{
+		// ValidateNonNullableRange: int pagePer = 20 — default used when --page-per is not provided
+		var result = CliHostRunner.Run("validate-non-nullable-range");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("page-per:20");
+	}
 }
