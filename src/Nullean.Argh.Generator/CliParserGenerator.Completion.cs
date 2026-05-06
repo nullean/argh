@@ -358,7 +358,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\tvar idx = new int[] { pos };");
 		EmitBoolSwitchNames(sb, syn, suppressNoNameHelper: true);
 		EmitCanonFlagNameMethod(sb, syn);
-		EmitShortFlagMethods(sb, syn);
+		EmitShortFlagMethods(sb, syn, multiFlagsAvailable: false);
 		EmitAllowedFlagPredicate(sb, members);
 		sb.AppendLine("\t\t\twhile (idx[0] < end && idx[0] < args.Length && args[idx[0]].Length > 0 && args[idx[0]][0] == '-')");
 		sb.AppendLine("\t\t\t{");

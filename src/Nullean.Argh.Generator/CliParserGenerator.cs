@@ -82,7 +82,23 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private static readonly DiagnosticDescriptor CollectionPositionalNotSupported = new(
 		"AGH0008",
 		"Collection parameters must be flags",
-		"Collection types are only supported for option flags, not for [Argument] positionals.",
+		"Collection types are only supported for option flags, not for [Argument] positionals. Use a T[] type for a variadic positional.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor VariadicMustBeLastPositional = new(
+		"AGH0031",
+		"Variadic positional must be last",
+		"A variadic positional (T[] with [Argument]) must be the last positional parameter; no [Argument] parameter may follow it.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor VariadicCollectionMustBeArray = new(
+		"AGH0034",
+		"Variadic positional must be a T[] array",
+		"A variadic positional ([Argument] on a collection) must be declared as a T[] array type. List<T> and other collection interfaces are not supported.",
 		"Argh",
 		DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
@@ -2982,11 +2998,29 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				continue;
 			}
 
-			if (p.Kind == ParameterKind.Positional && seenFlag)
+			// A variadic positional (e.g. params T[]) is allowed after flags — C# requires params to be last.
+			if (p.Kind == ParameterKind.Positional && seenFlag && !p.IsVariadic)
 			{
 				context.ReportDiagnostic(Diagnostic.Create(ArgumentOrder, location));
 				return;
 			}
+		}
+	}
+
+	private static void ValidateVariadicPositionalIsLast(SourceProductionContext context, Location location, ImmutableArray<ParameterModel> parameters)
+	{
+		var sawVariadic = false;
+		foreach (var p in parameters)
+		{
+			if (p.Kind != ParameterKind.Positional)
+				continue;
+			if (sawVariadic)
+			{
+				context.ReportDiagnostic(Diagnostic.Create(VariadicMustBeLastPositional, location));
+				return;
+			}
+			if (p.IsVariadic)
+				sawVariadic = true;
 		}
 	}
 
@@ -3088,11 +3122,23 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			if (p.Kind == ParameterKind.Injected) continue;
 			if (p.Kind == ParameterKind.Flag) { seenFlag = true; continue; }
-			if (p.Kind == ParameterKind.Positional && seenFlag)
+			// A variadic positional is allowed after flags — C# requires params to be last.
+			if (p.Kind == ParameterKind.Positional && seenFlag && !p.IsVariadic)
 			{
 				acc.Add(ArgumentOrder, location);
 				return;
 			}
+		}
+	}
+
+	private static void ValidateVariadicPositionalIsLastAcc(DiagnosticAccumulator acc, Location location, ImmutableArray<ParameterModel> parameters)
+	{
+		var sawVariadic = false;
+		foreach (var p in parameters)
+		{
+			if (p.Kind != ParameterKind.Positional) continue;
+			if (sawVariadic) { acc.Add(VariadicMustBeLastPositional, location); return; }
+			if (p.IsVariadic) sawVariadic = true;
 		}
 	}
 
@@ -5120,7 +5166,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tvar flags = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);");
 		EmitBoolSwitchNames(sb, syn);
 		EmitCanonFlagNameMethod(sb, syn);
-		EmitShortFlagMethods(sb, syn);
+		EmitShortFlagMethods(sb, syn, multiFlagsAvailable: false);
 		EmitAllowedFlagPredicate(sb, members);
 		EmitDeferLeadingRootAliasHelpers(sb, defer);
 
@@ -5848,6 +5894,36 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine("\t\t\t}");
 						break;
 					}
+					case CollectionCountConstraint cc:
+					{
+						var lenExpr = p.CollectionTargetIsArray ? $"{varName}.Length" : $"{varName}.Count";
+						var nullGuard = !p.IsRequired && p.DeclaredNullableAnnotated ? $"{varName} != null && " : "";
+						string ccCond;
+						string ccMsg;
+						if (cc.Min.HasValue && cc.Max.HasValue)
+						{
+							ccCond = $"{nullGuard}({lenExpr} < {cc.Min} || {lenExpr} > {cc.Max})";
+							ccMsg = $"must have between {cc.Min} and {cc.Max} items.";
+						}
+						else if (cc.Min.HasValue)
+						{
+							ccCond = $"{nullGuard}{lenExpr} < {cc.Min}";
+							ccMsg = $"must have at least {cc.Min} items.";
+						}
+						else
+						{
+							ccCond = $"{nullGuard}{lenExpr} > {cc.Max}";
+							ccMsg = $"must have at most {cc.Max} items.";
+						}
+						var ccPrefix = p.Kind == ParameterKind.Positional ? $"<{Escape(cliName)}>" : $"--{Escape(cliName)}";
+						sb.AppendLine($"\t\t\tif ({ccCond})");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: {ccPrefix}: {Escape(ccMsg)}\");");
+						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+						sb.AppendLine($"\t\t\t\t{failureExit};");
+						sb.AppendLine("\t\t\t}");
+						break;
+					}
 					case StringLengthConstraint s:
 					{
 						// For required non-nullable strings: access with ! to avoid introducing a null-path
@@ -6145,7 +6221,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tvar positionals = new List<string>();");
 		EmitBoolSwitchNames(sb, cmd);
 		EmitCanonFlagNameMethod(sb, cmd);
-		EmitShortFlagMethods(sb, cmd);
+		EmitShortFlagMethods(sb, cmd, multiFlagsAvailable: anyRepeatedCollection);
 		sb.AppendLine("\t\t\tfor (var i = 0; i < args.Length;)");
 		sb.AppendLine("\t\t\t{");
 		sb.AppendLine("\t\t\t\tvar a = args[i];");
@@ -6307,6 +6383,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			if (p.Kind != ParameterKind.Positional)
 				continue;
+
+			if (p.IsVariadic)
+			{
+				EmitVariadicPositionalParse(sb, p, posIndex, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+				posIndex++;
+				continue;
+			}
 
 			if (p.IsRequired)
 			{
@@ -6572,6 +6655,61 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			IsRequired = true
 		};
 
+	private static void EmitVariadicPositionalParse(
+		StringBuilder sb,
+		ParameterModel p,
+		int startIndex,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint)
+	{
+		var argName = Escape(p.CliLongName);
+		var countVar = "__varCount_" + p.LocalVarName;
+		var arrVar = "__arr_" + p.LocalVarName;
+		var elemModel = ForElementParsing(p);
+		var elemCsharpType = GetCSharpCliType(elemModel);
+
+		// For [Argument] params T[] with no [MinLength], zero items is valid (C# params convention).
+		// If the user added [MinLength(n)], CollectionCountConstraint validation below enforces at-least-n.
+		// However if IsRequired is true (non-nullable, no default), we require at least 1.
+		if (p.IsRequired)
+		{
+			sb.AppendLine($"\t\t\tif (positionals.Count <= {startIndex})");
+			sb.AppendLine("\t\t\t{");
+			sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: missing required argument <{argName}...>.\");");
+			if (helpMethodName is not null)
+				sb.AppendLine($"\t\t\t\t{helpMethodName}();");
+			sb.AppendLine($"\t\t\t\t{failureExit};");
+			sb.AppendLine("\t\t\t}");
+		}
+
+		sb.AppendLine($"\t\t\tvar {countVar} = positionals.Count > {startIndex} ? positionals.Count - {startIndex} : 0;");
+		sb.AppendLine($"\t\t\tvar {arrVar} = new {elemCsharpType}[{countVar}];");
+		sb.AppendLine($"\t\t\tfor (var __vi_{p.LocalVarName} = 0; __vi_{p.LocalVarName} < {countVar}; __vi_{p.LocalVarName}++)");
+		sb.AppendLine("\t\t\t{");
+
+		if (p.ElementScalarKind == CliScalarKind.Primitive && p.ElementTypeName == "string")
+		{
+			sb.AppendLine($"\t\t\t\t{arrVar}[__vi_{p.LocalVarName}] = positionals[{startIndex} + __vi_{p.LocalVarName}];");
+		}
+		else
+		{
+			EmitParseFromString(sb, elemModel,
+				$"positionals[{startIndex} + __vi_{p.LocalVarName}]",
+				$"{arrVar}[__vi_{p.LocalVarName}]",
+				indentExtra: "\t",
+				outVarKeyword: false,
+				failureExit: failureExit,
+				helpMethodName: helpMethodName,
+				flagHelpStdErrMethodName: flagHelpStdErrMethodName,
+				parseFailureRunHint: parseFailureRunHint);
+		}
+
+		sb.AppendLine("\t\t\t}");
+		sb.AppendLine($"\t\t\t{p.LocalVarName} = {arrVar};");
+	}
+
 	private static string GetCSharpCliType(ParameterModel p)
 	{
 		if (p.ScalarKind == CliScalarKind.Collection && p.FullDeclaredTypeFq is not null)
@@ -6754,16 +6892,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t};");
 	}
 
-	private static void EmitShortFlagMethods(StringBuilder sb, CommandModel cmd)
+	private static void EmitShortFlagMethods(StringBuilder sb, CommandModel cmd, bool multiFlagsAvailable = true)
 	{
-		var shortCases = new List<(char c, string Primary, bool IsBool)>();
+		var shortCases = new List<(char c, string Primary, bool IsBool, bool IsRepeatableCollection)>();
 		foreach (var p in cmd.Parameters)
 		{
 			if (!IsEmittedFlagLike(p.Kind))
 				continue;
 			if (p.ShortOpt is not char ch)
 				continue;
-			shortCases.Add((ch, p.CliLongName, p.Special == BoolSpecialKind.Bool));
+			// IsRepeatableCollection only applies when multiFlags is available in the emitted context.
+			var isRepeatableCollection = multiFlagsAvailable && p.IsCollection && p.CollectionSeparator is null;
+			shortCases.Add((ch, p.CliLongName, p.Special == BoolSpecialKind.Bool, isRepeatableCollection));
 		}
 
 		if (shortCases.Count == 0)
@@ -6781,11 +6921,20 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t{");
 		sb.AppendLine("\t\t\t\tswitch (c)");
 		sb.AppendLine("\t\t\t\t{");
-		foreach ((var c, var primary, _) in shortCases)
+		foreach ((var c, var primary, _, var isRepeatableCol) in shortCases)
 		{
 			var esc = Escape(primary);
 			sb.AppendLine($"\t\t\t\t\tcase '{c}':");
-			sb.AppendLine($"\t\t\t\t\t\tflags[\"{esc}\"] = val;");
+			if (isRepeatableCol)
+			{
+				// Repeatable flag: append to multiFlags so short opt and long opt collect into the same list.
+				sb.AppendLine($"\t\t\t\t\t\tif (!multiFlags.TryGetValue(\"{esc}\", out var __scList_{esc.Replace("-", "_")})) {{ __scList_{esc.Replace("-", "_")} = new List<string>(); multiFlags[\"{esc}\"] = __scList_{esc.Replace("-", "_")}; }}");
+				sb.AppendLine($"\t\t\t\t\t\t__scList_{esc.Replace("-", "_")}.Add(val);");
+			}
+			else
+			{
+				sb.AppendLine($"\t\t\t\t\t\tflags[\"{esc}\"] = val;");
+			}
 			sb.AppendLine("\t\t\t\t\t\treturn true;");
 		}
 
@@ -6804,7 +6953,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine("\t\t\tbool IsShortBoolChar(char c) => c switch");
 		sb.AppendLine("\t\t\t{");
-		foreach ((var c, _, var isBool) in shortCases)
+		foreach ((var c, _, var isBool, _) in shortCases)
 		{
 			if (isBool)
 				sb.AppendLine($"\t\t\t\t'{c}' => true,");
@@ -7645,7 +7794,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 
 	private static ImmutableArray<ValidationConstraint> ReadValidationConstraints(ISymbol attributeHost, CliScalarKind scalarKind,
-		string primitiveTypeName)
+		string primitiveTypeName, bool isCollection = false)
 	{
 		var builder = ImmutableArray.CreateBuilder<ValidationConstraint>();
 		foreach (var attr in attributeHost.GetAttributes())
@@ -7671,20 +7820,38 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						int? min = null;
 						foreach (var n in attr.NamedArguments)
 							if (n.Key == "MinimumLength") min = (int?)n.Value.Value;
-						builder.Add(new StringLengthConstraint(min, max));
+						if (isCollection)
+							builder.Add(new CollectionCountConstraint(min, max));
+						else
+							builder.Add(new StringLengthConstraint(min, max));
 					}
 					break;
 				case "global::System.ComponentModel.DataAnnotations.MinLengthAttribute":
 					if (attr.ConstructorArguments.Length >= 1)
-						builder.Add(new StringLengthConstraint((int?)attr.ConstructorArguments[0].Value, null));
+					{
+						if (isCollection)
+							builder.Add(new CollectionCountConstraint((int?)attr.ConstructorArguments[0].Value, null));
+						else
+							builder.Add(new StringLengthConstraint((int?)attr.ConstructorArguments[0].Value, null));
+					}
 					break;
 				case "global::System.ComponentModel.DataAnnotations.MaxLengthAttribute":
 					if (attr.ConstructorArguments.Length >= 1)
-						builder.Add(new StringLengthConstraint(null, (int?)attr.ConstructorArguments[0].Value));
+					{
+						if (isCollection)
+							builder.Add(new CollectionCountConstraint(null, (int?)attr.ConstructorArguments[0].Value));
+						else
+							builder.Add(new StringLengthConstraint(null, (int?)attr.ConstructorArguments[0].Value));
+					}
 					break;
 				case "global::System.ComponentModel.DataAnnotations.LengthAttribute":
 					if (attr.ConstructorArguments.Length >= 2)
-						builder.Add(new StringLengthConstraint((int?)attr.ConstructorArguments[0].Value, (int?)attr.ConstructorArguments[1].Value));
+					{
+						if (isCollection)
+							builder.Add(new CollectionCountConstraint((int?)attr.ConstructorArguments[0].Value, (int?)attr.ConstructorArguments[1].Value));
+						else
+							builder.Add(new StringLengthConstraint((int?)attr.ConstructorArguments[0].Value, (int?)attr.ConstructorArguments[1].Value));
+					}
 					break;
 				case "global::System.ComponentModel.DataAnnotations.RegularExpressionAttribute":
 					if (attr.ConstructorArguments.Length >= 1 && attr.ConstructorArguments[0].Value is string pat)
@@ -7825,6 +7992,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				{
 					case RangeConstraint r:
 						tokens.Add($"[range: {r.MinLiteral.Trim('"')}–{r.MaxLiteral.Trim('"')}]");
+						break;
+					case CollectionCountConstraint cc when cc.Min.HasValue && cc.Max.HasValue:
+						tokens.Add($"[count: {cc.Min}–{cc.Max}]");
+						break;
+					case CollectionCountConstraint cc when cc.Min.HasValue:
+						tokens.Add($"[min-count: {cc.Min}]");
+						break;
+					case CollectionCountConstraint cc when cc.Max.HasValue:
+						tokens.Add($"[max-count: {cc.Max}]");
 						break;
 					case StringLengthConstraint s when s.Min.HasValue && s.Max.HasValue:
 						tokens.Add($"[length: {s.Min}–{s.Max}]");
@@ -8077,7 +8253,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			var maxArgWidth = cmd.Parameters
 				.Where(p => p.Kind == ParameterKind.Positional)
-				.Select(p => (p.IsRequired ? $"<{p.CliLongName}>" : $"[<{p.CliLongName}>]").Length)
+				.Select(p =>
+				{
+					if (p.IsVariadic)
+						return (p.IsRequired ? $"<{p.CliLongName}...>" : $"[<{p.CliLongName}...>]").Length;
+					return (p.IsRequired ? $"<{p.CliLongName}>" : $"[<{p.CliLongName}>]").Length;
+				})
 				.DefaultIfEmpty(0).Max();
 			maxArgWidth = Math.Min(maxArgWidth, 40);
 
@@ -8087,9 +8268,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				if (p.Kind != ParameterKind.Positional)
 					continue;
 
-				var nameCell = p.IsRequired
-					? $"<{p.CliLongName}>"
-					: $"[<{p.CliLongName}>]";
+				var nameCell = p.IsVariadic
+					? (p.IsRequired ? $"<{p.CliLongName}...>" : $"[<{p.CliLongName}...>]")
+					: (p.IsRequired ? $"<{p.CliLongName}>" : $"[<{p.CliLongName}>]");
 				var nameCellPadded = nameCell.PadRight(maxArgWidth);
 				var desc = BuildDescriptionSuffix(p, forPositional: true);
 				var argValidationLine = BuildValidationLine(p);
@@ -8234,6 +8415,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		if (!forPositional && p is { IsCollection: true, Kind: ParameterKind.Flag })
 			parts.Add(p.CollectionSeparator is null ? "[repeatable]" : "[separated]");
+
+		if (forPositional && p.IsVariadic)
+			parts.Add("[variadic]");
 
 		if (!string.IsNullOrWhiteSpace(p.Description))
 			parts.Add(p.Description.Trim());
@@ -8477,10 +8661,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ReportDuplicateCliNames(context, diagnosticLocation, parameters);
 			ReportBoolNegationSwitchConflicts(context, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayout(context, diagnosticLocation, parameters);
+			ValidateVariadicPositionalIsLast(context, diagnosticLocation, parameters);
 			foreach (var p in parameters)
 			{
-				if (p.IsCollection && p.Kind == ParameterKind.Positional)
+				if (p.IsCollection && p.Kind == ParameterKind.Positional && !p.IsVariadic)
 					context.ReportDiagnostic(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
+				if (p.IsVariadic && !p.CollectionTargetIsArray)
+					context.ReportDiagnostic(Diagnostic.Create(VariadicCollectionMustBeArray, diagnosticLocation));
 				if (p.CollectionTargetIsReadOnlySet && !p.ElementIsValueType)
 					context.ReportDiagnostic(Diagnostic.Create(ReadOnlySetInvalidElementType, diagnosticLocation, p.ElementTypeName));
 			}
@@ -8539,10 +8726,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ReportDuplicateCliNames(context, diagnosticLocation, parameters);
 			ReportBoolNegationSwitchConflicts(context, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayout(context, diagnosticLocation, parameters);
+			ValidateVariadicPositionalIsLast(context, diagnosticLocation, parameters);
 			foreach (var p in parameters)
 			{
-				if (p.IsCollection && p.Kind == ParameterKind.Positional)
+				if (p.IsCollection && p.Kind == ParameterKind.Positional && !p.IsVariadic)
 					context.ReportDiagnostic(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
+				if (p.IsVariadic && !p.CollectionTargetIsArray)
+					context.ReportDiagnostic(Diagnostic.Create(VariadicCollectionMustBeArray, diagnosticLocation));
 				if (p.CollectionTargetIsReadOnlySet && !p.ElementIsValueType)
 					context.ReportDiagnostic(Diagnostic.Create(ReadOnlySetInvalidElementType, diagnosticLocation, p.ElementTypeName));
 			}
@@ -8602,10 +8792,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
 			ReportBoolNegationSwitchConflictsAcc(acc, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
+			ValidateVariadicPositionalIsLastAcc(acc, diagnosticLocation, parameters);
 			foreach (var p in parameters)
 			{
-				if (p.IsCollection && p.Kind == ParameterKind.Positional)
+				if (p.IsCollection && p.Kind == ParameterKind.Positional && !p.IsVariadic)
 					acc.Add(CollectionPositionalNotSupported, diagnosticLocation);
+				if (p.IsVariadic && !p.CollectionTargetIsArray)
+					acc.Add(VariadicCollectionMustBeArray, diagnosticLocation);
 				if (p.CollectionTargetIsReadOnlySet && !p.ElementIsValueType)
 					acc.Add(ReadOnlySetInvalidElementType, diagnosticLocation, p.ElementTypeName);
 			}
@@ -8634,10 +8827,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
 			ReportBoolNegationSwitchConflictsAcc(acc, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
+			ValidateVariadicPositionalIsLastAcc(acc, diagnosticLocation, parameters);
 			foreach (var p in parameters)
 			{
-				if (p.IsCollection && p.Kind == ParameterKind.Positional)
+				if (p.IsCollection && p.Kind == ParameterKind.Positional && !p.IsVariadic)
 					acc.Add(CollectionPositionalNotSupported, diagnosticLocation);
+				if (p.IsVariadic && !p.CollectionTargetIsArray)
+					acc.Add(VariadicCollectionMustBeArray, diagnosticLocation);
 				if (p.CollectionTargetIsReadOnlySet && !p.ElementIsValueType)
 					acc.Add(ReadOnlySetInvalidElementType, diagnosticLocation, p.ElementTypeName);
 			}
@@ -8920,6 +9116,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var doc = ParamDocParser.Parse(raw);
 				map[ps.Name] = existing with
 				{
+					CliLongName = doc.ExplicitLongName ?? existing.CliLongName,
 					Description = doc.Description,
 					ShortOpt = doc.ShortOpt,
 					Aliases = doc.Aliases
@@ -8935,12 +9132,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	}
 
 	/// <summary>Parse options property/field <c>&lt;summary&gt;</c> lines that may start with <c>-x, --long, …</c> synopsis prefixes (same rules as handler <paramref/> docs).</summary>
-	private static (string Description, char? ShortOpt, ImmutableArray<string> Aliases) ParseOptionsFlagDocumentation(string? summaryLine)
+	private static ParamDoc ParseOptionsFlagDocumentation(string? summaryLine)
 	{
 		if (string.IsNullOrWhiteSpace(summaryLine))
-			return ("", null, ImmutableArray<string>.Empty);
-		var d = ParamDocParser.Parse(summaryLine!.Trim());
-		return (d.Description, d.ShortOpt, d.Aliases);
+			return new ParamDoc(null, ImmutableArray<string>.Empty, "");
+		return ParamDocParser.Parse(summaryLine!.Trim());
 	}
 
 	// ── Validation constraint types ─────────────────────────────────────────────
@@ -8948,6 +9144,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	// cached inside AnalyzedInvocation records in the Roslyn incremental pipeline.
 
 	private abstract record ValidationConstraint;
+	private sealed record CollectionCountConstraint(int? Min, int? Max) : ValidationConstraint;
 	private sealed record RangeConstraint(string MinLiteral, string MaxLiteral) : ValidationConstraint;
 	private sealed record TimeSpanRangeConstraint(string MinLiteral, string MaxLiteral) : ValidationConstraint;
 	private sealed record StringLengthConstraint(int? Min, int? Max) : ValidationConstraint;
@@ -9003,6 +9200,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		bool ExpandUserProfileBeforeBind = false,
 		ImmutableArray<ValidationConstraint> Validations = default,
 		bool IsHidden = false,
+		bool IsVariadic = false,
 		/// <summary>
 		/// True when the property is from a cross-assembly type (DeclaringSyntaxReferences empty) and has no
 		/// detectable static default. The emit uses <c>new T().PropName</c> at runtime for the initial value.
@@ -9050,7 +9248,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			string description,
 			AsParametersMeta? asParams,
 			char? flagShortOpt = null,
-			ImmutableArray<string> synopsisAliasesFromSummary = default)
+			ImmutableArray<string> synopsisAliasesFromSummary = default,
+			bool isVariadic = false)
 		{
 			ClassifyScalarForType(elementType, attributeHost, BoolSpecialKind.None,
 				out var elemSk, out var elemTn, out var eFq, out var eMem, out var pFq, out var cFq);
@@ -9066,6 +9265,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				: synopsisAliasesFromSummary;
 			var fq = collectionType.ToDisplayString(FullyQualifiedFormatWithNullableRefAnnotations);
 			var declaredNullableAnnotated = collectionType.NullableAnnotation == NullableAnnotation.Annotated;
+			var collValidations = ReadValidationConstraints(attributeHost, CliScalarKind.Collection, "values", isCollection: true);
+			// Variadic positionals always allow zero items by C# params convention.
+			// Minimum count enforcement is handled via CollectionCountConstraint ([MinLength]).
+			if (isVariadic) required = false;
 			return new ParameterModel(
 				symbolName,
 				localVarName,
@@ -9102,7 +9305,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				AsParametersTypeFq: asParams?.TypeFq,
 				AsParametersUseInit: asParams?.UseInit ?? false,
 				AsParametersClrName: asParams?.ClrName,
-				IsHidden: HasHiddenAttribute(attributeHost));
+				Validations: collValidations,
+				IsHidden: HasHiddenAttribute(attributeHost),
+				IsVariadic: isVariadic);
 		}
 
 		// ── five factory methods ─────────────────────────────────────────────
@@ -9135,10 +9340,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var bs = ClassifyBool(p.Type);
 			if (TryUnwrapCollectionType(p.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
+				var isVariadic = isArg && p.Type is IArrayTypeSymbol;
 				var defLitColl = TryGetDefaultLiteral(p, BoolSpecialKind.None);
 				return BuildCollectionParameterModel(p.Type, elemType, p, kind,
 					Naming.ToCliLongName(p.Name), SafeLocalName(p.Name), p.Name,
-					isSeparateType: false, defLitColl, "", asParams: null);
+					isSeparateType: false, defLitColl, "", asParams: null, isVariadic: isVariadic);
 			}
 
 			ClassifyScalarUnified(p.Type, p, bs, isSeparateType: false,
@@ -9178,11 +9384,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			var rawSummary = Documentation.GetPropertySummaryLine(prop, compilation, TryExtractFullDocumentationFromPropertyTrivia(prop));
 			var doc = ParseOptionsFlagDocumentation(rawSummary);
+			var derivedLongNameProp = Naming.ToCliLongName(prop.Name);
+			var effectiveLongNameProp = doc.ExplicitLongName ?? derivedLongNameProp;
 			var bs = ClassifyBool(prop.Type);
 			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
 				return BuildCollectionParameterModel(prop.Type, elemType, prop, ParameterKind.Flag,
-					Naming.ToCliLongName(prop.Name), SafeLocalName(prop.Name), prop.Name,
+					effectiveLongNameProp, SafeLocalName(prop.Name), prop.Name,
 					isSeparateType: true, defaultLiteral: null, doc.Description, asParams: null,
 					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases);
 			}
@@ -9201,7 +9409,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return new ParameterModel(
 				prop.Name,
 				SafeLocalName(prop.Name),
-				Naming.ToCliLongName(prop.Name),
+				effectiveLongNameProp,
 				ParameterKind.Flag,
 				bs,
 				sk,
@@ -9226,11 +9434,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			var rawSummary = Documentation.GetFieldSummaryLine(field, compilation, TryExtractFullDocumentationFromFieldTrivia(field));
 			var doc = ParseOptionsFlagDocumentation(rawSummary);
+			var derivedLongNameField = Naming.ToCliLongName(field.Name);
+			var effectiveLongNameField = doc.ExplicitLongName ?? derivedLongNameField;
 			var bs = ClassifyBool(field.Type);
 			if (TryUnwrapCollectionType(field.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
 				return BuildCollectionParameterModel(field.Type, elemType, field, ParameterKind.Flag,
-					Naming.ToCliLongName(field.Name), SafeLocalName(field.Name), field.Name,
+					effectiveLongNameField, SafeLocalName(field.Name), field.Name,
 					isSeparateType: true, defaultLiteral: null, doc.Description, asParams: null,
 					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases);
 			}
@@ -9245,7 +9455,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return new ParameterModel(
 				field.Name,
 				SafeLocalName(field.Name),
-				Naming.ToCliLongName(field.Name),
+				effectiveLongNameField,
 				ParameterKind.Flag,
 				bs,
 				sk,
@@ -9329,9 +9539,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var meta = new AsParametersMeta(methodParamName, memberOrder, typeFq, UseInit: false, cp.Name);
 			if (TryUnwrapCollectionType(cp.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
+				var isVariadicCp = isArg && cp.Type is IArrayTypeSymbol;
 				var defLitColl = TryGetDefaultLiteral(cp, BoolSpecialKind.None);
 				return BuildCollectionParameterModel(cp.Type, elemType, cp, kind, cli, local, cp.Name,
-					isSeparateType: false, defLitColl, desc, meta);
+					isSeparateType: false, defLitColl, desc, meta, isVariadic: isVariadicCp);
 			}
 
 			ClassifyScalarUnified(cp.Type, cp, bs, isSeparateType: false,
@@ -9413,16 +9624,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var isArg = HasArgumentAttribute(prop);
 			var kind = isArg ? ParameterKind.Positional : ParameterKind.Flag;
 			var bs = ClassifyBool(prop.Type);
-			var cli = namePrefix + Naming.ToCliLongName(prop.Name);
 			var local = SafeLocalName(methodParamName + "_" + prop.Name);
 			var rawSummary = Documentation.GetPropertySummaryLine(prop, compilation, TryExtractFullDocumentationFromPropertyTrivia(prop));
 			var doc = ParseOptionsFlagDocumentation(rawSummary);
+			var derivedCli = namePrefix + Naming.ToCliLongName(prop.Name);
+			var cli = doc.ExplicitLongName is not null ? namePrefix + doc.ExplicitLongName : derivedCli;
 			var meta = new AsParametersMeta(methodParamName, memberOrder, typeFq, UseInit: true, prop.Name);
 			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None)
 			{
+				var isVariadicProp = isArg && prop.Type is IArrayTypeSymbol;
 				return BuildCollectionParameterModel(prop.Type, elemType, prop, kind, cli, local, prop.Name,
 					isSeparateType: true, defaultLiteral: null, doc.Description, meta,
-					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases);
+					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases, isVariadic: isVariadicProp);
 			}
 
 			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
@@ -9895,7 +10108,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	private readonly record struct ParamDoc(char? ShortOpt, ImmutableArray<string> Aliases, string Description);
+	private readonly record struct ParamDoc(char? ShortOpt, ImmutableArray<string> Aliases, string Description, string? ExplicitLongName = null);
 
 	private static class ParamDocParser
 	{
@@ -9907,6 +10120,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			var parts = text.Split(',');
 			char? shortOpt = null;
+			string? explicitLongName = null;
 			var aliases = ImmutableArray.CreateBuilder<string>();
 			var i = 0;
 			for (; i < parts.Length; i++)
@@ -9927,7 +10141,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 				if (LooksLikeLongFlag(seg))
 				{
-					aliases.Add(seg.Substring(2));
+					// First --long-name becomes the primary CLI name (overrides the derived name).
+					// Subsequent --long-names become aliases.
+					if (explicitLongName is null)
+						explicitLongName = seg.Substring(2);
+					else
+						aliases.Add(seg.Substring(2));
 					continue;
 				}
 
@@ -9935,7 +10154,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 
 			var desc = i >= parts.Length ? "" : string.Join(",", parts, i, parts.Length - i).Trim();
-			return new ParamDoc(shortOpt, aliases.ToImmutable(), desc);
+			return new ParamDoc(shortOpt, aliases.ToImmutable(), desc, explicitLongName);
 		}
 
 		private static bool LooksLikeShortFlag(string seg) =>
@@ -10494,7 +10713,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 				if (p.Kind == ParameterKind.Positional)
 				{
-					var seg = p.IsRequired ? $"<{p.CliLongName}>" : $"[<{p.CliLongName}>]";
+					string seg;
+					if (p.IsVariadic)
+						seg = p.IsRequired ? $"<{p.CliLongName}...>" : $"[<{p.CliLongName}...>]";
+					else
+						seg = p.IsRequired ? $"<{p.CliLongName}>" : $"[<{p.CliLongName}>]";
 					parts.Add(seg);
 					continue;
 				}

@@ -392,6 +392,9 @@ public sealed partial class CliParserGenerator
 		if (p.IsHidden)
 			sb.Append(", Hidden: true");
 
+		if (p.IsVariadic)
+			sb.Append(", Variadic: true");
+
 		var validations = BuildConstraintsExpression(p.Validations, p.ExpandUserProfileBeforeBind);
 		if (validations != "null")
 			sb.Append($", Validations: {validations}");
@@ -448,6 +451,11 @@ public sealed partial class CliParserGenerator
 						break;
 					case TimeSpanRangeConstraint ts:
 						parts.Add($"new CliConstraintSchema(\"timeSpanRange\", Min: \"{Escape(ts.MinLiteral)}\", Max: \"{Escape(ts.MaxLiteral)}\")");
+						break;
+					case CollectionCountConstraint cc:
+						var ccMin = cc.Min.HasValue ? $"\"{cc.Min.Value}\"" : "null";
+						var ccMax = cc.Max.HasValue ? $"\"{cc.Max.Value}\"" : "null";
+						parts.Add($"new CliConstraintSchema(\"count\", Min: {ccMin}, Max: {ccMax})");
 						break;
 					case StringLengthConstraint sl:
 						var slMin = sl.Min.HasValue ? $"\"{sl.Min.Value}\"" : "null";

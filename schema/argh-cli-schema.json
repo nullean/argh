@@ -119,6 +119,10 @@
             "type": "boolean",
             "default": false
           },
+          "variadic": {
+            "type": "boolean",
+            "default": false
+          },
           "validations": {
             "type": [
               "array",

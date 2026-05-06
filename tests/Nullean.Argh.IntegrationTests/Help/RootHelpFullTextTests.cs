@@ -42,6 +42,7 @@ public class RootHelpFullTextTests
 			  support         Support commands
 
 			Commands:
+			  archive-variadic                      Archive files with count constraints.
 			  as-params-collection-syntax
 			  as-params-optional-collection-syntax
 			  as-params-referenced-dto
@@ -53,6 +54,10 @@ public class RootHelpFullTextTests
 			  build                                 Integration-test default when no
 			                                        sub-command is given at the app root.
 			  color-set
+			  compile-variadic                      Compile sources: variadic positional
+			                                        with a flag after.
+			  copy-variadic                         Copy files using a variadic positional
+			                                        with an enum arg before it.
 			  count-cmd
 			  cross-assembly-echo
 			  deploy
@@ -64,6 +69,11 @@ public class RootHelpFullTextTests
 			  file-cmd
 			  hello                                 Greet someone by name.
 			  lambda-cmd
+			  long-name-override                    Long name override: param is named
+			                                        'tags' but flag is --tag.
+			  mixed-variadic                        Mixed: scalar positional then flags then
+			                                        variadic positional (C# params must be
+			                                        last).
 			  multi-enum-as-params
 			  nin-hello                             Greet by name without a global-options
 			                                        handler parameter (-m still parses).
