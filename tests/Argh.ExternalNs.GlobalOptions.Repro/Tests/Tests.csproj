@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Argh.ExternalNs.GlobalOptions.Repro.Tests</AssemblyName>
+    <RootNamespace>Argh.ExternalNs.GlobalOptions.Repro.Tests</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reference the CliApp so the test project fails to build if the CliApp fails to compile (wrong FQ name). -->
+    <ProjectReference Include="..\CliApp\Argh.ExternalNs.GlobalOptions.Repro.CliApp.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\..\src\Nullean.Argh\Nullean.Argh.csproj" />
+    <ProjectReference Include="..\..\..\src\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="Analyzer"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Proc" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="GitHubActionsTestLogger">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Nullean.VsTest.Pretty.TestLogger" PrivateAssets="All" />
+  </ItemGroup>
+
+  <!-- Copy the repro CliApp DLL next to the test binary so the subprocess tests can run it. -->
+  <Target Name="CopyReproCliAppToTestOutput" AfterTargets="Build">
+    <PropertyGroup>
+      <_CliAppCfg>$([System.String]::Copy('$(Configuration)').ToLowerInvariant())</_CliAppCfg>
+      <_CliAppDir>$([System.IO.Path]::Combine('$(ArtifactsPath)', 'bin', 'Argh.ExternalNs.GlobalOptions.Repro.CliApp', '$(_CliAppCfg)'))\</_CliAppDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CliAppFiles Include="$(_CliAppDir)*.*" Exclude="$(_CliAppDir)*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_CliAppFiles)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(_CliAppFiles)' != ''" />
+  </Target>
+
+</Project>

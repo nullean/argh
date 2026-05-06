@@ -65,6 +65,9 @@ public class RootAndNamespaceHelpTests
 			                                        (XML appears in help).
 			  dry-run-cmd
 			  enum-cmd                              Enum and short options.
+			  ext-ns-as-params-echo                 Echo verbose and tag from an
+			                                        [AsParameters] DTO in an unrelated
+			                                        external namespace.
 			  file-cmd
 			  hello                                 Greet someone by name.
 			  lambda-cmd
