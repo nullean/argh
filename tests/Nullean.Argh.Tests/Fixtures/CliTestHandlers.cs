@@ -193,7 +193,7 @@ internal static class CliTestHandlers
 			+ (args.Output ?? "null"));
 
 	public static void AsParamsReferencedDto(TestGlobalCliOptions g, [AsParameters] IsolatedBuildOptions options) =>
-		Console.Out.WriteLine($"as-params-referenced:{options.Path ?? "null"}:{options.Output ?? "null"}");
+		Console.Out.WriteLine($"as-params-referenced:{options.Path ?? "null"}:{options.Output ?? "null"}:{options.Source?.ToString() ?? "null"}");
 
 	internal readonly record struct Point(int X, int Y);
 

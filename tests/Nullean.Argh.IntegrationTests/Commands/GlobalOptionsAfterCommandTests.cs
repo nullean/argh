@@ -95,7 +95,28 @@ public class GlobalOptionsAfterCommandTests
 		// project won't build; this test passing proves the generated code compiles cleanly.
 		var result = CliHostRunner.Run("as-params-referenced-dto", "--path", "docs");
 		result.ExitCode.Should().Be(0);
-		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null");
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null:null");
+	}
+
+	/// <summary>
+	/// Regression: cross-assembly [AsParameters] DTO with nullable enum (Nullable&lt;T&gt;, not NRT)
+	/// previously generated CS8600 — <c>IsolatedSource source = __rt_default.Source</c> where Source is
+	/// IsolatedSource?. After the fix IsNullableAnnotated also captures Nullable&lt;T&gt; value types.
+	/// </summary>
+	[Fact]
+	public void AsParams_cross_assembly_nullable_enum_property_binds_when_provided()
+	{
+		var result = CliHostRunner.Run("as-params-referenced-dto", "--path", "docs", "--source", "remote");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null:Remote");
+	}
+
+	[Fact]
+	public void AsParams_cross_assembly_nullable_enum_property_is_null_when_omitted()
+	{
+		var result = CliHostRunner.Run("as-params-referenced-dto", "--path", "docs");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null:null");
 	}
 
 	[Fact]
@@ -111,6 +132,6 @@ public class GlobalOptionsAfterCommandTests
 	{
 		var result = CliHostRunner.Run("as-params-referenced-dto", "-v", "-p", "docs");
 		result.ExitCode.Should().Be(0);
-		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null");
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null:null");
 	}
 }

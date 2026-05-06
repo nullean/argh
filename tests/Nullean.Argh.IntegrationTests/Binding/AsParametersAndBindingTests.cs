@@ -102,7 +102,7 @@ public class AsParametersAndBindingTests
 			"--path", "docs",
 			"--output", ".artifacts/site");
 		result.ExitCode.Should().Be(0);
-		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:.artifacts/site");
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:.artifacts/site:null");
 	}
 
 	[Fact]
@@ -110,7 +110,7 @@ public class AsParametersAndBindingTests
 	{
 		var result = CliHostRunner.Run("as-params-referenced-dto", "-p", "docs", "--output", ".artifacts/site");
 		result.ExitCode.Should().Be(0);
-		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:.artifacts/site");
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:.artifacts/site:null");
 	}
 
 	[Fact]
@@ -118,7 +118,7 @@ public class AsParametersAndBindingTests
 	{
 		var result = CliHostRunner.Run("as-params-referenced-dto", "-p", "docs");
 		result.ExitCode.Should().Be(0);
-		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null");
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null:null");
 	}
 
 	[Fact]

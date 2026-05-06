@@ -5536,7 +5536,51 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						sb.AppendLine($"\t\t\t\t\t{tmpName} = {evVar};");
 						sb.AppendLine("\t\t\t}");
 					}
-					// Custom parsers: keep static fallback (no per-command re-parse for arbitrary parser types)
+					else if (m.ScalarKind == CliScalarKind.FileInfo)
+					{
+						sb.AppendLine($"\t\t\tif ({tmpName}Txt is not null)");
+						sb.AppendLine("\t\t\t{");
+						if (m.ExpandUserProfileBeforeBind)
+						{
+							var expanded = "__path_ropt_" + m.LocalVarName;
+							sb.AppendLine($"\t\t\t\tvar {expanded} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({tmpName}Txt);");
+							sb.AppendLine($"\t\t\t\t{tmpName} = new global::System.IO.FileInfo({expanded});");
+						}
+						else
+							sb.AppendLine($"\t\t\t\t{tmpName} = new global::System.IO.FileInfo({tmpName}Txt);");
+						sb.AppendLine("\t\t\t}");
+					}
+					else if (m.ScalarKind == CliScalarKind.DirectoryInfo)
+					{
+						sb.AppendLine($"\t\t\tif ({tmpName}Txt is not null)");
+						sb.AppendLine("\t\t\t{");
+						if (m.ExpandUserProfileBeforeBind)
+						{
+							var expanded = "__path_ropt_" + m.LocalVarName;
+							sb.AppendLine($"\t\t\t\tvar {expanded} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({tmpName}Txt);");
+							sb.AppendLine($"\t\t\t\t{tmpName} = new global::System.IO.DirectoryInfo({expanded});");
+						}
+						else
+							sb.AppendLine($"\t\t\t\t{tmpName} = new global::System.IO.DirectoryInfo({tmpName}Txt);");
+						sb.AppendLine("\t\t\t}");
+					}
+					else if (m.ScalarKind == CliScalarKind.Uri)
+					{
+						var uriVar = "__uri_ropt_" + m.LocalVarName;
+						sb.AppendLine($"\t\t\tif ({tmpName}Txt is not null && global::System.Uri.TryCreate({tmpName}Txt, global::System.UriKind.RelativeOrAbsolute, out var {uriVar}))");
+						sb.AppendLine($"\t\t\t\t{tmpName} = {uriVar};");
+					}
+					else if (m.ScalarKind == CliScalarKind.CustomParser && m.ParserTypeFq is not null)
+					{
+						var parserVar = "__parser_ropt_" + m.LocalVarName;
+						var pvVar = "__pv_ropt_" + m.LocalVarName;
+						sb.AppendLine($"\t\t\tif ({tmpName}Txt is not null)");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tvar {parserVar} = new {m.ParserTypeFq}();");
+						sb.AppendLine($"\t\t\t\tif ({parserVar}.TryParse({tmpName}Txt, out var {pvVar}))");
+						sb.AppendLine($"\t\t\t\t\t{tmpName} = {pvVar};");
+						sb.AppendLine("\t\t\t}");
+					}
 				}
 			}
 
@@ -9239,7 +9283,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				Validations: validations,
 				IsHidden: HasHiddenAttribute(prop),
 				UsesRuntimeDefault: isCrossAssemblyDefault,
-				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated);
+				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated
+					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
 		}
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -9283,7 +9328,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				Validations: validations,
 				IsHidden: HasHiddenAttribute(field),
 				UsesRuntimeDefault: isCrossAssemblyDefault,
-				IsNullableAnnotated: field.Type.NullableAnnotation == NullableAnnotation.Annotated);
+				IsNullableAnnotated: field.Type.NullableAnnotation == NullableAnnotation.Annotated
+					|| field.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
 		}
 		public static ParameterModel FromAsParametersCtorParameter(
 			string methodParamName,
@@ -9484,7 +9530,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
 				UsesRuntimeDefault: isCrossAssemblyDefault,
-				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated);
+				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated
+					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
 		}
 
 		private static bool ComputeRequiredForOptionsType(ITypeSymbol type, BoolSpecialKind bs)
