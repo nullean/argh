@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading;
+using External.Ns.Options;
 using Nullean.Argh;
 using Nullean.Argh.Parsing;
 using Nullean.Argh.Tests.ReferencedDtos;
@@ -233,4 +234,10 @@ internal static class CrossAssemblyHandlers
 {
 	public static void Echo(TestGlobalCliOptions g, [AsParameters] CrossAssemblyAsParamsDto o) =>
 		Console.Out.WriteLine($"cross-assembly:{o.Level}:{o.Tag}");
+
+	/// <summary>Echo verbose and tag from an [AsParameters] DTO in an unrelated external namespace.</summary>
+	/// <param name="g">Injected global CLI options.</param>
+	/// <param name="opts">External-namespace [AsParameters] DTO (External.Ns.Options.ExternalNsGlobalOptions).</param>
+	public static void ExternalNsEcho(TestGlobalCliOptions g, [AsParameters] ExternalNsGlobalOptions opts) =>
+		Console.Out.WriteLine($"ext-ns-as-params:{opts.Verbose}:{opts.Tag}");
 }

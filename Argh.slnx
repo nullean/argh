@@ -35,5 +35,9 @@
     <Project Path="tests/Nullean.Argh.IntegrationTests/Nullean.Argh.IntegrationTests.csproj" />
     <Project Path="tests/Nullean.Argh.Tests/Nullean.Argh.Tests.csproj" />
     <Project Path="tests/Argh.InternalsVisibleTo.Repro/Tests/Argh.InternalsVisibleTo.Repro.Tests.csproj" />
+    <Project Path="tests/Argh.ExternalNs.GlobalOptions.Repro/CliApp/Argh.ExternalNs.GlobalOptions.Repro.CliApp.csproj" />
+    <Project Path="tests/Argh.ExternalNs.GlobalOptions.Repro/Tests/Tests.csproj" />
+    <Project Path="tests/Nullean.Argh.Generator.Tests/Nullean.Argh.Generator.Tests.csproj" />
+    <Project Path="tests/Nullean.Argh.Tests.ReferencedDtos/Nullean.Argh.Tests.ReferencedDtos.csproj" />
   </Folder>
 </Solution>

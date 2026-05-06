@@ -27,4 +27,26 @@ public class CrossAssemblyOptionsTests
 		result.ExitCode.Should().Be(0);
 		CliHostRunner.StdoutText(result).Trim().Should().Be("cross-assembly:Warning:custom");
 	}
+
+	/// <summary>
+	/// Regression: [AsParameters] DTO in a namespace completely unrelated to the consuming project
+	/// (External.Ns.Options vs Nullean.Argh.Tests) must emit the correct FQ type name.
+	/// If the generator uses the consuming project's namespace instead of the type's actual namespace
+	/// the generated code would reference a non-existent type and fail to compile.
+	/// </summary>
+	[Fact]
+	public void External_ns_as_params_defaults_used_when_flags_absent()
+	{
+		var result = CliHostRunner.Run("ext-ns-as-params-echo");
+		result.ExitCode.Should().Be(0, because: "external-namespace [AsParameters] DTO must bind with correct FQ type name");
+		CliHostRunner.StdoutText(result).Trim().Should().Be("ext-ns-as-params:False:default");
+	}
+
+	[Fact]
+	public void External_ns_as_params_flags_override_defaults()
+	{
+		var result = CliHostRunner.Run("ext-ns-as-params-echo", "--verbose", "--tag", "custom");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("ext-ns-as-params:True:custom");
+	}
 }

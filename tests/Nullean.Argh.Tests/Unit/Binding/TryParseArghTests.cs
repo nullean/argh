@@ -1,3 +1,4 @@
+using External.Ns.Options;
 using FluentAssertions;
 using Nullean.Argh.Tests.Fixtures;
 using Nullean.Argh.Tests.ReferencedDtos;
@@ -156,5 +157,29 @@ public class TryParseArghTests
 		ok.Should().BeTrue();
 		o!.Level.Should().Be(CrossAssemblyLevel.Warning);
 		o.Tag.Should().Be("custom");
+	}
+
+	/// <summary>
+	/// Regression: [AsParameters] DTO in External.Ns.Options (unrelated to the consuming project
+	/// namespace Nullean.Argh.Tests) must be emitted with the correct FQ type name.
+	/// The static TryParseArgh extension method on ExternalNsGlobalOptions is generated in
+	/// ArghTypeBindingExtensions.g.cs; it only exists if the generator used the right namespace.
+	/// </summary>
+	[Fact]
+	public void External_ns_as_params_defaults_used_when_no_flags()
+	{
+		var ok = ExternalNsGlobalOptions.TryParseArgh([], out var o);
+		ok.Should().BeTrue("external-namespace [AsParameters] DTO must have a generated TryParseArgh extension");
+		o!.Verbose.Should().BeFalse();
+		o.Tag.Should().Be("default");
+	}
+
+	[Fact]
+	public void External_ns_as_params_verbose_flag_parsed()
+	{
+		var ok = ExternalNsGlobalOptions.TryParseArgh(["--verbose"], out var o);
+		ok.Should().BeTrue();
+		o!.Verbose.Should().BeTrue();
+		o.Tag.Should().Be("default");
 	}
 }
