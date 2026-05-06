@@ -31,6 +31,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="build\Nullean.Argh.Core.props" Pack="true" PackagePath="build\" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="..\..\README.md" Pack="true" PackagePath="README.md" CopyToOutputDirectory="PreserveNewest">
       <Link>README.md</Link>
     </Content>

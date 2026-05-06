@@ -1,0 +1,8 @@
+<Project>
+  <!-- Expose artifacts layout properties so the Argh source generator can resolve XML documentation
+       for cross-assembly types (e.g. [AsParameters] DTOs in separate projects). -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ArtifactsPath" />
+    <CompilerVisibleProperty Include="UseArtifactsOutput" />
+  </ItemGroup>
+</Project>

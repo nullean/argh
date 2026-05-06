@@ -66,4 +66,12 @@ public class GlobalOptionsAfterCommandTests
 		result.ExitCode.Should().Be(0);
 		CliHostRunner.StdoutText(result).Trim().Should().Be("storage-list:ns");
 	}
+
+	[Fact]
+	public void AsParams_referenced_dto_global_short_and_command_short_flags_together()
+	{
+		var result = CliHostRunner.Run("as-params-referenced-dto", "-v", "-p", "docs");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null");
+	}
 }
