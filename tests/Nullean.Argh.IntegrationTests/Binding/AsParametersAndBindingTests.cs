@@ -106,6 +106,22 @@ public class AsParametersAndBindingTests
 	}
 
 	[Fact]
+	public void AsParameters_referenced_project_short_path_flag_works()
+	{
+		var result = CliHostRunner.Run("as-params-referenced-dto", "-p", "docs", "--output", ".artifacts/site");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:.artifacts/site");
+	}
+
+	[Fact]
+	public void AsParameters_referenced_project_short_flag_only_sets_path()
+	{
+		var result = CliHostRunner.Run("as-params-referenced-dto", "-p", "docs");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null");
+	}
+
+	[Fact]
 	public void Non_nullable_AsParameters_property_with_default_uses_default_value_when_omitted()
 	{
 		// MultiEnumAsParamsArgs.Severity defaults to FixtureSeverity.Information when --mix-severity is not provided

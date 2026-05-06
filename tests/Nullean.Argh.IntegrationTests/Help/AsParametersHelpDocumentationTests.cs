@@ -44,5 +44,6 @@ public class AsParametersHelpDocumentationTests
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		text.Should().Contain("Documentation root. Defaults to cwd/docs.");
 		text.Should().Contain("Output directory. Defaults to .artifacts/html.");
+		text.Should().Contain("-p,", because: "short alias declared in XML doc summary must appear in help");
 	}
 }

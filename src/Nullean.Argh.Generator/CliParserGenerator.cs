@@ -331,6 +331,17 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			.Collect()
 			.Select(static (refs, _) => ReferenceMetadataCapabilities.Compute(refs));
 
+		// ── Artifacts layout — used for robust XML doc resolution from cross-assembly references ──
+		// ArtifactsPath (from <ArtifactsPath>) is exposed via CompilerVisibleProperty in
+		// build/Nullean.Argh.Core.props so that the generator can resolve companion XML documentation
+		// files for types in projects that use <UseArtifactsOutput>true</UseArtifactsOutput>.
+		var artifactsPath = context.AnalyzerConfigOptionsProvider
+			.Select(static (opts, _) =>
+			{
+				opts.GlobalOptions.TryGetValue("build_property.ArtifactsPath", out var path);
+				return string.IsNullOrWhiteSpace(path) ? null : path!.Trim();
+			});
+
 		// ── Per-invocation semantic analysis — cached per-invocation by Roslyn ──
 		// Each invocation is analyzed independently and produces a symbol-free AnalyzedInvocation.
 		// Roslyn caches the result per invocation; only changed invocations are re-analyzed.
@@ -381,12 +392,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var combined = analyzed
 			.Combine(assemblyInfo)
 			.Combine(capabilities)
-			.Combine(parseOpts);
+			.Combine(parseOpts)
+			.Combine(artifactsPath);
 
 		context.RegisterSourceOutput(combined, static (spc, tuple) =>
 		{
-			var (((analyzedArray, (asmName, asmVer)), caps), po) = tuple;
-			Execute(spc, analyzedArray, asmName, asmVer, caps, po);
+			var ((((analyzedArray, (asmName, asmVer)), caps), po), artifactsPathValue) = tuple;
+			Execute(spc, analyzedArray, asmName, asmVer, caps, po, artifactsPathValue);
 		});
 	}
 
@@ -398,7 +410,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string entryAsmName,
 		string entryAsmVersion,
 		ReferenceMetadataCapabilities.Capabilities referenceCapabilities,
-		CSharpParseOptions parseOpts)
+		CSharpParseOptions parseOpts,
+		string? artifactsPath = null)
 	{
 		if (analyzed.IsDefaultOrEmpty)
 		{
@@ -10103,7 +10116,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return GetTypeSummaryLine(xml);
 		}
 
-		public static string GetDocumentationXmlFromMetadataReference(ISymbol symbol, Compilation? compilation)
+		public static string GetDocumentationXmlFromMetadataReference(ISymbol symbol, Compilation? compilation, string? artifactsPath = null)
 		{
 			if (compilation is null)
 				return "";
@@ -10124,7 +10137,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var referenceDisplay = reference.Display;
 				if (string.IsNullOrWhiteSpace(referenceDisplay))
 					continue;
-				foreach (var xmlPath in GetXmlDocumentationCandidates(referenceDisplay!, containingAssembly.Name))
+				foreach (var xmlPath in GetXmlDocumentationCandidates(referenceDisplay!, containingAssembly.Name, artifactsPath))
 				{
 					if (!global::System.IO.File.Exists(xmlPath))
 						continue;
@@ -10149,7 +10162,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return "";
 		}
 
-		private static IEnumerable<string> GetXmlDocumentationCandidates(string referencePath, string assemblyName)
+		private static IEnumerable<string> GetXmlDocumentationCandidates(string referencePath, string assemblyName, string? artifactsPath = null)
 		{
 			var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			static string NormalizePathSeparators(string p) => p.Replace('\\', '/');
@@ -10190,6 +10203,34 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				if (yielded.Add(binXml))
 					yield return binXml;
 			}
+
+			// When <ArtifactsPath> is known, build the canonical bin/{Project}/{Pivot}/{Assembly}.xml
+			// path even when the reference points to a ref/, refint/, or obj/ subdirectory.
+			if (!string.IsNullOrWhiteSpace(artifactsPath))
+			{
+				var normalizedArtifacts = NormalizePathSeparators(artifactsPath!.TrimEnd('/', '\\'));
+				if (normalized.Length > normalizedArtifacts.Length &&
+				    normalized[normalizedArtifacts.Length] == '/' &&
+				    normalized.StartsWith(normalizedArtifacts, StringComparison.OrdinalIgnoreCase))
+				{
+					var relPath = normalized.Substring(normalizedArtifacts.Length + 1);
+					if (relPath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase))
+						relPath = "bin/" + relPath.Substring(4);
+					relPath = ReplaceOrdinalIgnoreCase(ReplaceOrdinalIgnoreCase(relPath, "/refint/", "/"), "/ref/", "/");
+					var platformPath = (normalizedArtifacts + "/" + relPath)
+						.Replace('/', global::System.IO.Path.DirectorySeparatorChar);
+					var artifactXml = global::System.IO.Path.ChangeExtension(platformPath, ".xml");
+					if (yielded.Add(artifactXml))
+						yield return artifactXml;
+				}
+			}
+		}
+
+		private static string ReplaceOrdinalIgnoreCase(string input, string oldValue, string newValue)
+		{
+			var idx = input.IndexOf(oldValue, StringComparison.OrdinalIgnoreCase);
+			if (idx < 0) return input;
+			return input.Substring(0, idx) + newValue + input.Substring(idx + oldValue.Length);
 		}
 
 		/// <summary>First line of <c>&lt;summary&gt;</c> for a type symbol (handles <c>&lt;member&gt;</c>-wrapped XML from Roslyn).</summary>

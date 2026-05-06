@@ -11,4 +11,9 @@
   <ItemGroup>
     <PackageReference Include="MinVer" PrivateAssets="all" Condition="'$(ManagePackageVersionsCentrally)' == 'true'" />
   </ItemGroup>
+  <!-- Expose artifacts layout properties to the Argh source generator. -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ArtifactsPath" />
+    <CompilerVisibleProperty Include="UseArtifactsOutput" />
+  </ItemGroup>
 </Project>
