@@ -5571,7 +5571,62 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						else
 							sb.AppendLine($"\t\t\tif ({tmpName}Txt != null) {tmpName} = {parseExpr};");
 					}
-					// Enum and custom parsers: keep static fallback (complex re-parse not emitted here for brevity)
+					else if (m.ScalarKind == CliScalarKind.Enum && m.EnumTypeFq is not null)
+					{
+						// Re-parse enum from command-trailing flags; null-guard required (TryGetValue out-var is string?).
+						// On invalid value: keep static fallback silently (no user-visible error; leading globals were already validated).
+						var evVar = "__ev_ropt_" + m.LocalVarName;
+						sb.AppendLine($"\t\t\tif ({tmpName}Txt is not null)");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tif (global::System.Enum.TryParse<{m.EnumTypeFq}>({tmpName}Txt, true, out var {evVar}) && global::System.Enum.IsDefined(typeof({m.EnumTypeFq}), {evVar}))");
+						sb.AppendLine($"\t\t\t\t\t{tmpName} = {evVar};");
+						sb.AppendLine("\t\t\t}");
+					}
+					else if (m.ScalarKind == CliScalarKind.FileInfo)
+					{
+						sb.AppendLine($"\t\t\tif ({tmpName}Txt is not null)");
+						sb.AppendLine("\t\t\t{");
+						if (m.ExpandUserProfileBeforeBind)
+						{
+							var expanded = "__path_ropt_" + m.LocalVarName;
+							sb.AppendLine($"\t\t\t\tvar {expanded} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({tmpName}Txt);");
+							sb.AppendLine($"\t\t\t\t{tmpName} = new global::System.IO.FileInfo({expanded});");
+						}
+						else
+							sb.AppendLine($"\t\t\t\t{tmpName} = new global::System.IO.FileInfo({tmpName}Txt);");
+						sb.AppendLine("\t\t\t}");
+					}
+					else if (m.ScalarKind == CliScalarKind.DirectoryInfo)
+					{
+						sb.AppendLine($"\t\t\tif ({tmpName}Txt is not null)");
+						sb.AppendLine("\t\t\t{");
+						if (m.ExpandUserProfileBeforeBind)
+						{
+							var expanded = "__path_ropt_" + m.LocalVarName;
+							sb.AppendLine($"\t\t\t\tvar {expanded} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({tmpName}Txt);");
+							sb.AppendLine($"\t\t\t\t{tmpName} = new global::System.IO.DirectoryInfo({expanded});");
+						}
+						else
+							sb.AppendLine($"\t\t\t\t{tmpName} = new global::System.IO.DirectoryInfo({tmpName}Txt);");
+						sb.AppendLine("\t\t\t}");
+					}
+					else if (m.ScalarKind == CliScalarKind.Uri)
+					{
+						var uriVar = "__uri_ropt_" + m.LocalVarName;
+						sb.AppendLine($"\t\t\tif ({tmpName}Txt is not null && global::System.Uri.TryCreate({tmpName}Txt, global::System.UriKind.RelativeOrAbsolute, out var {uriVar}))");
+						sb.AppendLine($"\t\t\t\t{tmpName} = {uriVar};");
+					}
+					else if (m.ScalarKind == CliScalarKind.CustomParser && m.ParserTypeFq is not null)
+					{
+						var parserVar = "__parser_ropt_" + m.LocalVarName;
+						var pvVar = "__pv_ropt_" + m.LocalVarName;
+						sb.AppendLine($"\t\t\tif ({tmpName}Txt is not null)");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tvar {parserVar} = new {m.ParserTypeFq}();");
+						sb.AppendLine($"\t\t\t\tif ({parserVar}.TryParse({tmpName}Txt, out var {pvVar}))");
+						sb.AppendLine($"\t\t\t\t\t{tmpName} = {pvVar};");
+						sb.AppendLine("\t\t\t}");
+					}
 				}
 			}
 
@@ -6720,23 +6775,24 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			case CliScalarKind.Enum when p.EnumTypeFq is not null:
 				// Optional on the CLI but backed by a non-nullable enum + default (e.g. options properties): keep a non-nullable temp.
 				// Also keep non-nullable for cross-assembly runtime-default properties (no null initial value).
-				if (p.IsRequired || p.DefaultValueLiteral is not null || p.UsesRuntimeDefault)
+				// IsNullableAnnotated guards against NRT nullable enums (e.g. MyEnum?) on cross-assembly types.
+				if ((p.IsRequired || p.DefaultValueLiteral is not null || p.UsesRuntimeDefault) && !p.IsNullableAnnotated)
 					return p.EnumTypeFq;
 				return p.EnumTypeFq + "?";
 			case CliScalarKind.FileInfo:
-				return p.IsRequired || p.UsesRuntimeDefault ? "global::System.IO.FileInfo" : "global::System.IO.FileInfo?";
+				return (p.IsRequired || p.UsesRuntimeDefault) && !p.IsNullableAnnotated ? "global::System.IO.FileInfo" : "global::System.IO.FileInfo?";
 			case CliScalarKind.DirectoryInfo:
-				return p.IsRequired || p.UsesRuntimeDefault ? "global::System.IO.DirectoryInfo" : "global::System.IO.DirectoryInfo?";
+				return (p.IsRequired || p.UsesRuntimeDefault) && !p.IsNullableAnnotated ? "global::System.IO.DirectoryInfo" : "global::System.IO.DirectoryInfo?";
 			case CliScalarKind.Uri:
-				return p.IsRequired || p.UsesRuntimeDefault ? "global::System.Uri" : "global::System.Uri?";
+				return (p.IsRequired || p.UsesRuntimeDefault) && !p.IsNullableAnnotated ? "global::System.Uri" : "global::System.Uri?";
 			case CliScalarKind.CustomParser when p.CustomValueTypeFq is not null:
-				return p.IsRequired || p.UsesRuntimeDefault ? p.CustomValueTypeFq : p.CustomValueTypeFq + "?";
+				return (p.IsRequired || p.UsesRuntimeDefault) && !p.IsNullableAnnotated ? p.CustomValueTypeFq : p.CustomValueTypeFq + "?";
 			default:
 				break;
 		}
 
 		if (p.TypeName == "string")
-			return p.IsRequired || p.UsesRuntimeDefault ? "string" : "string?";
+			return (p.IsRequired || p.UsesRuntimeDefault) && !p.IsNullableAnnotated ? "string" : "string?";
 
 		return p.TypeName switch
 		{
@@ -9205,7 +9261,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		/// True when the property is from a cross-assembly type (DeclaringSyntaxReferences empty) and has no
 		/// detectable static default. The emit uses <c>new T().PropName</c> at runtime for the initial value.
 		/// </summary>
-		bool UsesRuntimeDefault = false)
+		bool UsesRuntimeDefault = false,
+		/// <summary>
+		/// True when the source property/parameter is a nullable reference type (NRT, e.g. <c>string?</c>,
+		/// <c>FileInfo?</c>) as opposed to a value-type <c>Nullable&lt;T&gt;</c> (e.g. <c>int?</c>).
+		/// Used by <see cref="GetCSharpCliType"/> to emit <c>string?</c> even when <see cref="UsesRuntimeDefault"/>
+		/// is true, preventing CS8600 when the runtime default for a nullable property is <c>null</c>.
+		/// </summary>
+		bool IsNullableAnnotated = false)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
 
@@ -9427,7 +9490,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
 				IsHidden: HasHiddenAttribute(prop),
-				UsesRuntimeDefault: isCrossAssemblyDefault);
+				UsesRuntimeDefault: isCrossAssemblyDefault,
+				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated
+					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
 		}
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -9472,7 +9537,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
 				IsHidden: HasHiddenAttribute(field),
-				UsesRuntimeDefault: isCrossAssemblyDefault);
+				UsesRuntimeDefault: isCrossAssemblyDefault,
+				IsNullableAnnotated: field.Type.NullableAnnotation == NullableAnnotation.Annotated
+					|| field.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
 		}
 		public static ParameterModel FromAsParametersCtorParameter(
 			string methodParamName,
@@ -9675,7 +9742,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				AsParametersClrName: prop.Name,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
-				UsesRuntimeDefault: isCrossAssemblyDefault);
+				UsesRuntimeDefault: isCrossAssemblyDefault,
+				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated
+					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
 		}
 
 		private static bool ComputeRequiredForOptionsType(ITypeSymbol type, BoolSpecialKind bs)

@@ -127,6 +127,10 @@ internal static class CliTestHandlers
 	public static void BraceDoc(TestGlobalCliOptions g, string? description = null) =>
 		Console.Out.WriteLine("brace-doc:" + (description ?? ""));
 
+	// For global enum re-parse after command test
+	public static void SeverityCmd(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine($"severity:{g.Severity}");
+
 	// For bool? test
 	public static void DryRunCmd(TestGlobalCliOptions g, bool? dryRun = null) =>
 		Console.Out.WriteLine($"dry-run:{dryRun?.ToString().ToLower() ?? "null"}");
@@ -189,7 +193,7 @@ internal static class CliTestHandlers
 			+ (args.Output ?? "null"));
 
 	public static void AsParamsReferencedDto(TestGlobalCliOptions g, [AsParameters] IsolatedBuildOptions options) =>
-		Console.Out.WriteLine($"as-params-referenced:{options.Path ?? "null"}:{options.Output ?? "null"}");
+		Console.Out.WriteLine($"as-params-referenced:{options.Path ?? "null"}:{options.Output ?? "null"}:{options.Source?.ToString() ?? "null"}");
 
 	internal readonly record struct Point(int X, int Y);
 
