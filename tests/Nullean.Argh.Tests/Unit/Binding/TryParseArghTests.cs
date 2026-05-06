@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Nullean.Argh.Tests.Fixtures;
+using Nullean.Argh.Tests.ReferencedDtos;
 using Xunit;
 
 namespace Nullean.Argh.Tests.Unit.Binding;
@@ -137,5 +138,23 @@ public class TryParseArghTests
 		a.Should().NotBeNull();
 		a.Severity.Should().Be(FixtureSeverity.Trace);
 		a.ConfigSource.Should().Be(FixtureConfigSource.Environment);
+	}
+
+	[Fact]
+	public void Cross_assembly_as_params_non_nullable_defaults_are_not_required()
+	{
+		var ok = CrossAssemblyAsParamsDto.TryParseArgh([], out var o);
+		ok.Should().BeTrue("non-nullable init properties with defaults must not be required when DTO type is cross-assembly");
+		o!.Level.Should().Be(CrossAssemblyLevel.Information);
+		o.Tag.Should().Be("default-tag");
+	}
+
+	[Fact]
+	public void Cross_assembly_as_params_flag_overrides_runtime_default()
+	{
+		var ok = CrossAssemblyAsParamsDto.TryParseArgh(["--level", "Warning", "--tag", "custom"], out var o);
+		ok.Should().BeTrue();
+		o!.Level.Should().Be(CrossAssemblyLevel.Warning);
+		o.Tag.Should().Be("custom");
 	}
 }

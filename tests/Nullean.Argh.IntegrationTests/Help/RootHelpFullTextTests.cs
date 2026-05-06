@@ -59,6 +59,7 @@ public class RootHelpFullTextTests
 			  copy-variadic                         Copy files using a variadic positional
 			                                        with an enum arg before it.
 			  count-cmd
+			  cross-assembly-echo
 			  deploy
 			  dir-cmd
 			  doc-lambda                            Documented handler for lambda-style Map

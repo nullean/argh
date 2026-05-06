@@ -80,6 +80,7 @@ internal static class CliRegistrationModule
 			g.MapNamespace<StorageCliCommands.BlobCommands>("blob");
 		});
 		// Expression-bodied configure lambdas: nested MapNamespace must stay under each parent (AGH0022); same nested segment under two parents is OK.
+		app.Map("cross-assembly-echo", CrossAssemblyHandlers.Echo);
 		app.MapNamespace("billing", "Billing commands", g => g.MapNamespace("tools", "Shared tools segment", h => h.Map("status", BillingToolsHandlers.Status)));
 		app.MapNamespace("support", "Support commands", g => g.MapNamespace("tools", "Shared tools segment", h => h.Map("status", SupportToolsHandlers.Status)));
 		// MapAndRootAlias: multi-command class; Build is [DefaultCommand] and also the root alias for this namespace.
