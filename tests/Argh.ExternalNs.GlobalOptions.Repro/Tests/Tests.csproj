@@ -38,7 +38,7 @@
   <Target Name="CopyReproCliAppToTestOutput" AfterTargets="Build">
     <PropertyGroup>
       <_CliAppCfg>$([System.String]::Copy('$(Configuration)').ToLowerInvariant())</_CliAppCfg>
-      <_CliAppDir>$([System.IO.Path]::Combine('$(ArtifactsPath)', 'bin', 'CliApp', '$(_CliAppCfg)'))\</_CliAppDir>
+      <_CliAppDir>$([System.IO.Path]::Combine('$(ArtifactsPath)', 'bin', 'Argh.ExternalNs.GlobalOptions.Repro.CliApp', '$(_CliAppCfg)'))\</_CliAppDir>
     </PropertyGroup>
     <ItemGroup>
       <_CliAppFiles Include="$(_CliAppDir)*.*" Exclude="$(_CliAppDir)*.pdb" />
