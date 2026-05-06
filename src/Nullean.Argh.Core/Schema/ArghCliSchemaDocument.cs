@@ -73,11 +73,13 @@ public sealed record CliParameterSchema(
 	string? ElementType = null,
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 	bool Hidden = false,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	bool Variadic = false,
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	CliConstraintSchema[]? Validations = null);
 
 /// <summary>A single validation constraint on a CLI parameter.</summary>
-/// <param name="Kind">One of: range, length, regex, allowed, denied, email, url, timeSpanRange, existing, nonExisting, rejectSymbolicLinks, expandUserProfile.</param>
+/// <param name="Kind">One of: range, length, count, regex, allowed, denied, email, url, timeSpanRange, existing, nonExisting, rejectSymbolicLinks, expandUserProfile.</param>
 public sealed record CliConstraintSchema(
 	string Kind,
 	string? Min = null,

@@ -434,4 +434,111 @@ public class ValidationAnnotationTests
 		text.Should().Contain("[existing]");
 	}
 
+	// ── Variadic positionals ──────────────────────────────────────────────────
+
+	[Fact]
+	public void Variadic_params_collects_remaining_positionals()
+	{
+		var r = CliHostRunner.Run(NoColor, "copy-variadic", "red", "a.txt", "b.txt", "c.txt");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("mode:Red files:a.txt,b.txt,c.txt");
+	}
+
+	[Fact]
+	public void Variadic_params_empty_when_no_trailing_args()
+	{
+		var r = CliHostRunner.Run(NoColor, "copy-variadic", "blue");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("mode:Blue files:");
+	}
+
+	[Fact]
+	public void Variadic_with_flags_interleaved_between_positionals()
+	{
+		var r = CliHostRunner.Run(NoColor, "mixed-variadic", "first-val", "--verbose", "tag1", "tag2");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("first:first-val verbose:True tags:tag1,tag2");
+	}
+
+	[Fact]
+	public void Variadic_with_flags_after_variadic_tokens()
+	{
+		var r = CliHostRunner.Run(NoColor, "mixed-variadic", "first-val", "tag1", "tag2", "--verbose");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("first:first-val verbose:True tags:tag1,tag2");
+	}
+
+	[Fact]
+	public void Variadic_compile_variadic_array_without_params_keyword()
+	{
+		var r = CliHostRunner.Run(NoColor, "compile-variadic", "main.cs", "util.cs", "--verbose");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("sources:main.cs,util.cs verbose:True");
+	}
+
+	[Fact]
+	public void Variadic_compile_variadic_empty_array_succeeds()
+	{
+		var r = CliHostRunner.Run(NoColor, "compile-variadic");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("sources: verbose:False");
+	}
+
+	[Fact]
+	public void Variadic_min_count_constraint_too_few_returns_exit_2()
+	{
+		var r = CliHostRunner.Run(NoColor, "archive-variadic", "only-one.txt");
+		r.ExitCode.Should().Be(2);
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("must have at least 2 items.");
+	}
+
+	[Fact]
+	public void Variadic_max_count_constraint_too_many_returns_exit_2()
+	{
+		var r = CliHostRunner.Run(NoColor, "archive-variadic", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11");
+		r.ExitCode.Should().Be(2);
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("must have at most 10 items.");
+	}
+
+	[Fact]
+	public void Variadic_count_within_constraints_succeeds()
+	{
+		var r = CliHostRunner.Run(NoColor, "archive-variadic", "a.zip", "b.zip", "c.zip");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("files:a.zip,b.zip,c.zip");
+	}
+
+	[Fact]
+	public void Variadic_help_shows_ellipsis_notation()
+	{
+		var r = CliHostRunner.Run(NoColor, "copy-variadic", "--help");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("<files...>");
+	}
+
+	// ── Explicit long option name override ───────────────────────────────────
+
+	[Fact]
+	public void LongNameOverride_primary_name_is_explicit_flag()
+	{
+		var r = CliHostRunner.Run(NoColor, "long-name-override", "--tag", "foo", "--tag", "bar");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("tags:foo,bar");
+	}
+
+	[Fact]
+	public void LongNameOverride_derived_name_is_not_recognized()
+	{
+		var r = CliHostRunner.Run(NoColor, "long-name-override", "--tags", "foo");
+		r.ExitCode.Should().Be(2);
+	}
+
+	[Fact]
+	public void LongNameOverride_short_opt_works()
+	{
+		var r = CliHostRunner.Run(NoColor, "long-name-override", "-t", "foo");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("tags:foo");
+	}
+
 }

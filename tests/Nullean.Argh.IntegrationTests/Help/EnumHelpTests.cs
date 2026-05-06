@@ -19,21 +19,21 @@ public class EnumHelpTests
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		var expected = ($"""
-			Usage: {CliHostPaths.CliHostAssemblyName} enum-cmd --color <enum> --name <string>
+			Usage: {CliHostPaths.CliHostAssemblyName} enum-cmd --colour <enum> --name <string>
 
 			   Enum and short options.
 
 			Global options:
-			  -h, --help                    Show help.
-			  -v, --verbose                 
-			  --severity <enum>             Enum default for global-flag parsing regression. [default: information]
-			                                One of: <trace|information|warning>
-			  -m, --mode <string>           Test-only global mode label (non-bool global short-option coverage). [default: ]
+			  -h, --help           Show help.
+			  -v, --verbose
+			  --severity <enum>    Enum default for global-flag parsing regression. [default: information]
+			                       One of: <trace|information|warning>
+			  -m, --mode <string>  Test-only global mode label (non-bool global short-option coverage). [default: ]
 
 			Options:
-			  -c, --colour, --color <enum>  [required] Pick a color.
-			                                One of: <red|blue>
-			  -n, --name <string>           [required] Display name
+			  -c, --colour <enum>  [required] Pick a color.
+			                       One of: <red|blue>
+			  -n, --name <string>  [required] Display name
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		TrimLines(text).Should().Be(TrimLines(expected));
 	}

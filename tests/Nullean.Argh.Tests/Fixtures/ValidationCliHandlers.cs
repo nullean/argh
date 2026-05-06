@@ -90,4 +90,42 @@ internal static class ValidationCliHandlers
 	/// <summary>Optional file: [RejectSymbolicLinks] skips when omitted.</summary>
 	public static void ValidateNoSymlinkOptionalFile(TestGlobalCliOptions g, [Existing][RejectSymbolicLinks] FileInfo? file = null) =>
 		Console.Out.WriteLine($"file:{file?.FullName ?? "(null)"}");
+
+	// ── Variadic positional tests ─────────────────────────────────────────────
+
+	/// <summary>Copy files using a variadic positional with an enum arg before it.</summary>
+	/// <param name="mode">Copy mode enum.</param>
+	/// <param name="files">Files to copy.</param>
+	[NoOptionsInjection]
+	public static void CopyVariadic([Argument] TestColor mode, [Argument] params string[] files) =>
+		Console.Out.WriteLine($"mode:{mode} files:{string.Join(",", files)}");
+
+	/// <summary>Mixed: scalar positional then flags then variadic positional (C# params must be last).</summary>
+	/// <param name="first">First positional.</param>
+	/// <param name="verbose">Enable verbose output.</param>
+	/// <param name="tags">Tags to apply.</param>
+	[NoOptionsInjection]
+	public static void MixedVariadic([Argument] string first, bool verbose, [Argument] params string[] tags) =>
+		Console.Out.WriteLine($"first:{first} verbose:{verbose} tags:{string.Join(",", tags)}");
+
+	/// <summary>Compile sources: variadic positional with a flag after.</summary>
+	/// <param name="sources">Source files.</param>
+	/// <param name="verbose">Enable verbose output.</param>
+	[NoOptionsInjection]
+	public static void CompileVariadic([Argument] string[] sources, bool verbose = false) =>
+		Console.Out.WriteLine($"sources:{string.Join(",", sources)} verbose:{verbose}");
+
+	/// <summary>Archive files with count constraints.</summary>
+	/// <param name="files">Files to archive (2 to 10).</param>
+	[NoOptionsInjection]
+	public static void ArchiveVariadic([Argument][MinLength(2)][MaxLength(10)] string[] files) =>
+		Console.Out.WriteLine($"files:{string.Join(",", files)}");
+
+	// ── Long name override tests ──────────────────────────────────────────────
+
+	/// <summary>Long name override: param is named 'tags' but flag is --tag.</summary>
+	/// <param name="tags">-t, --tag, Tags to apply.</param>
+	[NoOptionsInjection]
+	public static void LongNameOverride(string[] tags) =>
+		Console.Out.WriteLine($"tags:{string.Join(",", tags)}");
 }

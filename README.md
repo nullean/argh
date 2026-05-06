@@ -18,6 +18,10 @@ Write vanilla C# and get a fully functional CLI in return: rich `--help` output,
 - [Registration model](#registration-model)
 - [Namespaces](#namespaces)
 - [Parameters and binding](#parameters-and-binding)
+  - [Arguments (positional)](#arguments-positional)
+  - [Flags (named options)](#flags-named-options)
+  - [Long name override](#long-name-override)
+  - [Supported types](#supported-types)
 - [CancellationToken (Ctrl+C)](#cancellationtoken-ctrlc)
 - [Object binding](#object-binding)
 - [Fuzzy matching](#fuzzy-matching)
@@ -57,6 +61,7 @@ Write vanilla C# and get a fully functional CLI in return: rich `--help` output,
   - No silent no-match
 - **DataAnnotations validation**
   - Annotate parameters and DTO members with `[Range]`, `[StringLength]`, `[RegularExpression]`, `[AllowedValues]`, and more
+  - `[MinLength]` / `[MaxLength]` on a collection validates item count; on a string validates string length
   - Constraints appear in `--help`; violations print to stderr and exit with code 2 — no reflection, no runtime dependency
 - **Filesystem path validation** *(for `FileInfo` / `DirectoryInfo`)*
   - **`[Existing]`** / **`[NonExisting]`** — file vs. directory checks follow the parameter type (`File.Exists` / `Directory.Exists`, or both absent for non-existing)
@@ -225,6 +230,30 @@ public static Task<int> Deploy([Argument] string environment) { … }
 // myapp deploy production
 ```
 
+**Variadic positional** — combine `[Argument]` with a `T[]` type (or `params T[]`) to collect all remaining tokens into an array. The variadic argument must be the last positional. Because C# requires `params` to be the last method parameter, a variadic positional can appear after flags:
+
+```csharp
+// All remaining tokens become the array — zero items is valid.
+public static void Copy([Argument] string dest, [Argument] params string[] files) { … }
+// myapp copy ./out/ a.txt b.txt "path with spaces/c.txt"
+// → dest="./out/", files=["a.txt", "b.txt", "path with spaces/c.txt"]
+
+// Flags can appear before or after variadic tokens on the command line.
+public static void Archive([Argument] params string[] files, bool verbose = false) { … }
+// myapp archive a.zip b.zip --verbose   (verbose parsed as flag, the rest as files)
+
+// Mixed: scalar positional first, then flags, then variadic (params must be last in C#).
+public static void Tag([Argument] string target, bool force, [Argument] params string[] tags) { … }
+// myapp tag main-branch --force tag1 tag2 tag3
+```
+
+Variadic positionals appear as `<files...>` / `[<files...>]` in `--help` and include a `[variadic]` annotation. Apply `[MinLength(n)]` or `[MaxLength(n)]` to validate the item count:
+
+```csharp
+public static void Archive([Argument][MinLength(1)][MaxLength(20)] string[] files) { … }
+// --help: <files...>   [variadic] [count: 1–20]
+```
+
 ### Flags (named options)
 
 Parameters without `[Argument]` become `--kebab-case` long flags. A `bool` flag defaults to `false`; pass `--flag` to set it.
@@ -234,13 +263,36 @@ public static Task<int> Build(string outputDir, bool release = false) { … }
 // myapp build --output-dir ./bin --release
 ```
 
+### Long name override
+
+By default the CLI long name is derived from the C# parameter name (camelCase → kebab-case). Place a `--long-name` token before the description in an XML `<param>` tag to use a different primary name. Additional `--names` after the first become aliases. The derived name is dropped entirely once an explicit long name is specified.
+
+```csharp
+/// <summary>Tag one or more resources.</summary>
+/// <param name="tags">-t, --tag, Tags to apply.</param>
+public static void Tag(string[] tags) { … }
+// --tag a --tag b   (NOT --tags — derived name is dropped)
+// -t a              (short opt also works)
+```
+
+```csharp
+/// <param name="outputDir">-o, --out, --output, Output directory.</param>
+public static void Build(string outputDir) { … }
+// --out ./bin        (primary)
+// --output ./bin     (alias)
+// -o ./bin           (short opt)
+// --output-dir       (not recognized — derived name is dropped)
+```
+
+This also works on `[AsParameters]` properties, fields, and `[AsParameters]` primary-constructor parameters via their `<summary>` or `<param>` doc lines.
+
 ### Supported types
 
 | Category | Types |
 |----------|-------|
 | Primitives | `string`, `int`, `long`, `double`, `float`, `decimal`, `bool`, `bool?` |
 | System | `enum`, `FileInfo`, `DirectoryInfo`, `Uri` |
-| Collections | `List<T>`, `T[]` — repeated flag or `[CollectionSyntax(Separator=",")]` for a single comma-separated value |
+| Collections | `List<T>`, `T[]` — repeated flag, `[CollectionSyntax(Separator=",")]` for a single comma-separated value, or `[Argument] T[]` / `[Argument] params T[]` for a variadic positional |
 
 Collections accept the flag multiple times, or a single comma-separated value via `[CollectionSyntax]`:
 
@@ -650,20 +702,32 @@ Options:
 
 ### DataAnnotations
 
-| Attribute | Validates | Help token |
-|-----------|-----------|-----------|
-| `[Range(min, max)]` | numeric value is within bounds | `[range: min–max]` |
-| `[StringLength(max)]` / `[StringLength(max, MinimumLength = min)]` | string length | `[max-length: n]` / `[length: min–max]` |
-| `[MinLength(n)]` / `[MaxLength(n)]` | string length (alternative spelling) | `[min-length: n]` / `[max-length: n]` |
-| `[Length(min, max)]` (.NET 8) | string length range | `[length: min–max]` |
-| `[RegularExpression(pattern)]` | value matches regex | `[pattern: …]` |
-| `[AllowedValues(v1, v2, …)]` (.NET 8) | value is in the set | `[allowed: v1\|v2\|…]` |
-| `[DeniedValues(v1, v2, …)]` (.NET 8) | value is not in the set | `[denied: v1\|v2\|…]` |
-| `[EmailAddress]` | basic `user@host` shape | `[email]` |
-| `[Url]` on `string` | absolute URL (http/https/ftp) | `[url]` |
-| `[Url]` on `Uri` | scheme is http or https | `[schemes: http\|https]` |
-| `[FileExtensions(Extensions="json,yaml")]` | `FileInfo` extension | `[extensions: json\|yaml]` |
-| `[UriScheme("https")]` *(Argh-native)* | `Uri` scheme is in the list | `[schemes: https]` |
+| Attribute | Applies to | Validates | Help token |
+|-----------|------------|-----------|-----------|
+| `[Range(min, max)]` | numeric | numeric value is within bounds | `[range: min–max]` |
+| `[StringLength(max)]` / `[StringLength(max, MinimumLength = min)]` | `string` | string length | `[max-length: n]` / `[length: min–max]` |
+| `[MinLength(n)]` / `[MaxLength(n)]` on `string` | `string` | string length | `[min-length: n]` / `[max-length: n]` |
+| `[MinLength(n)]` / `[MaxLength(n)]` on a collection | `T[]`, `List<T>`, etc. | item count | `[min-count: n]` / `[max-count: n]` |
+| `[Length(min, max)]` (.NET 8) on `string` | `string` | string length range | `[length: min–max]` |
+| `[Length(min, max)]` (.NET 8) on a collection | `T[]`, `List<T>`, etc. | item count range | `[count: min–max]` |
+| `[RegularExpression(pattern)]` | `string` | value matches regex | `[pattern: …]` |
+| `[AllowedValues(v1, v2, …)]` (.NET 8) | any | value is in the set | `[allowed: v1\|v2\|…]` |
+| `[DeniedValues(v1, v2, …)]` (.NET 8) | any | value is not in the set | `[denied: v1\|v2\|…]` |
+| `[EmailAddress]` | `string` | basic `user@host` shape | `[email]` |
+| `[Url]` on `string` | `string` | absolute URL (http/https/ftp) | `[url]` |
+| `[Url]` on `Uri` | `Uri` | scheme is http or https | `[schemes: http\|https]` |
+| `[FileExtensions(Extensions="json,yaml")]` | `FileInfo` | `FileInfo` extension | `[extensions: json\|yaml]` |
+| `[UriScheme("https")]` *(Argh-native)* | `Uri` | `Uri` scheme is in the list | `[schemes: https]` |
+
+When `[MinLength]` / `[MaxLength]` / `[Length]` is applied to a **collection** parameter (`T[]`, `List<T>`, `IReadOnlySet<T>`, etc.), it validates the **number of items**, not the length of a string. This applies to both repeatable flags and variadic positionals:
+
+```csharp
+// Flag: must receive --file at least once, at most five times
+public static void Process([MaxLength(5)] List<string> files) { … }
+
+// Variadic positional: between 2 and 10 items required
+public static void Archive([Argument][MinLength(2)][MaxLength(10)] string[] files) { … }
+```
 
 Enum parameters automatically show `[allowed: Member1\|Member2]` in help — the enum type itself enforces the constraint, no extra attribute needed.
 

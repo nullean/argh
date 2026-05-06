@@ -43,14 +43,14 @@ public class ArghRuntimeInProcTests
 	[Fact]
 	public async Task RunAsync_parses_enum_flags()
 	{
-		var code = await ArghRuntime.RunAsync(["enum-cmd", "--color", "red", "--name", "x"]);
+		var code = await ArghRuntime.RunAsync(["enum-cmd", "--colour", "red", "--name", "x"]);
 		code.Should().Be(0);
 	}
 
 	[Fact]
 	public async Task RunAsync_parses_enum_case_insensitive()
 	{
-		var code = await ArghRuntime.RunAsync(["enum-cmd", "--color", "Blue", "--name", "y"]);
+		var code = await ArghRuntime.RunAsync(["enum-cmd", "--colour", "Blue", "--name", "y"]);
 		code.Should().Be(0);
 	}
 

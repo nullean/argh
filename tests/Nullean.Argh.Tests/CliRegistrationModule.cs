@@ -62,6 +62,11 @@ internal static class CliRegistrationModule
 		app.Map("validate-expand-home-file", ValidationCliHandlers.ValidateExpandHomeFile);
 		app.Map("validate-no-symlink-file", ValidationCliHandlers.ValidateNoSymlinkFile);
 		app.Map("validate-no-symlink-file-opt", ValidationCliHandlers.ValidateNoSymlinkOptionalFile);
+		app.Map("copy-variadic", ValidationCliHandlers.CopyVariadic);
+		app.Map("mixed-variadic", ValidationCliHandlers.MixedVariadic);
+		app.Map("compile-variadic", ValidationCliHandlers.CompileVariadic);
+		app.Map("archive-variadic", ValidationCliHandlers.ArchiveVariadic);
+		app.Map("long-name-override", ValidationCliHandlers.LongNameOverride);
 		app.Map<DiProbeCommands>();
 		app.Map<CommandNameOverrideCommands>();
 		app.Map("schema-default-value", SchemaSpecificHandlers.SchemaDefaultValue);
