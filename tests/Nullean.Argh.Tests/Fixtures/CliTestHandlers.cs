@@ -219,3 +219,14 @@ internal static class SupportToolsHandlers
 	public static void Status(TestGlobalCliOptions g) =>
 		Console.Out.WriteLine("support-tools-status");
 }
+
+/// <summary>
+/// Cross-assembly [AsParameters] handler.
+/// Tests that non-nullable init properties with C# initializers are not required when the
+/// [AsParameters] DTO type comes from a referenced assembly.
+/// </summary>
+internal static class CrossAssemblyHandlers
+{
+	public static void Echo(TestGlobalCliOptions g, [AsParameters] CrossAssemblyAsParamsDto o) =>
+		Console.Out.WriteLine($"cross-assembly:{o.Level}:{o.Tag}");
+}

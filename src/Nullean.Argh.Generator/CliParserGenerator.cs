@@ -5329,6 +5329,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	{
 		var byName = members.ToDictionary(static m => m.SymbolName, StringComparer.OrdinalIgnoreCase);
 
+		// For cross-assembly options types the property initializer syntax is not readable.
+		// Instantiate the type once to capture all C# runtime defaults.
+		var hasRtDefaults = members.Any(static m => m.UsesRuntimeDefault);
+		if (hasRtDefaults)
+			sb.AppendLine($"\t\t\tvar __rt_default = new {typeFq}();");
+
 		// Extract each member's value from the flags dict.
 		foreach (var m in members)
 		{
@@ -5347,7 +5353,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			else
 			{
 				// Declare the local variable first (EmitParseAndAssign only assigns, does not declare).
-				sb.AppendLine($"\t\t\t{GetCSharpCliType(m)} {m.LocalVarName} = {GetCliInitializer(m)};");
+				// For cross-assembly runtime-default properties, seed from the pre-created instance.
+				var initializer = m.UsesRuntimeDefault && hasRtDefaults
+					? $"__rt_default.{m.SymbolName}"
+					: GetCliInitializer(m);
+				sb.AppendLine($"\t\t\t{GetCSharpCliType(m)} {m.LocalVarName} = {initializer};");
 				var canOmitFlag = !m.IsRequired || m.DefaultValueLiteral is not null;
 				if (canOmitFlag)
 				{
@@ -6112,7 +6122,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine();
 		}
 
-		EmitCliValueDeclarations(sb, cmd);
+		EmitCliValueDeclarations(sb, cmd, dtoOptionsTypeFq);
 
 		sb.AppendLine("\t\t\tvar flags = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);");
 		if (anyRepeatedCollection)
@@ -6451,8 +6461,28 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine(" };");
 	}
 
-	private static void EmitCliValueDeclarations(StringBuilder sb, CommandModel cmd)
+	private static void EmitCliValueDeclarations(StringBuilder sb, CommandModel cmd, string? rtDefaultTypeFq = null)
 	{
+		// For cross-assembly options types, seed non-nullable properties from a runtime instance.
+		// rtDefaultTypeFq covers UseGlobalOptions / UseNamespaceOptions DTO paths.
+		// AsParametersTypeFq covers [AsParameters] init-property paths from cross-assembly types.
+		var hasRtDefaults = rtDefaultTypeFq is not null && cmd.Parameters.Any(static p => p.UsesRuntimeDefault);
+		if (hasRtDefaults)
+			sb.AppendLine($"\t\t\tvar __rt_default = new {rtDefaultTypeFq}();");
+
+		// Emit one runtime-default instance per unique cross-assembly [AsParameters] type.
+		var asParamsRtTypes = new Dictionary<string, string>(StringComparer.Ordinal);
+		foreach (var p in cmd.Parameters)
+		{
+			if (!p.UsesRuntimeDefault || p.AsParametersTypeFq is null)
+				continue;
+			if (asParamsRtTypes.ContainsKey(p.AsParametersTypeFq))
+				continue;
+			var suffix = DtoMethodSuffix(p.AsParametersTypeFq);
+			asParamsRtTypes[p.AsParametersTypeFq] = suffix;
+			sb.AppendLine($"\t\t\tvar __rt_default_{suffix} = new {p.AsParametersTypeFq}();");
+		}
+
 		foreach (var p in cmd.Parameters)
 		{
 			if (p.Kind == ParameterKind.Injected || p.Kind == ParameterKind.OptionsInjected)
@@ -6472,7 +6502,20 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				continue;
 			}
 
-			sb.AppendLine($"\t\t\t{GetCSharpCliType(p)} {p.LocalVarName} = {GetCliInitializer(p)};");
+			string initializer;
+			if (p.UsesRuntimeDefault)
+			{
+				if (hasRtDefaults && rtDefaultTypeFq is not null)
+					initializer = $"__rt_default.{p.SymbolName}";
+				else if (p.AsParametersTypeFq is not null && asParamsRtTypes.TryGetValue(p.AsParametersTypeFq, out var asParamsSuffix))
+					initializer = $"__rt_default_{asParamsSuffix}.{p.SymbolName}";
+				else
+					initializer = GetCliInitializer(p);
+			}
+			else
+				initializer = GetCliInitializer(p);
+
+			sb.AppendLine($"\t\t\t{GetCSharpCliType(p)} {p.LocalVarName} = {initializer};");
 		}
 	}
 
@@ -6538,23 +6581,24 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			case CliScalarKind.Enum when p.EnumTypeFq is not null:
 				// Optional on the CLI but backed by a non-nullable enum + default (e.g. options properties): keep a non-nullable temp.
-				if (p.IsRequired || p.DefaultValueLiteral is not null)
+				// Also keep non-nullable for cross-assembly runtime-default properties (no null initial value).
+				if (p.IsRequired || p.DefaultValueLiteral is not null || p.UsesRuntimeDefault)
 					return p.EnumTypeFq;
 				return p.EnumTypeFq + "?";
 			case CliScalarKind.FileInfo:
-				return p.IsRequired ? "global::System.IO.FileInfo" : "global::System.IO.FileInfo?";
+				return p.IsRequired || p.UsesRuntimeDefault ? "global::System.IO.FileInfo" : "global::System.IO.FileInfo?";
 			case CliScalarKind.DirectoryInfo:
-				return p.IsRequired ? "global::System.IO.DirectoryInfo" : "global::System.IO.DirectoryInfo?";
+				return p.IsRequired || p.UsesRuntimeDefault ? "global::System.IO.DirectoryInfo" : "global::System.IO.DirectoryInfo?";
 			case CliScalarKind.Uri:
-				return p.IsRequired ? "global::System.Uri" : "global::System.Uri?";
+				return p.IsRequired || p.UsesRuntimeDefault ? "global::System.Uri" : "global::System.Uri?";
 			case CliScalarKind.CustomParser when p.CustomValueTypeFq is not null:
-				return p.IsRequired ? p.CustomValueTypeFq : p.CustomValueTypeFq + "?";
+				return p.IsRequired || p.UsesRuntimeDefault ? p.CustomValueTypeFq : p.CustomValueTypeFq + "?";
 			default:
 				break;
 		}
 
 		if (p.TypeName == "string")
-			return p.IsRequired ? "string" : "string?";
+			return p.IsRequired || p.UsesRuntimeDefault ? "string" : "string?";
 
 		return p.TypeName switch
 		{
@@ -8958,7 +9002,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ImmutableDictionary<string, string>? ElementEnumMemberDocs = null,
 		bool ExpandUserProfileBeforeBind = false,
 		ImmutableArray<ValidationConstraint> Validations = default,
-		bool IsHidden = false)
+		bool IsHidden = false,
+		/// <summary>
+		/// True when the property is from a cross-assembly type (DeclaringSyntaxReferences empty) and has no
+		/// detectable static default. The emit uses <c>new T().PropName</c> at runtime for the initial value.
+		/// </summary>
+		bool UsesRuntimeDefault = false)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
 
@@ -9141,7 +9190,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
 			// A property initializer supplies a CLI default: the flag is not required on the command line.
-			var required = ComputeRequiredForOptionsType(prop.Type, bs) && defaultValueLiteral is null;
+			// For cross-assembly types, DeclaringSyntaxReferences is empty so we can't read the initializer
+			// expression from syntax. Mark the property as using a runtime default instead of "required".
+			var isCrossAssemblyDefault = defaultValueLiteral is null && prop.DeclaringSyntaxReferences.IsEmpty;
+			var required = !isCrossAssemblyDefault && ComputeRequiredForOptionsType(prop.Type, bs) && defaultValueLiteral is null;
 			var enumDocs = sk == CliScalarKind.Enum ? TryGetEnumDocs(prop.Type) : null;
 			var validations = ReadValidationConstraints(prop, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
@@ -9166,7 +9218,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				EnumMemberDocs: enumDocs,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
-				IsHidden: HasHiddenAttribute(prop));
+				IsHidden: HasHiddenAttribute(prop),
+				UsesRuntimeDefault: isCrossAssemblyDefault);
 		}
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -9184,7 +9237,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			ClassifyScalarUnified(field.Type, field, bs, isSeparateType: true,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
-			var required = ComputeRequiredForOptionsType(field.Type, bs) && defaultValueLiteral is null;
+			var isCrossAssemblyDefault = defaultValueLiteral is null && field.DeclaringSyntaxReferences.IsEmpty;
+			var required = !isCrossAssemblyDefault && ComputeRequiredForOptionsType(field.Type, bs) && defaultValueLiteral is null;
 			var validations = ReadValidationConstraints(field, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var expandProf = TryReadExpandUserProfileBeforeBind(field, sk);
@@ -9207,7 +9261,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				doc.Aliases,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
-				IsHidden: HasHiddenAttribute(field));
+				IsHidden: HasHiddenAttribute(field),
+				UsesRuntimeDefault: isCrossAssemblyDefault);
 		}
 		public static ParameterModel FromAsParametersCtorParameter(
 			string methodParamName,
@@ -9377,7 +9432,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					prop.Locations.FirstOrDefault() ?? reportFallbackLocation);
 
 			var defaultValueLiteral = compilation is not null ? TryGetOptionsPropertyDefaultLiteral(prop, compilation) : null;
-			var required = ComputeRequiredForOptionsType(prop.Type, bs) && defaultValueLiteral is null;
+			// Cross-assembly [AsParameters] types: syntax refs empty, can't read initializer.
+			var isCrossAssemblyDefault = defaultValueLiteral is null && prop.DeclaringSyntaxReferences.IsEmpty;
+			var required = !isCrossAssemblyDefault && ComputeRequiredForOptionsType(prop.Type, bs) && defaultValueLiteral is null;
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var validations = ReadValidationConstraints(prop, sk, typeName);
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
@@ -9404,7 +9461,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				AsParametersUseInit: true,
 				AsParametersClrName: prop.Name,
 				ExpandUserProfileBeforeBind: expandProf,
-				Validations: validations);
+				Validations: validations,
+				UsesRuntimeDefault: isCrossAssemblyDefault);
 		}
 
 		private static bool ComputeRequiredForOptionsType(ITypeSymbol type, BoolSpecialKind bs)
