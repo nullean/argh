@@ -53,6 +53,7 @@ public class RootAndNamespaceHelpTests
 			                                        sub-command is given at the app root.
 			  color-set
 			  count-cmd
+			  cross-assembly-echo
 			  deploy
 			  dir-cmd
 			  doc-lambda                            Documented handler for lambda-style Map
