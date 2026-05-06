@@ -3814,14 +3814,29 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	{
 		foreach (var t in targets)
 		{
-			var methodName = "TryParseDto_" + DtoMethodSuffix(t.TypeFq);
-			var syn = SyntheticOptionsCommand(t.Members, methodName);
+			var suffix = DtoMethodSuffix(t.TypeFq);
+			var lenientName = "TryParseDto_" + suffix;
+			var strictName = "TryParseDtoExact_" + suffix;
+			var syn = SyntheticOptionsCommand(t.Members, lenientName);
+
 			EmitCommandRunner(
 				sb,
 				syn,
 				ImmutableArray<GlobalMiddlewareRegistration>.Empty,
 				emitDtoTryParse: true,
-				dtoMethodName: methodName,
+				dtoLenient: true,
+				dtoMethodName: lenientName,
+				dtoResultTypeFq: t.TypeFq,
+				dtoOptionsTypeFq: t.IsOptionsDto ? t.TypeFq : null,
+				dtoOptionsBestCtorParamOrder: t.IsOptionsDto ? t.BestCtorParamOrder : null);
+
+			EmitCommandRunner(
+				sb,
+				syn,
+				ImmutableArray<GlobalMiddlewareRegistration>.Empty,
+				emitDtoTryParse: true,
+				dtoLenient: false,
+				dtoMethodName: strictName,
 				dtoResultTypeFq: t.TypeFq,
 				dtoOptionsTypeFq: t.IsOptionsDto ? t.TypeFq : null,
 				dtoOptionsBestCtorParamOrder: t.IsOptionsDto ? t.BestCtorParamOrder : null);
@@ -3869,18 +3884,43 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
 
+		sb.AppendLine("\t\tpublic static bool TryParseArghExact<T>(this Type type, string[] args, [NotNullWhen(true)] out T? value) where T : class");
+		sb.AppendLine("\t\t{");
+		sb.AppendLine("\t\t\tvalue = null;");
+		sb.AppendLine("\t\t\tif (!ReferenceEquals(type, typeof(T)))");
+		sb.AppendLine("\t\t\t\tthrow new ArgumentException(\"The receiver must be typeof(T).\", nameof(type));");
+		foreach (var t in targets)
+		{
+			var fq = t.TypeFq;
+			var method = "TryParseDtoExact_" + DtoMethodSuffix(fq);
+			sb.AppendLine($"\t\t\tif (typeof(T) == typeof({fq}))");
+			sb.AppendLine("\t\t\t{");
+			sb.AppendLine($"\t\t\t\tvar ok = {arghGeneratedRootTypeName}.{method}(args, out var v);");
+			sb.AppendLine("\t\t\t\tvalue = (T?)(object?)v;");
+			sb.AppendLine("\t\t\t\treturn ok;");
+			sb.AppendLine("\t\t\t}");
+		}
+
+		sb.AppendLine(
+			"\t\t\tthrow new InvalidOperationException(\"No pregenerated Argh DTO parser for \" + typeof(T).FullName + \". Register the type as UseGlobalOptions/UseNamespaceOptions or use it with [AsParameters] on a command.\");");
+		sb.AppendLine("\t\t}");
+		sb.AppendLine();
+
 		foreach (var t in targets)
 		{
 			if (t.IsGeneric)
 				continue;
 
 			var fq = t.TypeFq;
-			var method = "TryParseDto_" + DtoMethodSuffix(fq);
+			var lenientMethod = "TryParseDto_" + DtoMethodSuffix(fq);
+			var strictMethod = "TryParseDtoExact_" + DtoMethodSuffix(fq);
 			var vis = t.IsPublic ? "public" : "internal";
 			sb.AppendLine($"\t\textension({fq})");
 			sb.AppendLine("\t\t{");
 			sb.AppendLine($"\t\t\t{vis} static bool TryParseArgh(string[] args, [NotNullWhen(true)] out {fq}? value) =>");
-			sb.AppendLine($"\t\t\t\tglobal::Nullean.Argh.{arghGeneratedRootTypeName}.{method}(args, out value);");
+			sb.AppendLine($"\t\t\t\tglobal::Nullean.Argh.{arghGeneratedRootTypeName}.{lenientMethod}(args, out value);");
+			sb.AppendLine($"\t\t\t{vis} static bool TryParseArghExact(string[] args, [NotNullWhen(true)] out {fq}? value) =>");
+			sb.AppendLine($"\t\t\t\tglobal::Nullean.Argh.{arghGeneratedRootTypeName}.{strictMethod}(args, out value);");
 			sb.AppendLine("\t\t}");
 			sb.AppendLine();
 		}
@@ -6209,6 +6249,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		CommandModel cmd,
 		ImmutableArray<GlobalMiddlewareRegistration> globalMiddleware,
 		bool emitDtoTryParse = false,
+		bool dtoLenient = false,
 		string? dtoMethodName = null,
 		string? dtoResultTypeFq = null,
 		string? dtoOptionsTypeFq = null,
@@ -6277,6 +6318,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		EmitBoolSwitchNames(sb, cmd);
 		EmitCanonFlagNameMethod(sb, cmd);
 		EmitShortFlagMethods(sb, cmd, multiFlagsAvailable: anyRepeatedCollection);
+		if (emitDtoTryParse)
+			EmitKnownNonBoolFlagNames(sb, cmd);
 		sb.AppendLine("\t\t\tfor (var i = 0; i < args.Length;)");
 		sb.AppendLine("\t\t\t{");
 		sb.AppendLine("\t\t\t\tvar a = args[i];");
@@ -6287,6 +6330,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\t\tvar flagName = CanonFlagName(a.Substring(2, eq - 2));");
 		sb.AppendLine("\t\t\t\t\t\tvar flagValue = a.Substring(eq + 1);");
+		if (emitDtoTryParse && !dtoLenient)
+		{
+			sb.AppendLine("\t\t\t\t\t\tif (!IsBoolSwitchName(flagName) && !IsKnownNonBoolFlagName(flagName))");
+			sb.AppendLine("\t\t\t\t\t\t{");
+			sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'.\");");
+			sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
+			sb.AppendLine("\t\t\t\t\t\t}");
+		}
 		if (anyRepeatedCollection)
 		{
 			sb.AppendLine("\t\t\t\t\t\tSetFlag(flagName, flagValue);");
@@ -6308,6 +6359,28 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\telse");
 		sb.AppendLine("\t\t\t\t\t\t{");
+		if (emitDtoTryParse)
+		{
+			if (dtoLenient)
+			{
+				sb.AppendLine("\t\t\t\t\t\t\tif (!IsKnownNonBoolFlagName(flagName))");
+				sb.AppendLine("\t\t\t\t\t\t\t{");
+				sb.AppendLine("\t\t\t\t\t\t\t\tif (i + 1 < args.Length && !args[i + 1].StartsWith(\"-\", StringComparison.Ordinal))");
+				sb.AppendLine("\t\t\t\t\t\t\t\t\ti += 2;");
+				sb.AppendLine("\t\t\t\t\t\t\t\telse");
+				sb.AppendLine("\t\t\t\t\t\t\t\t\ti++;");
+				sb.AppendLine("\t\t\t\t\t\t\t\tcontinue;");
+				sb.AppendLine("\t\t\t\t\t\t\t}");
+			}
+			else
+			{
+				sb.AppendLine("\t\t\t\t\t\t\tif (!IsKnownNonBoolFlagName(flagName))");
+				sb.AppendLine("\t\t\t\t\t\t\t{");
+				sb.AppendLine("\t\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'.\");");
+				sb.AppendLine($"\t\t\t\t\t\t\t\t{failureExit};");
+				sb.AppendLine("\t\t\t\t\t\t\t}");
+			}
+		}
 		sb.AppendLine("\t\t\t\t\t\t\tif (i + 1 >= args.Length)");
 		sb.AppendLine("\t\t\t\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: missing value for flag --{flagName}.\");");
@@ -6350,8 +6423,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine($"\t\t\t\t\t\t\t{helpMethodName}();");
 		sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
 		sb.AppendLine("\t\t\t\t\t\t}");
-		sb.AppendLine("\t\t\t\t\t\tif (!TryApplyShortFlag(shortKey[0], a.Substring(eqs + 1)))");
-		sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
+		if (emitDtoTryParse && dtoLenient)
+			sb.AppendLine("\t\t\t\t\t\tTryApplyShortFlag(shortKey[0], a.Substring(eqs + 1));");
+		else
+		{
+			sb.AppendLine("\t\t\t\t\t\tif (!TryApplyShortFlag(shortKey[0], a.Substring(eqs + 1)))");
+			sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
+		}
 		sb.AppendLine("\t\t\t\t\t\ti++;");
 		sb.AppendLine("\t\t\t\t\t\tcontinue;");
 		sb.AppendLine("\t\t\t\t\t}");
@@ -6365,17 +6443,35 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\t\t\t\ti++;");
 		sb.AppendLine("\t\t\t\t\t\t\tcontinue;");
 		sb.AppendLine("\t\t\t\t\t\t}");
-		sb.AppendLine("\t\t\t\t\t\tif (i + 1 >= args.Length)");
-		sb.AppendLine("\t\t\t\t\t\t{");
-		sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: missing value for short flag '-{sc}'.\");");
-		if (helpMethodName is not null)
-			sb.AppendLine($"\t\t\t\t\t\t\t{helpMethodName}();");
-		sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
-		sb.AppendLine("\t\t\t\t\t\t}");
-		sb.AppendLine("\t\t\t\t\t\tif (!TryApplyShortFlag(sc, args[i + 1]))");
-		sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
-		sb.AppendLine("\t\t\t\t\t\ti += 2;");
-		sb.AppendLine("\t\t\t\t\t\tcontinue;");
+		if (emitDtoTryParse && dtoLenient)
+		{
+			// lenient: skip unknown value-taking short flags using same heuristic as long flags
+			sb.AppendLine("\t\t\t\t\t\tif (i + 1 < args.Length && !args[i + 1].StartsWith(\"-\", StringComparison.Ordinal))");
+			sb.AppendLine("\t\t\t\t\t\t{");
+			sb.AppendLine("\t\t\t\t\t\t\tTryApplyShortFlag(sc, args[i + 1]);");
+			sb.AppendLine("\t\t\t\t\t\t\ti += 2;");
+			sb.AppendLine("\t\t\t\t\t\t}");
+			sb.AppendLine("\t\t\t\t\t\telse");
+			sb.AppendLine("\t\t\t\t\t\t{");
+			sb.AppendLine("\t\t\t\t\t\t\tTryApplyShortFlag(sc, \"true\");");
+			sb.AppendLine("\t\t\t\t\t\t\ti++;");
+			sb.AppendLine("\t\t\t\t\t\t}");
+			sb.AppendLine("\t\t\t\t\t\tcontinue;");
+		}
+		else
+		{
+			sb.AppendLine("\t\t\t\t\t\tif (i + 1 >= args.Length)");
+			sb.AppendLine("\t\t\t\t\t\t{");
+			sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: missing value for short flag '-{sc}'.\");");
+			if (helpMethodName is not null)
+				sb.AppendLine($"\t\t\t\t\t\t\t{helpMethodName}();");
+			sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
+			sb.AppendLine("\t\t\t\t\t\t}");
+			sb.AppendLine("\t\t\t\t\t\tif (!TryApplyShortFlag(sc, args[i + 1]))");
+			sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
+			sb.AppendLine("\t\t\t\t\t\ti += 2;");
+			sb.AppendLine("\t\t\t\t\t\tcontinue;");
+		}
 		sb.AppendLine("\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine(\"Error: combined short flags (e.g. -abc) are not supported.\");");
 		if (helpMethodName is not null)
@@ -6906,6 +7002,34 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\t\t_ => false");
 			sb.AppendLine("\t\t\t};");
 		}
+	}
+
+	private static void EmitKnownNonBoolFlagNames(StringBuilder sb, CommandModel cmd)
+	{
+		var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		foreach (var p in cmd.Parameters)
+		{
+			if (!IsEmittedFlagLike(p.Kind))
+				continue;
+			if (p.Special == BoolSpecialKind.Bool || p.Special == BoolSpecialKind.NullableBool)
+				continue;
+			names.Add(p.CliLongName);
+			foreach (var al in p.Aliases)
+				names.Add(al);
+		}
+
+		if (names.Count == 0)
+		{
+			sb.AppendLine("\t\t\tbool IsKnownNonBoolFlagName(string name) => false;");
+			return;
+		}
+
+		sb.AppendLine("\t\t\tbool IsKnownNonBoolFlagName(string name) => name switch");
+		sb.AppendLine("\t\t\t{");
+		foreach (var n in names.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase))
+			sb.AppendLine($"\t\t\t\t\"{Escape(n)}\" => true,");
+		sb.AppendLine("\t\t\t\t_ => false");
+		sb.AppendLine("\t\t\t};");
 	}
 
 	private static void EmitCanonFlagNameMethod(StringBuilder sb, CommandModel cmd)
