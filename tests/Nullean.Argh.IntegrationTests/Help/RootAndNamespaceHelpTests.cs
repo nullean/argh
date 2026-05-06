@@ -81,6 +81,7 @@ public class RootAndNamespaceHelpTests
 			                                        parameter.
 			  schema-separator-list                 Schema test: command with a
 			                                        separator-based collection on --ids.
+			  severity-cmd
 			  tag-set
 			  tags
 			  temporal-cmd

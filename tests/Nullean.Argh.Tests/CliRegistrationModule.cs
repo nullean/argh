@@ -33,6 +33,7 @@ internal static class CliRegistrationModule
 		app.Map("as-params-optional-collection-syntax", CliTestHandlers.AsParamsOptionalCollectionSyntax);
 		app.Map("as-params-referenced-dto", CliTestHandlers.AsParamsReferencedDto);
 		app.Map("brace-doc", CliTestHandlers.BraceDoc);
+		app.Map("severity-cmd", CliTestHandlers.SeverityCmd);
 		app.Map("dry-run-cmd", CliTestHandlers.DryRunCmd);
 		app.Map("count-cmd", CliTestHandlers.CountCmd);
 		app.Map("file-cmd", CliTestHandlers.FileCmd);

@@ -127,6 +127,10 @@ internal static class CliTestHandlers
 	public static void BraceDoc(TestGlobalCliOptions g, string? description = null) =>
 		Console.Out.WriteLine("brace-doc:" + (description ?? ""));
 
+	// For global enum re-parse after command test
+	public static void SeverityCmd(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine($"severity:{g.Severity}");
+
 	// For bool? test
 	public static void DryRunCmd(TestGlobalCliOptions g, bool? dryRun = null) =>
 		Console.Out.WriteLine($"dry-run:{dryRun?.ToString().ToLower() ?? "null"}");

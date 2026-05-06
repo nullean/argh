@@ -59,6 +59,45 @@ public class GlobalOptionsAfterCommandTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("ok:x");
 	}
 
+	/// <summary>
+	/// Regression: global enum flag passed after the command name must be re-parsed (not silently dropped).
+	/// Previously, enum re-parsing in the per-command reconstruct block was missing; the trailing --severity
+	/// was ignored and the static default (Information) was always used.
+	/// </summary>
+	[Fact]
+	public void Severity_cmd_global_enum_after_command_is_applied()
+	{
+		var result = CliHostRunner.Run("severity-cmd", "--severity", "warning");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("severity:Warning");
+	}
+
+	/// <summary>
+	/// Regression: global enum flag before the command name must still work (leading prefetch path).
+	/// </summary>
+	[Fact]
+	public void Severity_cmd_global_enum_before_command_is_applied()
+	{
+		var result = CliHostRunner.Run("--severity", "trace", "severity-cmd");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("severity:Trace");
+	}
+
+	/// <summary>
+	/// Regression: cross-assembly [AsParameters] DTO with nullable string? properties (no explicit default)
+	/// previously generated CS8600 — <c>string options__path = __rt_default.Path</c> where Path is string?.
+	/// After the fix the generated local is declared as <c>string?</c>.
+	/// </summary>
+	[Fact]
+	public void AsParams_cross_assembly_nullable_string_properties_compile_without_cs8600()
+	{
+		// If the generator emits string (non-nullable) for string? cross-assembly properties the
+		// project won't build; this test passing proves the generated code compiles cleanly.
+		var result = CliHostRunner.Run("as-params-referenced-dto", "--path", "docs");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null");
+	}
+
 	[Fact]
 	public void Storage_list_global_short_after_namespace_flag()
 	{
