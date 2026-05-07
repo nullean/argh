@@ -87,6 +87,14 @@ public class CommandOutputTests
 	}
 
 	[Fact]
+	public void CustomParser_property_on_as_parameters()
+	{
+		var result = CliHostRunner.Run("point-as-params-cmd", "--point", "7,8");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("point-as-params:7,8");
+	}
+
+	[Fact]
 	public void Anonymous_lambda_command()
 	{
 		var result = CliHostRunner.Run("lambda-cmd", "--msg", "hi");

@@ -41,6 +41,7 @@ internal static class CliRegistrationModule
 		app.Map("uri-cmd", CliTestHandlers.UriCmd);
 		app.Map("temporal-cmd", CliTestHandlers.TemporalCmd);
 		app.Map("point-cmd", CliTestHandlers.PointCmd);
+		app.Map("point-as-params-cmd", CliTestHandlers.PointAsParamsCmd);
 		app.Map("doc-lambda", DocLambdaEcho);
 		// Anonymous lambdas have no XML docs; use a named handler (e.g. DocLambdaEcho) for help text.
 		app.Map("lambda-cmd", (string msg) => Console.Out.WriteLine($"lambda:{msg}"));

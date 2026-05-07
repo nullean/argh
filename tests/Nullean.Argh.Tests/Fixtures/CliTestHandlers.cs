@@ -55,6 +55,13 @@ internal sealed class OptionalCollectionSyntaxAsParamsArgs
 	public string? Output { get; init; }
 }
 
+/// <summary>Init-property [AsParameters] DTO with a property-level custom parser.</summary>
+internal sealed class PointAsParamsArgs
+{
+	[ArgumentParser(typeof(CliTestHandlers.PointParser))]
+	public CliTestHandlers.Point Point { get; init; }
+}
+
 /// <summary>Init-only bound object for XML documentation in help output.</summary>
 internal sealed class PropDocBoundArgs
 {
@@ -161,6 +168,9 @@ internal static class CliTestHandlers
 	// For custom parser test
 	public static void PointCmd(TestGlobalCliOptions g, [ArgumentParser(typeof(PointParser))] Point point) =>
 		Console.Out.WriteLine($"point:{point.X},{point.Y}");
+
+	public static void PointAsParamsCmd(TestGlobalCliOptions g, [AsParameters] PointAsParamsArgs args) =>
+		Console.Out.WriteLine($"point-as-params:{args.Point.X},{args.Point.Y}");
 
 	// IReadOnlySet<T> handlers
 	public static void TagSet(TestGlobalCliOptions g, IReadOnlySet<int> tagIds) =>

@@ -142,6 +142,16 @@ public class TryParseArghTests
 	}
 
 	[Fact]
+	public void TryParseArgh_as_parameters_property_level_custom_parser_binds_value()
+	{
+		var ok = PointAsParamsArgs.TryParseArgh(["--point", "11,12"], out var a);
+		ok.Should().BeTrue();
+		a.Should().NotBeNull();
+		a.Point.X.Should().Be(11);
+		a.Point.Y.Should().Be(12);
+	}
+
+	[Fact]
 	public void Cross_assembly_as_params_non_nullable_defaults_are_not_required()
 	{
 		var ok = CrossAssemblyAsParamsDto.TryParseArgh([], out var o);

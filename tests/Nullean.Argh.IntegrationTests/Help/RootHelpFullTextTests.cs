@@ -86,6 +86,7 @@ public class RootHelpFullTextTests
 			  other
 			  param-comment-record
 			  ping
+			  point-as-params-cmd
 			  point-cmd
 			  prop-doc-as-params
 			  renamed-cmd
