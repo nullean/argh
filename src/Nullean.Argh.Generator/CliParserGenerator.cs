@@ -9551,7 +9551,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			var kind = isArg ? ParameterKind.Positional : ParameterKind.Flag;
 			var bs = ClassifyBool(p.Type);
-			if (TryUnwrapCollectionType(p.Type, out var elemType) && bs == BoolSpecialKind.None)
+			if (TryUnwrapCollectionType(p.Type, out var elemType) && bs == BoolSpecialKind.None
+				&& TryParserTypeFqFromSymbol(p) is null)
 			{
 				var isVariadic = isArg && p.Type is IArrayTypeSymbol;
 				var defLitColl = TryGetDefaultLiteral(p, BoolSpecialKind.None);
@@ -9602,7 +9603,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var derivedLongNameProp = Naming.ToCliLongName(prop.Name);
 			var effectiveLongNameProp = doc.ExplicitLongName ?? derivedLongNameProp;
 			var bs = ClassifyBool(prop.Type);
-			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None)
+			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None
+				&& TryParserTypeFqFromSymbol(prop) is null)
 			{
 				return BuildCollectionParameterModel(prop.Type, elemType, prop, ParameterKind.Flag,
 					effectiveLongNameProp, SafeLocalName(prop.Name), prop.Name,
@@ -9656,7 +9658,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var derivedLongNameField = Naming.ToCliLongName(field.Name);
 			var effectiveLongNameField = doc.ExplicitLongName ?? derivedLongNameField;
 			var bs = ClassifyBool(field.Type);
-			if (TryUnwrapCollectionType(field.Type, out var elemType) && bs == BoolSpecialKind.None)
+			if (TryUnwrapCollectionType(field.Type, out var elemType) && bs == BoolSpecialKind.None
+				&& TryParserTypeFqFromSymbol(field) is null)
 			{
 				return BuildCollectionParameterModel(field.Type, elemType, field, ParameterKind.Flag,
 					effectiveLongNameField, SafeLocalName(field.Name), field.Name,
@@ -9760,7 +9763,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (string.IsNullOrWhiteSpace(desc))
 				desc = Documentation.GetTypeSummaryLine(TryExtractDocumentationFromParameterTrivia(cp));
 			var meta = new AsParametersMeta(methodParamName, memberOrder, typeFq, UseInit: false, cp.Name);
-			if (TryUnwrapCollectionType(cp.Type, out var elemType) && bs == BoolSpecialKind.None)
+			if (TryUnwrapCollectionType(cp.Type, out var elemType) && bs == BoolSpecialKind.None
+				&& TryParserTypeFqFromSymbol(cp) is null)
 			{
 				var isVariadicCp = isArg && cp.Type is IArrayTypeSymbol;
 				var defLitColl = TryGetDefaultLiteral(cp, BoolSpecialKind.None);
@@ -9855,7 +9859,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var derivedCli = namePrefix + Naming.ToCliLongName(prop.Name);
 			var cli = doc.ExplicitLongName is not null ? namePrefix + doc.ExplicitLongName : derivedCli;
 			var meta = new AsParametersMeta(methodParamName, memberOrder, typeFq, UseInit: true, prop.Name);
-			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None)
+			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None
+				&& TryParserTypeFqFromSymbol(prop) is null)
 			{
 				var isVariadicProp = isArg && prop.Type is IArrayTypeSymbol;
 				return BuildCollectionParameterModel(prop.Type, elemType, prop, kind, cli, local, prop.Name,
