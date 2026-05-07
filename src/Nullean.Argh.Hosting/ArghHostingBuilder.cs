@@ -151,7 +151,7 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
-	IArghRootBuilder IArghRootBuilder.DocumentEnvironmentVariables(CliEnvVarDoc[]? variables, CliConfigFileDoc[]? configFiles)
+	IArghRootBuilder IArghRootBuilder.DocumentEnvironmentVariables(CliEnvVar[]? variables, CliConfigFile[]? configFiles)
 	{
 		_ = _inner.DocumentEnvironmentVariables(variables, configFiles);
 		return this;

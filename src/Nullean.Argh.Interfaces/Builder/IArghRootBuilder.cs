@@ -16,10 +16,10 @@ public interface IArghRootBuilder : IArghBuilder
 	/// <summary>
 	/// Documents environment variables and optional configuration files the program reads.
 	/// Analyzed by the source generator and emitted as the <c>environment</c> object in <c>__schema</c> output.
-	/// Arguments must be <c>new CliEnvVarDoc(...)</c> or <c>new CliConfigFileDoc(...)</c> object creation
+	/// Arguments must be <c>new CliEnvVar(...)</c> or <c>new CliConfigFile(...)</c> object creation
 	/// expressions with string/bool literals so the generator can extract them statically.
 	/// </summary>
 	IArghRootBuilder DocumentEnvironmentVariables(
-		CliEnvVarDoc[]? variables = null,
-		CliConfigFileDoc[]? configFiles = null);
+		CliEnvVar[]? variables = null,
+		CliConfigFile[]? configFiles = null);
 }

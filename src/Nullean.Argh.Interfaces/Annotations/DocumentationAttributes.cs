@@ -127,9 +127,9 @@ public sealed class CommandOutputAttribute : Attribute
 }
 
 /// <summary>Describes an environment variable the program reads. Used with <see cref="Nullean.Argh.Builder.IArghRootBuilder.DocumentEnvironmentVariables"/>.</summary>
-public sealed class CliEnvVarDoc
+public sealed class CliEnvVar
 {
-	public CliEnvVarDoc(string name, string? description = null, bool required = false, string? defaultValue = null)
+	public CliEnvVar(string name, string? description = null, bool required = false, string? defaultValue = null)
 	{
 		Name = name;
 		Description = description;
@@ -148,9 +148,9 @@ public sealed class CliEnvVarDoc
 }
 
 /// <summary>Describes a configuration file the program reads. Used with <see cref="Nullean.Argh.Builder.IArghRootBuilder.DocumentEnvironmentVariables"/>.</summary>
-public sealed class CliConfigFileDoc
+public sealed class CliConfigFile
 {
-	public CliConfigFileDoc(string path, string? description = null, bool required = false)
+	public CliConfigFile(string path, string? description = null, bool required = false)
 	{
 		Path = path;
 		Description = description;

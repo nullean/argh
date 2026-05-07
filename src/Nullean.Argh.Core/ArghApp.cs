@@ -35,7 +35,7 @@ public sealed partial class ArghApp : IArghRootBuilder
 	public ArghApp UseCliDescription(string description) => this;
 
 	/// <summary>Documents environment variables and config files the program reads. Analyzed by the source generator; no-op at runtime.</summary>
-	public ArghApp DocumentEnvironmentVariables(CliEnvVarDoc[]? variables = null, CliConfigFileDoc[]? configFiles = null) => this;
+	public ArghApp DocumentEnvironmentVariables(CliEnvVar[]? variables = null, CliConfigFile[]? configFiles = null) => this;
 
 	/// <summary>
 	/// Registers a default handler when no subcommand or namespace segment applies at the current scope

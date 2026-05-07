@@ -664,10 +664,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ImmutableArray<ConfigFileDocEntry> ConfigFiles)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
-	/// <summary>Symbol-free representation of a <see cref="CliEnvVarDoc"/> passed to <c>DocumentEnvironmentVariables</c>.</summary>
+	/// <summary>Symbol-free representation of a <see cref="CliEnvVar"/> passed to <c>DocumentEnvironmentVariables</c>.</summary>
 	private sealed record EnvVarDocEntry(string Name, string? Description, bool Required, string? DefaultValue);
 
-	/// <summary>Symbol-free representation of a <see cref="CliConfigFileDoc"/> passed to <c>DocumentEnvironmentVariables</c>.</summary>
+	/// <summary>Symbol-free representation of a <see cref="CliConfigFile"/> passed to <c>DocumentEnvironmentVariables</c>.</summary>
 	private sealed record ConfigFileDocEntry(string Path, string? Description, bool Required);
 
 	/// <summary>Symbol-free intent data extracted from <c>[CommandIntent]</c>.</summary>

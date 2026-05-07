@@ -829,16 +829,16 @@ public static void OldCmd(...) { }
 builder.DocumentEnvironmentVariables(
     variables:
     [
-        new CliEnvVarDoc("GITHUB_TOKEN", Description: "GitHub API token", Required: true),
-        new CliEnvVarDoc("XDG_CONFIG_HOME", Description: "Config directory override"),
+        new CliEnvVar("GITHUB_TOKEN", Description: "GitHub API token", Required: true),
+        new CliEnvVar("XDG_CONFIG_HOME", Description: "Config directory override"),
     ],
     configFiles:
     [
-        new CliConfigFileDoc("~/.config/myapp/config.json", Description: "Main config"),
+        new CliConfigFile("~/.config/myapp/config.json", Description: "Main config"),
     ]);
 ```
 
-Arguments must be `new CliEnvVarDoc(...)` / `new CliConfigFileDoc(...)` object creation expressions with string/bool literals so the source generator can extract them statically.
+Arguments must be `new CliEnvVar(...)` / `new CliConfigFile(...)` object creation expressions with string/bool literals so the source generator can extract them statically.
 
 **Native AOT in CI:** The GitHub Actions workflow runs an **`aot-validate`** job that publishes [`examples/ArghAotSmoketest`](examples/ArghAotSmoketest) with Native AOT on Linux, macOS, and Windows and invokes `__schema` on the native binary. That sample uses `Microsoft.Extensions.Hosting` and `AddArgh` so **`Map` / `MapNamespace` DI registration** is included in the AOT publish. The repo uses the SDK unified artifacts layout (output under **`.artifacts/`**, gitignored).
 

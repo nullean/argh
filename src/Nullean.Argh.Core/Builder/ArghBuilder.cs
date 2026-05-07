@@ -53,8 +53,8 @@ public sealed class ArghBuilder : IArghRootBuilder
 
 	/// <inheritdoc />
 	public IArghRootBuilder DocumentEnvironmentVariables(
-		CliEnvVarDoc[]? variables = null,
-		CliConfigFileDoc[]? configFiles = null)
+		CliEnvVar[]? variables = null,
+		CliConfigFile[]? configFiles = null)
 	{
 		_ = _app.DocumentEnvironmentVariables(variables, configFiles);
 		return this;
