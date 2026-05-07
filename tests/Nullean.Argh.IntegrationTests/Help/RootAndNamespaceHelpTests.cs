@@ -99,6 +99,8 @@ public class RootAndNamespaceHelpTests
 			                                        separator-based collection on --ids.
 			  severity-cmd
 			  tag-set
+			  tag-set-parser
+			  tag-set-parser-opt
 			  tags
 			  temporal-cmd
 			  uri-cmd

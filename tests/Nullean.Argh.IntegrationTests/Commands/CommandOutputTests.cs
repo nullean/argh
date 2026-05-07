@@ -95,6 +95,30 @@ public class CommandOutputTests
 	}
 
 	[Fact]
+	public void WholeCollection_ArgumentParser_on_IReadOnlySet_parameter()
+	{
+		var result = CliHostRunner.Run("tag-set-parser", "--tags", "c,a,b");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("tag-set-parser:a,b,c");
+	}
+
+	[Fact]
+	public void WholeCollection_ArgumentParser_on_nullable_IReadOnlySet_parameter_when_provided()
+	{
+		var result = CliHostRunner.Run("tag-set-parser-opt", "--tags", "x,y");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("tag-set-parser-opt:x,y");
+	}
+
+	[Fact]
+	public void WholeCollection_ArgumentParser_on_nullable_IReadOnlySet_parameter_when_absent()
+	{
+		var result = CliHostRunner.Run("tag-set-parser-opt");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("tag-set-parser-opt:null");
+	}
+
+	[Fact]
 	public void Anonymous_lambda_command()
 	{
 		var result = CliHostRunner.Run("lambda-cmd", "--msg", "hi");

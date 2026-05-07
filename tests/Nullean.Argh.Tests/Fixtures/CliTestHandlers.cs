@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using External.Ns.Options;
@@ -190,6 +191,13 @@ internal static class CliTestHandlers
 	public static void PointAsParamsCmd(TestGlobalCliOptions g, [AsParameters] PointAsParamsArgs args) =>
 		Console.Out.WriteLine($"point-as-params:{args.Point.X},{args.Point.Y}");
 
+	// Whole-collection [ArgumentParser] on IReadOnlySet<T> (parser returns the whole set)
+	public static void TagSetParser(TestGlobalCliOptions g, [ArgumentParser(typeof(StringSetParser))] IReadOnlySet<string> tags) =>
+		Console.Out.WriteLine("tag-set-parser:" + string.Join(",", tags.OrderBy(x => x)));
+
+	public static void TagSetParserOpt(TestGlobalCliOptions g, [ArgumentParser(typeof(StringSetParser))] IReadOnlySet<string>? tags) =>
+		Console.Out.WriteLine("tag-set-parser-opt:" + (tags is null ? "null" : string.Join(",", tags.OrderBy(x => x))));
+
 	// IReadOnlySet<T> handlers
 	public static void TagSet(TestGlobalCliOptions g, IReadOnlySet<int> tagIds) =>
 		Console.Out.WriteLine("tag-set:" + string.Join(",", tagIds.OrderBy(x => x)));
@@ -235,6 +243,15 @@ internal static class CliTestHandlers
 			if (parts.Length == 2 && int.TryParse(parts[0], out var x) && int.TryParse(parts[1], out var y))
 			{ value = new Point(x, y); return true; }
 			return false;
+		}
+	}
+
+	internal sealed class StringSetParser : IArgumentParser<IReadOnlySet<string>>
+	{
+		public bool TryParse(string raw, out IReadOnlySet<string> value)
+		{
+			value = new HashSet<string>(raw.Split(',', StringSplitOptions.RemoveEmptyEntries));
+			return true;
 		}
 	}
 }
