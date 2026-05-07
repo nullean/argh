@@ -6156,11 +6156,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						// varName is a Uri? or Uri instance (already parsed)
 						var access = isNullable ? $"{varName}!" : varName;
 						var schemeChecks = us.Schemes
-							.Select(s => $"{access}.Scheme != \"{Escape(s)}\"")
+							.Select(s => $"{access}.Scheme == \"{Escape(s)}\"")
 							.ToList();
 						var nullGuard = isNullable ? $"{varName} != null && " : "";
 						var displaySchemes = string.Join(", ", us.Schemes);
-						sb.AppendLine($"\t\t\tif ({nullGuard}({string.Join(" && ", schemeChecks)}))");
+						sb.AppendLine($"\t\t\tif ({nullGuard}(!{access}.IsAbsoluteUri || !({string.Join(" || ", schemeChecks)})))");
 						sb.AppendLine("\t\t\t{");
 						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: URI scheme must be one of: {Escape(displaySchemes)}.\");");
 						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
