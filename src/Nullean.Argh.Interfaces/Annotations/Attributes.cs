@@ -46,8 +46,8 @@ public sealed class CommandNameAttribute : Attribute
 [AttributeUsage(AttributeTargets.Parameter)]
 public sealed class ArgumentAttribute : Attribute;
 
-/// <summary>Specifies an <see cref="Nullean.Argh.Parsing.IArgumentParser{T}"/> implementation used to parse this parameter.</summary>
-[AttributeUsage(AttributeTargets.Parameter)]
+/// <summary>Specifies an <see cref="Nullean.Argh.Parsing.IArgumentParser{T}"/> implementation used to parse this parameter or property.</summary>
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
 public sealed class ArgumentParserAttribute : Attribute
 {
 	public ArgumentParserAttribute(Type parserType) => ParserType = parserType;
