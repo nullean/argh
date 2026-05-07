@@ -8,6 +8,8 @@ namespace Nullean.Argh.Schema;
 [JsonSerializable(typeof(CliCommandSchema))]
 [JsonSerializable(typeof(CliDefaultHandlerSchema))]
 [JsonSerializable(typeof(CliParameterSchema))]
+[JsonSerializable(typeof(CliIntentSchema))]
+[JsonSerializable(typeof(CliOutputSchema))]
 [JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(CliParameterSchema[]))]
 [JsonSerializable(typeof(CliCommandSchema[]))]
