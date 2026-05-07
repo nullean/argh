@@ -239,4 +239,102 @@ public class SchemaTests
 		enumParam.ValueKind.Should().Be(JsonValueKind.Object);
 		enumParam.GetProperty("enumValues").EnumerateArray().Should().NotBeEmpty();
 	}
+
+	[Fact]
+	public void Schema_deprecated_command_without_message_emits_deprecated_object()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-deprecated-simple");
+		cmd.ValueKind.Should().Be(JsonValueKind.Object);
+		cmd.TryGetProperty("deprecated", out var dep).Should().BeTrue();
+		dep.ValueKind.Should().Be(JsonValueKind.Object);
+	}
+
+	[Fact]
+	public void Schema_deprecated_command_with_message_emits_deprecated_message()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-deprecated-with-message");
+		cmd.ValueKind.Should().Be(JsonValueKind.Object);
+		cmd.TryGetProperty("deprecated", out var dep).Should().BeTrue();
+		dep.GetProperty("message").GetString().Should().Contain("schema-deprecated-replacement");
+	}
+
+	[Fact]
+	public void Schema_deprecated_parameter_emits_deprecated_with_message()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-deprecated-param");
+		var oldNameParam = cmd.GetProperty("parameters").EnumerateArray()
+			.FirstOrDefault(p => p.GetProperty("name").GetString() == "old-name");
+		oldNameParam.TryGetProperty("deprecated", out var dep).Should().BeTrue();
+		dep.GetProperty("message").GetString().Should().Contain("--name");
+	}
+
+	[Fact]
+	public void Schema_command_with_intent_emits_intent_object()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-intent-destructive");
+		cmd.ValueKind.Should().Be(JsonValueKind.Object);
+		var intent = cmd.GetProperty("intent");
+		intent.GetProperty("destructive").GetBoolean().Should().BeTrue();
+		intent.GetProperty("requiresConfirmation").GetBoolean().Should().BeTrue();
+		intent.GetProperty("requiresAuth").GetBoolean().Should().BeTrue();
+		intent.GetProperty("scope").GetString().Should().Be("global");
+		intent.TryGetProperty("idempotent", out _).Should().BeFalse();
+	}
+
+	[Fact]
+	public void Schema_confirmationSkip_parameter_has_correct_role()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-intent-destructive");
+		var yesParam = cmd.GetProperty("parameters").EnumerateArray()
+			.FirstOrDefault(p => p.GetProperty("name").GetString() == "yes");
+		yesParam.GetProperty("role").GetString().Should().Be("confirmationSkip");
+	}
+
+	[Fact]
+	public void Schema_dryRun_parameter_has_correct_role()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-intent-read");
+		var dryRunParam = cmd.GetProperty("parameters").EnumerateArray()
+			.FirstOrDefault(p => p.GetProperty("name").GetString() == "dry-run");
+		dryRunParam.GetProperty("role").GetString().Should().Be("dryRun");
+	}
+
+	[Fact]
+	public void Schema_command_with_output_formats_emits_output_object()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-output-formats");
+		cmd.ValueKind.Should().Be(JsonValueKind.Object);
+		var output = cmd.GetProperty("output");
+		output.GetProperty("formatFlag").GetString().Should().Be("--format");
+		var formats = output.GetProperty("formats").EnumerateArray().Select(f => f.GetString()).ToArray();
+		formats.Should().BeEquivalentTo(new[] { "json", "table", "csv" });
+	}
 }

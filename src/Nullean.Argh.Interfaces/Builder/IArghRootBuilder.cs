@@ -1,3 +1,5 @@
+using Nullean.Argh.Documentation;
+
 namespace Nullean.Argh.Builder;
 
 /// <summary>
@@ -10,4 +12,14 @@ public interface IArghRootBuilder : IArghBuilder
 	/// Cannot be combined with <c>MapRoot</c>; the generator reports <c>AGH0023</c> if both are present.
 	/// </summary>
 	IArghRootBuilder UseCliDescription(string description);
+
+	/// <summary>
+	/// Documents environment variables and optional configuration files the program reads.
+	/// Analyzed by the source generator and emitted as the <c>environment</c> object in <c>__schema</c> output.
+	/// Arguments must be <c>new CliEnvVar(...)</c> or <c>new CliConfigFile(...)</c> object creation
+	/// expressions with string/bool literals so the generator can extract them statically.
+	/// </summary>
+	IArghRootBuilder DocumentEnvironmentVariables(
+		CliEnvVar[]? variables = null,
+		CliConfigFile[]? configFiles = null);
 }

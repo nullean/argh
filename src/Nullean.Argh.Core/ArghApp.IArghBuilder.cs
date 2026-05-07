@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Nullean.Argh.Builder;
+using Nullean.Argh.Documentation;
 using Nullean.Argh.Middleware;
 
 namespace Nullean.Argh;
@@ -31,6 +32,13 @@ public sealed partial class ArghApp
 	IArghRootBuilder IArghRootBuilder.UseCliDescription(string description)
 	{
 		_ = UseCliDescription(description);
+		return this;
+	}
+
+	/// <inheritdoc />
+	IArghRootBuilder IArghRootBuilder.DocumentEnvironmentVariables(CliEnvVar[]? variables, CliConfigFile[]? configFiles)
+	{
+		_ = DocumentEnvironmentVariables(variables, configFiles);
 		return this;
 	}
 

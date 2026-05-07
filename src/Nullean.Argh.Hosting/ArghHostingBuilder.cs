@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Nullean.Argh.Builder;
+using Nullean.Argh.Documentation;
 using Nullean.Argh.Middleware;
 using Nullean.Argh.Runtime;
 
@@ -147,6 +148,12 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 	IArghRootBuilder IArghRootBuilder.UseCliDescription(string description)
 	{
 		_ = _inner.UseCliDescription(description);
+		return this;
+	}
+
+	IArghRootBuilder IArghRootBuilder.DocumentEnvironmentVariables(CliEnvVar[]? variables, CliConfigFile[]? configFiles)
+	{
+		_ = _inner.DocumentEnvironmentVariables(variables, configFiles);
 		return this;
 	}
 

@@ -18,7 +18,9 @@ public sealed record ArghCliSchemaDocument(
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	bool? RequiresAuth = null,
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-	string[]? AuthCommands = null);
+	string[]? AuthCommands = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	CliEnvironmentSchema? Environment = null);
 
 /// <summary>Nested command namespace (subcommand group).</summary>
 public sealed record CliNamespaceSchema(
@@ -45,6 +47,8 @@ public sealed record CliCommandSchema(
 	bool Hidden = false,
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	string[]? Tags = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	CliDeprecationSchema? Deprecated = null,
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	CliIntentSchema? Intent = null,
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -86,7 +90,7 @@ public sealed record CliDefaultHandlerSchema(
 	bool Hidden = false);
 
 /// <summary>CLI flag or positional parameter description.</summary>
-/// <param name="Role"><c>flag</c> or <c>positional</c>.</param>
+/// <param name="Role"><c>flag</c>, <c>positional</c>, <c>confirmationSkip</c>, or <c>dryRun</c>.</param>
 /// <param name="Type">JSON Schema primitive: <c>string</c>, <c>integer</c>, <c>number</c>, <c>boolean</c>, <c>array</c>, or <c>enum</c>.</param>
 public sealed record CliParameterSchema(
 	string Role,
@@ -112,6 +116,8 @@ public sealed record CliParameterSchema(
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 	bool Variadic = false,
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	CliDeprecationSchema? Deprecated = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	CliConstraintSchema[]? Validations = null);
 
 /// <summary>A single validation constraint on a CLI parameter.</summary>
@@ -122,3 +128,37 @@ public sealed record CliConstraintSchema(
 	string? Max = null,
 	string? Pattern = null,
 	string[]? Values = null);
+
+/// <summary>Structured deprecation metadata for a command or parameter.</summary>
+public sealed record CliDeprecationSchema(
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string? Message = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string? Since = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string? RemovedIn = null);
+
+/// <summary>External context the program depends on (env vars and config files).</summary>
+public sealed record CliEnvironmentSchema(
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	CliEnvVarSchema[]? Variables = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	CliConfigFileSchema[]? ConfigFiles = null);
+
+/// <summary>An environment variable the program reads.</summary>
+public sealed record CliEnvVarSchema(
+	string Name,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string? Description = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	bool Required = false,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string? DefaultValue = null);
+
+/// <summary>A configuration file the program reads.</summary>
+public sealed record CliConfigFileSchema(
+	string Path,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string? Description = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	bool Required = false);
