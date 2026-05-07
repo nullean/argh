@@ -150,6 +150,12 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
+	IArghRootBuilder IArghRootBuilder.DocumentEnvironmentVariables(CliEnvVarDoc[]? variables, CliConfigFileDoc[]? configFiles)
+	{
+		_ = _inner.DocumentEnvironmentVariables(variables, configFiles);
+		return this;
+	}
+
 	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler)
 	{

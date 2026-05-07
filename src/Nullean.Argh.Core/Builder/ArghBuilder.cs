@@ -51,6 +51,15 @@ public sealed class ArghBuilder : IArghRootBuilder
 	}
 
 	/// <inheritdoc />
+	public IArghRootBuilder DocumentEnvironmentVariables(
+		CliEnvVarDoc[]? variables = null,
+		CliConfigFileDoc[]? configFiles = null)
+	{
+		_ = _app.DocumentEnvironmentVariables(variables, configFiles);
+		return this;
+	}
+
+	/// <inheritdoc />
 	public IArghBuilder MapRoot(Delegate handler)
 	{
 		_ = _app.MapRoot(handler);

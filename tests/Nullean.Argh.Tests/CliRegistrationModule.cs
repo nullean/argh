@@ -76,6 +76,12 @@ internal static class CliRegistrationModule
 		app.Map("schema-separator-list", SchemaSpecificHandlers.SchemaSeparatorList);
 		app.Map("schema-hidden-param", SchemaSpecificHandlers.SchemaHiddenParam);
 		app.Map<SchemaHiddenCommands>();
+		app.Map("schema-deprecated-simple", SchemaDeprecatedHandlers.SchemaDeprecatedSimple);
+		app.Map("schema-deprecated-with-message", SchemaDeprecatedHandlers.SchemaDeprecatedWithMessage);
+		app.Map("schema-deprecated-param", SchemaDeprecatedHandlers.SchemaDeprecatedParam);
+		app.Map("schema-intent-destructive", SchemaIntentHandlers.SchemaIntentDestructive);
+		app.Map("schema-intent-read", SchemaIntentHandlers.SchemaIntentRead);
+		app.Map("schema-output-formats", SchemaOutputHandlers.SchemaOutputFormats);
 		app.MapNamespace<StorageCliCommands>("storage", g =>
 		{
 			g.UseNamespaceOptions<TestStorageCommandNamespaceOptions>();

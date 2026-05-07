@@ -313,6 +313,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		switch (methodName)
 		{
 			case "UseCliDescription":
+			case "DocumentEnvironmentVariables":
 			case "MapNamespace":
 			case "MapRoot":
 			case "UseGlobalOptions":
@@ -537,6 +538,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		public ImmutableArray<CommandModel> AllCommands = ImmutableArray<CommandModel>.Empty;
 		public ImmutableArray<GlobalMiddlewareRegistration> GlobalMiddleware = ImmutableArray<GlobalMiddlewareRegistration>.Empty;
 		public readonly List<ArglessNamespaceCodegenEntry> ArglessNamespaceCodegen = new();
+		public ImmutableArray<EnvVarDocEntry> EnvironmentVars = ImmutableArray<EnvVarDocEntry>.Empty;
+		public ImmutableArray<ConfigFileDocEntry> ConfigFiles = ImmutableArray<ConfigFileDocEntry>.Empty;
 		/// <summary>Pre-computed injection chains per command (keyed by <see cref="CommandModel.RunMethodName"/>). Set once in <c>TryBuildAppEmitModel</c> after <c>AllCommands</c> is populated.</summary>
 		public ImmutableDictionary<string, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)>> InjectionChains
 			= ImmutableDictionary<string, ImmutableArray<(string, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>, ImmutableArray<string>?)>>.Empty;
@@ -652,6 +655,26 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	/// <summary>A <c>UseCliDescription(string)</c> invocation — only meaningful at root scope.</summary>
 	private sealed record AIUseCliDescription(string FilePath, int SpanStart, string Description)
 		: AnalyzedInvocation(FilePath, SpanStart);
+
+	/// <summary>A <c>DocumentEnvironmentVariables(...)</c> invocation — only meaningful at root scope.</summary>
+	private sealed record AIDocumentEnvironmentVariables(
+		string FilePath,
+		int SpanStart,
+		ImmutableArray<EnvVarDocEntry> Variables,
+		ImmutableArray<ConfigFileDocEntry> ConfigFiles)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
+	/// <summary>Symbol-free representation of a <see cref="CliEnvVarDoc"/> passed to <c>DocumentEnvironmentVariables</c>.</summary>
+	private sealed record EnvVarDocEntry(string Name, string? Description, bool Required, string? DefaultValue);
+
+	/// <summary>Symbol-free representation of a <see cref="CliConfigFileDoc"/> passed to <c>DocumentEnvironmentVariables</c>.</summary>
+	private sealed record ConfigFileDocEntry(string Path, string? Description, bool Required);
+
+	/// <summary>Symbol-free intent data extracted from <c>[CommandIntent]</c>.</summary>
+	private sealed record CommandIntentData(bool? Destructive, bool? Idempotent, string? Scope, bool? RequiresConfirmation, bool? RequiresAuth);
+
+	/// <summary>Symbol-free output data extracted from <c>[CommandOutput]</c>.</summary>
+	private sealed record CommandOutputData(ImmutableArray<string> Formats, string? FormatFlag);
 
 	/// <summary>
 	/// An <c>Add&lt;T&gt;()</c> or <c>Add(name, handler)</c> invocation.
@@ -876,6 +899,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var desc = TryGetStringLiteral(descExpr) ?? "";
 				return new AIUseCliDescription(filePath, spanStart, desc);
 			}
+			case "DocumentEnvironmentVariables":
+				return AnalyzeDocumentEnvironmentVariables(invocation, filePath, spanStart);
 			case "MapRoot":
 			{
 				if (invocation.ArgumentList.Arguments.Count < 1) return null;
@@ -1155,6 +1180,16 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			if (ai is AIUseCliDescription { Description: var desc } && !string.IsNullOrWhiteSpace(desc))
 			{
 				app.RootSummary = desc;
+				break;
+			}
+		}
+
+		foreach (var ai in rootAnalyzed)
+		{
+			if (ai is AIDocumentEnvironmentVariables { Variables: var vars, ConfigFiles: var cfgs })
+			{
+				if (!vars.IsDefaultOrEmpty) app.EnvironmentVars = vars;
+				if (!cfgs.IsDefaultOrEmpty) app.ConfigFiles = cfgs;
 				break;
 			}
 		}
@@ -2432,6 +2467,190 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		return ImmutableArray<string>.Empty;
 	}
+
+	private static (bool IsDeprecated, string? Message) TryGetObsoleteAttribute(ISymbol symbol)
+	{
+		foreach (var ad in symbol.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name is "ObsoleteAttribute" or "Obsolete" &&
+			    (ad.AttributeClass.ContainingNamespace?.ToDisplayString() is "System" or ""))
+			{
+				var msg = ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Value is string s && !string.IsNullOrWhiteSpace(s)
+					? s
+					: null;
+				return (true, msg);
+			}
+		}
+
+		return (false, null);
+	}
+
+	private static CommandIntentData? TryGetCommandIntentAttribute(IMethodSymbol method)
+	{
+		foreach (var ad in method.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name == "CommandIntentAttribute" &&
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
+			{
+				// Constructor arg 0 is the CommandIntentFlags enum value (underlying int)
+				var flagsInt = 0;
+				if (ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Value is int f)
+					flagsInt = f;
+
+				bool? destructive = (flagsInt & 1) != 0 ? true : null;          // Destructive = 1<<0
+				bool? idempotent = (flagsInt & 2) != 0 ? true : null;            // Idempotent  = 1<<1
+				bool? requiresConfirmation = (flagsInt & 4) != 0 ? true : null;  // RequiresConfirmation = 1<<2
+				bool? requiresAuth = (flagsInt & 8) != 0 ? true : null;          // RequiresAuth = 1<<3
+
+				// Named arg Scope is a CommandScope enum (underlying int: 0=Unspecified,1=File,2=Directory,3=Global)
+				string? scope = null;
+				foreach (var na in ad.NamedArguments)
+				{
+					if (na.Key == "Scope" && na.Value.Value is int s && s != 0)
+					{
+						scope = s switch { 1 => "file", 2 => "directory", 3 => "global", _ => null };
+					}
+				}
+
+				if (flagsInt == 0 && scope is null) return null;
+				return new CommandIntentData(destructive, idempotent, scope, requiresConfirmation, requiresAuth);
+			}
+		}
+
+		return null;
+	}
+
+	private static CommandOutputData? TryGetCommandOutputAttribute(IMethodSymbol method)
+	{
+		foreach (var ad in method.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name == "CommandOutputAttribute" &&
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
+			{
+				var formats = ImmutableArray<string>.Empty;
+				if (ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Kind == TypedConstantKind.Array)
+				{
+					var builder = ImmutableArray.CreateBuilder<string>();
+					foreach (var v in ad.ConstructorArguments[0].Values)
+					{
+						if (v.Value is string s && !string.IsNullOrWhiteSpace(s))
+							builder.Add(s);
+					}
+					formats = builder.ToImmutable();
+				}
+
+				string? formatFlag = null;
+				foreach (var na in ad.NamedArguments)
+				{
+					if (na.Key == "FormatFlag" && na.Value.Value is string s)
+						formatFlag = s;
+				}
+
+				return new CommandOutputData(formats, formatFlag);
+			}
+		}
+
+		return null;
+	}
+
+	private static bool HasConfirmationSkipAttribute(ISymbol symbol)
+	{
+		foreach (var ad in symbol.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name == "ConfirmationSkipAttribute" &&
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
+				return true;
+		}
+
+		return false;
+	}
+
+	private static bool HasDryRunAttribute(ISymbol symbol)
+	{
+		foreach (var ad in symbol.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name == "DryRunAttribute" &&
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
+				return true;
+		}
+
+		return false;
+	}
+
+	private static AIDocumentEnvironmentVariables? AnalyzeDocumentEnvironmentVariables(
+		InvocationExpressionSyntax invocation, string filePath, int spanStart)
+	{
+		var varsBuilder = ImmutableArray.CreateBuilder<EnvVarDocEntry>();
+		var cfgBuilder = ImmutableArray.CreateBuilder<ConfigFileDocEntry>();
+
+		foreach (var arg in invocation.ArgumentList.Arguments)
+		{
+			var nameColon = arg.NameColon?.Name.Identifier.Text;
+
+			if (arg.Expression is not (ObjectCreationExpressionSyntax or ImplicitObjectCreationExpressionSyntax))
+				continue;
+
+			ArgumentListSyntax? ctorArgs = arg.Expression switch
+			{
+				ObjectCreationExpressionSyntax o => o.ArgumentList,
+				ImplicitObjectCreationExpressionSyntax i => i.ArgumentList,
+				_ => null
+			};
+			if (ctorArgs is null) continue;
+
+			// Determine type from name colon or array element pattern
+			var typeName = arg.Expression is ObjectCreationExpressionSyntax oce
+				? oce.Type.ToString()
+				: null;
+			bool isConfigFile = typeName?.Contains("ConfigFile") == true || nameColon == "configFiles";
+
+			if (isConfigFile)
+			{
+				var path = ctorArgs.Arguments.Count >= 1
+					? TryGetStringLiteral(ctorArgs.Arguments[0].Expression)
+					: null;
+				if (path is null) continue;
+				string? desc = null;
+				bool req = false;
+				foreach (var ca in ctorArgs.Arguments)
+				{
+					var n = ca.NameColon?.Name.Identifier.Text;
+					if (n == "Description") desc = TryGetStringLiteral(ca.Expression);
+					if (n == "Required") req = TryGetBoolLiteral(ca.Expression) ?? false;
+				}
+				cfgBuilder.Add(new ConfigFileDocEntry(path, desc, req));
+			}
+			else
+			{
+				var name = ctorArgs.Arguments.Count >= 1
+					? TryGetStringLiteral(ctorArgs.Arguments[0].Expression)
+					: null;
+				if (name is null) continue;
+				string? desc = null;
+				bool req = false;
+				string? defVal = null;
+				foreach (var ca in ctorArgs.Arguments)
+				{
+					var n = ca.NameColon?.Name.Identifier.Text;
+					if (n == "Description") desc = TryGetStringLiteral(ca.Expression);
+					if (n == "Required") req = TryGetBoolLiteral(ca.Expression) ?? false;
+					if (n == "DefaultValue") defVal = TryGetStringLiteral(ca.Expression);
+				}
+				varsBuilder.Add(new EnvVarDocEntry(name, desc, req, defVal));
+			}
+		}
+
+		if (varsBuilder.Count == 0 && cfgBuilder.Count == 0) return null;
+		return new AIDocumentEnvironmentVariables(filePath, spanStart, varsBuilder.ToImmutable(), cfgBuilder.ToImmutable());
+	}
+
+	private static bool? TryGetBoolLiteral(ExpressionSyntax expr) =>
+		expr.Kind() switch
+		{
+			Microsoft.CodeAnalysis.CSharp.SyntaxKind.TrueLiteralExpression => true,
+			Microsoft.CodeAnalysis.CSharp.SyntaxKind.FalseLiteralExpression => false,
+			_ => null
+		};
 
 	private static ExpressionSyntax? TryGetPropertyInitializerValueSyntax(IPropertySymbol prop)
 	{
@@ -8849,7 +9068,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string LambdaDelegateFq = "",
 		bool IsIntrinsic = false,
 		ImmutableArray<string> CommandAliases = default,
-		bool IsHidden = false)
+		bool IsHidden = false,
+		bool IsDeprecated = false,
+		string? DeprecationMessage = null,
+		CommandIntentData? Intent = null,
+		CommandOutputData? Output = null)
 	{
 		public static CommandModel FromRootMethod(
 			IMethodSymbol method,
@@ -8952,6 +9175,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			                       HasPublicParameterlessCtor(namedCt);
 			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) =
 				ExtractHandlerAnalysis(method);
+			var (isObs, obsMsg) = TryGetObsoleteAttribute(method);
 			return new CommandModel(
 				routePrefix,
 				commandName,
@@ -8978,7 +9202,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				mwData,
 				IsIntrinsic: HasCommandIntrinsicAttribute(method),
 				CommandAliases: TryGetCommandAliasesFromAttribute(method),
-				IsHidden: HasHiddenAttribute(method));
+				IsHidden: HasHiddenAttribute(method),
+				IsDeprecated: isObs,
+				DeprecationMessage: obsMsg,
+				Intent: TryGetCommandIntentAttribute(method),
+				Output: TryGetCommandOutputAttribute(method));
 		}
 
 		/// <summary>Overload for the per-invocation Select step — uses <see cref="DiagnosticAccumulator"/> instead of SourceProductionContext.</summary>
@@ -9047,7 +9275,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			var hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt && HasPublicParameterlessCtor(namedCt);
 			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) = ExtractHandlerAnalysis(method);
-			return new CommandModel(routePrefix, commandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData, IsIntrinsic: HasCommandIntrinsicAttribute(method), CommandAliases: TryGetCommandAliasesFromAttribute(method), IsHidden: HasHiddenAttribute(method));
+			var (isDeprecated, deprecationMsg) = TryGetObsoleteAttribute(method);
+			return new CommandModel(routePrefix, commandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData, IsIntrinsic: HasCommandIntrinsicAttribute(method), CommandAliases: TryGetCommandAliasesFromAttribute(method), IsHidden: HasHiddenAttribute(method), IsDeprecated: isDeprecated, DeprecationMessage: deprecationMsg, Intent: TryGetCommandIntentAttribute(method), Output: TryGetCommandOutputAttribute(method));
 		}
 
 		private static ImmutableArray<ParameterModel> BuildParameterModels(
@@ -9416,7 +9645,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		/// Used by <see cref="GetCSharpCliType"/> to emit <c>string?</c> even when <see cref="UsesRuntimeDefault"/>
 		/// is true, preventing CS8600 when the runtime default for a nullable property is <c>null</c>.
 		/// </summary>
-		bool IsNullableAnnotated = false)
+		bool IsNullableAnnotated = false,
+		bool IsConfirmationSkip = false,
+		bool IsDryRun = false,
+		bool IsDeprecated = false,
+		string? DeprecationMessage = null)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
 
@@ -9520,7 +9753,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				AsParametersClrName: asParams?.ClrName,
 				Validations: collValidations,
 				IsHidden: HasHiddenAttribute(attributeHost),
-				IsVariadic: isVariadic);
+				IsVariadic: isVariadic,
+				IsConfirmationSkip: HasConfirmationSkipAttribute(attributeHost),
+				IsDryRun: HasDryRunAttribute(attributeHost),
+				IsDeprecated: TryGetObsoleteAttribute(attributeHost).IsDeprecated,
+				DeprecationMessage: TryGetObsoleteAttribute(attributeHost).Message);
 		}
 
 		// ── five factory methods ─────────────────────────────────────────────
@@ -9592,7 +9829,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				EnumMemberDocs: enumDocs,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
-				IsHidden: HasHiddenAttribute(p));
+				IsHidden: HasHiddenAttribute(p),
+				IsConfirmationSkip: HasConfirmationSkipAttribute(p),
+				IsDryRun: HasDryRunAttribute(p),
+				IsDeprecated: TryGetObsoleteAttribute(p).IsDeprecated,
+				DeprecationMessage: TryGetObsoleteAttribute(p).Message);
 		}
 
 		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -9646,7 +9887,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				IsHidden: HasHiddenAttribute(prop),
 				UsesRuntimeDefault: isCrossAssemblyDefault,
 				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated
-					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
+					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
+				IsConfirmationSkip: HasConfirmationSkipAttribute(prop),
+				IsDryRun: HasDryRunAttribute(prop),
+				IsDeprecated: TryGetObsoleteAttribute(prop).IsDeprecated,
+				DeprecationMessage: TryGetObsoleteAttribute(prop).Message);
 		}
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -9779,6 +10024,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var enumCliNames = sk == CliScalarKind.Enum ? TryGetEnumCliNames(cp.Type) : default;
 			var validations = ReadValidationConstraints(cp, sk, typeName);
 			var expandProf = TryReadExpandUserProfileBeforeBind(cp, sk);
+			var (isDeprecatedCp, deprecationMsgCp) = TryGetObsoleteAttribute(cp);
 			return new ParameterModel(
 				cp.Name,
 				local,
@@ -9803,7 +10049,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				AsParametersUseInit: false,
 				AsParametersClrName: cp.Name,
 				ExpandUserProfileBeforeBind: expandProf,
-				Validations: validations);
+				Validations: validations,
+				IsConfirmationSkip: HasConfirmationSkipAttribute(cp),
+				IsDryRun: HasDryRunAttribute(cp),
+				IsDeprecated: isDeprecatedCp,
+				DeprecationMessage: deprecationMsgCp);
 		}
 
 		public static ParameterModel FromAsParametersInitProperty(
@@ -9877,6 +10127,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var enumCliNames = sk == CliScalarKind.Enum ? TryGetEnumCliNames(prop.Type) : default;
 			var validations = ReadValidationConstraints(prop, sk, typeName);
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
+			var (isDeprecatedProp, deprecationMsgProp) = TryGetObsoleteAttribute(prop);
 			return new ParameterModel(
 				prop.Name,
 				local,
@@ -9904,7 +10155,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				Validations: validations,
 				UsesRuntimeDefault: isCrossAssemblyDefault,
 				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated
-					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
+					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
+				IsConfirmationSkip: HasConfirmationSkipAttribute(prop),
+				IsDryRun: HasDryRunAttribute(prop),
+				IsDeprecated: isDeprecatedProp,
+				DeprecationMessage: deprecationMsgProp);
 		}
 
 		private static bool ComputeRequiredForOptionsType(ITypeSymbol type, BoolSpecialKind bs)

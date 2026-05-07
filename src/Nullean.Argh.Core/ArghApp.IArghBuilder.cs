@@ -35,6 +35,13 @@ public sealed partial class ArghApp
 	}
 
 	/// <inheritdoc />
+	IArghRootBuilder IArghRootBuilder.DocumentEnvironmentVariables(CliEnvVarDoc[]? variables, CliConfigFileDoc[]? configFiles)
+	{
+		_ = DocumentEnvironmentVariables(variables, configFiles);
+		return this;
+	}
+
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler)
 	{
 		_ = MapRoot(handler);

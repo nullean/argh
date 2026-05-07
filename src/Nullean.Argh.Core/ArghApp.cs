@@ -33,6 +33,9 @@ public sealed partial class ArghApp : IArghRootBuilder
 	/// <summary>Sets a one-line description shown in root <c>--help</c> output. Analyzed by the source generator; no-op at runtime.</summary>
 	public ArghApp UseCliDescription(string description) => this;
 
+	/// <summary>Documents environment variables and config files the program reads. Analyzed by the source generator; no-op at runtime.</summary>
+	public ArghApp DocumentEnvironmentVariables(CliEnvVarDoc[]? variables = null, CliConfigFileDoc[]? configFiles = null) => this;
+
 	/// <summary>
 	/// Registers a default handler when no subcommand or namespace segment applies at the current scope
 	/// (app root or inside a <see cref="MapNamespace"/> block). Analyzed by the source generator.

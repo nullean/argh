@@ -93,8 +93,17 @@ public class RootAndNamespaceHelpTests
 			  renamed-cmd
 			  schema-default-value                  Schema test: command with a default
 			                                        value on --level.
+			  schema-deprecated-param               A command with a deprecated parameter
+			                                        via [AsParameters].
+			  schema-deprecated-simple              A command that is deprecated without a
+			                                        message.
+			  schema-deprecated-with-message        A command that is deprecated with a
+			                                        migration message.
 			  schema-hidden-param                   Schema test: command with a hidden
 			                                        parameter.
+			  schema-intent-destructive             Deletes all resources permanently.
+			  schema-intent-read                    Lists resources safely.
+			  schema-output-formats                 Reports status in multiple formats.
 			  schema-separator-list                 Schema test: command with a
 			                                        separator-based collection on --ids.
 			  severity-cmd

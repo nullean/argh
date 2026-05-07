@@ -123,6 +123,36 @@
             "type": "boolean",
             "default": false
           },
+          "deprecated": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "since": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "removedIn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              }
+            },
+            "default": null
+          },
           "validations": {
             "type": [
               "array",
@@ -325,6 +355,36 @@
                 "string",
                 "null"
               ]
+            },
+            "default": null
+          },
+          "deprecated": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "since": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "removedIn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              }
             },
             "default": null
           },
@@ -551,6 +611,86 @@
           "string",
           "null"
         ]
+      },
+      "default": null
+    },
+    "environment": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "variables": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "required": {
+                "type": "boolean",
+                "default": false
+              },
+              "defaultValue": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "name"
+            ]
+          },
+          "default": null
+        },
+        "configFiles": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "required": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "path"
+            ]
+          },
+          "default": null
+        }
       },
       "default": null
     }

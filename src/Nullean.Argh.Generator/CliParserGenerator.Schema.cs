@@ -36,6 +36,7 @@ public sealed partial class CliParserGenerator
 		EmitSchemaRootCommandsExpression(sb, app, entryAssemblyName, "\t\t\t\t");
 		sb.AppendLine(",");
 		EmitSchemaNamespacesExpression(sb, app.Root.Children, entryAssemblyName, "\t\t\t\t");
+		EmitSchemaEnvironmentArg(sb, app, "\t\t\t\t");
 		sb.AppendLine(");");
 	}
 
@@ -166,6 +167,34 @@ public sealed partial class CliParserGenerator
 		{
 			sb.AppendLine(",");
 			sb.Append($"{indent}\tHidden: true");
+		}
+		if (cmd.IsDeprecated)
+		{
+			sb.AppendLine(",");
+			if (cmd.DeprecationMessage is not null)
+				sb.Append($"{indent}\tDeprecated: new CliDeprecationSchema(Message: \"{Escape(cmd.DeprecationMessage)}\")");
+			else
+				sb.Append($"{indent}\tDeprecated: new CliDeprecationSchema()");
+		}
+		if (cmd.Intent is { } intent)
+		{
+			sb.AppendLine(",");
+			sb.Append($"{indent}\tIntent: new CliIntentSchema(");
+			var intentParts = new System.Collections.Generic.List<string>();
+			if (intent.Destructive is bool d) intentParts.Add($"Destructive: {(d ? "true" : "false")}");
+			if (intent.Idempotent is bool i) intentParts.Add($"Idempotent: {(i ? "true" : "false")}");
+			if (intent.Scope is string sc) intentParts.Add($"Scope: \"{Escape(sc)}\"");
+			if (intent.RequiresConfirmation is bool rc) intentParts.Add($"RequiresConfirmation: {(rc ? "true" : "false")}");
+			if (intent.RequiresAuth is bool ra) intentParts.Add($"RequiresAuth: {(ra ? "true" : "false")}");
+			sb.Append(string.Join(", ", intentParts));
+			sb.Append(")");
+		}
+		if (cmd.Output is { } output && !output.Formats.IsDefaultOrEmpty)
+		{
+			sb.AppendLine(",");
+			var fmts = string.Join(", ", output.Formats.Select(f => $"\"{Escape(f)}\""));
+			var fflag = output.FormatFlag is not null ? $", FormatFlag: \"{Escape(output.FormatFlag)}\"" : "";
+			sb.Append($"{indent}\tOutput: new CliOutputSchema(Formats: new string[] {{ {fmts} }}{fflag})");
 		}
 		sb.AppendLine();
 		sb.Append(indent);
@@ -348,9 +377,50 @@ public sealed partial class CliParserGenerator
 		sb.Append("}");
 	}
 
+	private static void EmitSchemaEnvironmentArg(StringBuilder sb, AppEmitModel app, string indent)
+	{
+		var hasVars = !app.EnvironmentVars.IsDefaultOrEmpty;
+		var hasCfgs = !app.ConfigFiles.IsDefaultOrEmpty;
+		if (!hasVars && !hasCfgs) return;
+
+		sb.AppendLine(",");
+		sb.AppendLine(indent + "Environment: new CliEnvironmentSchema(");
+		if (hasVars)
+		{
+			sb.AppendLine(indent + "\tVariables: new CliEnvVarSchema[]");
+			sb.AppendLine(indent + "\t{");
+			foreach (var v in app.EnvironmentVars)
+			{
+				var desc = v.Description is not null ? $", Description: \"{Escape(v.Description)}\"" : "";
+				var req = v.Required ? ", Required: true" : "";
+				var defVal = v.DefaultValue is not null ? $", DefaultValue: \"{Escape(v.DefaultValue)}\"" : "";
+				sb.AppendLine($"{indent}\t\tnew CliEnvVarSchema(\"{Escape(v.Name)}\"{desc}{req}{defVal}),");
+			}
+			sb.Append(indent + "\t}");
+			if (hasCfgs) sb.AppendLine(",");
+		}
+		if (hasCfgs)
+		{
+			sb.AppendLine(indent + "\tConfigFiles: new CliConfigFileSchema[]");
+			sb.AppendLine(indent + "\t{");
+			foreach (var c in app.ConfigFiles)
+			{
+				var desc = c.Description is not null ? $", Description: \"{Escape(c.Description)}\"" : "";
+				var req = c.Required ? ", Required: true" : "";
+				sb.AppendLine($"{indent}\t\tnew CliConfigFileSchema(\"{Escape(c.Path)}\"{desc}{req}),");
+			}
+			sb.Append(indent + "\t}");
+		}
+		sb.AppendLine();
+		sb.Append(indent + ")");
+	}
+
 	private static string EmitCliParameterSchemaNewExpression(ParameterModel p)
 	{
-		var role = p.Kind == ParameterKind.Positional ? "positional" : "flag";
+		var role = p.IsConfirmationSkip ? "confirmationSkip"
+			: p.IsDryRun ? "dryRun"
+			: p.Kind == ParameterKind.Positional ? "positional"
+			: "flag";
 		var shortName = p.ShortOpt is char c ? $"\"{Escape(c.ToString())}\"" : "null";
 		var type = MapToJsonSchemaType(p.ScalarKind, p.TypeName);
 		var req = p.IsRequired ? "true" : "false";
@@ -394,6 +464,14 @@ public sealed partial class CliParserGenerator
 
 		if (p.IsVariadic)
 			sb.Append(", Variadic: true");
+
+		if (p.IsDeprecated)
+		{
+			if (p.DeprecationMessage is not null)
+				sb.Append($", Deprecated: new CliDeprecationSchema(Message: \"{Escape(p.DeprecationMessage)}\")");
+			else
+				sb.Append(", Deprecated: new CliDeprecationSchema()");
+		}
 
 		var validations = BuildConstraintsExpression(p.Validations, p.ExpandUserProfileBeforeBind);
 		if (validations != "null")

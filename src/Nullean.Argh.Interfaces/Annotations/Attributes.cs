@@ -190,3 +190,118 @@ public sealed class EnumValueAttribute : Attribute
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Parameter | AttributeTargets.Property)]
 public sealed class HiddenAttribute : Attribute;
 
+/// <summary>
+/// Boolean side-effect flags for <see cref="CommandIntentAttribute"/>.
+/// Combine with <c>|</c>: <c>[CommandIntent(CommandIntentFlags.Destructive | CommandIntentFlags.RequiresConfirmation)]</c>.
+/// </summary>
+[Flags]
+public enum CommandIntentFlags
+{
+	/// <summary>No flags set.</summary>
+	None = 0,
+	/// <summary>The command deletes, overwrites, or irreversibly modifies data or resources.</summary>
+	Destructive = 1 << 0,
+	/// <summary>Calling the command multiple times produces the same result as calling it once.</summary>
+	Idempotent = 1 << 1,
+	/// <summary>The command blocks on an interactive stdin prompt when run without a <c>confirmationSkip</c>-role parameter.</summary>
+	RequiresConfirmation = 1 << 2,
+	/// <summary>This specific command requires an authenticated session.</summary>
+	RequiresAuth = 1 << 3,
+}
+
+/// <summary>Blast radius of a command's side effects, used in <see cref="CommandIntentAttribute"/>.</summary>
+public enum CommandScope
+{
+	/// <summary>Not declared.</summary>
+	Unspecified = 0,
+	/// <summary>Affects a single file.</summary>
+	File,
+	/// <summary>Affects a directory tree.</summary>
+	Directory,
+	/// <summary>Affects cloud resources, databases, registries, or other shared state.</summary>
+	Global,
+}
+
+/// <summary>
+/// Declares the side-effect profile of a command for agent-reasoning consumers.
+/// Emitted as the <c>intent</c> object in <c>__schema</c> output.
+/// </summary>
+/// <example><code>
+/// [CommandIntent(CommandIntentFlags.Destructive | CommandIntentFlags.RequiresConfirmation, Scope = CommandScope.Global)]
+/// </code></example>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class CommandIntentAttribute : Attribute
+{
+	public CommandIntentAttribute(CommandIntentFlags flags = CommandIntentFlags.None) => Flags = flags;
+
+	/// <summary>Boolean side-effect flags.</summary>
+	public CommandIntentFlags Flags { get; }
+
+	/// <summary>Blast radius of the command's side effects.</summary>
+	public CommandScope Scope { get; set; } = CommandScope.Unspecified;
+}
+
+/// <summary>
+/// Declares the machine-readable output formats a command supports.
+/// Emitted as the <c>output</c> object in <c>__schema</c> output.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class CommandOutputAttribute : Attribute
+{
+	/// <summary>Supported output format names (e.g. <c>"json"</c>, <c>"table"</c>).</summary>
+	public string[] Formats { get; }
+
+	/// <summary>The flag name used to select the format (e.g. <c>"--output"</c>).</summary>
+	public string? FormatFlag { get; set; }
+
+	public CommandOutputAttribute(params string[] formats) => Formats = formats;
+}
+
+/// <summary>
+/// Marks a boolean flag parameter as a confirmation-skip signal (e.g. <c>--yes</c>, <c>--force</c>).
+/// Emits <c>role: "confirmationSkip"</c> in <c>__schema</c> so agent consumers know to pass this flag
+/// automatically on destructive commands when running non-interactively.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
+public sealed class ConfirmationSkipAttribute : Attribute;
+
+/// <summary>
+/// Marks a boolean flag parameter as a dry-run signal (e.g. <c>--dry-run</c>, <c>--whatif</c>).
+/// Emits <c>role: "dryRun"</c> in <c>__schema</c> so agent consumers know to pass this flag
+/// when they want to preview effects without committing side effects.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
+public sealed class DryRunAttribute : Attribute;
+
+/// <summary>Describes an environment variable the program reads. Used with <see cref="Nullean.Argh.Builder.IArghRootBuilder.DocumentEnvironmentVariables"/>.</summary>
+public sealed class CliEnvVarDoc
+{
+	public CliEnvVarDoc(string name, string? description = null, bool required = false, string? defaultValue = null)
+	{
+		Name = name;
+		Description = description;
+		Required = required;
+		DefaultValue = defaultValue;
+	}
+
+	public string Name { get; }
+	public string? Description { get; }
+	public bool Required { get; }
+	public string? DefaultValue { get; }
+}
+
+/// <summary>Describes a configuration file the program reads. Used with <see cref="Nullean.Argh.Builder.IArghRootBuilder.DocumentEnvironmentVariables"/>.</summary>
+public sealed class CliConfigFileDoc
+{
+	public CliConfigFileDoc(string path, string? description = null, bool required = false)
+	{
+		Path = path;
+		Description = description;
+		Required = required;
+	}
+
+	public string Path { get; }
+	public string? Description { get; }
+	public bool Required { get; }
+}
+
