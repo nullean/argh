@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Nullean.Argh;
+using Nullean.Argh.Documentation;
 using Nullean.Argh.Middleware;
 using Nullean.Argh.Runtime;
 

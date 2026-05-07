@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Nullean.Argh.Builder;
+using Nullean.Argh.Documentation;
 using Nullean.Argh.Middleware;
 using Nullean.Argh.Runtime;
 

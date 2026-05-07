@@ -1,4 +1,5 @@
 using Nullean.Argh;
+using Nullean.Argh.Documentation;
 
 namespace Nullean.Argh.Tests.Fixtures;
 
@@ -76,26 +77,30 @@ internal static partial class SchemaDeprecatedHandlers
 internal static class SchemaIntentHandlers
 {
 	/// <summary>Deletes all resources permanently.</summary>
-	[CommandIntent(CommandIntentFlags.Destructive | CommandIntentFlags.RequiresConfirmation, Scope = CommandScope.Global)]
+	[CommandIntent(Intent.Destructive | Intent.RequiresConfirmation)]
+	[MutationScope(MutationScope.Global)]
+	[RequiresAuth]
 	[NoOptionsInjection]
 	public static void SchemaIntentDestructive(
 		[ConfirmationSkip] bool yes = false) =>
 		Console.Out.WriteLine("deleted");
 
 	/// <summary>Lists resources safely.</summary>
-	[CommandIntent(CommandIntentFlags.Idempotent)]
+	[CommandIntent(Intent.Idempotent)]
 	[NoOptionsInjection]
 	public static void SchemaIntentRead(
 		[DryRun] bool dryRun = false) =>
 		Console.Out.WriteLine("list");
 }
 
-/// <summary>Schema test: output formats on a command.</summary>
+/// <summary>Enum for output format selection.</summary>
+internal enum OutputFormat { Json, Table, Csv }
+
+/// <summary>Schema test: output formats on a command — enum parameter.</summary>
 internal static class SchemaOutputHandlers
 {
 	/// <summary>Reports status in multiple formats.</summary>
-	[CommandOutput("json", "table", "csv", FormatFlag = "--output")]
 	[NoOptionsInjection]
-	public static void SchemaOutputFormats(string? output = null) =>
-		Console.Out.WriteLine($"format:{output}");
+	public static void SchemaOutputFormats([CommandOutput] OutputFormat? format = null) =>
+		Console.Out.WriteLine($"format:{format}");
 }

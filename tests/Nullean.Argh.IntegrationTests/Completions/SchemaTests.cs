@@ -292,6 +292,7 @@ public class SchemaTests
 		var intent = cmd.GetProperty("intent");
 		intent.GetProperty("destructive").GetBoolean().Should().BeTrue();
 		intent.GetProperty("requiresConfirmation").GetBoolean().Should().BeTrue();
+		intent.GetProperty("requiresAuth").GetBoolean().Should().BeTrue();
 		intent.GetProperty("scope").GetString().Should().Be("global");
 		intent.TryGetProperty("idempotent", out _).Should().BeFalse();
 	}
@@ -332,7 +333,7 @@ public class SchemaTests
 			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-output-formats");
 		cmd.ValueKind.Should().Be(JsonValueKind.Object);
 		var output = cmd.GetProperty("output");
-		output.GetProperty("formatFlag").GetString().Should().Be("--output");
+		output.GetProperty("formatFlag").GetString().Should().Be("--format");
 		var formats = output.GetProperty("formats").EnumerateArray().Select(f => f.GetString()).ToArray();
 		formats.Should().BeEquivalentTo(new[] { "json", "table", "csv" });
 	}

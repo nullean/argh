@@ -1,3 +1,5 @@
+using Nullean.Argh.Documentation;
+
 namespace Nullean.Argh.Builder;
 
 /// <summary>
