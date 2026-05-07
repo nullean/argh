@@ -23,7 +23,7 @@ public sealed partial class CliParserGenerator
 	{
 		sb.AppendLine("\t\tinternal static ArghCliSchemaDocument BuildCliSchemaDocument() =>");
 		sb.AppendLine("\t\t\tnew ArghCliSchemaDocument(");
-		sb.AppendLine("\t\t\t\t2,");
+		sb.AppendLine("\t\t\t\t1,");
 		sb.AppendLine($"\t\t\t\t\"{Escape(entryAssemblyName)}\",");
 		sb.AppendLine($"\t\t\t\t\"{Escape(entryAssemblyVersion)}\",");
 		EmitNullableStringArg(sb, "\t\t\t\t", string.IsNullOrWhiteSpace(app.RootSummary) ? null : app.RootSummary);

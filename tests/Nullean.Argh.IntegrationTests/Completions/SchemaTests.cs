@@ -18,7 +18,7 @@ public class SchemaTests
 
 		using var doc = JsonDocument.Parse(stdout);
 		var root = doc.RootElement;
-		root.GetProperty("schemaVersion").GetInt32().Should().Be(2);
+		root.GetProperty("schemaVersion").GetInt32().Should().Be(1);
 		root.GetProperty("name").GetString().Should().NotBeNullOrWhiteSpace();
 		root.GetProperty("version").GetString().Should().NotBeNullOrWhiteSpace();
 		root.TryGetProperty("description", out _).Should().BeTrue();

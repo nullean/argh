@@ -12,7 +12,13 @@ public sealed record ArghCliSchemaDocument(
 	CliParameterSchema[] GlobalOptions,
 	CliDefaultHandlerSchema? RootDefault,
 	CliCommandSchema[] Commands,
-	CliNamespaceSchema[] Namespaces);
+	CliNamespaceSchema[] Namespaces,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string[]? Tags = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	bool? RequiresAuth = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string[]? AuthCommands = null);
 
 /// <summary>Nested command namespace (subcommand group).</summary>
 public sealed record CliNamespaceSchema(
@@ -36,7 +42,37 @@ public sealed record CliCommandSchema(
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	string[]? Aliases = null,
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-	bool Hidden = false);
+	bool Hidden = false,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string[]? Tags = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	CliIntentSchema? Intent = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	CliOutputSchema? Output = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	bool Streaming = false,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	bool LongRunning = false);
+
+/// <summary>Side-effect profile of a command, for agent reasoning.</summary>
+public sealed record CliIntentSchema(
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	bool? Destructive = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	bool? Idempotent = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string? Scope = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	bool? RequiresConfirmation = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	bool? RequiresAuth = null);
+
+/// <summary>Machine-readable output format declarations for a command.</summary>
+public sealed record CliOutputSchema(
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string[]? Formats = null,
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	string? FormatFlag = null);
 
 /// <summary>Root or namespace default handler (no argv token).</summary>
 public sealed record CliDefaultHandlerSchema(
@@ -79,7 +115,7 @@ public sealed record CliParameterSchema(
 	CliConstraintSchema[]? Validations = null);
 
 /// <summary>A single validation constraint on a CLI parameter.</summary>
-/// <param name="Kind">One of: range, length, count, regex, allowed, denied, email, url, timeSpanRange, existing, nonExisting, rejectSymbolicLinks, expandUserProfile.</param>
+/// <param name="Kind">One of: range, length, count, regex, allowed, denied, email, url, uriScheme, fileExtensions, timeSpanRange, existing, nonExisting, rejectSymbolicLinks, expandUserProfile.</param>
 public sealed record CliConstraintSchema(
 	string Kind,
 	string? Min = null,

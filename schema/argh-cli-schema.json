@@ -314,6 +314,100 @@
           "hidden": {
             "type": "boolean",
             "default": false
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "default": null
+          },
+          "intent": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "destructive": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "default": null
+              },
+              "idempotent": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "default": null
+              },
+              "scope": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "requiresConfirmation": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "default": null
+              },
+              "requiresAuth": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "default": null
+              }
+            },
+            "default": null
+          },
+          "output": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "formats": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "default": null
+              },
+              "formatFlag": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              }
+            },
+            "default": null
+          },
+          "streaming": {
+            "type": "boolean",
+            "default": false
+          },
+          "longRunning": {
+            "type": "boolean",
+            "default": false
           }
         },
         "required": [
@@ -426,6 +520,39 @@
           "namespaces"
         ]
       }
+    },
+    "tags": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "default": null
+    },
+    "requiresAuth": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "authCommands": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "default": null
     }
   },
   "required": [
