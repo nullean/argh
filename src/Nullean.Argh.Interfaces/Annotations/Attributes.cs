@@ -169,6 +169,20 @@ public sealed class RejectSymbolicLinksAttribute : Attribute;
 public sealed class ExpandUserProfileAttribute : Attribute;
 
 /// <summary>
+/// Overrides the CLI string used to parse and display an enum member.
+/// Without this attribute the CLI string is the member name lowercased (e.g. <c>MyValue</c> → <c>myvalue</c>).
+/// The value is matched case-insensitively at parse time.
+/// </summary>
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class EnumValueAttribute : Attribute
+{
+	public EnumValueAttribute(string value) => Value = value;
+
+	/// <summary>The CLI string users type on the command line (e.g. <c>"fire-red"</c>).</summary>
+	public string Value { get; }
+}
+
+/// <summary>
 /// Marks a command method or parameter as hidden from user-facing help and autocomplete suggestions.
 /// The command or parameter still parses and works correctly, and appears in <c>__schema</c> output
 /// with <c>hidden: true</c> so tooling can suppress it selectively.

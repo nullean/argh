@@ -379,7 +379,7 @@ public sealed partial class CliParserGenerator
 
 		if (type == "enum" && !p.EnumMemberNames.IsDefaultOrEmpty)
 		{
-			var enumArr = string.Join(", ", p.EnumMemberNames.Select(m => $"\"{Escape(m.ToLowerInvariant())}\""));
+			var enumArr = string.Join(", ", p.EnumMemberNames.Select((m, i) => $"\"{Escape(ResolveEnumMemberCliName(p.EnumMemberCliNames, i, m))}\""));
 			sb.Append($", EnumValues: new string[] {{ {enumArr} }}");
 		}
 
