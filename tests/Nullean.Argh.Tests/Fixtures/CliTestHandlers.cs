@@ -15,6 +15,18 @@ internal enum TestColor
 	Blue
 }
 
+internal enum TestPalette
+{
+	/// <summary>A warm red hue.</summary>
+	[EnumValue("fire-red")]
+	FireRed,
+	/// <summary>A deep ocean blue.</summary>
+	[EnumValue("ocean-blue")]
+	OceanBlue,
+	/// <summary>Lush green.</summary>
+	Green
+}
+
 /// <summary>Sample record bound via <see cref="AsParametersAttribute"/>.</summary>
 /// <param name="Env">Deployment environment name.</param>
 /// <param name="Port">Listen port.</param>
@@ -97,6 +109,12 @@ internal static class CliTestHandlers
 	/// <param name="name">-n,--name, Display name</param>
 	public static void EnumCmd(TestGlobalCliOptions g, TestColor color, string name) =>
 		Console.Out.WriteLine($"ok:{color}:{name}");
+
+	/// <summary>Enum with custom CLI value strings via EnumValueAttribute.</summary>
+	/// <param name="g">Injected global CLI options.</param>
+	/// <param name="palette">Pick a palette color using kebab-case CLI values.</param>
+	public static void EnumValueCmd(TestGlobalCliOptions g, TestPalette palette) =>
+		Console.Out.WriteLine($"enum-value:{palette}");
 
 	public static void Deploy(TestGlobalCliOptions g, [AsParameters("app")] DeployCliArgs args) =>
 		Console.Out.WriteLine($"deploy:{args.Env}:{args.Port}");

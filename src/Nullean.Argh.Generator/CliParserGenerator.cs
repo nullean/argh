@@ -6799,6 +6799,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			TypeName = p.ElementTypeName,
 			EnumTypeFq = p.ElementEnumTypeFq,
 			EnumMemberNames = p.ElementEnumMemberNames,
+			EnumMemberCliNames = p.ElementEnumMemberCliNames,
 			ParserTypeFq = p.ElementParserTypeFq,
 			CustomValueTypeFq = p.ElementCustomValueTypeFq,
 			Special = BoolSpecialKind.None,
@@ -7175,10 +7176,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var e = Escape(p.CliLongName);
 		string Out(string name) => outVarKeyword ? "out var " + name : "out " + name;
 
-		if (p.ScalarKind == CliScalarKind.Enum && p.EnumTypeFq is not null)
+		if (p.ScalarKind == CliScalarKind.Enum && p.EnumTypeFq is not null && !p.EnumMemberNames.IsDefaultOrEmpty)
 		{
 			var evVar = "__ev_" + p.LocalVarName;
-			sb.AppendLine($"{ind}if (!global::System.Enum.TryParse<{p.EnumTypeFq}>({rawExpr}, true, out var {evVar}) || !global::System.Enum.IsDefined(typeof({p.EnumTypeFq}), {evVar}))");
+			var evParsed = "__evp_" + p.LocalVarName;
+			sb.AppendLine($"{ind}var {evParsed} = false;");
+			sb.AppendLine($"{ind}{p.EnumTypeFq} {evVar} = default;");
+			sb.AppendLine($"{ind}switch (({rawExpr} ?? \"\").ToLowerInvariant())");
+			sb.AppendLine($"{ind}{{");
+			for (var i = 0; i < p.EnumMemberNames.Length; i++)
+			{
+				var memberName = p.EnumMemberNames[i];
+				var cliName = ResolveEnumMemberCliName(p.EnumMemberCliNames, i, memberName);
+				sb.AppendLine($"{ind}\tcase \"{Escape(cliName.ToLowerInvariant())}\": {evVar} = {p.EnumTypeFq}.{memberName}; {evParsed} = true; break;");
+			}
+			sb.AppendLine($"{ind}}}");
+			sb.AppendLine($"{ind}if (!{evParsed})");
 			sb.AppendLine($"{ind}{{");
 			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}: '{{{rawExpr}}}'.\");");
 			EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
@@ -8130,20 +8143,26 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return b.ToImmutable();
 	}
 
+	private static string ResolveEnumMemberCliName(ImmutableArray<string> cliNames, int index, string memberName)
+		=> !cliNames.IsDefaultOrEmpty ? cliNames[index] : memberName.ToLowerInvariant();
+
 	private static string? BuildValidationLine(ParameterModel p)
 	{
 		var tokens = new List<string>();
 
-		// Enum members displayed as [allowed: …] on the validation line (lowercase invariant; parsing is case-insensitive)
 		if (p.ScalarKind == CliScalarKind.Enum && !p.EnumMemberNames.IsDefaultOrEmpty)
 		{
-			tokens.Add("One of: <" + string.Join("|", p.EnumMemberNames.Select(m => m.ToLowerInvariant())) + ">");
+			tokens.Add("One of: <" + string.Join("|", p.EnumMemberNames.Select((m, i) => ResolveEnumMemberCliName(p.EnumMemberCliNames, i, m))) + ">");
 			if (p.EnumMemberDocs is { Count: > 0 } docs)
 			{
 				var memberDescParts = new List<string>();
-				foreach (var member in p.EnumMemberNames)
+				for (var i = 0; i < p.EnumMemberNames.Length; i++)
+				{
+					var member = p.EnumMemberNames[i];
+					var cliName = ResolveEnumMemberCliName(p.EnumMemberCliNames, i, member);
 					if (docs.TryGetValue(member, out var memberDoc) && !string.IsNullOrWhiteSpace(memberDoc))
-						memberDescParts.Add($"{member.ToLowerInvariant()}: {memberDoc.Trim()}");
+						memberDescParts.Add($"{cliName}: {memberDoc.Trim()}");
+				}
 				if (memberDescParts.Count > 0)
 					tokens.Add("(" + string.Join("; ", memberDescParts) + ")");
 			}
@@ -8152,13 +8171,17 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (p.IsCollection && p.ElementScalarKind == CliScalarKind.Enum && !p.ElementEnumMemberNames.IsDefaultOrEmpty)
 		{
 			var label = p.CollectionTargetIsReadOnlySet ? "Combination of:" : "One or more of:";
-			tokens.Add(label + " <" + string.Join("|", p.ElementEnumMemberNames.Select(m => m.ToLowerInvariant())) + ">");
+			tokens.Add(label + " <" + string.Join("|", p.ElementEnumMemberNames.Select((m, i) => ResolveEnumMemberCliName(p.ElementEnumMemberCliNames, i, m))) + ">");
 			if (p.ElementEnumMemberDocs is { Count: > 0 } elemDocs)
 			{
 				var memberDescParts = new List<string>();
-				foreach (var member in p.ElementEnumMemberNames)
+				for (var i = 0; i < p.ElementEnumMemberNames.Length; i++)
+				{
+					var member = p.ElementEnumMemberNames[i];
+					var cliName = ResolveEnumMemberCliName(p.ElementEnumMemberCliNames, i, member);
 					if (elemDocs.TryGetValue(member, out var memberDoc) && !string.IsNullOrWhiteSpace(memberDoc))
-						memberDescParts.Add($"{member.ToLowerInvariant()}: {memberDoc.Trim()}");
+						memberDescParts.Add($"{cliName}: {memberDoc.Trim()}");
+				}
 				if (memberDescParts.Count > 0)
 					tokens.Add("(" + string.Join("; ", memberDescParts) + ")");
 			}
@@ -8619,12 +8642,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		if (p.ScalarKind == CliScalarKind.Enum && !p.EnumMemberNames.IsDefaultOrEmpty)
 		{
 			var lit = p.DefaultValueLiteral.Trim();
-			foreach (var member in p.EnumMemberNames)
+			for (var i = 0; i < p.EnumMemberNames.Length; i++)
 			{
-				if (string.Equals(lit, member, StringComparison.Ordinal))
-					return member.ToLowerInvariant();
-				if (lit.EndsWith("." + member, StringComparison.Ordinal))
-					return member.ToLowerInvariant();
+				var member = p.EnumMemberNames[i];
+				if (string.Equals(lit, member, StringComparison.Ordinal) || lit.EndsWith("." + member, StringComparison.Ordinal))
+					return ResolveEnumMemberCliName(p.EnumMemberCliNames, i, member);
 			}
 		}
 
@@ -9362,6 +9384,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		string ElementTypeName = "string",
 		string? ElementEnumTypeFq = null,
 		ImmutableArray<string> ElementEnumMemberNames = default,
+		ImmutableArray<string> EnumMemberCliNames = default,
+		ImmutableArray<string> ElementEnumMemberCliNames = default,
 		string? ElementParserTypeFq = null,
 		string? ElementCustomValueTypeFq = null,
 		string? FullDeclaredTypeFq = null,
@@ -9440,6 +9464,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			ClassifyScalarForType(elementType, attributeHost, BoolSpecialKind.None,
 				out var elemSk, out var elemTn, out var eFq, out var eMem, out var pFq, out var cFq);
+			var eCliMem = elemSk == CliScalarKind.Enum ? TryGetEnumCliNames(elementType) : default;
 			var elemEnumDocs = elemSk == CliScalarKind.Enum ? TryGetEnumDocs(elementType) : null;
 			var sep = TryGetCollectionSeparatorFromAttribute(attributeHost);
 			var required = isSeparateType
@@ -9479,6 +9504,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				ElementTypeName: elemTn,
 				ElementEnumTypeFq: eFq,
 				ElementEnumMemberNames: eMem,
+				ElementEnumMemberCliNames: eCliMem,
 				ElementParserTypeFq: pFq,
 				ElementCustomValueTypeFq: cFq,
 				FullDeclaredTypeFq: fq,
@@ -9542,6 +9568,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var required = ComputeRequired(p, bs);
 			var defLit = TryGetDefaultLiteral(p, bs);
 			var enumDocs = sk == CliScalarKind.Enum ? TryGetEnumDocs(p.Type) : null;
+			var enumCliNames = sk == CliScalarKind.Enum ? TryGetEnumCliNames(p.Type) : default;
 			var validations = ReadValidationConstraints(p, sk, typeName);
 			var expandProf = TryReadExpandUserProfileBeforeBind(p, sk);
 			return new ParameterModel(
@@ -9561,6 +9588,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				"",
 				null,
 				ImmutableArray<string>.Empty,
+				EnumMemberCliNames: enumCliNames,
 				EnumMemberDocs: enumDocs,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
@@ -9590,6 +9618,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var isCrossAssemblyDefault = defaultValueLiteral is null && prop.DeclaringSyntaxReferences.IsEmpty;
 			var required = !isCrossAssemblyDefault && ComputeRequiredForOptionsType(prop.Type, bs) && defaultValueLiteral is null;
 			var enumDocs = sk == CliScalarKind.Enum ? TryGetEnumDocs(prop.Type) : null;
+			var enumCliNames = sk == CliScalarKind.Enum ? TryGetEnumCliNames(prop.Type) : default;
 			var validations = ReadValidationConstraints(prop, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
@@ -9610,6 +9639,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				doc.Description,
 				doc.ShortOpt,
 				doc.Aliases,
+				EnumMemberCliNames: enumCliNames,
 				EnumMemberDocs: enumDocs,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
@@ -9638,6 +9668,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
 			var isCrossAssemblyDefault = defaultValueLiteral is null && field.DeclaringSyntaxReferences.IsEmpty;
 			var required = !isCrossAssemblyDefault && ComputeRequiredForOptionsType(field.Type, bs) && defaultValueLiteral is null;
+			var enumCliNames = sk == CliScalarKind.Enum ? TryGetEnumCliNames(field.Type) : default;
 			var validations = ReadValidationConstraints(field, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var expandProf = TryReadExpandUserProfileBeforeBind(field, sk);
@@ -9658,6 +9689,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				doc.Description,
 				doc.ShortOpt,
 				doc.Aliases,
+				EnumMemberCliNames: enumCliNames,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
 				IsHidden: HasHiddenAttribute(field),
@@ -9744,6 +9776,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 			var required = ComputeRequired(cp, bs);
 			var defLit = TryGetDefaultLiteral(cp, bs);
+			var enumCliNames = sk == CliScalarKind.Enum ? TryGetEnumCliNames(cp.Type) : default;
 			var validations = ReadValidationConstraints(cp, sk, typeName);
 			var expandProf = TryReadExpandUserProfileBeforeBind(cp, sk);
 			return new ParameterModel(
@@ -9763,6 +9796,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				desc,
 				null,
 				ImmutableArray<string>.Empty,
+				EnumMemberCliNames: enumCliNames,
 				AsParametersOwnerParamName: methodParamName,
 				AsParametersMemberOrder: memberOrder,
 				AsParametersTypeFq: typeFq,
@@ -9840,6 +9874,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var isCrossAssemblyDefault = defaultValueLiteral is null && prop.DeclaringSyntaxReferences.IsEmpty;
 			var required = !isCrossAssemblyDefault && ComputeRequiredForOptionsType(prop.Type, bs) && defaultValueLiteral is null;
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
+			var enumCliNames = sk == CliScalarKind.Enum ? TryGetEnumCliNames(prop.Type) : default;
 			var validations = ReadValidationConstraints(prop, sk, typeName);
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
 			return new ParameterModel(
@@ -9859,6 +9894,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				doc.Description,
 				doc.ShortOpt,
 				doc.Aliases,
+				EnumMemberCliNames: enumCliNames,
 				AsParametersOwnerParamName: methodParamName,
 				AsParametersMemberOrder: memberOrder,
 				AsParametersTypeFq: typeFq,
@@ -10059,6 +10095,39 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			}
 
 			return b.ToImmutable();
+		}
+
+		private static ImmutableArray<string> GetEnumMemberCliNames(INamedTypeSymbol enumType)
+		{
+			var hasAny = false;
+			var b = ImmutableArray.CreateBuilder<string>();
+			foreach (var m in enumType.GetMembers())
+			{
+				if (m is not IFieldSymbol { HasConstantValue: true, IsImplicitlyDeclared: false })
+					continue;
+				string? cliName = null;
+				foreach (var attr in m.GetAttributes())
+				{
+					if (attr.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Nullean.Argh.EnumValueAttribute"
+					    && attr.ConstructorArguments.Length > 0
+					    && attr.ConstructorArguments[0].Value is string v)
+					{
+						cliName = v;
+						hasAny = true;
+						break;
+					}
+				}
+				b.Add(cliName ?? m.Name.ToLowerInvariant());
+			}
+			return hasAny ? b.ToImmutable() : default;
+		}
+
+		private static ImmutableArray<string> TryGetEnumCliNames(ITypeSymbol type)
+		{
+			var t = type;
+			if (t is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nn)
+				t = nn.TypeArguments[0];
+			return t is INamedTypeSymbol { TypeKind: TypeKind.Enum } en ? GetEnumMemberCliNames(en) : default;
 		}
 
 		private static ImmutableDictionary<string, string> GetEnumMemberDocs(INamedTypeSymbol enumType)

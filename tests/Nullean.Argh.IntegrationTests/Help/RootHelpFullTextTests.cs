@@ -66,6 +66,8 @@ public class RootHelpFullTextTests
 			                                        (XML appears in help).
 			  dry-run-cmd
 			  enum-cmd                              Enum and short options.
+			  enum-value-cmd                        Enum with custom CLI value strings via
+			                                        EnumValueAttribute.
 			  ext-ns-as-params-echo                 Echo verbose and tag from an
 			                                        [AsParameters] DTO in an unrelated
 			                                        external namespace.
