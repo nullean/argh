@@ -3823,6 +3823,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t\tif (__matches.Count == 0)");
 		sb.AppendLine("\t\t\t\t{");
 		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown {kind} '{{__tok}}'.\");");
+		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
+		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Run '{{__app}} {nsHelp}' for usage.\");");
 		sb.AppendLine("\t\t\t\t}");
 		sb.AppendLine("\t\t\t\telse if (__matches.Count == 1)");
 		sb.AppendLine("\t\t\t\t{");
@@ -6484,6 +6486,85 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private static string EscapeVerbatimString(string s) => s.Replace("\"", "\"\"");
 
+	private static void EmitCommandRunnerFuzzyFailHelper(
+		StringBuilder sb,
+		CommandModel cmd,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint)
+	{
+		var flagParams = cmd.Parameters
+			.Where(static p => IsEmittedFlagLike(p.Kind))
+			.ToList();
+
+		if (flagParams.Count > 0)
+		{
+			sb.Append("\t\t\tvar __flagFuzzyCands = new string[] { ");
+			var sortedNames = flagParams
+				.Select(static p => p.CliLongName)
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase)
+				.ToList();
+			for (var i = 0; i < sortedNames.Count; i++)
+			{
+				if (i > 0)
+					sb.Append(", ");
+				sb.Append('"').Append(Escape(sortedNames[i])).Append('"');
+			}
+			sb.AppendLine(" };");
+		}
+
+		sb.AppendLine("\t\t\tint FailUnknownLongOption(string flagName)");
+		sb.AppendLine("\t\t\t{");
+		if (flagParams.Count > 0)
+		{
+			sb.AppendLine($"\t\t\t\tvar __matches = FuzzyMatch.FindClosest(flagName, __flagFuzzyCands, {FuzzyMaxDistance});");
+			sb.AppendLine("\t\t\t\tif (__matches.Count == 0)");
+			sb.AppendLine("\t\t\t\t{");
+		}
+		sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'.\");");
+		if (parseFailureRunHint is not null)
+		{
+			sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
+			sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine(\"{Escape(parseFailureRunHint)}\");");
+		}
+		sb.AppendLine("\t\t\t\t\treturn 2;");
+		if (flagParams.Count > 0)
+		{
+			sb.AppendLine("\t\t\t\t}");
+			sb.AppendLine("\t\t\t\tif (__matches.Count == 1)");
+			sb.AppendLine("\t\t\t\t{");
+			sb.AppendLine("\t\t\t\t\tvar __m = __matches[0];");
+			sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'. Did you mean '--{__m}'?\");");
+			if (flagHelpStdErrMethodName is not null)
+			{
+				sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
+				sb.AppendLine($"\t\t\t\t\t{flagHelpStdErrMethodName}(__m);");
+			}
+			if (parseFailureRunHint is not null)
+			{
+				sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
+				sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine(\"{Escape(parseFailureRunHint)}\");");
+			}
+			sb.AppendLine("\t\t\t\t\treturn 2;");
+			sb.AppendLine("\t\t\t\t}");
+			sb.AppendLine("\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'. Did you mean one of these?\");");
+			sb.AppendLine("\t\t\t\tConsole.Error.WriteLine();");
+			sb.AppendLine("\t\t\t\tforeach (var __m in __matches)");
+			sb.AppendLine("\t\t\t\t{");
+			if (flagHelpStdErrMethodName is not null)
+				sb.AppendLine($"\t\t\t\t\t{flagHelpStdErrMethodName}(__m);");
+			sb.AppendLine("\t\t\t\t}");
+			if (parseFailureRunHint is not null)
+			{
+				sb.AppendLine("\t\t\t\tConsole.Error.WriteLine();");
+				sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{Escape(parseFailureRunHint)}\");");
+			}
+			sb.AppendLine("\t\t\t\treturn 2;");
+		}
+		sb.AppendLine("\t\t\t}");
+		sb.AppendLine();
+	}
+
 	private static void EmitCommandRunner(
 		StringBuilder sb,
 		CommandModel cmd,
@@ -6557,9 +6638,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\tvar positionals = new List<string>();");
 		EmitBoolSwitchNames(sb, cmd);
 		EmitCanonFlagNameMethod(sb, cmd);
-		EmitShortFlagMethods(sb, cmd, multiFlagsAvailable: anyRepeatedCollection);
-		if (emitDtoTryParse)
-			EmitKnownNonBoolFlagNames(sb, cmd);
+		EmitShortFlagMethods(sb, cmd, multiFlagsAvailable: anyRepeatedCollection,
+			parseFailureRunHint: emitDtoTryParse ? null : parseFailureRunHint);
+		EmitKnownNonBoolFlagNames(sb, cmd);
+		if (!emitDtoTryParse)
+			EmitCommandRunnerFuzzyFailHelper(sb, cmd, flagHelpStdErrMethodName, parseFailureRunHint);
 		sb.AppendLine("\t\t\tfor (var i = 0; i < args.Length;)");
 		sb.AppendLine("\t\t\t{");
 		sb.AppendLine("\t\t\t\tvar a = args[i];");
@@ -6577,6 +6660,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown option '--{flagName}'.\");");
 			sb.AppendLine($"\t\t\t\t\t\t\t{failureExit};");
 			sb.AppendLine("\t\t\t\t\t\t}");
+		}
+		else if (!emitDtoTryParse)
+		{
+			sb.AppendLine("\t\t\t\t\t\tif (!IsBoolSwitchName(flagName) && !IsKnownNonBoolFlagName(flagName))");
+			sb.AppendLine("\t\t\t\t\t\t\treturn FailUnknownLongOption(flagName);");
 		}
 		if (anyRepeatedCollection)
 		{
@@ -6620,6 +6708,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				sb.AppendLine($"\t\t\t\t\t\t\t\t{failureExit};");
 				sb.AppendLine("\t\t\t\t\t\t\t}");
 			}
+		}
+		else
+		{
+			sb.AppendLine("\t\t\t\t\t\t\tif (!IsKnownNonBoolFlagName(flagName))");
+			sb.AppendLine("\t\t\t\t\t\t\t\treturn FailUnknownLongOption(flagName);");
 		}
 		sb.AppendLine("\t\t\t\t\t\t\tif (i + 1 >= args.Length)");
 		sb.AppendLine("\t\t\t\t\t\t\t{");
@@ -7313,7 +7406,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t\t};");
 	}
 
-	private static void EmitShortFlagMethods(StringBuilder sb, CommandModel cmd, bool multiFlagsAvailable = true)
+	private static void EmitShortFlagMethods(StringBuilder sb, CommandModel cmd, bool multiFlagsAvailable = true, string? parseFailureRunHint = null)
 	{
 		var shortCases = new List<(char c, string Primary, bool IsBool, bool IsRepeatableCollection)>();
 		foreach (var p in cmd.Parameters)
@@ -7332,6 +7425,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			sb.AppendLine("\t\t\tbool TryApplyShortFlag(char c, string val)");
 			sb.AppendLine("\t\t\t{");
 			sb.AppendLine("\t\t\t\tConsole.Error.WriteLine($\"Error: unknown short option '-{c}'.\");");
+			if (parseFailureRunHint is not null)
+			{
+				sb.AppendLine("\t\t\t\tConsole.Error.WriteLine();");
+				sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{Escape(parseFailureRunHint)}\");");
+			}
 			sb.AppendLine("\t\t\t\treturn false;");
 			sb.AppendLine("\t\t\t}");
 			sb.AppendLine("\t\t\tbool IsShortBoolChar(char c) => false;");
@@ -7361,6 +7459,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		sb.AppendLine("\t\t\t\t\tdefault:");
 		sb.AppendLine("\t\t\t\t\t\tConsole.Error.WriteLine($\"Error: unknown short option '-{c}'.\");");
+		if (parseFailureRunHint is not null)
+		{
+			sb.AppendLine("\t\t\t\t\t\tConsole.Error.WriteLine();");
+			sb.AppendLine($"\t\t\t\t\t\tConsole.Error.WriteLine(\"{Escape(parseFailureRunHint)}\");");
+		}
 		sb.AppendLine("\t\t\t\t\t\treturn false;");
 		sb.AppendLine("\t\t\t\t}");
 		sb.AppendLine("\t\t\t}");
