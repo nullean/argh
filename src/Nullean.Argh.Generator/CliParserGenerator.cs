@@ -337,7 +337,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var assemblyInfo = context.CompilationProvider
 			.Select(static (c, _) => (
 				Name: c.Assembly.Identity.Name ?? "app",
-				Ver: c.Assembly.Identity.Version?.ToString() ?? "0.0.0.0"));
+				Ver: GetAssemblyInformationalVersion(c) ?? c.Assembly.Identity.Version?.ToString() ?? "0.0.0.0"));
 
 		// ── Parse options ── changes only when LangVersion/nullable/defines change
 		var parseOpts = context.ParseOptionsProvider
@@ -417,6 +417,21 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var ((((analyzedArray, (asmName, asmVer)), caps), po), artifactsPathValue) = tuple;
 			Execute(spc, analyzedArray, asmName, asmVer, caps, po, artifactsPathValue);
 		});
+	}
+
+	private static string? GetAssemblyInformationalVersion(Compilation compilation)
+	{
+		foreach (var attribute in compilation.Assembly.GetAttributes())
+		{
+			if (attribute.AttributeClass?.ToDisplayString() != "System.Reflection.AssemblyInformationalVersionAttribute")
+				continue;
+
+			return attribute.ConstructorArguments.Length > 0
+				? attribute.ConstructorArguments[0].Value as string
+				: null;
+		}
+
+		return null;
 	}
 
 
