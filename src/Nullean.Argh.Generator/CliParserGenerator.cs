@@ -331,13 +331,41 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
+	/// <summary>
+	/// Version string for <c>--version</c> and CLI schema: prefer
+	/// <see cref="AssemblyInformationalVersionAttribute"/> (semantic / MinVer output), then assembly identity version.
+	/// </summary>
+	private static string GetEntryAssemblyDisplayVersion(Compilation compilation)
+	{
+		var informationalAttr = compilation.GetTypeByMetadataName(
+			"System.Reflection.AssemblyInformationalVersionAttribute");
+		foreach (var attribute in compilation.Assembly.GetAttributes())
+		{
+			if (attribute.AttributeClass is not { } attributeClass)
+				continue;
+			if (informationalAttr is not null
+			    && !SymbolEqualityComparer.Default.Equals(attributeClass, informationalAttr)
+			    && attributeClass.Name is not ("AssemblyInformationalVersionAttribute" or "AssemblyInformationalVersion"))
+				continue;
+			if (informationalAttr is null
+			    && attributeClass.Name is not ("AssemblyInformationalVersionAttribute" or "AssemblyInformationalVersion"))
+				continue;
+			if (attribute.ConstructorArguments.Length > 0
+			    && attribute.ConstructorArguments[0].Value is string informational
+			    && !string.IsNullOrWhiteSpace(informational))
+				return informational;
+		}
+
+		return compilation.Assembly.Identity.Version?.ToString() ?? "0.0.0.0";
+	}
+
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		// ── Assembly metadata ── stable, only changes on version bump
 		var assemblyInfo = context.CompilationProvider
 			.Select(static (c, _) => (
 				Name: c.Assembly.Identity.Name ?? "app",
-				Ver: c.Assembly.Identity.Version?.ToString() ?? "0.0.0.0"));
+				Ver: GetEntryAssemblyDisplayVersion(c)));
 
 		// ── Parse options ── changes only when LangVersion/nullable/defines change
 		var parseOpts = context.ParseOptionsProvider
