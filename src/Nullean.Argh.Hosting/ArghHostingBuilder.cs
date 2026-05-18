@@ -157,6 +157,12 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
+	IArghRootBuilder IArghRootBuilder.UseSchemaVersion(string version)
+	{
+		_ = _inner.UseSchemaVersion(version);
+		return this;
+	}
+
 	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler)
 	{

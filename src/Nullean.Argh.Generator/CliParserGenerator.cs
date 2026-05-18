@@ -313,6 +313,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		switch (methodName)
 		{
 			case "UseCliDescription":
+			case "UseSchemaVersion":
 			case "DocumentEnvironmentVariables":
 			case "MapNamespace":
 			case "MapRoot":
@@ -330,6 +331,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				return false;
 		}
 	}
+
+	private static string GetEntryAssemblyMajorVersion(Compilation compilation) =>
+		(compilation.Assembly.Identity.Version?.Major ?? 0).ToString(CultureInfo.InvariantCulture);
 
 	/// <summary>
 	/// Version string for <c>--version</c> and CLI schema: prefer
@@ -365,7 +369,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var assemblyInfo = context.CompilationProvider
 			.Select(static (c, _) => (
 				Name: c.Assembly.Identity.Name ?? "app",
-				Ver: GetEntryAssemblyDisplayVersion(c)));
+				Ver: GetEntryAssemblyDisplayVersion(c),
+				SchemaVer: GetEntryAssemblyMajorVersion(c)));
 
 		// ── Parse options ── changes only when LangVersion/nullable/defines change
 		var parseOpts = context.ParseOptionsProvider
@@ -442,8 +447,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		context.RegisterSourceOutput(combined, static (spc, tuple) =>
 		{
-			var ((((analyzedArray, (asmName, asmVer)), caps), po), artifactsPathValue) = tuple;
-			Execute(spc, analyzedArray, asmName, asmVer, caps, po, artifactsPathValue);
+			var ((((analyzedArray, (asmName, asmVer, asmSchemaVer)), caps), po), artifactsPathValue) = tuple;
+			Execute(spc, analyzedArray, asmName, asmVer, asmSchemaVer, caps, po, artifactsPathValue);
 		});
 	}
 
@@ -454,6 +459,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ImmutableArray<AnalyzedInvocation> analyzed,
 		string entryAsmName,
 		string entryAsmVersion,
+		string entrySchemaVersion,
 		ReferenceMetadataCapabilities.Capabilities referenceCapabilities,
 		CSharpParseOptions parseOpts,
 		string? artifactsPath = null)
@@ -474,7 +480,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return;
 		}
 
-		EmitApp(context, appModel, parseOpts, entryAsmName, entryAsmVersion, referenceCapabilities);
+		EmitApp(context, appModel, parseOpts, entryAsmName, entryAsmVersion, entrySchemaVersion, referenceCapabilities);
 	}
 
 	/// <summary>Legacy Execute — kept for reference / fallback; not wired into the pipeline.</summary>
@@ -562,6 +568,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	{
 		public OptionsTypeModel? GlobalOptionsModel;
 		public string RootSummary = "";
+		public string? SchemaVersionOverride;
 		public readonly RegistryNode Root = new();
 		public ImmutableArray<CommandModel> AllCommands = ImmutableArray<CommandModel>.Empty;
 		public ImmutableArray<GlobalMiddlewareRegistration> GlobalMiddleware = ImmutableArray<GlobalMiddlewareRegistration>.Empty;
@@ -682,6 +689,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	/// <summary>A <c>UseCliDescription(string)</c> invocation — only meaningful at root scope.</summary>
 	private sealed record AIUseCliDescription(string FilePath, int SpanStart, string Description)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
+	/// <summary>A <c>UseSchemaVersion(string)</c> invocation — overrides the <c>version</c> field in the <c>__schema</c> document.</summary>
+	private sealed record AIUseSchemaVersion(string FilePath, int SpanStart, string Version)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>DocumentEnvironmentVariables(...)</c> invocation — only meaningful at root scope.</summary>
@@ -926,6 +937,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var descExpr = invocation.ArgumentList.Arguments[0].Expression;
 				var desc = TryGetStringLiteral(descExpr) ?? "";
 				return new AIUseCliDescription(filePath, spanStart, desc);
+			}
+			case "UseSchemaVersion":
+			{
+				if (invocation.ArgumentList.Arguments.Count < 1) return null;
+				var verExpr = invocation.ArgumentList.Arguments[0].Expression;
+				var ver = TryGetStringLiteral(verExpr);
+				if (string.IsNullOrWhiteSpace(ver)) return null;
+				return new AIUseSchemaVersion(filePath, spanStart, ver!);
 			}
 			case "DocumentEnvironmentVariables":
 				return AnalyzeDocumentEnvironmentVariables(invocation, filePath, spanStart);
@@ -1218,6 +1237,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				if (!vars.IsDefaultOrEmpty) app.EnvironmentVars = vars;
 				if (!cfgs.IsDefaultOrEmpty) app.ConfigFiles = cfgs;
+				break;
+			}
+		}
+
+		foreach (var ai in rootAnalyzed)
+		{
+			if (ai is AIUseSchemaVersion { Version: var v } && !string.IsNullOrWhiteSpace(v))
+			{
+				app.SchemaVersionOverride = v;
 				break;
 			}
 		}
@@ -3960,13 +3988,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		CSharpParseOptions parseOptions,
 		string entryAssemblyName,
 		string entryAssemblyVersion,
+		string entrySchemaVersion,
 		ReferenceMetadataCapabilities.Capabilities referenceCapabilities)
 	{
 		_ = referenceCapabilities;
 		_ = parseOptions;  // no longer needed for DTO building; kept in signature for future use
 		var dtoTargets = CollectDtoBindingTargets(app);
 		var root = GetArghGeneratedRootTypeName(entryAssemblyName);
-		EmitHierarchical(context, app, dtoTargets, entryAssemblyName, entryAssemblyVersion, root);
+		EmitHierarchical(context, app, dtoTargets, entryAssemblyName, entryAssemblyVersion, entrySchemaVersion, root);
 		EmitDtoTypeExtensions(context, dtoTargets, root);
 	}
 
@@ -4208,6 +4237,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		ImmutableArray<DtoBindingTarget> dtoTargets,
 		string entryAssemblyName,
 		string entryAssemblyVersion,
+		string entrySchemaVersion,
 		string arghGeneratedRootTypeName)
 	{
 		var sb = new StringBuilder();
@@ -4338,7 +4368,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		sb.AppendLine("\t\t}");
 		EmitDtoBindingMethods(sb, dtoTargets);
 		sb.AppendLine();
-		EmitBuildCliSchemaDocumentHierarchical(sb, app, entryAssemblyName, entryAssemblyVersion);
+		var schemaVersion = app.SchemaVersionOverride ?? entrySchemaVersion;
+		EmitBuildCliSchemaDocumentHierarchical(sb, app, entryAssemblyName, schemaVersion);
 		sb.AppendLine("\t}");
 		AppendArghRuntimeModuleInitializer(sb, arghGeneratedRootTypeName);
 		sb.AppendLine("}");

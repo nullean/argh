@@ -10,7 +10,8 @@ internal static class CliRegistrationModule
 	[ModuleInitializer]
 	internal static void RegisterCommands()
 	{
-		IArghBuilder app = new ArghBuilder();
+		IArghRootBuilder app = new ArghBuilder();
+		app.UseSchemaVersion("9.9.9-test");
 		app.UseMiddleware<TestsGlobalMiddleware>();
 		app.UseGlobalOptions<TestGlobalCliOptions>();
 		app.MapAndRootAlias<CliRootPrefetchAliasCommands>();

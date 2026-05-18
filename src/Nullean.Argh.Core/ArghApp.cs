@@ -37,6 +37,9 @@ public sealed partial class ArghApp : IArghRootBuilder
 	/// <summary>Documents environment variables and config files the program reads. Analyzed by the source generator; no-op at runtime.</summary>
 	public ArghApp DocumentEnvironmentVariables(CliEnvVar[]? variables = null, CliConfigFile[]? configFiles = null) => this;
 
+	/// <summary>Overrides the schema document's <c>version</c> field. Analyzed by the source generator; no-op at runtime.</summary>
+	public ArghApp UseSchemaVersion(string version) => this;
+
 	/// <summary>
 	/// Registers a default handler when no subcommand or namespace segment applies at the current scope
 	/// (app root or inside a <see cref="MapNamespace"/> block). Analyzed by the source generator.

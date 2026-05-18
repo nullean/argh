@@ -20,7 +20,8 @@ public class SchemaTests
 		var root = doc.RootElement;
 		root.GetProperty("schemaVersion").GetInt32().Should().Be(1);
 		root.GetProperty("name").GetString().Should().NotBeNullOrWhiteSpace();
-		root.GetProperty("version").GetString().Should().NotBeNullOrWhiteSpace();
+		// UseSchemaVersion("9.9.9-test") is called in CliRegistrationModule — the schema must reflect the override.
+		root.GetProperty("version").GetString().Should().Be("9.9.9-test");
 		root.TryGetProperty("description", out _).Should().BeTrue();
 		root.GetProperty("reservedMetaCommands").EnumerateArray().Select(e => e.GetString()).Should()
 			.Contain(new[] { "__complete", "__completion", "__schema" });
@@ -336,5 +337,16 @@ public class SchemaTests
 		output.GetProperty("formatFlag").GetString().Should().Be("--format");
 		var formats = output.GetProperty("formats").EnumerateArray().Select(f => f.GetString()).ToArray();
 		formats.Should().BeEquivalentTo(new[] { "json", "table", "csv" });
+	}
+
+	[Fact]
+	public void Version_flag_emits_full_informational_version_not_major_only()
+	{
+		var result = CliHostRunner.Run("--version");
+		result.ExitCode.Should().Be(0);
+		var stdout = CliHostRunner.StdoutText(result).Trim();
+		stdout.Should().NotBeNullOrWhiteSpace();
+		// --version must NOT be truncated to major-only; it should contain at least one dot or plus sign.
+		stdout.Should().MatchRegex(@"[\.\+]", "--version output must be the full informational version, not just the major");
 	}
 }
