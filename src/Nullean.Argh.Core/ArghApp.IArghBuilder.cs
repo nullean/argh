@@ -43,6 +43,13 @@ public sealed partial class ArghApp
 	}
 
 	/// <inheritdoc />
+	IArghRootBuilder IArghRootBuilder.UseSchemaVersion(string version)
+	{
+		_ = UseSchemaVersion(version);
+		return this;
+	}
+
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler)
 	{
 		_ = MapRoot(handler);

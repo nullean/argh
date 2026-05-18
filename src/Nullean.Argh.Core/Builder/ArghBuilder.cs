@@ -61,6 +61,13 @@ public sealed class ArghBuilder : IArghRootBuilder
 	}
 
 	/// <inheritdoc />
+	public IArghRootBuilder UseSchemaVersion(string version)
+	{
+		_ = _app.UseSchemaVersion(version);
+		return this;
+	}
+
+	/// <inheritdoc />
 	public IArghBuilder MapRoot(Delegate handler)
 	{
 		_ = _app.MapRoot(handler);

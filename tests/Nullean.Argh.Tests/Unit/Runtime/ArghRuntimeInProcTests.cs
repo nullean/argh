@@ -451,4 +451,13 @@ public class ArghRuntimeInProcTests
 		}
 		finally { Console.SetOut(prev); }
 	}
+
+	[Fact]
+	public void FormatCliSchemaJson_uses_UseSchemaVersion_override()
+	{
+		var json = ArghRuntime.FormatCliSchemaJson();
+		using var doc = System.Text.Json.JsonDocument.Parse(json);
+		// CliRegistrationModule calls UseSchemaVersion("9.9.9-test") — the schema version field must reflect that.
+		doc.RootElement.GetProperty("version").GetString().Should().Be("9.9.9-test");
+	}
 }

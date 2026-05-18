@@ -22,4 +22,14 @@ public interface IArghRootBuilder : IArghBuilder
 	IArghRootBuilder DocumentEnvironmentVariables(
 		CliEnvVar[]? variables = null,
 		CliConfigFile[]? configFiles = null);
+
+	/// <summary>
+	/// Overrides the <c>version</c> string written into the <c>__schema</c> document.
+	/// The argument MUST be a string literal — the source generator reads it at compile time
+	/// and bakes it into the emitted schema factory. If unset, the schema version defaults to
+	/// the major component of the entry assembly's identity version (e.g. <c>"1"</c>),
+	/// so the generated source stays stable across patch/preview bumps.
+	/// Does not affect the <c>--version</c> CLI flag, which always shows the full informational version.
+	/// </summary>
+	IArghRootBuilder UseSchemaVersion(string version);
 }
