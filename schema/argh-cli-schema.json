@@ -1,15 +1,9 @@
 {
-  "type": [
-    "object",
-    "null"
-  ],
+  "type": "object",
   "properties": {
     "schemaVersion": {
-      "type": [
-        "string",
-        "integer"
-      ],
-      "pattern": "^-?(?:0|[1-9]\\d*)$"
+      "type": "integer",
+      "const": 1
     },
     "name": {
       "type": "string"
@@ -18,102 +12,81 @@
       "type": "string"
     },
     "description": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     },
     "reservedMetaCommands": {
       "type": "array",
       "items": {
-        "type": [
-          "string",
-          "null"
-        ]
+        "type": "string"
       }
     },
     "globalOptions": {
       "type": "array",
       "items": {
-        "type": [
-          "object",
-          "null"
-        ],
+        "type": "object",
         "properties": {
           "role": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "flag",
+              "positional",
+              "confirmationSkip",
+              "dryRun"
+            ]
           },
           "name": {
             "type": "string"
           },
           "shortName": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "type": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "string",
+              "integer",
+              "number",
+              "boolean",
+              "array",
+              "enum"
+            ]
           },
           "required": {
             "type": "boolean"
           },
           "summary": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "defaultValue": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": null
+            "type": "string"
           },
           "repeatable": {
             "type": "boolean",
             "default": false
           },
           "separator": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": null
+            "type": "string"
           },
           "aliases": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": "array",
             "items": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "default": null
+              "type": "string"
+            }
           },
           "enumValues": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": "array",
             "items": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "default": null
+              "type": "string"
+            }
           },
           "elementType": {
-            "type": [
+            "type": "string",
+            "enum": [
               "string",
-              "null"
-            ],
-            "default": null
+              "integer",
+              "number",
+              "boolean"
+            ]
           },
           "hidden": {
             "type": "boolean",
@@ -124,135 +97,104 @@
             "default": false
           },
           "deprecated": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "default": null
+            "oneOf": [
+              {
+                "type": "boolean",
+                "const": true
               },
-              "since": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "default": null
-              },
-              "removedIn": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "default": null
+              {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "removedIn": {
+                    "type": "string"
+                  }
+                }
               }
-            },
-            "default": null
+            ]
           },
           "validations": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": "array",
             "items": {
-              "type": [
-                "object",
-                "null"
-              ],
+              "type": "object",
               "properties": {
                 "kind": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "range",
+                    "timeSpanRange",
+                    "length",
+                    "count",
+                    "regex",
+                    "allowed",
+                    "denied",
+                    "email",
+                    "url",
+                    "uriScheme",
+                    "fileExtensions",
+                    "existing",
+                    "nonExisting",
+                    "rejectSymbolicLinks"
+                  ]
                 },
                 "min": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "default": null
+                  "type": "string"
                 },
                 "max": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "default": null
+                  "type": "string"
                 },
                 "pattern": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "default": null
+                  "type": "string"
                 },
                 "values": {
-                  "type": [
-                    "array",
-                    "null"
-                  ],
+                  "type": "array",
                   "items": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "default": null
+                    "type": "string"
+                  }
                 }
               },
               "required": [
                 "kind"
               ]
-            },
-            "default": null
+            }
           }
         },
         "required": [
           "role",
           "name",
-          "shortName",
           "type",
-          "required",
-          "summary"
+          "required"
         ]
       }
     },
     "rootDefault": {
-      "type": [
-        "object",
-        "null"
-      ],
+      "type": "object",
       "properties": {
         "kind": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "root",
+            "namespace"
+          ]
         },
         "summary": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
         "notes": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
         "usage": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
         "examples": {
           "type": "array",
           "items": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           }
         },
         "parameters": {
@@ -268,9 +210,6 @@
       },
       "required": [
         "kind",
-        "summary",
-        "notes",
-        "usage",
         "examples",
         "parameters"
       ]
@@ -278,48 +217,30 @@
     "commands": {
       "type": "array",
       "items": {
-        "type": [
-          "object",
-          "null"
-        ],
+        "type": "object",
         "properties": {
           "path": {
             "type": "array",
             "items": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           "name": {
             "type": "string"
           },
           "summary": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "notes": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "usage": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "examples": {
             "type": "array",
             "items": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           "parameters": {
@@ -329,137 +250,81 @@
             }
           },
           "aliases": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": "array",
             "items": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "default": null
+              "type": "string"
+            }
           },
           "hidden": {
             "type": "boolean",
             "default": false
           },
           "tags": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": "array",
             "items": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "default": null
+              "type": "string"
+            }
           },
           "deprecated": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "default": null
+            "oneOf": [
+              {
+                "type": "boolean",
+                "const": true
               },
-              "since": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "default": null
-              },
-              "removedIn": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "default": null
+              {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "removedIn": {
+                    "type": "string"
+                  }
+                }
               }
-            },
-            "default": null
+            ]
           },
           "intent": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": "object",
             "properties": {
               "destructive": {
-                "type": [
-                  "boolean",
-                  "null"
-                ],
-                "default": null
+                "type": "boolean"
               },
               "idempotent": {
-                "type": [
-                  "boolean",
-                  "null"
-                ],
-                "default": null
+                "type": "boolean"
               },
               "scope": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "default": null
+                "type": "string",
+                "enum": [
+                  "file",
+                  "directory",
+                  "global"
+                ]
               },
               "requiresConfirmation": {
-                "type": [
-                  "boolean",
-                  "null"
-                ],
-                "default": null
+                "type": "boolean"
               },
               "requiresAuth": {
-                "type": [
-                  "boolean",
-                  "null"
-                ],
-                "default": null
+                "type": "boolean"
               }
-            },
-            "default": null
+            }
           },
           "output": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": "object",
             "properties": {
               "formats": {
-                "type": [
-                  "array",
-                  "null"
-                ],
+                "type": "array",
                 "items": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "default": null
+                  "type": "string"
+                }
               },
               "formatFlag": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "default": null
+                "type": "string"
               }
-            },
-            "default": null
+            }
           },
           "streaming": {
             "type": "boolean",
@@ -473,9 +338,6 @@
         "required": [
           "path",
           "name",
-          "summary",
-          "notes",
-          "usage",
           "examples",
           "parameters"
         ]
@@ -484,25 +346,16 @@
     "namespaces": {
       "type": "array",
       "items": {
-        "type": [
-          "object",
-          "null"
-        ],
+        "type": "object",
         "properties": {
           "segment": {
             "type": "string"
           },
           "summary": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "notes": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "options": {
             "type": "array",
@@ -511,31 +364,23 @@
             }
           },
           "defaultCommand": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": "object",
             "properties": {
               "kind": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "root",
+                  "namespace"
+                ]
               },
               "summary": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string"
               },
               "notes": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string"
               },
               "usage": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string"
               },
               "examples": {
                 "$ref": "#/properties/rootDefault/properties/examples"
@@ -550,9 +395,6 @@
             },
             "required": [
               "kind",
-              "summary",
-              "notes",
-              "usage",
               "examples",
               "parameters"
             ]
@@ -572,113 +414,64 @@
         },
         "required": [
           "segment",
-          "summary",
-          "notes",
           "options",
-          "defaultCommand",
           "commands",
           "namespaces"
         ]
       }
     },
     "tags": {
-      "type": [
-        "array",
-        "null"
-      ],
+      "type": "array",
       "items": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "default": null
+        "type": "string"
+      }
     },
     "requiresAuth": {
-      "type": [
-        "boolean",
-        "null"
-      ],
-      "default": null
+      "type": "boolean"
     },
     "authCommands": {
-      "type": [
-        "array",
-        "null"
-      ],
+      "type": "array",
       "items": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "default": null
+        "type": "string"
+      }
     },
     "environment": {
-      "type": [
-        "object",
-        "null"
-      ],
+      "type": "object",
       "properties": {
         "variables": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": "object",
             "properties": {
               "name": {
                 "type": "string"
               },
               "description": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "default": null
+                "type": "string"
               },
               "required": {
                 "type": "boolean",
                 "default": false
               },
               "defaultValue": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "default": null
+                "type": "string"
               }
             },
             "required": [
               "name"
             ]
-          },
-          "default": null
+          }
         },
         "configFiles": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": "object",
             "properties": {
               "path": {
                 "type": "string"
               },
               "description": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "default": null
+                "type": "string"
               },
               "required": {
                 "type": "boolean",
@@ -688,21 +481,17 @@
             "required": [
               "path"
             ]
-          },
-          "default": null
+          }
         }
-      },
-      "default": null
+      }
     }
   },
   "required": [
     "schemaVersion",
     "name",
     "version",
-    "description",
     "reservedMetaCommands",
     "globalOptions",
-    "rootDefault",
     "commands",
     "namespaces"
   ]

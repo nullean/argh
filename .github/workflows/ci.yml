@@ -38,6 +38,22 @@ jobs:
       shell: bash
       run: ./.artifacts/publish/ArghAotSmoketest/release/${{ matrix.binary }} __schema
 
+  schema-conformance:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-dotnet@v5
+      with:
+        global-json-file: ./global.json
+    - name: Build test CLI host
+      run: dotnet build -c Release tests/Nullean.Argh.Tests.CliHost/
+    - name: Capture __schema output
+      run: ./.artifacts/bin/Nullean.Argh.Tests.CliHost/release/Nullean.Argh.Tests.CliHost __schema > /tmp/argh-schema-output.json
+    - name: Download cli-schema meta-schema
+      run: curl -fsSL https://raw.githubusercontent.com/cli-schema/cli-schema/main/schema/cli-schema.meta-schema.json -o /tmp/cli-schema.meta-schema.json
+    - name: Validate against cli-schema v1 meta-schema
+      run: npx --yes ajv-cli validate -s /tmp/cli-schema.meta-schema.json -d /tmp/argh-schema-output.json --spec=draft2020
+
   build:
     runs-on: ubuntu-latest
     steps:

@@ -22,11 +22,17 @@ public class SchemaTests
 		root.GetProperty("name").GetString().Should().NotBeNullOrWhiteSpace();
 		// UseSchemaVersion("9.9.9-test") is called in CliRegistrationModule — the schema must reflect the override.
 		root.GetProperty("version").GetString().Should().Be("9.9.9-test");
-		root.TryGetProperty("description", out _).Should().BeTrue();
+		// description is optional per the meta-schema; absent when null rather than present as null
+		root.TryGetProperty("description", out var descProp);
+		if (descProp.ValueKind != JsonValueKind.Undefined)
+			descProp.ValueKind.Should().NotBe(JsonValueKind.Null);
 		root.GetProperty("reservedMetaCommands").EnumerateArray().Select(e => e.GetString()).Should()
 			.Contain(new[] { "__complete", "__completion", "__schema" });
 		root.GetProperty("globalOptions").ValueKind.Should().Be(JsonValueKind.Array);
-		root.TryGetProperty("rootDefault", out _).Should().BeTrue();
+		// rootDefault is optional; absent when the app has no MapRoot default handler
+		root.TryGetProperty("rootDefault", out var rootDefaultProp);
+		if (rootDefaultProp.ValueKind != JsonValueKind.Undefined)
+			rootDefaultProp.ValueKind.Should().Be(JsonValueKind.Object);
 		root.GetProperty("commands").ValueKind.Should().Be(JsonValueKind.Array);
 		root.GetProperty("namespaces").ValueKind.Should().Be(JsonValueKind.Array);
 	}
@@ -242,7 +248,7 @@ public class SchemaTests
 	}
 
 	[Fact]
-	public void Schema_deprecated_command_without_message_emits_deprecated_object()
+	public void Schema_deprecated_command_without_message_emits_deprecated_true()
 	{
 		var result = CliHostRunner.Run("__schema");
 		result.ExitCode.Should().Be(0);
@@ -251,7 +257,8 @@ public class SchemaTests
 			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-deprecated-simple");
 		cmd.ValueKind.Should().Be(JsonValueKind.Object);
 		cmd.TryGetProperty("deprecated", out var dep).Should().BeTrue();
-		dep.ValueKind.Should().Be(JsonValueKind.Object);
+		// No message/since/removedIn → emits the boolean true per cli-schema oneOf
+		dep.ValueKind.Should().Be(JsonValueKind.True);
 	}
 
 	[Fact]
