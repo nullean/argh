@@ -456,6 +456,8 @@ public sealed partial class CliParserGenerator
 		if (p.IsCollection)
 		{
 			var elemType = MapToJsonSchemaType(p.ElementScalarKind, p.ElementTypeName);
+			// elementType only accepts string/integer/number/boolean per the meta-schema; enum members serialize as strings
+			if (elemType == "enum") elemType = "string";
 			sb.Append($", ElementType: \"{elemType}\"");
 		}
 
@@ -575,8 +577,7 @@ case RejectSymbolicLinksConstraint:
 			}
 		}
 
-		if (expandUserProfile)
-			parts.Add("new CliConstraintSchema(\"expandUserProfile\")");
+		// expandUserProfile is an Argh path-expansion behaviour, not a cli-schema constraint kind — omit it
 
 		if (parts.Count == 0)
 			return "null";

@@ -130,6 +130,7 @@ public sealed record CliConstraintSchema(
 	string[]? Values = null);
 
 /// <summary>Structured deprecation metadata for a command or parameter.</summary>
+[JsonConverter(typeof(CliDeprecationJsonConverter))]
 public sealed record CliDeprecationSchema(
 	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	string? Message = null,

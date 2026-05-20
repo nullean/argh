@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Nullean.Argh.Schema;
 
-[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(ArghCliSchemaDocument))]
 [JsonSerializable(typeof(CliNamespaceSchema))]
 [JsonSerializable(typeof(CliCommandSchema))]
