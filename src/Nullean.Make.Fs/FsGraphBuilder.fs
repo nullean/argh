@@ -119,12 +119,15 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
             | _ -> ()
 
         let syncBody = Action(if fields.Length = 0 then plainBody else payloadBody)
+        let dtoType  = if fields.Length = 1 && FSharpType.IsRecord(fields.[0].PropertyType)
+                       then fields.[0].PropertyType else null
         let node =
             TargetNode(
                 Route           = route,
                 ConfigureMethod = null,
                 Kind            = kind,
                 Description     = desc,
+                DtoType         = dtoType,
                 SyncBody        = syncBody)
 
         graph.Targets.Add(node)

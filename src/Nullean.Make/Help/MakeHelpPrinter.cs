@@ -187,6 +187,9 @@ internal static class MakeHelpPrinter
 
 	private static string FriendlyTypeName(Type t)
 	{
+		// Unwrap F# option<T> → "T?"
+		if (t.IsGenericType && t.GetGenericTypeDefinition().Name == "FSharpOption`1")
+			return FriendlyTypeName(t.GetGenericArguments()[0]) + "?";
 		var u = Nullable.GetUnderlyingType(t) ?? t;
 		return u.Name.ToLowerInvariant();
 	}
