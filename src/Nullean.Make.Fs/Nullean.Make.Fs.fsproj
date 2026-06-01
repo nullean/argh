@@ -16,6 +16,7 @@
     <PackageId>Nullean.Make.Fs</PackageId>
     <Title>Nullean.Make.Fs - F# DU-based build target DSL</Title>
     <Description>F# DU/match binding over Nullean.Make — exhaustive, typed, namespaced build targets.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
 
     <IsPackable>false</IsPackable>
   </PropertyGroup>
@@ -29,6 +30,10 @@
     <Compile Include="FsDtoBinder.fs" />
     <Compile Include="FsGraphBuilder.fs" />
     <Compile Include="MakeApp.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>
