@@ -12,6 +12,8 @@ internal static class MakeHelpPrinter
 	{
 		Console.WriteLine();
 		Console.WriteLine(CliHelpFormatting.Section(graph.AppName));
+		if (!string.IsNullOrEmpty(graph.AppDescription))
+			Console.WriteLine($"  {graph.AppDescription}");
 		Console.WriteLine();
 
 		// Separate targets, commands, and namespaces

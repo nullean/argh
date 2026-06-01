@@ -41,12 +41,14 @@ let private isStructuralNs (ci: UnionCaseInfo) =
 
 let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
     (appName: string)
+    (appDescription: string option)
     (bind: 'TCase -> Definition<'TCase>)
     (optionDecls: (string * string option * string option * bool) list)
     : BuildGraph =
 
     let graph = BuildGraph()
     graph.AppName <- appName
+    graph.AppDescription <- match appDescription with Some d -> d | None -> null
 
     // Register global options for help rendering (Property is null for F# option refs).
     for (long, short, desc, isFlag) in optionDecls do

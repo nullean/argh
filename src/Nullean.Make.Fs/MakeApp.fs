@@ -33,7 +33,7 @@ module private MakeAppHelpers =
 
 /// Entry point for F# build scripts using a DU as the target identity.
 type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
-    (appName: string, _description: string option) =
+    (appName: string, description: string option) =
 
     let _options = Collections.Generic.List<FsOptionDecl>()
     let mutable _bindFn : ('TCase -> Definition<'TCase>) option = None
@@ -117,7 +117,7 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
             |> Seq.toList
 
         task {
-            match tryExec (fun () -> FsGraphBuilder.buildGraph<'TCase> appName bind optDecls) with
+            match tryExec (fun () -> FsGraphBuilder.buildGraph<'TCase> appName description bind optDecls) with
             | Error (code, msg) ->
                 eprintfn "%s" msg
                 return code

@@ -17,4 +17,5 @@ internal sealed class BuildGraph
 	public List<GlobalOptionNode> GlobalOptions { get; } = new();
 
 	public string AppName { get; set; } = "make";
+	public string? AppDescription { get; set; }
 }
