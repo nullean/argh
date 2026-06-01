@@ -194,7 +194,7 @@ app.Bind <| function
                     sprintf ".artifacts/bin/%s/release_%s" id MainTfm
                 | _ -> sprintf ".artifacts/bin/%s/release" id
             output().GetFiles("*.nupkg")
-            |> Seq.sortByDescending (fun f -> f.CreationTimeUtc)
+            |> Seq.sortByDescending _.CreationTimeUtc
             |> Seq.map  (fun f -> packageIdFromFile (Path.GetRelativePath(Directory.GetCurrentDirectory(), f.FullName)))
             |> Seq.filter (fun p -> p <> "Nullean.Argh")
             |> Seq.iter (fun pkg ->
@@ -205,7 +205,7 @@ app.Bind <| function
                             "-a"; "true"; "--target"; pkg; "-f"; "github-comment"
                             "--output"; Path.Combine(outputPath(), sprintf "breaking-changes-%s.md" pkg)] })
 
-    // ── create github release ──────────────────────────────────────────────
+    // ── create GitHub release ──────────────────────────────────────────────
     | CreateReleaseOnGithub ->
         Make.target [] "" <| fun ctx ->
             let ver          = currentVersion.Value
@@ -223,11 +223,13 @@ app.Bind <| function
     // ── commands ───────────────────────────────────────────────────────────
     | Release ->
         Make.command
+            "Verify gates → pack → release-notes → api-diff"
             [ PristineCheck; Test defaultTest ]
             [ Pkg Generate; Pkg Validate; GenerateReleaseNotes; GenerateApiChanges ]
 
     | Publish ->
         Make.command
+            "Release → create GitHub release"
             [ Release ]
             [ CreateReleaseOnGithub ]
 

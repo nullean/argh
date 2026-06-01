@@ -45,10 +45,9 @@ module Make =
 
     /// Defines a command that composes other targets/commands.
     /// `requires` entries are skipped under -s; `composes` entries always run.
-    /// Description defaults to the kebab-case case name.
-    let command (requires: 'TCase list) (composes: 'TCase list) : Definition<'TCase> =
-        FsCommand("", requires, composes, None)
+    let command (desc: string) (requires: 'TCase list) (composes: 'TCase list) : Definition<'TCase> =
+        FsCommand(desc, requires, composes, None)
 
     /// Like `command` but with a trailing body that runs after all `composes` entries.
-    let composer (requires: 'TCase list) (composes: 'TCase list) (body: FsContext -> 'r) : Definition<'TCase> =
-        FsCommand("", requires, composes, Some (fun ctx -> body ctx |> ignore))
+    let composer (desc: string) (requires: 'TCase list) (composes: 'TCase list) (body: FsContext -> 'r) : Definition<'TCase> =
+        FsCommand(desc, requires, composes, Some (fun ctx -> body ctx |> ignore))
