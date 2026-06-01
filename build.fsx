@@ -18,7 +18,7 @@
 
 open System
 open System.IO
-open Nullean.Make.Fs   // MakeApp<'T>, Make module, FsContext, MakeException
+open Nullean.Make.Fs   // MakeApp<'T>, Make module, FsContext, failBuild
 open Proc.Fs
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ app.Bind <| function
                 let generated = File.ReadAllText(tempPath).TrimEnd()
                 let existing  = File.ReadAllText("schema/argh-cli-schema.json").TrimEnd()
                 if generated <> existing then
-                    raise (MakeException("schema/argh-cli-schema.json is out of date. Run: dotnet fsi build.fsx -- schema update"))
+                    failBuild "schema/argh-cli-schema.json is out of date. Run: dotnet fsi build.fsx -- schema update"
             finally
                 if File.Exists tempPath then File.Delete tempPath
 
@@ -140,14 +140,14 @@ app.Bind <| function
 
     // ── clean ──────────────────────────────────────────────────────────────
     | Clean ->
-        Make.target [] "" <| fun _ ->
+        Make.target [] "clean ephemeral output files" <| fun _ ->
             let out = output ()
             if out.Exists then out.Delete(true)
             exec { run "dotnet" ["clean"] }
 
     // ── build ──────────────────────────────────────────────────────────────
     | Build ->
-        Make.target [Clean] "" <| fun _ ->
+        Make.target [Clean] "build the solution" <| fun _ ->
             exec { run "dotnet" ["build"; "-c"; "Release"] }
 
     // ── pristine-check ─────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ app.Bind <| function
             else
                 let r = exec { binary "git"; arguments ["status"; "--porcelain"]; output }
                 if r.ConsoleOut |> Seq.isEmpty |> not then
-                    raise (MakeException("The checkout folder has pending changes, aborting"))
+                    failBuild "The checkout folder has pending changes, aborting"
                 printfn "The checkout folder does not have pending changes, proceeding"
 
     // ── test ───────────────────────────────────────────────────────────────

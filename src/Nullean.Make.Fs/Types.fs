@@ -2,8 +2,12 @@ namespace Nullean.Make.Fs
 
 open System
 
-/// Re-exported so build scripts only need `open Nullean.Make.Fs`.
-type MakeException = Nullean.Make.MakeException
+[<AutoOpen>]
+module MakeScriptHelpers =
+    /// Abort the build with a message and exit code 1.
+    /// Prefer this over raising MakeException directly — keeps Nullean.Make out of script references.
+    let failBuild (message: string) : 'a =
+        raise (Nullean.Make.MakeException(message))
 
 /// Mutable handle to a global option. Populated during argv parsing; read by target bodies via FsContext.
 type OptionRef<'T>(long: string, short: string option, desc: string option, defaultValue: 'T, parser: string -> 'T) =
