@@ -34,6 +34,11 @@ let private defaultCaseValue (caseInfo: UnionCaseInfo) : obj =
 // Shared stateless context instance — FsContext has no mutable state.
 let private sharedCtx = FsContext()
 
+// A DU case is a structural namespace if its single field is itself a union type (not a record).
+let private isStructuralNs (ci: UnionCaseInfo) =
+    let fs = ci.GetFields()
+    fs.Length = 1 && FSharpType.IsUnion(fs.[0].PropertyType)
+
 let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
     (appName: string)
     (bind: 'TCase -> Definition<'TCase>)
@@ -54,16 +59,19 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
 
     let cases = FSharpType.GetUnionCases(typeof<'TCase>)
 
-    // First pass: collect namespace markers (DU case name → CLI segment).
+    // First pass: collect namespace markers — either structural (union-payload case) or explicit Make.ns.
     let namespaces =
         cases
         |> Array.choose (fun ci ->
-            let v = defaultCaseValue ci :?> 'TCase
-            match bind v with
-            | FsNamespace(segment, _) -> Some (ci.Name, segment)
-            | _ -> None)
+            if isStructuralNs ci then
+                Some (ci.Name, toKebabCase ci.Name)
+            else
+                let v = defaultCaseValue ci :?> 'TCase
+                match bind v with
+                | FsNamespace(segment, _) -> Some (ci.Name, segment)
+                | _ -> None)
 
-    // Derive CLI route for a DU case name using namespace prefix matching.
+    // Derive CLI route for non-structural cases using namespace prefix matching (backward compat).
     let deriveRoute (caseName: string) =
         namespaces
         |> Array.tryPick (fun (nsName, segment) ->
@@ -72,80 +80,93 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
             else None)
         |> Option.defaultValue [| toKebabCase caseName |]
 
-    // Map default DU value → TargetNode for dep resolution.
+    // Map 'TCase value → TargetNode for dep resolution.
     let caseToNode = Collections.Generic.Dictionary<'TCase, TargetNode>()
+
+    // Register one TargetNode. caseInfoForBody drives the SyncBody closure shape.
+    // For structural namespace sub-cases, caseInfoForBody is the sub-DU's UnionCaseInfo.
+    // NOTE: namespace sub-cases must be parameterless; payload sub-DUs are not supported.
+    let registerNode (route: string[]) (def: Definition<'TCase>) (caseInfoForBody: UnionCaseInfo) (key: 'TCase) =
+        let kind    = match def with | FsCommand _ -> TargetKind.Command | _ -> TargetKind.Target
+        let rawDesc = match def with | FsTarget(d,_,_) | FsCommand(d,_,_,_) -> d | _ -> ""
+        let desc    = if String.IsNullOrEmpty(rawDesc) then toKebabCase (Array.last route) else rawDesc
+        let fields  = caseInfoForBody.GetFields()
+
+        let plainBody () =
+            match def with
+            | FsTarget(_, _, b)          -> b sharedCtx
+            | FsCommand(_, _, _, Some b) -> b sharedCtx
+            | _ -> ()
+
+        // Re-binds CLI args at execution time and re-invokes bind for typed-payload cases.
+        let payloadBody () =
+            let payloadType = fields.[0].PropertyType
+            let targetArgs  =
+                let ctx = MakeContext.Current
+                if obj.ReferenceEquals(ctx, null) then [||] else ctx.TargetArgs
+            let payload   = FsDtoBinder.bind payloadType targetArgs
+            let boundCase : 'TCase = FSharpValue.MakeUnion(caseInfoForBody, [| payload |]) :?> 'TCase
+            match bind boundCase with
+            | FsTarget(_, _, b)          -> b sharedCtx
+            | FsCommand(_, _, _, Some b) -> b sharedCtx
+            | _ -> ()
+
+        let syncBody = Action(if fields.Length = 0 then plainBody else payloadBody)
+        let node =
+            TargetNode(
+                Route           = route,
+                ConfigureMethod = null,
+                Kind            = kind,
+                Description     = desc,
+                SyncBody        = syncBody)
+
+        graph.Targets.Add(node)
+        graph.ByRoute.[String.concat "/" route] <- node
+        caseToNode.[key] <- node
 
     // Second pass: create TargetNode for each non-namespace case.
     for caseInfo in cases do
-        let defaultVal : 'TCase = defaultCaseValue caseInfo :?> 'TCase
-        let def = bind defaultVal
-
-        match def with
-        | FsNamespace _ -> ()
-        | FsTarget(desc, _, _) | FsCommand(desc, _, _, _) ->
-
-            let route  = deriveRoute caseInfo.Name
-            let kind   = match def with | FsCommand _ -> TargetKind.Command | _ -> TargetKind.Target
-            let fields = caseInfo.GetFields()
-
-            // Body for DU cases without a payload: captured once at graph-build time.
-            let plainBody () =
+        if isStructuralNs caseInfo then
+            // Structural namespace: register each sub-case with route [segment, sub-name].
+            let subDuType = caseInfo.GetFields().[0].PropertyType
+            let segment =
+                namespaces |> Array.tryPick (fun (n, s) -> if n = caseInfo.Name then Some s else None)
+                |> Option.defaultValue (toKebabCase caseInfo.Name)
+            for subCaseInfo in FSharpType.GetUnionCases(subDuType) do
+                let subDefault = defaultCaseValue subCaseInfo
+                let fullVal : 'TCase = FSharpValue.MakeUnion(caseInfo, [| subDefault |]) :?> 'TCase
+                let def = bind fullVal
                 match def with
-                | FsTarget(_, _, b)          -> b sharedCtx
-                | FsCommand(_, _, _, Some b) -> b sharedCtx
-                | _ -> ()
+                | FsNamespace _ -> ()
+                | _ ->
+                    let route = [| segment; toKebabCase subCaseInfo.Name |]
+                    registerNode route def subCaseInfo fullVal
+        else
+            let defaultVal : 'TCase = defaultCaseValue caseInfo :?> 'TCase
+            let def = bind defaultVal
+            match def with
+            | FsNamespace _ -> ()
+            | _ ->
+                let route = deriveRoute caseInfo.Name
+                registerNode route def caseInfo defaultVal
 
-            // Body for payload cases: re-binds CLI args and re-invokes bind at execution time.
-            let payloadBody () =
-                let payloadType = fields.[0].PropertyType
-                let targetArgs  =
-                    let ctx = MakeContext.Current
-                    if obj.ReferenceEquals(ctx, null) then [||] else ctx.TargetArgs
-                let payload   = FsDtoBinder.bind payloadType targetArgs
-                let boundCase : 'TCase = FSharpValue.MakeUnion(caseInfo, [| payload |]) :?> 'TCase
-                match bind boundCase with
-                | FsTarget(_, _, b)          -> b sharedCtx
-                | FsCommand(_, _, _, Some b) -> b sharedCtx
-                | _ -> ()
-
-            let syncBody = Action(if fields.Length = 0 then plainBody else payloadBody)
-
-            let node =
-                TargetNode(
-                    Route           = route,
-                    ConfigureMethod = null,
-                    Kind            = kind,
-                    Description     = desc,
-                    SyncBody        = syncBody)
-
-            graph.Targets.Add(node)
-            graph.ByRoute.[String.concat "/" route] <- node
-            caseToNode.[defaultVal] <- node
-
-    // Third pass: resolve deps directly from caseToNode (bypasses C# ByMethod).
-    for caseInfo in cases do
-        let defaultVal : 'TCase = defaultCaseValue caseInfo :?> 'TCase
-        match bind defaultVal with
+    // Third pass: resolve deps/requires/composes by iterating over all registered nodes.
+    for KeyValue(tcase, node) in caseToNode do
+        match bind tcase with
         | FsNamespace _ -> ()
         | FsTarget(_, deps, _) ->
-            match caseToNode.TryGetValue(defaultVal) with
-            | true, node ->
-                for dep in deps do
-                    match caseToNode.TryGetValue(dep) with
-                    | true, depNode -> node.RequiresResolved.Add(depNode)
-                    | _ -> ()
-            | _ -> ()
+            for dep in deps do
+                match caseToNode.TryGetValue(dep) with
+                | true, depNode -> node.RequiresResolved.Add(depNode)
+                | _ -> ()
         | FsCommand(_, requires, composes, _) ->
-            match caseToNode.TryGetValue(defaultVal) with
-            | true, node ->
-                for dep in requires do
-                    match caseToNode.TryGetValue(dep) with
-                    | true, depNode -> node.RequiresResolved.Add(depNode)
-                    | _ -> ()
-                for dep in composes do
-                    match caseToNode.TryGetValue(dep) with
-                    | true, depNode -> node.ComposesResolved.Add(depNode)
-                    | _ -> ()
-            | _ -> ()
+            for dep in requires do
+                match caseToNode.TryGetValue(dep) with
+                | true, depNode -> node.RequiresResolved.Add(depNode)
+                | _ -> ()
+            for dep in composes do
+                match caseToNode.TryGetValue(dep) with
+                | true, depNode -> node.ComposesResolved.Add(depNode)
+                | _ -> ()
 
     graph

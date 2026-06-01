@@ -9,13 +9,12 @@
 
 // F# build pipeline for nullean/argh using Nullean.Make.Fs.
 //
-// For local dev, run via the existing shebang wrapper:
-//   ./build.sh <target>                  (current working entry point)
-//   dotnet run --project build/scripts   (same thing)
+// Run via: dotnet fsi build.fsx -- <target>
 //
-// The DU below is intentionally exhaustive: adding a new case is a compile
-// error until you handle it in app.Bind. Namespaces (Schema / Pkg) are marker
-// cases that do not carry payloads.
+// The DUs encode structure statically:
+//   - Sub-DU payload on a case   → namespace (Schema of SchemaTarget, Pkg of PkgTarget)
+//   - Record payload on a case   → target with typed CLI args (Test of TestOptions)
+//   - No payload on a case       → plain target or command
 
 open System
 open System.IO
@@ -69,12 +68,17 @@ let currentVersionInformational =
 let packageIdFromFile (path: string) =
     Path.GetFileNameWithoutExtension(path).Replace("." + currentVersion.Value, "")
 
+// ── namespace sub-DUs ─────────────────────────────────────────────────────────
+
+type SchemaTarget = Update | Validate
+type PkgTarget    = Generate | Validate
+
 // ── target / command DU ───────────────────────────────────────────────────────
 
 type Target =
-    // namespace markers
-    | Schema
-    | Pkg
+    // namespaces — payload being a union encodes the hierarchy
+    | Schema of SchemaTarget
+    | Pkg    of PkgTarget
     // atomic targets
     | Clean
     | Build
@@ -83,12 +87,6 @@ type Target =
     | GenerateReleaseNotes
     | GenerateApiChanges
     | CreateReleaseOnGithub
-    // schema sub-targets
-    | SchemaUpdate
-    | SchemaValidate
-    // pkg sub-targets
-    | PkgGenerate
-    | PkgValidate
     // commands
     | Release
     | Publish
@@ -106,47 +104,78 @@ let token         = app.Option<string option>("--token", desc = "GitHub token fo
 
 // ── single exhaustive binding ─────────────────────────────────────────────────
 
-app.Bind(fun case ->
-    match case with
+app.Bind <| function
 
-    // namespaces
-    | Schema -> Make.ns "schema" (Some "Schema export operations")
-    | Pkg    -> Make.ns "pkg"    (Some "NuGet package operations")
+    // ── schema namespace ───────────────────────────────────────────────────
+    | Schema Update ->
+        Make.target [] <| fun _ ->
+            exec "dotnet" [ "build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport" ]
+            if not (Directory.Exists "schema") then Directory.CreateDirectory "schema" |> ignore
+            exec (schemaToolBin()) [ "--out"; "schema/argh-cli-schema.json" ]
+
+    | Schema SchemaTarget.Validate ->
+        Make.target' [] "Fail if schema/argh-cli-schema.json is out of date" <| fun _ ->
+            exec "dotnet" [ "build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport" ]
+            let tempPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".json")
+            try
+                exec (schemaToolBin()) [ "--out"; tempPath ]
+                let generated = File.ReadAllText(tempPath).TrimEnd()
+                let existing  = File.ReadAllText("schema/argh-cli-schema.json").TrimEnd()
+                if generated <> existing then
+                    raise (MakeException("schema/argh-cli-schema.json is out of date. Run: dotnet fsi build.fsx -- schema update"))
+            finally
+                if File.Exists tempPath then File.Delete tempPath
+
+    // ── pkg namespace ──────────────────────────────────────────────────────
+    | Pkg Generate ->
+        Make.target [] <| fun _ ->
+            let out = output ()
+            if out.Exists then out.Delete(true)
+            exec "dotnet" [ "pack"; "-c"; "Release"; "-o"; outputPath() ]
+
+    | Pkg PkgTarget.Validate ->
+        Make.target [] <| fun _ ->
+            let baseArgs = [ "-v"; currentVersionInformational.Value; "-k"; SignKey; "-t"; outputPath() ]
+            output().GetFiles("*.nupkg")
+            |> Seq.sortByDescending (fun f -> f.CreationTimeUtc)
+            |> Seq.map  (fun f -> Path.GetRelativePath(Directory.GetCurrentDirectory(), f.FullName))
+            |> Seq.filter (fun p -> packageIdFromFile p <> "Nullean.Argh")
+            |> Seq.iter (fun p -> exec "dotnet" ([ "nupkg-validator"; p ] @ baseArgs))
 
     // ── clean ──────────────────────────────────────────────────────────────
     | Clean ->
-        Make.target "Delete build output" [] (fun _ ->
+        Make.target [] <| fun _ ->
             let out = output ()
             if out.Exists then out.Delete(true)
-            exec "dotnet" [ "clean" ])
+            exec "dotnet" [ "clean" ]
 
     // ── build ──────────────────────────────────────────────────────────────
     | Build ->
-        Make.target "dotnet build -c Release" [ Clean ] (fun _ ->
-            exec "dotnet" [ "build"; "-c"; "Release" ])
+        Make.target [Clean] <| fun _ ->
+            exec "dotnet" [ "build"; "-c"; "Release" ]
 
     // ── pristine-check ─────────────────────────────────────────────────────
     | PristineCheck ->
-        Make.target "Verify no pending changes" [] (fun ctx ->
+        Make.target' [] "Verify no pending changes" <| fun ctx ->
             if ctx.IsSet(cleanCheckout) then
                 printfn "Checkout is dirty but --clean-checkout was specified, skipping check"
             else
                 let r = Proc.Start("git", "status", "--porcelain")
                 if r.ConsoleOut |> Seq.isEmpty |> not then
                     raise (MakeException("The checkout folder has pending changes, aborting"))
-                printfn "The checkout folder does not have pending changes, proceeding")
+                printfn "The checkout folder does not have pending changes, proceeding"
 
     // ── test ───────────────────────────────────────────────────────────────
     | Test opts ->
-        Make.target "Run all tests" [ Build ] (fun _ ->
+        Make.target' [Build] "Run all tests" <| fun _ ->
             let args =
                 [ "test"; "-c"; "RELEASE"; "--logger:GithubActions"; "--logger:pretty" ]
                 @ (opts.Filter |> Option.map (sprintf "--filter:%s") |> Option.toList)
-            exec "dotnet" args)
+            exec "dotnet" args
 
     // ── release notes ──────────────────────────────────────────────────────
     | GenerateReleaseNotes ->
-        Make.target "Generate release-notes-<ver>.md" [] (fun ctx ->
+        Make.target [] <| fun ctx ->
             let ver        = currentVersion.Value
             let outputFile = Path.Combine(outputPath(), sprintf "release-notes-%s.md" ver)
             let tokenArgs  = ctx.Get(token) |> Option.map (fun t -> [ "--token"; t ]) |> Option.defaultValue []
@@ -158,11 +187,11 @@ app.Bind(fun case ->
                     "--label"; "bug";         "Bug Fixes"
                     "--label"; "documentation";"Docs Improvements"
                     "--output"; outputFile ]
-                @ tokenArgs ))
+                @ tokenArgs )
 
     // ── api changes ────────────────────────────────────────────────────────
     | GenerateApiChanges ->
-        Make.target "Generate breaking-changes-<pkg>.md files" [] (fun _ ->
+        Make.target [] <| fun _ ->
             let ver = currentVersion.Value
             let assembliesDir id =
                 match id with
@@ -180,11 +209,11 @@ app.Bind(fun case ->
                       sprintf "previous-nuget|%s|%s|%s" pkg ver MainTfm
                       sprintf "directory|%s" (assembliesDir pkg)
                       "-a"; "true"; "--target"; pkg; "-f"; "github-comment"
-                      "--output"; Path.Combine(outputPath(), sprintf "breaking-changes-%s.md" pkg) ]))
+                      "--output"; Path.Combine(outputPath(), sprintf "breaking-changes-%s.md" pkg) ])
 
     // ── create github release ──────────────────────────────────────────────
     | CreateReleaseOnGithub ->
-        Make.target "Create GitHub release with notes and API-diff bodies" [] (fun ctx ->
+        Make.target [] <| fun ctx ->
             let ver         = currentVersion.Value
             let releaseNotes = Path.Combine(outputPath(), sprintf "release-notes-%s.md" ver)
             let tokenArgs   = ctx.Get(token) |> Option.map (fun t -> [ "--token"; t ]) |> Option.defaultValue []
@@ -195,57 +224,18 @@ app.Bind(fun case ->
             exec "dotnet"
                 ( [ "release-notes" ] @ (Repository.Split('/') |> Array.toList)
                 @ [ "create-release"; "--version"; ver; "--body"; releaseNotes ]
-                @ bodyArgs @ tokenArgs ))
-
-    // ── schema sub-targets ─────────────────────────────────────────────────
-    | SchemaUpdate ->
-        Make.target "Regenerate schema/argh-cli-schema.json" [] (fun _ ->
-            exec "dotnet" [ "build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport" ]
-            if not (Directory.Exists "schema") then Directory.CreateDirectory "schema" |> ignore
-            exec (schemaToolBin()) [ "--out"; "schema/argh-cli-schema.json" ])
-
-    | SchemaValidate ->
-        Make.target "Fail if schema/argh-cli-schema.json is out of date" [] (fun _ ->
-            exec "dotnet" [ "build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport" ]
-            let tempPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".json")
-            try
-                exec (schemaToolBin()) [ "--out"; tempPath ]
-                let generated = File.ReadAllText(tempPath).TrimEnd()
-                let existing  = File.ReadAllText("schema/argh-cli-schema.json").TrimEnd()
-                if generated <> existing then
-                    raise (MakeException("schema/argh-cli-schema.json is out of date. Run: ./build.sh schema update"))
-            finally
-                if File.Exists tempPath then File.Delete tempPath)
-
-    // ── pkg sub-targets ────────────────────────────────────────────────────
-    | PkgGenerate ->
-        Make.target "dotnet pack -c Release" [] (fun _ ->
-            let out = output ()
-            if out.Exists then out.Delete(true)
-            exec "dotnet" [ "pack"; "-c"; "Release"; "-o"; outputPath() ])
-
-    | PkgValidate ->
-        Make.target "Run nupkg-validator on each .nupkg" [] (fun _ ->
-            let baseArgs = [ "-v"; currentVersionInformational.Value; "-k"; SignKey; "-t"; outputPath() ]
-            output().GetFiles("*.nupkg")
-            |> Seq.sortByDescending (fun f -> f.CreationTimeUtc)
-            |> Seq.map  (fun f -> Path.GetRelativePath(Directory.GetCurrentDirectory(), f.FullName))
-            |> Seq.filter (fun p -> packageIdFromFile p <> "Nullean.Argh")
-            |> Seq.iter (fun p -> exec "dotnet" ([ "nupkg-validator"; p ] @ baseArgs)))
+                @ bodyArgs @ tokenArgs )
 
     // ── commands ───────────────────────────────────────────────────────────
     | Release ->
         Make.command
-            "Verify gates → pack → release-notes → api-diff"
             [ PristineCheck; Test defaultTest ]
-            [ PkgGenerate; PkgValidate; GenerateReleaseNotes; GenerateApiChanges ]
+            [ Pkg Generate; Pkg Validate; GenerateReleaseNotes; GenerateApiChanges ]
 
     | Publish ->
         Make.command
-            "Release → create GitHub release"
             [ Release ]
             [ CreateReleaseOnGithub ]
-)
 
 let argv = fsi.CommandLineArgs |> Array.skip 1
 exit (app.RunAsync(argv).GetAwaiter().GetResult())

@@ -35,20 +35,25 @@ type Definition<'TCase> =
 /// Helpers for building Definition values inside app.Bind.
 module Make =
 
-    /// Defines an atomic target with an optional dependency list and a body.
-    /// The body receives an FsContext for reading global options; use `_` to ignore it.
-    let target (desc: string) (deps: 'TCase list) (body: FsContext -> 'r) : Definition<'TCase> =
+    /// Defines an atomic target with a dependency list.
+    /// Description defaults to the kebab-case case name. Use `_` to ignore the context.
+    let target (deps: 'TCase list) (body: FsContext -> 'r) : Definition<'TCase> =
+        FsTarget("", deps, fun ctx -> body ctx |> ignore)
+
+    /// Like `target` but with an explicit description shown in help output.
+    let target' (deps: 'TCase list) (desc: string) (body: FsContext -> 'r) : Definition<'TCase> =
         FsTarget(desc, deps, fun ctx -> body ctx |> ignore)
 
-    /// Marks a DU case as a CLI namespace segment.
+    /// Marks a DU case as a CLI namespace segment. Not needed when using nested sub-DUs.
     let ns (segment: string) (desc: string option) : Definition<'TCase> =
         FsNamespace(segment, desc)
 
     /// Defines a command that composes other targets/commands.
     /// `requires` entries are skipped under -s; `composes` entries always run.
-    let command (desc: string) (requires: 'TCase list) (composes: 'TCase list) : Definition<'TCase> =
-        FsCommand(desc, requires, composes, None)
+    /// Description defaults to the kebab-case case name.
+    let command (requires: 'TCase list) (composes: 'TCase list) : Definition<'TCase> =
+        FsCommand("", requires, composes, None)
 
     /// Like `command` but with a trailing body that runs after all `composes` entries.
-    let composer (desc: string) (requires: 'TCase list) (composes: 'TCase list) (body: FsContext -> 'r) : Definition<'TCase> =
-        FsCommand(desc, requires, composes, Some (fun ctx -> body ctx |> ignore))
+    let composer (requires: 'TCase list) (composes: 'TCase list) (body: FsContext -> 'r) : Definition<'TCase> =
+        FsCommand("", requires, composes, Some (fun ctx -> body ctx |> ignore))
