@@ -45,9 +45,10 @@ module Make =
 
     /// Defines a command that composes other targets/commands.
     /// `requires` entries are skipped under -s; `composes` entries always run.
-    let command (desc: string) (requires: 'TCase list) (composes: 'TCase list) : Definition<'TCase> =
-        FsCommand(desc, requires, composes, None)
+    /// Description is auto-generated from the requires/composes graph in help output.
+    let command (requires: 'TCase list) (composes: 'TCase list) : Definition<'TCase> =
+        FsCommand("", requires, composes, None)
 
     /// Like `command` but with a trailing body that runs after all `composes` entries.
-    let composer (desc: string) (requires: 'TCase list) (composes: 'TCase list) (body: FsContext -> 'r) : Definition<'TCase> =
-        FsCommand(desc, requires, composes, Some (fun ctx -> body ctx |> ignore))
+    let composer (requires: 'TCase list) (composes: 'TCase list) (body: FsContext -> 'r) : Definition<'TCase> =
+        FsCommand("", requires, composes, Some (fun ctx -> body ctx |> ignore))

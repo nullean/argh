@@ -89,7 +89,12 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
     let registerNode (route: string[]) (def: Definition<'TCase>) (caseInfoForBody: UnionCaseInfo) (key: 'TCase) =
         let kind    = match def with | FsCommand _ -> TargetKind.Command | _ -> TargetKind.Target
         let rawDesc = match def with | FsTarget(d,_,_) | FsCommand(d,_,_,_) -> d | _ -> ""
-        let desc    = if String.IsNullOrEmpty(rawDesc) then toKebabCase (Array.last route) else rawDesc
+        // Commands: leave description empty so MakeHelpPrinter can auto-generate it from the graph.
+        // Targets: fall back to the kebab-case name when no description is provided.
+        let desc    =
+            if not (String.IsNullOrEmpty(rawDesc)) then rawDesc
+            elif kind = TargetKind.Command then ""
+            else toKebabCase (Array.last route)
         let fields  = caseInfoForBody.GetFields()
 
         let plainBody () =

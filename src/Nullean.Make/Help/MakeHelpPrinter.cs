@@ -21,14 +21,28 @@ internal static class MakeHelpPrinter
 		var nsNames = nsTargets.Select(t => t.Route[0]).Distinct().OrderBy(x => x).ToList();
 
 		Console.WriteLine($"  {CliHelpFormatting.Section("Usage:")}");
-		Console.WriteLine($"    {scriptName} <target|command> [options]");
+		Console.WriteLine($"    {scriptName} <command|target> [options]");
 		if (nsNames.Count > 0)
-			Console.WriteLine($"    {scriptName} <namespace> <target|command> [options]");
+			Console.WriteLine($"    {scriptName} <namespace> <target> [options]");
 		Console.WriteLine();
+
+		if (commands.Count > 0)
+		{
+			Console.WriteLine($"  {CliHelpFormatting.Section("Commands:")}  (pipeline entry points — compose and sequence targets)");
+			var colWidth = commands.Max(t => t.Name.Length) + 2;
+			foreach (var c in commands)
+			{
+				var desc = !string.IsNullOrEmpty(c.Description)
+					? c.Description
+					: CommandSummary(c);
+				CliHelpFormatting.WriteHelpListNameAndDescription(true, c.Name, desc, colWidth);
+			}
+			Console.WriteLine();
+		}
 
 		if (targets.Count > 0)
 		{
-			Console.WriteLine($"  {CliHelpFormatting.Section("Targets:")}");
+			Console.WriteLine($"  {CliHelpFormatting.Section("Targets:")}  (atomic steps — can also be run directly)");
 			var colWidth = targets.Max(t => t.Name.Length) + 2;
 			foreach (var t in targets)
 			{
@@ -38,15 +52,6 @@ internal static class MakeHelpPrinter
 					: "";
 				CliHelpFormatting.WriteHelpListNameAndDescription(false, t.Name, t.Description + depSuffix, colWidth);
 			}
-			Console.WriteLine();
-		}
-
-		if (commands.Count > 0)
-		{
-			Console.WriteLine($"  {CliHelpFormatting.Section("Commands:")}");
-			var colWidth = commands.Max(t => t.Name.Length) + 2;
-			foreach (var c in commands)
-				CliHelpFormatting.WriteHelpListNameAndDescription(true, c.Name, c.Description, colWidth);
 			Console.WriteLine();
 		}
 
@@ -121,6 +126,16 @@ internal static class MakeHelpPrinter
 		}
 
 		PrintGlobalOptions(graph, scriptName);
+	}
+
+	private static string CommandSummary(TargetNode node)
+	{
+		var req  = node.RequiresResolved.Select(d => string.Join(" ", d.Route)).ToList();
+		var comp = node.ComposesResolved.Select(d => string.Join(" ", d.Route)).ToList();
+		if (req.Count == 0 && comp.Count == 0) return "";
+		if (req.Count == 0) return string.Join(", ", comp);
+		if (comp.Count == 0) return string.Join(", ", req);
+		return $"{string.Join(", ", req)} → {string.Join(", ", comp)}";
 	}
 
 	private static void PrintDtoOptions(Type dtoType)
