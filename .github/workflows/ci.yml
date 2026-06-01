@@ -53,32 +53,37 @@ jobs:
         dotnet-version: |
           10.0.x
 
-    - run: ./build.sh build -s true
+    # Build the local Nullean.Make.Fs DLL (only needed while it isn't on NuGet yet;
+    # once published, replace with #r "nuget: Nullean.Make.Fs" in build.fsx)
+    - run: dotnet build src/Nullean.Make.Fs/Nullean.Make.Fs.fsproj -c Release
+      name: Build Nullean.Make.Fs (local reference bootstrap)
+
+    - run: dotnet fsi build.fsx -- build -s
       name: Build
-    - run: ./build.sh test -s true
+    - run: dotnet fsi build.fsx -- test -s
       name: Test
-    - run: ./build.sh validateschema -s true
+    - run: dotnet fsi build.fsx -- schema validate -s
       name: Validate schema/argh-cli-schema.json is up to date
-    - run: ./build.sh generatepackages -s true
+    - run: dotnet fsi build.fsx -- pkg generate -s
       name: Generate local nuget packages
-    - run: ./build.sh validatepackages -s true
-      name: "validate *.nupkg files that were created"
-    - run: ./build.sh generateapichanges -s true
+    - run: dotnet fsi build.fsx -- pkg validate -s
+      name: "Validate *.nupkg files that were created"
+    - run: dotnet fsi build.fsx -- generate-api-changes -s
       name: "Inspect public API changes"
 
-    - name: publish to github package repository
+    - name: Publish to GitHub Package Repository
       if: github.event_name == 'push' && startswith(github.ref, 'refs/heads')
       shell: bash
       run: |
         until dotnet nuget push 'build/output/*.nupkg' -s https://nuget.pkg.github.com/nullean/index.json -k ${{secrets.GITHUB_TOKEN}} --skip-duplicate --no-symbols; do echo "Retrying"; sleep 1; done;
 
-    - run: ./build.sh generatereleasenotes -s true
+    - run: dotnet fsi build.fsx -- generate-release-notes -s
       name: Generate release notes for tag
       if: github.event_name == 'push' && startswith(github.ref, 'refs/tags')
-    - run: ./build.sh createreleaseongithub -s true --token ${{secrets.GITHUB_TOKEN}}
+    - run: dotnet fsi build.fsx -- create-release-on-github -s --token ${{secrets.GITHUB_TOKEN}}
       if: github.event_name == 'push' && startswith(github.ref, 'refs/tags')
-      name: Create or update release for tag on github
+      name: Create or update release for tag on GitHub
 
     - run: dotnet nuget push 'build/output/*.nupkg' -k ${{secrets.NUGET_ORG_API_KEY}} -s https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols
-      name: release to nuget.org
+      name: Release to nuget.org
       if: github.event_name == 'push' && startswith(github.ref, 'refs/tags')
