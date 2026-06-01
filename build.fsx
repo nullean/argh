@@ -5,7 +5,7 @@
 //   #r "nuget: Nullean.Make.Fs, <version>"
 #I ".artifacts/bin/Nullean.Make.Fs/release"
 #r "Nullean.Make.Fs.dll"
-#r "nuget: Proc, 0.13.0"
+#r "nuget: Proc.Fs, 0.14.0"
 
 // F# build pipeline for nullean/argh using Nullean.Make.Fs.
 //
@@ -19,7 +19,7 @@
 open System
 open System.IO
 open Nullean.Make.Fs   // MakeApp<'T>, Make module, FsContext, MakeException
-open ProcNet
+open Proc.Fs
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -40,27 +40,23 @@ let schemaToolBin () =
     else
         sprintf ".artifacts/bin/%s/release/%s" name name
 
-let exec binary (args: string list) =
-    Proc.Exec(binary, args |> List.toArray) |> ignore
-
 // ── version helpers (lazy, computed once) ─────────────────────────────────────
 
 let restoreTools =
-    lazy (exec "dotnet" [ "tool"; "restore" ])
+    lazy (exec { run "dotnet" ["tool"; "restore"] })
 
 let currentVersion =
     lazy (
         restoreTools.Value |> ignore
-        let r = Proc.Start("dotnet", "minver", "-p", "canary.0", "-m", "0.1")
-        let o = r.ConsoleOut |> Seq.find (fun l -> not (l.Line.StartsWith("MinVer:")))
-        o.Line
+        let r = exec { binary "dotnet"; arguments ["minver"; "-p"; "canary.0"; "-m"; "0.1"]; output }
+        r.ConsoleOut |> Seq.find (fun l -> not (l.Line.StartsWith("MinVer:"))) |> fun l -> l.Line
     )
 
 let currentVersionInformational =
     lazy (
         if IncludeGitHash then
-            let hash = Proc.Start("git", "rev-parse", "--short", "HEAD").ConsoleOut |> Seq.head
-            sprintf "%s+%s" currentVersion.Value (hash.Line.Trim())
+            let r = exec { binary "git"; arguments ["rev-parse"; "--short"; "HEAD"]; output }
+            sprintf "%s+%s" currentVersion.Value (r.ConsoleOut |> Seq.head |> fun l -> l.Line.Trim())
         else
             currentVersion.Value
     )
@@ -109,16 +105,16 @@ app.Bind <| function
     // ── schema namespace ───────────────────────────────────────────────────
     | Schema Update ->
         Make.target [] "" <| fun _ ->
-            exec "dotnet" [ "build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport" ]
+            exec { run "dotnet" ["build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport"] }
             if not (Directory.Exists "schema") then Directory.CreateDirectory "schema" |> ignore
-            exec (schemaToolBin()) [ "--out"; "schema/argh-cli-schema.json" ]
+            exec { run (schemaToolBin()) ["--out"; "schema/argh-cli-schema.json"] }
 
     | Schema SchemaTarget.Validate ->
         Make.target [] "Fail if schema/argh-cli-schema.json is out of date" <| fun _ ->
-            exec "dotnet" [ "build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport" ]
+            exec { run "dotnet" ["build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport"] }
             let tempPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".json")
             try
-                exec (schemaToolBin()) [ "--out"; tempPath ]
+                exec { run (schemaToolBin()) ["--out"; tempPath] }
                 let generated = File.ReadAllText(tempPath).TrimEnd()
                 let existing  = File.ReadAllText("schema/argh-cli-schema.json").TrimEnd()
                 if generated <> existing then
@@ -131,7 +127,7 @@ app.Bind <| function
         Make.target [] "" <| fun _ ->
             let out = output ()
             if out.Exists then out.Delete(true)
-            exec "dotnet" [ "pack"; "-c"; "Release"; "-o"; outputPath() ]
+            exec { run "dotnet" ["pack"; "-c"; "Release"; "-o"; outputPath()] }
 
     | Pkg PkgTarget.Validate ->
         Make.target [] "" <| fun _ ->
@@ -140,19 +136,19 @@ app.Bind <| function
             |> Seq.sortByDescending (fun f -> f.CreationTimeUtc)
             |> Seq.map  (fun f -> Path.GetRelativePath(Directory.GetCurrentDirectory(), f.FullName))
             |> Seq.filter (fun p -> packageIdFromFile p <> "Nullean.Argh")
-            |> Seq.iter (fun p -> exec "dotnet" ([ "nupkg-validator"; p ] @ baseArgs))
+            |> Seq.iter (fun p -> exec { run "dotnet" (["nupkg-validator"; p] @ baseArgs) })
 
     // ── clean ──────────────────────────────────────────────────────────────
     | Clean ->
         Make.target [] "" <| fun _ ->
             let out = output ()
             if out.Exists then out.Delete(true)
-            exec "dotnet" [ "clean" ]
+            exec { run "dotnet" ["clean"] }
 
     // ── build ──────────────────────────────────────────────────────────────
     | Build ->
         Make.target [Clean] "" <| fun _ ->
-            exec "dotnet" [ "build"; "-c"; "Release" ]
+            exec { run "dotnet" ["build"; "-c"; "Release"] }
 
     // ── pristine-check ─────────────────────────────────────────────────────
     | PristineCheck ->
@@ -160,7 +156,7 @@ app.Bind <| function
             if ctx.IsSet(cleanCheckout) then
                 printfn "Checkout is dirty but --clean-checkout was specified, skipping check"
             else
-                let r = Proc.Start("git", "status", "--porcelain")
+                let r = exec { binary "git"; arguments ["status"; "--porcelain"]; output }
                 if r.ConsoleOut |> Seq.isEmpty |> not then
                     raise (MakeException("The checkout folder has pending changes, aborting"))
                 printfn "The checkout folder does not have pending changes, proceeding"
@@ -168,26 +164,25 @@ app.Bind <| function
     // ── test ───────────────────────────────────────────────────────────────
     | Test opts ->
         Make.target [Build] "Run all tests" <| fun _ ->
-            let args =
-                [ "test"; "-c"; "RELEASE"; "--logger:GithubActions"; "--logger:pretty" ]
-                @ (opts.Filter |> Option.map (sprintf "--filter:%s") |> Option.toList)
-            exec "dotnet" args
+            exec { run "dotnet"
+                       (["test"; "-c"; "RELEASE"; "--logger:GithubActions"; "--logger:pretty"]
+                        @ (opts.Filter |> Option.map (sprintf "--filter:%s") |> Option.toList)) }
 
     // ── release notes ──────────────────────────────────────────────────────
     | GenerateReleaseNotes ->
         Make.target [] "" <| fun ctx ->
             let ver        = currentVersion.Value
             let outputFile = Path.Combine(outputPath(), sprintf "release-notes-%s.md" ver)
-            let tokenArgs  = ctx.Get(token) |> Option.map (fun t -> [ "--token"; t ]) |> Option.defaultValue []
+            let tokenArgs  = ctx.Get(token) |> Option.map (fun t -> ["--token"; t]) |> Option.defaultValue []
             let repoArgs   = Repository.Split('/') |> Array.toList
-            exec "dotnet"
-                ( [ "release-notes" ] @ repoArgs
-                @ [ "--version"; ver
-                    "--label"; "enhancement"; "New Features"
-                    "--label"; "bug";         "Bug Fixes"
-                    "--label"; "documentation";"Docs Improvements"
-                    "--output"; outputFile ]
-                @ tokenArgs )
+            exec { run "dotnet"
+                       (["release-notes"] @ repoArgs
+                        @ ["--version"; ver
+                           "--label"; "enhancement"; "New Features"
+                           "--label"; "bug";         "Bug Fixes"
+                           "--label"; "documentation";"Docs Improvements"
+                           "--output"; outputFile]
+                        @ tokenArgs) }
 
     // ── api changes ────────────────────────────────────────────────────────
     | GenerateApiChanges ->
@@ -198,33 +193,32 @@ app.Bind <| function
                 | "Nullean.Argh.Hosting" | "Nullean.Argh.Interfaces" ->
                     sprintf ".artifacts/bin/%s/release_%s" id MainTfm
                 | _ -> sprintf ".artifacts/bin/%s/release" id
-            let out = output ()
-            out.GetFiles("*.nupkg")
+            output().GetFiles("*.nupkg")
             |> Seq.sortByDescending (fun f -> f.CreationTimeUtc)
             |> Seq.map  (fun f -> packageIdFromFile (Path.GetRelativePath(Directory.GetCurrentDirectory(), f.FullName)))
             |> Seq.filter (fun p -> p <> "Nullean.Argh")
             |> Seq.iter (fun pkg ->
-                exec "dotnet"
-                    [ "assembly-differ"
-                      sprintf "previous-nuget|%s|%s|%s" pkg ver MainTfm
-                      sprintf "directory|%s" (assembliesDir pkg)
-                      "-a"; "true"; "--target"; pkg; "-f"; "github-comment"
-                      "--output"; Path.Combine(outputPath(), sprintf "breaking-changes-%s.md" pkg) ])
+                exec { run "dotnet"
+                           ["assembly-differ"
+                            sprintf "previous-nuget|%s|%s|%s" pkg ver MainTfm
+                            sprintf "directory|%s" (assembliesDir pkg)
+                            "-a"; "true"; "--target"; pkg; "-f"; "github-comment"
+                            "--output"; Path.Combine(outputPath(), sprintf "breaking-changes-%s.md" pkg)] })
 
     // ── create github release ──────────────────────────────────────────────
     | CreateReleaseOnGithub ->
         Make.target [] "" <| fun ctx ->
-            let ver         = currentVersion.Value
+            let ver          = currentVersion.Value
             let releaseNotes = Path.Combine(outputPath(), sprintf "release-notes-%s.md" ver)
-            let tokenArgs   = ctx.Get(token) |> Option.map (fun t -> [ "--token"; t ]) |> Option.defaultValue []
-            let bodyArgs    =
+            let tokenArgs    = ctx.Get(token) |> Option.map (fun t -> ["--token"; t]) |> Option.defaultValue []
+            let bodyArgs     =
                 output().GetFiles("breaking-changes-*.md")
-                |> Seq.collect (fun f -> [ "--body"; Path.GetRelativePath(Directory.GetCurrentDirectory(), f.FullName) ])
+                |> Seq.collect (fun f -> ["--body"; Path.GetRelativePath(Directory.GetCurrentDirectory(), f.FullName)])
                 |> Seq.toList
-            exec "dotnet"
-                ( [ "release-notes" ] @ (Repository.Split('/') |> Array.toList)
-                @ [ "create-release"; "--version"; ver; "--body"; releaseNotes ]
-                @ bodyArgs @ tokenArgs )
+            exec { run "dotnet"
+                       (["release-notes"] @ (Repository.Split('/') |> Array.toList)
+                        @ ["create-release"; "--version"; ver; "--body"; releaseNotes]
+                        @ bodyArgs @ tokenArgs) }
 
     // ── commands ───────────────────────────────────────────────────────────
     | Release ->
