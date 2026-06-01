@@ -108,13 +108,13 @@ app.Bind <| function
 
     // ── schema namespace ───────────────────────────────────────────────────
     | Schema Update ->
-        Make.target [] <| fun _ ->
+        Make.target [] "" <| fun _ ->
             exec "dotnet" [ "build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport" ]
             if not (Directory.Exists "schema") then Directory.CreateDirectory "schema" |> ignore
             exec (schemaToolBin()) [ "--out"; "schema/argh-cli-schema.json" ]
 
     | Schema SchemaTarget.Validate ->
-        Make.target' [] "Fail if schema/argh-cli-schema.json is out of date" <| fun _ ->
+        Make.target [] "Fail if schema/argh-cli-schema.json is out of date" <| fun _ ->
             exec "dotnet" [ "build"; "-c"; "Release"; "tools/Nullean.Argh.SchemaExport" ]
             let tempPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".json")
             try
@@ -128,13 +128,13 @@ app.Bind <| function
 
     // ── pkg namespace ──────────────────────────────────────────────────────
     | Pkg Generate ->
-        Make.target [] <| fun _ ->
+        Make.target [] "" <| fun _ ->
             let out = output ()
             if out.Exists then out.Delete(true)
             exec "dotnet" [ "pack"; "-c"; "Release"; "-o"; outputPath() ]
 
     | Pkg PkgTarget.Validate ->
-        Make.target [] <| fun _ ->
+        Make.target [] "" <| fun _ ->
             let baseArgs = [ "-v"; currentVersionInformational.Value; "-k"; SignKey; "-t"; outputPath() ]
             output().GetFiles("*.nupkg")
             |> Seq.sortByDescending (fun f -> f.CreationTimeUtc)
@@ -144,19 +144,19 @@ app.Bind <| function
 
     // ── clean ──────────────────────────────────────────────────────────────
     | Clean ->
-        Make.target [] <| fun _ ->
+        Make.target [] "" <| fun _ ->
             let out = output ()
             if out.Exists then out.Delete(true)
             exec "dotnet" [ "clean" ]
 
     // ── build ──────────────────────────────────────────────────────────────
     | Build ->
-        Make.target [Clean] <| fun _ ->
+        Make.target [Clean] "" <| fun _ ->
             exec "dotnet" [ "build"; "-c"; "Release" ]
 
     // ── pristine-check ─────────────────────────────────────────────────────
     | PristineCheck ->
-        Make.target' [] "Verify no pending changes" <| fun ctx ->
+        Make.target [] "Verify no pending changes" <| fun ctx ->
             if ctx.IsSet(cleanCheckout) then
                 printfn "Checkout is dirty but --clean-checkout was specified, skipping check"
             else
@@ -167,7 +167,7 @@ app.Bind <| function
 
     // ── test ───────────────────────────────────────────────────────────────
     | Test opts ->
-        Make.target' [Build] "Run all tests" <| fun _ ->
+        Make.target [Build] "Run all tests" <| fun _ ->
             let args =
                 [ "test"; "-c"; "RELEASE"; "--logger:GithubActions"; "--logger:pretty" ]
                 @ (opts.Filter |> Option.map (sprintf "--filter:%s") |> Option.toList)
@@ -175,7 +175,7 @@ app.Bind <| function
 
     // ── release notes ──────────────────────────────────────────────────────
     | GenerateReleaseNotes ->
-        Make.target [] <| fun ctx ->
+        Make.target [] "" <| fun ctx ->
             let ver        = currentVersion.Value
             let outputFile = Path.Combine(outputPath(), sprintf "release-notes-%s.md" ver)
             let tokenArgs  = ctx.Get(token) |> Option.map (fun t -> [ "--token"; t ]) |> Option.defaultValue []
@@ -191,7 +191,7 @@ app.Bind <| function
 
     // ── api changes ────────────────────────────────────────────────────────
     | GenerateApiChanges ->
-        Make.target [] <| fun _ ->
+        Make.target [] "" <| fun _ ->
             let ver = currentVersion.Value
             let assembliesDir id =
                 match id with
@@ -213,7 +213,7 @@ app.Bind <| function
 
     // ── create github release ──────────────────────────────────────────────
     | CreateReleaseOnGithub ->
-        Make.target [] <| fun ctx ->
+        Make.target [] "" <| fun ctx ->
             let ver         = currentVersion.Value
             let releaseNotes = Path.Combine(outputPath(), sprintf "release-notes-%s.md" ver)
             let tokenArgs   = ctx.Get(token) |> Option.map (fun t -> [ "--token"; t ]) |> Option.defaultValue []

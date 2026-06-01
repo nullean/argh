@@ -35,13 +35,8 @@ type Definition<'TCase> =
 /// Helpers for building Definition values inside app.Bind.
 module Make =
 
-    /// Defines an atomic target with a dependency list.
-    /// Description defaults to the kebab-case case name. Use `_` to ignore the context.
-    let target (deps: 'TCase list) (body: FsContext -> 'r) : Definition<'TCase> =
-        FsTarget("", deps, fun ctx -> body ctx |> ignore)
-
-    /// Like `target` but with an explicit description shown in help output.
-    let target' (deps: 'TCase list) (desc: string) (body: FsContext -> 'r) : Definition<'TCase> =
+    /// Defines an atomic target. Pass "" for desc to use the kebab-case case name.
+    let target (deps: 'TCase list) (desc: string) (body: FsContext -> 'r) : Definition<'TCase> =
         FsTarget(desc, deps, fun ctx -> body ctx |> ignore)
 
     /// Marks a DU case as a CLI namespace segment. Not needed when using nested sub-DUs.
