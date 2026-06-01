@@ -1,4 +1,4 @@
-#!/usr/bin/env -S dotnet fsi
+#!/usr/bin/env -S dotnet fsi --
 // Local references — all transitive deps are co-located in the Nullean.Make.Fs output folder.
 // Build first with: dotnet build -c Release
 // Once Nullean.Make.Fs ships on NuGet, replace with:
@@ -31,14 +31,14 @@ let [<Literal>] IncludeGitHash = true
 let output () = DirectoryInfo(Path.Combine("build", "output"))
 
 let outputPath () =
-    Path.GetRelativePath(Directory.GetCurrentDirectory(), (output()).FullName)
+    Path.GetRelativePath(Directory.GetCurrentDirectory(), output().FullName)
 
 let schemaToolBin () =
     let name = "Nullean.Argh.SchemaExport"
     if Environment.OSVersion.Platform = PlatformID.Win32NT then
-        sprintf ".artifacts/bin/%s/release/%s.exe" name name
+        $".artifacts/bin/%s{name}/release/%s{name}.exe"
     else
-        sprintf ".artifacts/bin/%s/release/%s" name name
+        $".artifacts/bin/%s{name}/release/%s{name}"
 
 // ── version helpers (lazy, computed once) ─────────────────────────────────────
 
@@ -47,7 +47,7 @@ let restoreTools =
 
 let currentVersion =
     lazy (
-        restoreTools.Value |> ignore
+        restoreTools.Value
         let r = exec { binary "dotnet"; arguments ["minver"; "-p"; "canary.0"; "-m"; "0.1"]; output }
         r.ConsoleOut |> Seq.find (fun l -> not (l.Line.StartsWith("MinVer:"))) |> fun l -> l.Line
     )
@@ -56,7 +56,7 @@ let currentVersionInformational =
     lazy (
         if IncludeGitHash then
             let r = exec { binary "git"; arguments ["rev-parse"; "--short"; "HEAD"]; output }
-            sprintf "%s+%s" currentVersion.Value (r.ConsoleOut |> Seq.head |> fun l -> l.Line.Trim())
+            $"%s{currentVersion.Value}+%s{r.ConsoleOut |> Seq.head |> _.Line.Trim()}"
         else
             currentVersion.Value
     )
@@ -93,7 +93,7 @@ let defaultTest = { Filter = None }
 
 // ── global options ────────────────────────────────────────────────────────────
 
-let app = MakeApp<Target>("argh-build", Some "Build pipeline for nullean/argh")
+let app = MakeApp<Target>(fsi.CommandLineArgs[0], Some "Build pipeline for nullean/argh")
 
 let cleanCheckout = app.Flag("--clean-checkout", short = "-c", desc = "Skip the clean-checkout guard")
 let token         = app.Option<string option>("--token", desc = "GitHub token for release/publish", defaultValue = None)
@@ -133,7 +133,7 @@ app.Bind <| function
         Make.target [] "" <| fun _ ->
             let baseArgs = [ "-v"; currentVersionInformational.Value; "-k"; SignKey; "-t"; outputPath() ]
             output().GetFiles("*.nupkg")
-            |> Seq.sortByDescending (fun f -> f.CreationTimeUtc)
+            |> Seq.sortByDescending _.CreationTimeUtc
             |> Seq.map  (fun f -> Path.GetRelativePath(Directory.GetCurrentDirectory(), f.FullName))
             |> Seq.filter (fun p -> packageIdFromFile p <> "Nullean.Argh")
             |> Seq.iter (fun p -> exec { run "dotnet" (["nupkg-validator"; p] @ baseArgs) })
@@ -191,8 +191,9 @@ app.Bind <| function
             let assembliesDir id =
                 match id with
                 | "Nullean.Argh.Hosting" | "Nullean.Argh.Interfaces" ->
-                    sprintf ".artifacts/bin/%s/release_%s" id MainTfm
-                | _ -> sprintf ".artifacts/bin/%s/release" id
+                    $".artifacts/bin/%s{id}/release_%s{MainTfm}"
+                | _ -> $".artifacts/bin/%s{id}/release"
+
             output().GetFiles("*.nupkg")
             |> Seq.sortByDescending _.CreationTimeUtc
             |> Seq.map  (fun f -> packageIdFromFile (Path.GetRelativePath(Directory.GetCurrentDirectory(), f.FullName)))
@@ -200,16 +201,16 @@ app.Bind <| function
             |> Seq.iter (fun pkg ->
                 exec { run "dotnet"
                            ["assembly-differ"
-                            sprintf "previous-nuget|%s|%s|%s" pkg ver MainTfm
-                            sprintf "directory|%s" (assembliesDir pkg)
+                            $"previous-nuget|%s{pkg}|%s{ver}|%s{MainTfm}"
+                            $"directory|%s{assembliesDir pkg}"
                             "-a"; "true"; "--target"; pkg; "-f"; "github-comment"
-                            "--output"; Path.Combine(outputPath(), sprintf "breaking-changes-%s.md" pkg)] })
+                            "--output"; Path.Combine(outputPath(), $"breaking-changes-%s{pkg}.md")] })
 
     // ── create GitHub release ──────────────────────────────────────────────
     | CreateReleaseOnGithub ->
         Make.target [] "" <| fun ctx ->
             let ver          = currentVersion.Value
-            let releaseNotes = Path.Combine(outputPath(), sprintf "release-notes-%s.md" ver)
+            let releaseNotes = Path.Combine(outputPath(), $"release-notes-%s{ver}.md")
             let tokenArgs    = ctx.Get(token) |> Option.map (fun t -> ["--token"; t]) |> Option.defaultValue []
             let bodyArgs     =
                 output().GetFiles("breaking-changes-*.md")
@@ -223,13 +224,11 @@ app.Bind <| function
     // ── commands ───────────────────────────────────────────────────────────
     | Release ->
         Make.command
-            "Verify gates → pack → release-notes → api-diff"
             [ PristineCheck; Test defaultTest ]
             [ Pkg Generate; Pkg Validate; GenerateReleaseNotes; GenerateApiChanges ]
 
     | Publish ->
         Make.command
-            "Release → create GitHub release"
             [ Release ]
             [ CreateReleaseOnGithub ]
 

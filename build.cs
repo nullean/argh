@@ -17,6 +17,14 @@ using ProcNet;
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
+Target Clean = _ => _
+	.Description("Delete build output")
+	.Executes(() =>
+	{
+		if (Output.Exists) Output.Delete(true);
+		Proc.Exec("dotnet", new[] { "clean" });
+	});
+
 await MakeApp.Execute<Make>(args);
 
 // ── per-target DTOs ───────────────────────────────────────────────────────────
@@ -56,8 +64,6 @@ class Make : MakeBuild
 		: CurrentVersion;
 
 	static string PackageIdFromFile(string path) => Path.GetFileNameWithoutExtension(path).Replace("." + CurrentVersion, "");
-
-
 
 
     [Flag("--clean-checkout", "-c", Description = "Skip the clean-checkout guard on release/publish")]
