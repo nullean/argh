@@ -55,7 +55,7 @@ let currentVersion =
 let currentVersionInformational =
     lazy (
         if IncludeGitHash then
-            let r = exec { binary "git"; arguments ["rev-parse"; "--short"; "HEAD"]; output }
+            let r = exec { binary "git"; arguments ["rev-parse"; "HEAD"]; output }
             $"%s{currentVersion.Value}+%s{r.ConsoleOut |> Seq.head |> _.Line.Trim()}"
         else
             currentVersion.Value
