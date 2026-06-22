@@ -6899,6 +6899,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				continue;
 			}
 
+			if (p.ScalarKind == CliScalarKind.Union && !p.UnionIsArgument)
+			{
+				EmitUnionFlagAssembly(sb, p, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+				continue;
+			}
+
 			if (p.IsCollection && p.Kind == ParameterKind.Flag)
 			{
 				EmitBindCollectionParameter(sb, p, anyRepeatedCollection, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
@@ -6926,6 +6932,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			if (p.Kind != ParameterKind.Positional)
 				continue;
+
+			// Union [Argument] mode: case name is the positional; case props come from flags
+			if (p.ScalarKind == CliScalarKind.Union && p.UnionIsArgument)
+			{
+				EmitUnionArgumentAssembly(sb, p, posIndex, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+				posIndex++;
+				continue;
+			}
 
 			if (p.IsVariadic)
 			{
@@ -7115,6 +7129,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				continue;
 
 			if (p.Special == BoolSpecialKind.Bool || p.Special == BoolSpecialKind.NullableBool)
+				continue;
+
+			// Union params are declared and assembled post-loop; skip here
+			if (p.ScalarKind == CliScalarKind.Union)
 				continue;
 
 			if (p.IsCollection && p.Kind == ParameterKind.Flag)
@@ -7344,7 +7362,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var noNames = new List<string>();
 		foreach (var p in cmd.Parameters)
 		{
-			if (!IsEmittedFlagLike(p.Kind))
+			if (!IsEmittedFlagLike(p.Kind) && p.Kind != ParameterKind.Positional)
 				continue;
 			if (p.Special == BoolSpecialKind.Bool)
 				names.Add(p.CliLongName);
@@ -7352,6 +7370,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				names.Add(p.CliLongName);
 				noNames.Add("no-" + p.CliLongName);
+			}
+			// Union case bool props: flag mode → --{case}-{prop}; argument mode → --{prop}
+			if (p.ScalarKind == CliScalarKind.Union && !p.UnionCases.IsDefaultOrEmpty)
+			{
+				foreach (var c in p.UnionCases)
+					foreach (var prop in c.Properties)
+						if (prop.Special == BoolSpecialKind.Bool)
+							names.Add(p.UnionIsArgument ? prop.CliName : prop.FlagModeName);
 			}
 		}
 
@@ -7402,10 +7428,31 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		foreach (var p in cmd.Parameters)
 		{
-			if (!IsEmittedFlagLike(p.Kind))
+			if (!IsEmittedFlagLike(p.Kind) && p.Kind != ParameterKind.Positional)
 				continue;
 			if (p.Special == BoolSpecialKind.Bool || p.Special == BoolSpecialKind.NullableBool)
 				continue;
+			// Union flag mode: the selector flag + non-bool case props
+			if (p.ScalarKind == CliScalarKind.Union && !p.UnionIsArgument)
+			{
+				names.Add(p.CliLongName); // e.g. "format"
+				if (!p.UnionCases.IsDefaultOrEmpty)
+					foreach (var c in p.UnionCases)
+						foreach (var prop in c.Properties)
+							if (prop.Special != BoolSpecialKind.Bool)
+								names.Add(prop.FlagModeName); // e.g. "json-indent"
+				continue;
+			}
+			if (p.ScalarKind == CliScalarKind.Union && p.UnionIsArgument)
+			{
+				// Argument mode: case props are still flags
+				if (!p.UnionCases.IsDefaultOrEmpty)
+					foreach (var c in p.UnionCases)
+						foreach (var prop in c.Properties)
+							if (prop.Special != BoolSpecialKind.Bool)
+								names.Add(prop.CliName); // no prefix in argument mode
+				continue;
+			}
 			names.Add(p.CliLongName);
 			foreach (var al in p.Aliases)
 				names.Add(al);
@@ -7893,6 +7940,171 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					sb.AppendLine($"{ind}var {targetVar} = {rawExpr};");
 				else
 					sb.AppendLine($"{ind}{targetVar} = {rawExpr}; // fallback");
+				break;
+		}
+	}
+
+	// ── Union flag-mode assembly ──────────────────────────────────────────────
+
+	/// <summary>
+	/// Emits post-loop code that:
+	/// 1. Reads <c>flags["format"]</c> (or the param's CLI long name) to get the selected case name.
+	/// 2. Reads each case's property flags from <c>flags</c>.
+	/// 3. Switches on the case name and constructs the union value.
+	///
+	/// Silently-unused case prop flags (e.g. <c>--json-pretty</c> when <c>--format csv</c>) are not errors.
+	/// </summary>
+	private static void EmitUnionFlagAssembly(StringBuilder sb, ParameterModel p, string failureExit,
+		string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		if (p.UnionTypeFq is null || p.UnionCases.IsDefaultOrEmpty) return;
+		var flagKey  = Escape(p.CliLongName);
+		var caseVar  = "__union_case_" + p.LocalVarName;
+
+		// Read the selector flag
+		sb.AppendLine($"\t\t\tflags.TryGetValue(\"{flagKey}\", out var {caseVar});");
+
+		// Emit per-case prop readers (always read all props regardless of which case is selected)
+		foreach (var c in p.UnionCases)
+		{
+			var safeCaseName = Naming.SanitizeIdentifier(c.CliName);
+			foreach (var prop in c.Properties)
+			{
+				var safePropName = Naming.SanitizeIdentifier(prop.CliName);
+				var propVar = "__up_" + p.LocalVarName + "_" + safeCaseName + "_" + safePropName;
+				if (prop.Special == BoolSpecialKind.Bool)
+					sb.AppendLine($"\t\t\tvar {propVar} = flags.ContainsKey(\"{Escape(prop.FlagModeName)}\");");
+				else
+				{
+					sb.AppendLine($"\t\t\tflags.TryGetValue(\"{Escape(prop.FlagModeName)}\", out var {propVar}Raw);");
+					var parsedVar = propVar + "_parsed";
+					EmitUnionPropParse(sb, prop, propVar + "Raw", parsedVar, "\t\t\t", failureExit);
+				}
+			}
+		}
+
+		// Switch on case name to assemble the union
+		sb.AppendLine($"\t\t\t{p.UnionTypeFq} {p.LocalVarName};");
+		sb.AppendLine($"\t\t\tswitch (({caseVar} ?? \"\").ToLowerInvariant())");
+		sb.AppendLine("\t\t\t{");
+		foreach (var c in p.UnionCases)
+		{
+			var safeCaseName = Naming.SanitizeIdentifier(c.CliName);
+			sb.AppendLine($"\t\t\t\tcase \"{Escape(c.CliName)}\":");
+			var propArgs = new System.Text.StringBuilder();
+			foreach (var prop in c.Properties)
+			{
+				if (propArgs.Length > 0) propArgs.Append(", ");
+				var safePropName = Naming.SanitizeIdentifier(prop.CliName);
+				var propVar = "__up_" + p.LocalVarName + "_" + safeCaseName + "_" + safePropName;
+				var valueExpr = prop.Special == BoolSpecialKind.Bool ? propVar : propVar + "_parsed";
+				propArgs.Append(valueExpr);
+			}
+			sb.AppendLine($"\t\t\t\t\t{p.LocalVarName} = new {p.UnionTypeFq}(new {c.TypeFq}({propArgs}));");
+			sb.AppendLine("\t\t\t\t\tbreak;");
+		}
+		sb.AppendLine("\t\t\t\tdefault:");
+		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Error: invalid value for --{flagKey}: '{{{caseVar}}}'.\");");
+		sb.AppendLine($"\t\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t\t\tbreak;");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	/// <summary>
+	/// Emits post-loop code for union [Argument] mode:
+	/// 1. Reads <c>positionals[posIndex]</c> as the case name.
+	/// 2. Reads each case's property flags from <c>flags</c> (no prefix — props use their bare CLI names).
+	/// 3. Switches on the case name to construct the union value.
+	/// </summary>
+	private static void EmitUnionArgumentAssembly(StringBuilder sb, ParameterModel p, int posIndex,
+		string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		if (p.UnionTypeFq is null || p.UnionCases.IsDefaultOrEmpty) return;
+		var caseVar = "__union_case_" + p.LocalVarName;
+
+		// Read the case name from positionals
+		if (p.IsRequired)
+		{
+			sb.AppendLine($"\t\t\tif (positionals.Count <= {posIndex})");
+			sb.AppendLine("\t\t\t{");
+			sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: missing required argument <{Escape(p.CliLongName)}>.\");");
+			if (helpMethodName is not null)
+				sb.AppendLine($"\t\t\t\t{helpMethodName}();");
+			sb.AppendLine($"\t\t\t\t{failureExit};");
+			sb.AppendLine("\t\t\t}");
+			sb.AppendLine($"\t\t\tvar {caseVar} = positionals[{posIndex}];");
+		}
+		else
+		{
+			sb.AppendLine($"\t\t\tvar {caseVar} = positionals.Count > {posIndex} ? positionals[{posIndex}] : null;");
+		}
+
+		// Read all case prop flags (bare name, no prefix)
+		foreach (var c in p.UnionCases)
+		{
+			var safeCaseName = Naming.SanitizeIdentifier(c.CliName);
+			foreach (var prop in c.Properties)
+			{
+				var safePropName = Naming.SanitizeIdentifier(prop.CliName);
+				var propVar = "__up_" + p.LocalVarName + "_" + safeCaseName + "_" + safePropName;
+				if (prop.Special == BoolSpecialKind.Bool)
+					sb.AppendLine($"\t\t\tvar {propVar} = flags.ContainsKey(\"{Escape(prop.CliName)}\");");
+				else
+				{
+					sb.AppendLine($"\t\t\tflags.TryGetValue(\"{Escape(prop.CliName)}\", out var {propVar}Raw);");
+					var parsedVar = propVar + "_parsed";
+					EmitUnionPropParse(sb, prop, propVar + "Raw", parsedVar, "\t\t\t", failureExit);
+				}
+			}
+		}
+
+		// Switch on case name
+		sb.AppendLine($"\t\t\t{p.UnionTypeFq} {p.LocalVarName};");
+		sb.AppendLine($"\t\t\tswitch (({caseVar} ?? \"\").ToLowerInvariant())");
+		sb.AppendLine("\t\t\t{");
+		foreach (var c in p.UnionCases)
+		{
+			var safeCaseName = Naming.SanitizeIdentifier(c.CliName);
+			sb.AppendLine($"\t\t\t\tcase \"{Escape(c.CliName)}\":");
+			var propArgs = new System.Text.StringBuilder();
+			foreach (var prop in c.Properties)
+			{
+				if (propArgs.Length > 0) propArgs.Append(", ");
+				var safePropName = Naming.SanitizeIdentifier(prop.CliName);
+				var propVar = "__up_" + p.LocalVarName + "_" + safeCaseName + "_" + safePropName;
+				var valueExpr = prop.Special == BoolSpecialKind.Bool ? propVar : propVar + "_parsed";
+				propArgs.Append(valueExpr);
+			}
+			sb.AppendLine($"\t\t\t\t\t{p.LocalVarName} = new {p.UnionTypeFq}(new {c.TypeFq}({propArgs}));");
+			sb.AppendLine("\t\t\t\t\tbreak;");
+		}
+		sb.AppendLine("\t\t\t\tdefault:");
+		sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Error: invalid value for <{Escape(p.CliLongName)}>: '{{{caseVar}}}'.\");");
+		sb.AppendLine($"\t\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t\t\tbreak;");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	/// <summary>Emits parse code for a single union case property from a raw string variable into a parsed variable.</summary>
+	private static void EmitUnionPropParse(StringBuilder sb, UnionCasePropInfo prop, string rawVar, string parsedVar, string ind, string failureExit)
+	{
+		switch (prop.ScalarKind)
+		{
+			case CliScalarKind.Primitive when prop.TypeName == "int":
+				sb.AppendLine($"{ind}if (!int.TryParse({rawVar}, out var {parsedVar}))");
+				sb.AppendLine($"{ind}\t{parsedVar} = {prop.DefaultValueLiteral ?? "default"};");
+				break;
+			case CliScalarKind.Primitive when prop.TypeName == "long":
+				sb.AppendLine($"{ind}if (!long.TryParse({rawVar}, out var {parsedVar}))");
+				sb.AppendLine($"{ind}\t{parsedVar} = {prop.DefaultValueLiteral ?? "default"};");
+				break;
+			case CliScalarKind.Primitive when prop.TypeName == "double":
+				sb.AppendLine($"{ind}if (!double.TryParse({rawVar}, global::System.Globalization.NumberStyles.Any, global::System.Globalization.CultureInfo.InvariantCulture, out var {parsedVar}))");
+				sb.AppendLine($"{ind}\t{parsedVar} = {prop.DefaultValueLiteral ?? "default"};");
+				break;
+			default:
+				// String or unrecognized: just use the raw value, falling back to null/default
+				sb.AppendLine($"{ind}var {parsedVar} = {rawVar};");
 				break;
 		}
 	}
@@ -9773,6 +9985,29 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	private sealed record NonExistingPathConstraint : ValidationConstraint;
 	private sealed record RejectSymbolicLinksConstraint : ValidationConstraint;
 
+	// ── Union model records ─────────────────────────────────────────────────
+	/// <summary>A single case of a C# 15 union type (e.g. <c>Json</c> in <c>union OutputFormat(Table, Json, Csv)</c>).</summary>
+	private sealed record UnionCaseInfo(
+		/// <summary>Pascal case name of the record/class case type, e.g. <c>"Json"</c>.</summary>
+		string Name,
+		/// <summary>Fully-qualified name for use in generated code, e.g. <c>"global::My.Ns.Json"</c>.</summary>
+		string TypeFq,
+		/// <summary>Kebab-case CLI name, e.g. <c>"json"</c>.</summary>
+		string CliName,
+		/// <summary>Properties of the case record that become namespaced flags (e.g. <c>--json-pretty</c>).</summary>
+		ImmutableArray<UnionCasePropInfo> Properties);
+
+	/// <summary>A property of a union case record that becomes a CLI flag when in flag mode.</summary>
+	private sealed record UnionCasePropInfo(
+		string Name,
+		string CliName,
+		CliScalarKind ScalarKind,
+		BoolSpecialKind Special,
+		string TypeName,
+		string? DefaultValueLiteral,
+		/// <summary>Fully-qualified CLI flag name in flag mode, e.g. <c>"json-pretty"</c>.</summary>
+		string FlagModeName);
+
 	private sealed record ParameterModel(
 		string SymbolName,
 		string LocalVarName,
@@ -9834,7 +10069,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		bool IsCommandOutput = false,
 		ImmutableArray<string> CommandOutputExplicitFormats = default,
 		bool IsDeprecated = false,
-		string? DeprecationMessage = null)
+		string? DeprecationMessage = null,
+		// ── Union support ───────────────────────────────────────────────────────
+		/// <summary>Fully-qualified name of the union type (e.g. <c>My.Ns.OutputFormat</c>). Null when not a union.</summary>
+		string? UnionTypeFq = null,
+		/// <summary>Ordered list of cases in the union (each case may have zero or more properties).</summary>
+		ImmutableArray<UnionCaseInfo> UnionCases = default,
+		/// <summary>When true the union case is selected positionally (like <c>[Argument]</c>); when false (default) selected via <c>--format &lt;case&gt;</c>.</summary>
+		bool UnionIsArgument = false)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
 
@@ -10000,6 +10242,12 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var expandProf = TryReadExpandUserProfileBeforeBind(p, sk);
 			var (isOutputP, outputFormatsP) = TryGetCommandOutputAttribute(p);
 			var (isDeprecatedP, deprecationMsgP) = TryGetObsoleteAttribute(p);
+			// Union fields
+			var unionTypeFq  = sk == CliScalarKind.Union && p.Type is INamedTypeSymbol unionT
+				? unionT.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null;
+			var unionCases = sk == CliScalarKind.Union && p.Type is INamedTypeSymbol unionT2
+				? GetUnionCasesFromSymbol(unionT2) : default;
+			var unionIsArg = sk == CliScalarKind.Union && isArg;
 			return new ParameterModel(
 				p.Name,
 				SafeLocalName(p.Name),
@@ -10027,7 +10275,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				IsCommandOutput: isOutputP,
 				CommandOutputExplicitFormats: outputFormatsP,
 				IsDeprecated: isDeprecatedP,
-				DeprecationMessage: deprecationMsgP);
+				DeprecationMessage: deprecationMsgP,
+				UnionTypeFq: unionTypeFq,
+				UnionCases: unionCases,
+				UnionIsArgument: unionIsArg);
 		}
 
 		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -10058,6 +10309,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			var validations = ReadValidationConstraints(prop, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
+			var unionTypeFqProp  = sk == CliScalarKind.Union && prop.Type is INamedTypeSymbol unionTp
+				? unionTp.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null;
+			var unionCasesProp = sk == CliScalarKind.Union && prop.Type is INamedTypeSymbol unionTp2
+				? GetUnionCasesFromSymbol(unionTp2) : default;
 			return new ParameterModel(
 				prop.Name,
 				SafeLocalName(prop.Name),
@@ -10088,7 +10343,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				IsCommandOutput: TryGetCommandOutputAttribute(prop).IsOutput,
 				CommandOutputExplicitFormats: TryGetCommandOutputAttribute(prop).ExplicitFormats,
 				IsDeprecated: TryGetObsoleteAttribute(prop).IsDeprecated,
-				DeprecationMessage: TryGetObsoleteAttribute(prop).Message);
+				DeprecationMessage: TryGetObsoleteAttribute(prop).Message,
+				UnionTypeFq: unionTypeFqProp,
+				UnionCases: unionCasesProp);
 		}
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -10452,6 +10709,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					primitiveName = "Uri";
 					return;
 				}
+
+				if (IsUnionSymbol(named))
+				{
+					kind = CliScalarKind.Union;
+					primitiveName = "union";
+					return;
+				}
 			}
 
 			kind = CliScalarKind.Primitive;
@@ -10540,6 +10804,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					primitiveName = "Uri";
 					return;
 				}
+
+				if (IsUnionSymbol(named))
+				{
+					kind = CliScalarKind.Union;
+					primitiveName = "union";
+					return;
+				}
 			}
 
 			kind = CliScalarKind.Primitive;
@@ -10609,6 +10880,87 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						b[field.Name] = summary;
 				}
 				catch { }
+			}
+			return b.ToImmutable();
+		}
+
+		// ── Union helpers ────────────────────────────────────────────────────────
+
+		/// <summary>True when <paramref name="t"/> is a C# 15 union type (implements IUnion, has [Union] attribute, or matches structural pattern).</summary>
+		private static bool IsUnionSymbol(INamedTypeSymbol t)
+		{
+			// IUnion interface (runtime marker from lowered union keyword)
+			foreach (var iface in t.AllInterfaces)
+			{
+				if (iface.Name == "IUnion") return true;
+			}
+			// [Union] attribute
+			foreach (var attr in t.GetAttributes())
+			{
+				var name = attr.AttributeClass?.Name;
+				if (name is "UnionAttribute" or "Union") return true;
+			}
+			// Structural: struct with object? Value property + ≥1 single-param public ctor
+			if (t.TypeKind == TypeKind.Struct)
+			{
+				var hasValueProp = false;
+				foreach (var m in t.GetMembers("Value"))
+				{
+					if (m is IPropertySymbol vp && vp.Type.SpecialType == SpecialType.System_Object)
+					{ hasValueProp = true; break; }
+				}
+				if (hasValueProp)
+				{
+					foreach (var ctor in t.Constructors)
+					{
+						if (ctor.Parameters.Length == 1 && ctor.DeclaredAccessibility == Accessibility.Public)
+							return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		/// <summary>Builds the <see cref="UnionCaseInfo"/> array for a union type symbol.</summary>
+		private static ImmutableArray<UnionCaseInfo> GetUnionCasesFromSymbol(INamedTypeSymbol unionType)
+		{
+			var b = ImmutableArray.CreateBuilder<UnionCaseInfo>();
+			foreach (var ctor in unionType.Constructors)
+			{
+				if (ctor.Parameters.Length != 1 || ctor.DeclaredAccessibility != Accessibility.Public) continue;
+				if (ctor.Parameters[0].Type is not INamedTypeSymbol caseNamed) continue;
+				var caseName   = caseNamed.Name;
+				var caseTypeFq = caseNamed.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				var caseCli    = Naming.ToCliLongName(caseName);
+				var props      = GetUnionCasePropsFromSymbol(caseNamed, caseCli);
+				b.Add(new UnionCaseInfo(caseName, caseTypeFq, caseCli, props));
+			}
+			return b.ToImmutable();
+		}
+
+		/// <summary>Returns all primary-ctor parameters of a union case record that become namespaced flags.</summary>
+		private static ImmutableArray<UnionCasePropInfo> GetUnionCasePropsFromSymbol(INamedTypeSymbol caseType, string caseCli)
+		{
+			var b = ImmutableArray.CreateBuilder<UnionCasePropInfo>();
+			// Find the primary constructor (highest param count public ctor)
+			IMethodSymbol? primaryCtor = null;
+			foreach (var ctor in caseType.Constructors)
+			{
+				if (ctor.DeclaredAccessibility != Accessibility.Public) continue;
+				if (primaryCtor is null || ctor.Parameters.Length > primaryCtor.Parameters.Length)
+					primaryCtor = ctor;
+			}
+			if (primaryCtor is null) return b.ToImmutable();
+			foreach (var param in primaryCtor.Parameters)
+			{
+				var bs = ClassifyBool(param.Type);
+				// Only support primitives and enums; skip nested unions / collections
+				if (param.Type is not INamedTypeSymbol pNamed) continue;
+				ClassifyScalar(param, bs, out var sk, out var typeName, out _, out _, out _, out _);
+				if (sk is CliScalarKind.Union or CliScalarKind.Collection or CliScalarKind.CustomParser) continue;
+				var defLit = TryGetDefaultLiteral(param, bs);
+				var flagName = $"{caseCli}-{Naming.ToCliLongName(param.Name)}";
+				b.Add(new UnionCasePropInfo(param.Name, Naming.ToCliLongName(param.Name), sk, bs, typeName, defLit, flagName));
 			}
 			return b.ToImmutable();
 		}
@@ -10764,7 +11116,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		DirectoryInfo,
 		Uri,
 		CustomParser,
-		Collection
+		Collection,
+		Union
 	}
 
 	private enum BoolSpecialKind
