@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>Nullean.Make</AssemblyName>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Nullean.Make</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <PackageIcon>nuget-icon.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/nullean/argh</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/nullean/argh/releases</PackageReleaseNotes>
+
+    <PackageId>Nullean.Make</PackageId>
+    <Title>Nullean.Make - typed namespaced build target DSL</Title>
+    <Description>Property-dispatch build target DSL with Argh-quality help and per-target typed CLI arguments.</Description>
+
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nullean.Argh.Core\Nullean.Argh.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Nullean.Make.Fs</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>
