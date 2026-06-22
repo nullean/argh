@@ -112,6 +112,8 @@ internal static class CliRegistrationModule
 			g.Map<RootAliasFollowupDiffCommands>();
 			g.Map<RootAliasFollowupServeCommands>();
 		});
+		app.Map("union-format-flag", UnionFormatHandlers.FormatFlag);
+		app.Map("union-format-arg", UnionFormatHandlers.FormatArg);
 	}
 
 	/// <summary>Documented handler for lambda-style <c>Map</c> (XML appears in help).</summary>
