@@ -1,6 +1,9 @@
 project: argh
 max_toc_depth: 2
 
+branding:
+  icon: assets/logo.svg
+
 toc:
   - file: index.md
   - folder: getting-started
