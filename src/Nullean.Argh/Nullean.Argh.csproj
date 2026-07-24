@@ -3,10 +3,13 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <PackageId>Nullean.Argh</PackageId>
-    <Title>Nullean.Argh</Title>
-    <Description>Metapackage: references Nullean.Argh.Core (runtime + analyzer) and Nullean.Argh.Interfaces.</Description>
+    <Title>Nullean.Argh - Source-generated CLI framework for .NET</Title>
+    <Description>Build full-featured .NET CLIs without writing a parser. Methods become commands, XML docs become help text. Source-generated, AOT-safe, zero reflection.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/nullean/argh</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/nullean/argh/releases</PackageReleaseNotes>
+    <PackageIcon>nuget-icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
@@ -14,7 +17,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="README.md" Link="README.md" />
+    <None Include="README.md" Pack="true" PackagePath="README.md" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="/" />
+    <None Include="..\..\nuget-icon.png" Pack="true" PackagePath="nuget-icon.png" />
   </ItemGroup>
 
   <ItemGroup>

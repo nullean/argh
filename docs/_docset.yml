@@ -1,0 +1,43 @@
+project: argh
+max_toc_depth: 2
+
+toc:
+  - file: index.md
+  - folder: getting-started
+    children:
+      - file: index.md
+      - file: console-app.md
+      - file: hosted-app.md
+  - folder: commands
+    children:
+      - file: index.md
+      - file: registration.md
+      - file: namespaces.md
+  - folder: parameters
+    children:
+      - file: index.md
+      - file: flags.md
+      - file: arguments.md
+      - file: dto-binding.md
+      - file: custom-parsers.md
+      - file: validation.md
+  - folder: features
+    children:
+      - file: index.md
+      - file: help.md
+      - file: completions.md
+      - file: schema.md
+      - file: middleware.md
+      - file: fuzzy-matching.md
+  - folder: hosting
+    children:
+      - file: index.md
+      - file: dependency-injection.md
+      - file: intrinsic-commands.md
+  - folder: advanced
+    children:
+      - file: index.md
+      - file: global-options.md
+      - file: namespace-options.md
+      - file: cancellation.md
+      - file: aot.md
