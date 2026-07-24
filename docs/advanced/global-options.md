@@ -13,19 +13,22 @@ public record GlobalOptions(bool Verbose = false);
 
 app.UseGlobalOptions<GlobalOptions>();
 app.Map("build", (GlobalOptions g) => { if (g.Verbose) … });
-// myapp build --verbose
 ```
+
+Running `myapp build --verbose` applies the global flag.
 
 ## How it works
 
-- `UseGlobalOptions<T>()` registers the type as the global options record
-- The generator parses global options **before** routing to a specific command
-- Every command handler can accept the global options type as a parameter
-- Global options appear in the `Global options:` section of `--help` for every command
+- `UseGlobalOptions<T>()` registers the type as the global options record.
+- The generator parses global options **before** routing to a specific command.
+- Every command handler can accept the global options type as a parameter.
+- Global options appear in the `Global options:` section of `--help` for every command.
 
 ## Parsing order
 
-In generated code: globals → namespace options along the path → command flags and positionals.
+:::{note}
+In generated code, parsing follows this order: globals → namespace options along the path → command flags and positionals.
+:::
 
 ## Combining with `[AsParameters]`
 
@@ -35,5 +38,6 @@ A command can extend global options and annotate it with `[AsParameters]` to inh
 public record DeployOptions(string Environment, bool DryRun = false) : GlobalOptions;
 
 app.Map("deploy", ([AsParameters] DeployOptions opts) => { … });
-// myapp deploy --environment staging --dry-run --verbose
 ```
+
+Running `myapp deploy --environment staging --dry-run --verbose` passes both the deploy-specific and global flags.

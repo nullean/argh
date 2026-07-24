@@ -4,7 +4,7 @@ title: Dependency injection
 
 # Dependency injection
 
-When using `Nullean.Argh.Hosting`, DI integration is fully transparent — register your handler and middleware types in the service collection and the generated code resolves them automatically. No manual `ServiceProvider` wiring needed.
+When using `Nullean.Argh.Hosting`, DI integration is fully transparent. Register your handler and middleware types in the service collection and the generated code resolves them automatically. No manual `ServiceProvider` wiring needed.
 
 ## Handler with injected service
 
@@ -17,11 +17,14 @@ public class DeployCommands(IDeployService deployer)
         return 0;
     }
 }
-
-// Registration — service must be in the DI container
-builder.Services.AddScoped<IDeployService, DeployService>();
-builder.Services.AddArgh(args, b => b.Map<DeployCommands>());
 ```
+
+```csharp
+builder.Services.AddScoped<IDeployService, DeployService>(); // <1>
+builder.Services.AddArgh(args, b => b.Map<DeployCommands>()); // <2>
+```
+1. The service must be registered in the DI container
+2. Handler type is registered and its public methods become commands
 
 ## DI lifetime APIs
 
@@ -40,17 +43,27 @@ using Microsoft.Extensions.DependencyInjection;
 
 builder.Services.AddArgh(args, b =>
 {
-    b.MapScoped<DeployCommands>();       // resolved per command invocation
-    b.UseMiddleware<AuditMiddleware>(ServiceLifetime.Singleton);   // single instance for the process
-    b.Map("ping", PingHandlers.Run);    // static method — no DI lifetime needed
+    b.MapScoped<DeployCommands>();       // <1>
+    b.UseMiddleware<AuditMiddleware>(ServiceLifetime.Singleton);   // <2>
+    b.Map("ping", PingHandlers.Run);    // <3>
     b.UseGlobalOptions<GlobalOptions>();
 });
 ```
+1. Resolved per command invocation
+2. Single instance for the process
+3. Static method - no DI lifetime needed
 
 ## Without hosting
 
-For advanced use or when not using `Nullean.Argh.Hosting`: `ArghServices.ServiceProvider` is typed as `System.IServiceProvider` and set when running under a host. For `Map<T>()` instance methods and `UseMiddleware<T>()` / `[MiddlewareAttribute<T>]`, generated code resolves via `GetService(typeof(T))` when a provider is present; otherwise it falls back to `new T()`.
+:::{dropdown} Advanced: using DI without Nullean.Argh.Hosting
+
+For advanced use or when not using `Nullean.Argh.Hosting`: `ArghServices.ServiceProvider` is typed as `System.IServiceProvider` and set when running under a host.
+
+For `Map<T>()` instance methods and `UseMiddleware<T>()` / `[MiddlewareAttribute<T>]`, generated code resolves via `GetService(typeof(T))` when a provider is present. Otherwise it falls back to `new T()`.
+:::
 
 ## AOT considerations
 
+:::{warning}
 For native AOT / trimming, register handler and middleware types explicitly in DI so required constructors are preserved.
+:::

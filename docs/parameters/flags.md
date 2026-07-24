@@ -21,30 +21,43 @@ C# parameter names are automatically converted from camelCase to kebab-case:
 
 ## Long name override
 
-By default the CLI long name is derived from the C# parameter name. Place a `--long-name` token before the description in an XML `<param>` tag to use a different primary name. Additional `--names` after the first become aliases. The derived name is dropped entirely once an explicit long name is specified.
+By default the CLI long name is derived from the C# parameter name. To use a different primary name, place a `--long-name` token before the description in an XML `<param>` tag.
+
+Additional `--names` after the first become aliases. Once an explicit long name is specified, the derived name is dropped entirely.
 
 ```csharp
 /// <summary>Tag one or more resources.</summary>
 /// <param name="tags">-t, --tag, Tags to apply.</param>
 public static void Tag(string[] tags) { … }
-// --tag a --tag b   (NOT --tags — derived name is dropped)
-// -t a              (short opt also works)
+```
+
+```
+--tag a --tag b    ✓  (explicit primary name)
+-t a               ✓  (short alias)
+--tags             ✗  (derived name is dropped)
 ```
 
 ```csharp
 /// <param name="outputDir">-o, --out, --output, Output directory.</param>
 public static void Build(string outputDir) { … }
-// --out ./bin        (primary)
-// --output ./bin     (alias)
-// -o ./bin           (short opt)
-// --output-dir       (not recognized — derived name is dropped)
 ```
 
-This also works on `[AsParameters]` properties, fields, and `[AsParameters]` primary-constructor parameters via their `<summary>` or `<param>` doc lines.
+```
+--out ./bin         ✓  (primary)
+--output ./bin      ✓  (alias)
+-o ./bin            ✓  (short alias)
+--output-dir        ✗  (derived name is dropped)
+```
 
-## Nullable bool — `--flag` / `--no-flag` pairs
+:::{tip}
+This also works on `[AsParameters]` properties, fields, and primary-constructor parameters via their `<summary>` or `<param>` doc lines.
+:::
 
-A `bool?` flag generates **both** `--flag` (sets `true`) and `--no-flag` (sets `false`). Omitting either leaves the value `null`, letting you distinguish "not specified" from an explicit false. Help output shows `--flag / --no-flag` for nullable bools.
+## Nullable bool - `--flag` / `--no-flag` pairs
+
+A `bool?` flag generates **both** `--flag` (sets `true`) and `--no-flag` (sets `false`). Omitting either leaves the value `null`, letting you distinguish "not specified" from an explicit false.
+
+Help output shows `--flag / --no-flag` for nullable bools.
 
 ```csharp
 public static Task<int> Deploy(string env, bool? dryRun = null) { … }
@@ -55,7 +68,7 @@ public static Task<int> Deploy(string env, bool? dryRun = null) { … }
 
 ## Required vs optional
 
-Parameters without a default value are required flags. Parameters with a default value are optional:
+Parameters without a default value are required flags. Parameters with a default value are optional.
 
 ```csharp
 public static Task<int> Deploy(
@@ -67,7 +80,7 @@ public static Task<int> Deploy(
 
 ## Collections
 
-Collection flags (`T[]`, `List<T>`) accept the flag multiple times, or use `[CollectionSyntax]` for comma-separated values:
+Collection flags (`T[]`, `List<T>`) accept the flag multiple times by default. Use `[CollectionSyntax]` for comma-separated values instead.
 
 ```csharp
 public static Task<int> Deploy(string[] targets, [CollectionSyntax(Separator = ",")] string[] tags) { … }

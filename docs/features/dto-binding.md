@@ -1,8 +1,4 @@
----
-title: DTO binding
----
-
-# DTO binding — `[AsParameters]`
+# DTO binding with `[AsParameters]`
 
 A record or class parameter annotated with `[AsParameters]` expands its members into individual flags or positionals. Works with **records** (constructor parameters) and **classes** (public settable properties). Add a string argument to prefix all long names.
 
@@ -64,6 +60,10 @@ ns.Map("deploy", ([AsParameters] DeployOptions opts) => { … });
 
 ## Cross-assembly DTOs
 
-If an `[AsParameters]` DTO lives in a **separate project** from the CLI entry point, the generator cannot access its source syntax at analysis time. It falls back to loading the companion `.xml` documentation file from disk. This means the DTO project **must** enable `<GenerateDocumentationFile>true</GenerateDocumentationFile>` for short-alias declarations and member descriptions to flow into `--help` output and short-flag parsing.
+:::{important}
+If an `[AsParameters]` DTO lives in a **separate project** from the CLI entry point, the generator cannot access its source syntax at analysis time. It falls back to loading the companion `.xml` documentation file from disk.
+
+The DTO project **must** enable `<GenerateDocumentationFile>true</GenerateDocumentationFile>` for short-alias declarations and member descriptions to flow into `--help` output and short-flag parsing.
+:::
 
 Handler parameters and `[AsParameters]` types defined in the **same project** as the CLI are always resolved from source and are not affected.

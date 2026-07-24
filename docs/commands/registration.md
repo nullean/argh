@@ -6,7 +6,7 @@ title: Registration
 
 ## Map(name, handler)
 
-Bind a command name to a delegate — method group or lambda:
+Bind a command name to a delegate, either a method group or a lambda:
 
 ```csharp
 app.Map("deploy", DeployHandlers.Run);
@@ -55,4 +55,10 @@ For apps with no default root command, use `UseCliDescription` to set a plain on
 app.UseCliDescription("Manage and deploy your application's cloud resources.");
 ```
 
-`UseCliDescription` is on `IArghRootBuilder` (not `IArghBuilder`), so it is unavailable inside `MapNamespace` configure callbacks. It cannot be combined with `MapRoot`; the generator reports `AGH0023` if both are present.
+:::{note}
+`UseCliDescription` is on `IArghRootBuilder` (not `IArghBuilder`), so it is unavailable inside `MapNamespace` configure callbacks.
+:::
+
+:::{warning}
+`UseCliDescription` cannot be combined with `MapRoot`. The generator reports `AGH0023` if both are present.
+:::

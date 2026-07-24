@@ -4,7 +4,7 @@ title: Middleware
 
 # Middleware
 
-Cross-cutting logic — auth checks, logging, timing — lives in middleware and stays out of handler methods.
+Cross-cutting logic - auth checks, logging, timing - lives in middleware and stays out of handler methods.
 
 ## Implementing middleware
 
@@ -43,16 +43,18 @@ public static Task<int> Deploy(string environment) { … }
 
 `ICommandMiddleware` receives `CommandContext` with:
 
-- `CommandPath` — the matched command path
-- `Args` — the raw arguments
-- `ExitCode` — settable exit code
-- `CancellationToken` — the cancellation token for the invocation
+- `CommandPath` - the matched command path
+- `Args` - the raw arguments
+- `ExitCode` - settable exit code
+- `CancellationToken` - the cancellation token for the invocation
 
 ## Pipeline behavior
 
-- Middleware does **not** run for `--help`, `--version`, `__completion`, `__complete`, or `__schema`
-- The pipeline is wired in generated code — not a runtime delegate chain
-- Each middleware call is emitted as a direct invocation in the generated dispatch method; there is no runtime list to build or iterate
+:::{note}
+Middleware does **not** run for `--help`, `--version`, `__completion`, `__complete`, or `__schema`.
+:::
+
+The pipeline is wired in generated code, not a runtime delegate chain. Each middleware call is emitted as a direct invocation in the generated dispatch method. There is no runtime list to build or iterate.
 
 ## DI integration
 
@@ -65,4 +67,6 @@ builder.Services.AddArgh(args, b =>
 });
 ```
 
+:::{tip}
 Without a host, middleware falls back to `new T()` when no `IServiceProvider` is available.
+:::

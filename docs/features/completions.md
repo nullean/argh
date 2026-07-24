@@ -6,7 +6,9 @@ title: Shell completions
 
 Tab completion for subcommands, namespaces, and flags is included out of the box. The source generator emits **lookup tables** at compile time (same model as routing and `--help`), and a small `__complete` handler answers the shell with one candidate per line.
 
-`--completions` is not reserved — use `__completion` / `__complete` only for Argh's integration.
+:::{note}
+`--completions` is not reserved. Use `__completion` / `__complete` only for Argh's integration.
+:::
 
 ## Commands
 
@@ -17,7 +19,9 @@ Tab completion for subcommands, namespaces, and flags is included out of the box
 
 ## Installation
 
-### Bash
+::::tab-set
+:::tab-item Bash
+:sync: bash
 
 ```bash
 eval "$(myapp __completion bash)"
@@ -25,7 +29,9 @@ eval "$(myapp __completion bash)"
 
 Add to `~/.bashrc` to persist.
 
-### Zsh
+:::
+:::tab-item Zsh
+:sync: zsh
 
 ```bash
 source <(myapp __completion zsh)
@@ -33,7 +39,9 @@ source <(myapp __completion zsh)
 
 Add to `~/.zshrc` to persist.
 
-### Fish
+:::
+:::tab-item Fish
+:sync: fish
 
 Fish 3.4+ required (for `commandline -opc`):
 
@@ -42,11 +50,15 @@ mkdir -p ~/.config/fish/completions
 myapp __completion fish > ~/.config/fish/completions/myapp.fish
 ```
 
+:::
+::::
+
 ## How it works
 
-The generator emits completion lookup tables alongside routing and help printers. When the shell invokes `__complete`, the handler walks the command tree using the provided context words and returns matching candidates — one per line.
+The generator emits completion lookup tables alongside routing and help printers. When the shell invokes `__complete`, the handler walks the command tree using the provided context words and returns matching candidates, one per line.
 
 Completions cover:
+
 - Subcommand and namespace names
 - Flag names (including aliases)
 - Enum values for typed parameters

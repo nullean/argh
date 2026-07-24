@@ -2,7 +2,7 @@
 title: Custom parsers
 ---
 
-# Custom parsing — `IArgumentParser<T>`
+# Custom parsing with `IArgumentParser<T>`
 
 For types with no built-in support, implement `IArgumentParser<T>` and annotate the parameter with `[ArgumentParser]`.
 
@@ -27,7 +27,10 @@ public static Task<int> Release([ArgumentParser(typeof(SemVerParser))] SemVer ve
 
 ## Package reference
 
-`IArgumentParser<T>` is defined in `Nullean.Argh.Interfaces`. If you are building a shared library of custom parsers for reuse across multiple CLI apps, reference the interfaces package directly:
+`IArgumentParser<T>` is defined in `Nullean.Argh.Interfaces`.
+
+:::{tip}
+If you are building a shared library of custom parsers for reuse across multiple CLI apps, reference the interfaces package directly:
 
 ```xml
 <ItemGroup>
@@ -36,3 +39,4 @@ public static Task<int> Release([ArgumentParser(typeof(SemVerParser))] SemVer ve
 ```
 
 For normal apps that reference `Nullean.Argh` or `Nullean.Argh.Hosting`, the interfaces are already available transitively.
+:::

@@ -4,7 +4,7 @@ title: Fuzzy matching
 
 # Fuzzy matching
 
-Typos produce actionable errors with the correct qualified path and a `--help` suggestion — no silent no-match.
+Typos produce actionable errors with the correct qualified path and a `--help` suggestion. There is no silent no-match.
 
 ## Example
 
@@ -30,4 +30,6 @@ Run 'myapp storage --help' for usage.
 
 ## How it works
 
-The generator emits the full command tree at build time. When a token doesn't match any known command or namespace at a given level, the runtime computes edit distance against all valid candidates and suggests the closest match if it's within a reasonable threshold.
+The generator emits the full command tree at build time. When a token doesn't match any known command or namespace at a given level, the runtime computes edit distance against all valid candidates.
+
+If the closest match is within a reasonable threshold, it is suggested in the error message.

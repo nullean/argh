@@ -16,12 +16,17 @@ app.MapNamespace<StorageHandlers>("storage", ns =>
     ns.UseNamespaceOptions<StorageOptions>();
     ns.Map("list", (StorageOptions o) => { … });
 });
-// myapp storage list --connection-string "…" --verbose
 ```
+
+Running `myapp storage list --connection-string "…" --verbose` applies both the namespace and global flags.
 
 ## Inheritance chain
 
-The options type must inherit the parent's options type — `GlobalOptions` at the root, or the enclosing namespace's options further down. The generator reports an error (**AGH0004**) if the chain is broken.
+The options type must inherit the parent's options type - `GlobalOptions` at the root, or the enclosing namespace's options further down.
+
+:::{warning}
+The generator reports an error (**AGH0004**) if the inheritance chain is broken. Each namespace options type must extend its parent's options type.
+:::
 
 ```csharp
 public record GlobalOptions(bool Verbose = false);
@@ -41,11 +46,15 @@ app.MapNamespace<StorageHandlers>("storage", ns =>
 
 ## Parsing order
 
-In generated code: globals → namespace options along the path → command flags and positionals.
+:::{note}
+In generated code, parsing follows this order: globals → namespace options along the path → command flags and positionals.
+:::
 
 ## Required parameter injection
 
-Commands under a namespace are required to declare the namespace options type as a parameter (enforced by analyzer **AGH0021**). Annotate the method with `[NoOptionsInjection]` to opt out.
+Commands under a namespace are required to declare the namespace options type as a parameter. This is enforced by analyzer **AGH0021**.
+
+Annotate the method with `[NoOptionsInjection]` to opt out.
 
 ## Combining with `[AsParameters]`
 
@@ -53,5 +62,6 @@ Commands under a namespace are required to declare the namespace options type as
 public record DeployOptions(string Environment, bool DryRun = false) : StorageOptions;
 
 ns.Map("deploy", ([AsParameters] DeployOptions opts) => { … });
-// myapp storage deploy --connection-string "…" --environment staging --dry-run
 ```
+
+Running `myapp storage deploy --connection-string "…" --environment staging --dry-run` passes all inherited and local flags.

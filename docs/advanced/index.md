@@ -1,10 +1,9 @@
----
-title: Advanced
----
-
 # Advanced topics
 
-- **[Global options](global-options.md)** — share state across commands without repeating parameters
-- **[Namespace options](namespace-options.md)** — scoped options with inheritance chains
-- **[Cancellation](cancellation.md)** — `CancellationToken` injection in handlers and DTOs
-- **[AOT](aot.md)** — native AOT, trimming, and zero-reflection guarantees
+Configuration patterns for complex CLIs with shared state across commands.
+
+## In this section
+
+[**Global options**](global-options.md) - Share flags across all commands with `UseGlobalOptions<T>()`. Parsed before routing, available everywhere.
+
+[**Namespace options**](namespace-options.md) - Scope options to a namespace and its children with `UseNamespaceOptions<T>()`. Must inherit the parent options type.

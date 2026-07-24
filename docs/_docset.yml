@@ -11,6 +11,19 @@ toc:
       - file: index.md
       - file: console-app.md
       - file: hosted-app.md
+  - folder: features
+    children:
+      - file: index.md
+      - file: source-generated.md
+      - file: help.md
+      - file: completions.md
+      - file: schema.md
+      - file: validation.md
+      - file: fuzzy-matching.md
+      - file: dto-binding.md
+      - file: middleware.md
+      - file: cancellation.md
+      - file: aot.md
   - folder: commands
     children:
       - file: index.md
@@ -21,17 +34,7 @@ toc:
       - file: index.md
       - file: flags.md
       - file: arguments.md
-      - file: dto-binding.md
       - file: custom-parsers.md
-      - file: validation.md
-  - folder: features
-    children:
-      - file: index.md
-      - file: help.md
-      - file: completions.md
-      - file: schema.md
-      - file: middleware.md
-      - file: fuzzy-matching.md
   - folder: hosting
     children:
       - file: index.md
@@ -42,5 +45,3 @@ toc:
       - file: index.md
       - file: global-options.md
       - file: namespace-options.md
-      - file: cancellation.md
-      - file: aot.md
