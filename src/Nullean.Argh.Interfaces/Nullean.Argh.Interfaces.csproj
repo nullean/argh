@@ -10,10 +10,13 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\..\build\keys\keypair.snk</AssemblyOriginatorKeyFile>
     <PackageId>Nullean.Argh.Interfaces</PackageId>
-    <Title>Nullean.Argh.Interfaces</Title>
-    <Description>Contracts and attributes for Nullean.Argh CLI (middleware, parsers, registration surfaces).</Description>
+    <Title>Nullean.Argh.Interfaces - Contracts and attributes</Title>
+    <Description>Contracts and attributes for Nullean.Argh CLI (middleware, parsers, registration surfaces). Zero external dependencies.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/nullean/argh</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/nullean/argh/releases</PackageReleaseNotes>
+    <PackageIcon>nuget-icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
@@ -28,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="README.md" Link="README.md" />
+    <None Include="README.md" Pack="true" PackagePath="README.md" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="/" />
     <None Include="..\..\nuget-icon.png" Pack="true" PackagePath="nuget-icon.png" Link="nuget-icon.png" />
   </ItemGroup>
