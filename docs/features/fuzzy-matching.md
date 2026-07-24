@@ -1,7 +1,3 @@
----
-title: Fuzzy matching
----
-
 # Fuzzy matching
 
 Typos produce actionable errors with the correct qualified path and a `--help` suggestion. There is no silent no-match.

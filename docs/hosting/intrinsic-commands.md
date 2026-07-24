@@ -1,7 +1,3 @@
----
-title: Intrinsic commands
----
-
 # Intrinsic commands and log suppression
 
 When the host starts up, configuration providers, logging infrastructure, and other services initialize before the CLI runs. This means commands like `--help` or `--version` can be preceded by startup noise in the output.

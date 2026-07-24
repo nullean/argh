@@ -1,7 +1,3 @@
----
-title: Console app
----
-
 # Console app quick start
 
 The simplest way to use Nullean.Argh - no dependencies, no host, just a CLI.

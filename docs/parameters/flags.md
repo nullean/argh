@@ -1,7 +1,3 @@
----
-title: Flags
----
-
 # Flags (named options)
 
 Parameters without `[Argument]` become `--kebab-case` long flags. A `bool` flag defaults to `false`; pass `--flag` to set it.

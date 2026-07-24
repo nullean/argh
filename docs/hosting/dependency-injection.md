@@ -1,7 +1,3 @@
----
-title: Dependency injection
----
-
 # Dependency injection
 
 When using `Nullean.Argh.Hosting`, DI integration is fully transparent. Register your handler and middleware types in the service collection and the generated code resolves them automatically. No manual `ServiceProvider` wiring needed.

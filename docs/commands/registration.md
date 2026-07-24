@@ -1,7 +1,3 @@
----
-title: Registration
----
-
 # Command registration
 
 ## Map(name, handler)

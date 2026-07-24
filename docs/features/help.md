@@ -1,7 +1,3 @@
----
-title: Help
----
-
 # Help and XML documentation
 
 Write XML doc once; the generator reads it at build time and bakes the text into `--help` output. No `.xml` doc file is read at runtime. The generator accesses doc comments through the Roslyn compilation model.

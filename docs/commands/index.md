@@ -1,7 +1,3 @@
----
-title: Commands
----
-
 # Commands
 
 Commands are the core of any CLI built with Nullean.Argh. The framework supports three registration forms, all fully supported by the source generator.

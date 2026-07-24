@@ -1,7 +1,3 @@
----
-title: Middleware
----
-
 # Middleware
 
 Cross-cutting logic - auth checks, logging, timing - lives in middleware and stays out of handler methods.

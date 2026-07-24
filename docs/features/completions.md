@@ -1,7 +1,3 @@
----
-title: Shell completions
----
-
 # Shell completions
 
 Tab completion for subcommands, namespaces, and flags is included out of the box. The source generator emits **lookup tables** at compile time (same model as routing and `--help`), and a small `__complete` handler answers the shell with one candidate per line.
@@ -45,7 +41,7 @@ Add to `~/.zshrc` to persist.
 
 Fish 3.4+ required (for `commandline -opc`):
 
-```fish
+```sh
 mkdir -p ~/.config/fish/completions
 myapp __completion fish > ~/.config/fish/completions/myapp.fish
 ```

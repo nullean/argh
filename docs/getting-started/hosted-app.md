@@ -1,7 +1,3 @@
----
-title: Hosted app
----
-
 # Hosted app quick start
 
 Use `Nullean.Argh.Hosting` when your app is built on `Microsoft.Extensions.Hosting` and you want commands and middleware registered in DI with lifetimes and `CancellationToken` linked to the host.

@@ -1,7 +1,3 @@
----
-title: Getting started
----
-
 # Getting started
 
 Nullean.Argh provides two entry points depending on your application model. Both share the same registration surface (`Map`, `Map<T>`, `MapRoot`, `MapNamespace`, etc.) and the same source generator. The difference is how the runtime is bootstrapped and whether DI is available.

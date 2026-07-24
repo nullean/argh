@@ -1,7 +1,3 @@
----
-title: Namespaces
----
-
 # Namespaces
 
 Group related commands under a shared path, scoped options, and their own help page. This follows the same mental model as ASP.NET's `MapGroup`.

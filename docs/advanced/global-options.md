@@ -1,7 +1,3 @@
----
-title: Global options
----
-
 # Global options
 
 Share state across commands without repeating parameters on every method signature. Globals are parsed before routing and available to every command.

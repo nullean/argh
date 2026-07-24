@@ -1,7 +1,3 @@
----
-title: Schema
----
-
 # Schema JSON
 
 `myapp __schema` writes a JSON document to stdout describing your entire CLI - commands, namespaces, global and namespace options, summaries, remarks, usage, and examples. The output is generated at build time from the same source the generator uses for routing and help, so it is always in sync with your code.

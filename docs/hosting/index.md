@@ -1,7 +1,3 @@
----
-title: Hosting
----
-
 # Hosting
 
 `Nullean.Argh.Hosting` plugs the same command registration model into `IHost` and `Microsoft.Extensions.DependencyInjection`. No custom bootstrapping or glue code needed.

@@ -1,7 +1,3 @@
----
-title: Parameters
----
-
 # Parameters and binding
 
 Method parameters become CLI flags automatically. No attribute boilerplate for the common case.
@@ -12,9 +8,9 @@ Nullean.Argh supports several parameter binding modes:
 
 - **[Flags](flags.md)** - named options (`--output-dir ./bin`), derived from C# parameter names
 - **[Arguments](arguments.md)** - positional parameters (`myapp deploy production`), marked with `[Argument]`
-- **[DTO binding](dto-binding.md)** - expand records/classes into individual flags with `[AsParameters]`
+- **[DTO binding](../features/dto-binding.md)** - expand records/classes into individual flags with `[AsParameters]`
 - **[Custom parsers](custom-parsers.md)** - `IArgumentParser<T>` for types with no built-in support
-- **[Validation](validation.md)** - DataAnnotations and filesystem path attributes
+- **[Validation](../features/validation.md)** - DataAnnotations and filesystem path attributes
 
 ## Supported types
 

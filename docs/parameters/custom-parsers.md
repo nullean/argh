@@ -1,7 +1,3 @@
----
-title: Custom parsers
----
-
 # Custom parsing with `IArgumentParser<T>`
 
 For types with no built-in support, implement `IArgumentParser<T>` and annotate the parameter with `[ArgumentParser]`.

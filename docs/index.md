@@ -1,7 +1,3 @@
----
-title: Nullean.Argh
----
-
 # Nullean.Argh
 
 Build full-featured .NET CLIs without writing a parser.

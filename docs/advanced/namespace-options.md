@@ -1,7 +1,3 @@
----
-title: Namespace options
----
-
 # Namespace options
 
 Scoped to a namespace and its children. Namespace options extend the shared state model beyond global options for hierarchical CLIs.

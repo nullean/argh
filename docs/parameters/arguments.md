@@ -1,7 +1,3 @@
----
-title: Arguments
----
-
 # Arguments (positional)
 
 Mark a parameter with `[Argument]` to make it positional. Indices must start at `0` and be consecutive.
