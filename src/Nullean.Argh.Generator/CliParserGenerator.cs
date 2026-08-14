@@ -1985,7 +1985,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		INamedTypeSymbol namespaceEntryType,
 		Compilation compilation)
 	{
-		var model = compilation.GetSemanticModel(inv.SyntaxTree);
+		var model = TryGetSemanticModelForSyntaxTree(compilation, inv.SyntaxTree);
+		if (model is null)
+			return false;
 		if (model.GetSymbolInfo(inv).Symbol is not IMethodSymbol method || method.Name != "Map" || !method.IsGenericMethod)
 			return false;
 		if (method.TypeArguments.Length != 1)
@@ -2836,9 +2838,38 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
+	/// <summary>
+	/// Resolves a <see cref="SemanticModel"/> for <paramref name="tree"/> even when it does not belong to
+	/// <paramref name="compilation"/> directly. In multi-project solution builds (e.g. Rider/VS design-time
+	/// builds, which use <see cref="CompilationReference"/> instead of metadata for ProjectReferences), a
+	/// symbol's <c>DeclaringSyntaxReferences</c> can point at a syntax tree that only lives in a *referenced*
+	/// project's compilation. Calling <c>compilation.GetSemanticModel</c> on such a tree throws
+	/// <see cref="ArgumentException"/> ("SyntaxTree is not part of the compilation"). We walk compilation
+	/// references to find the compilation that actually owns the tree, and return <c>null</c> if none does
+	/// (e.g. plain metadata references) so callers can degrade gracefully instead of crashing the generator.
+	/// </summary>
+	private static SemanticModel? TryGetSemanticModelForSyntaxTree(Compilation compilation, SyntaxTree tree)
+	{
+		if (compilation.ContainsSyntaxTree(tree))
+			return compilation.GetSemanticModel(tree);
+
+		foreach (var reference in compilation.References)
+		{
+			if (reference is not CompilationReference compilationReference)
+				continue;
+			var model = TryGetSemanticModelForSyntaxTree(compilationReference.Compilation, tree);
+			if (model is not null)
+				return model;
+		}
+
+		return null;
+	}
+
 	private static string? TryFormatOptionsInitializerExpression(Compilation compilation, ExpressionSyntax expr, ITypeSymbol? enumTypeHint = null)
 	{
-		var model = compilation.GetSemanticModel(expr.SyntaxTree);
+		var model = TryGetSemanticModelForSyntaxTree(compilation, expr.SyntaxTree);
+		if (model is null)
+			return null;
 		var hint = enumTypeHint is INamedTypeSymbol namedHint && namedHint.TypeKind == TypeKind.Enum ? namedHint : null;
 		var fromOp = TryFormatInitializerOperation(model.GetOperation(expr), hint);
 		if (fromOp is not null)
