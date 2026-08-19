@@ -1835,24 +1835,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			UpdateRegistryNodeRootCommands(child.Node, fixedById);
 	}
 
-	private static bool TypeInheritsFromOrImplements(INamedTypeSymbol type, INamedTypeSymbol baseOrInterface)
-	{
-		var current = type;
-		while (current is not null)
-		{
-			if (SymbolEqualityComparer.Default.Equals(current, baseOrInterface))
-				return true;
-			current = current.BaseType;
-		}
-
-		foreach (var iface in type.AllInterfaces)
-		{
-			if (SymbolEqualityComparer.Default.Equals(iface, baseOrInterface))
-				return true;
-		}
-
-		return false;
-	}
 
 	private static void CollectCommands(RegistryNode node, List<CommandModel> sink)
 	{
@@ -1971,16 +1953,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		node.RootCommand is null && node.Commands.Count == 0 && node.Children.Count == 0;
 
 
-	private static InvocationExpressionSyntax? FindParentMapNamespaceInvocation(InvocationExpressionSyntax invocation)
-	{
-		for (var n = invocation.Parent; n != null; n = n.Parent)
-		{
-			if (n is LambdaExpressionSyntax lambda && IsMapNamespaceConfigureLambda(lambda, out var addNamespaceInv))
-				return addNamespaceInv;
-		}
-
-		return null;
-	}
 
 	private static bool IsMapNamespaceConfigureLambda(LambdaExpressionSyntax lambda, out InvocationExpressionSyntax addNamespaceInv)
 	{
@@ -1998,57 +1970,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		addNamespaceInv = inv;
 		return true;
 	}
-	private static bool IsRedundantGenericAddForNamespaceEntry(
-		InvocationExpressionSyntax inv,
-		INamedTypeSymbol namespaceEntryType,
-		Compilation compilation)
-	{
-		var model = TryGetSemanticModelForSyntaxTree(compilation, inv.SyntaxTree);
-		if (model is null)
-			return false;
-		if (model.GetSymbolInfo(inv).Symbol is not IMethodSymbol method || method.Name != "Map" || !method.IsGenericMethod)
-			return false;
-		if (method.TypeArguments.Length != 1)
-			return false;
-		if (method.TypeArguments[0] is not INamedTypeSymbol addType || addType.TypeKind == TypeKind.Error)
-			return false;
-		return SymbolEqualityComparer.Default.Equals(addType, namespaceEntryType);
-	}
 
-	private static void ExpandMapStringDelegate(
-		SourceProductionContext context,
-		SemanticModel model,
-		InvocationExpressionSyntax invocation,
-		ImmutableArray<string> routePrefix,
-		RegistryNode targetNode)
-	{
-		var nameExpr = invocation.ArgumentList.Arguments[0].Expression;
-		var handlerExpr = invocation.ArgumentList.Arguments[1].Expression;
-
-		var commandName = TryGetStringLiteral(nameExpr);
-		if (commandName is null || string.IsNullOrWhiteSpace(commandName))
-			return;
-
-		if (commandName.Equals("__argh_root", StringComparison.OrdinalIgnoreCase))
-		{
-			context.ReportDiagnostic(Diagnostic.Create(ReservedCommandNameRoot, nameExpr.GetLocation(), commandName));
-			return;
-		}
-
-		// Detect lambda expressions — handle them as stored-delegate commands
-		if (handlerExpr is LambdaExpressionSyntax)
-		{
-			TryExpandLambdaDelegate(context, model, invocation, handlerExpr, commandName, routePrefix, targetNode);
-			return;
-		}
-
-		var handler = ResolveHandlerMethod(model, handlerExpr, context, invocation);
-		if (handler is null)
-			return;
-
-		var parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
-		targetNode.Commands.Add(CommandModel.FromMethod(commandName, handler, parseOpts, routePrefix, context, invocation.GetLocation()));
-	}
 
 	/// <summary>
 	/// Synthesizes the fully-qualified BCL delegate type (<c>System.Func&lt;...&gt;</c> / <c>System.Action&lt;...&gt;</c>)
@@ -2132,7 +2054,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var paramBuilder = ImmutableArray.CreateBuilder<ParameterModel>();
 		foreach (var p in invokeMethod.Parameters)
 		{
-			paramBuilder.Add(ParameterModel.From(p, context, null, invocation.GetLocation()));
+			paramBuilder.Add(ParameterModel.From(p, reportFallbackLocation: invocation.GetLocation()));
 		}
 		var parameters = paramBuilder.ToImmutable();
 		var usage = UsageSynopsis.Build(parameters);
@@ -2192,36 +2114,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 	private const string RootDefaultInternalCommandName = "__argh_root";
 
-	private static void ExpandMapRootCommand(
-		SourceProductionContext context,
-		SemanticModel model,
-		InvocationExpressionSyntax invocation,
-		ImmutableArray<string> routePrefix,
-		RegistryNode targetNode)
-	{
-		if (targetNode.RootCommand is not null)
-		{
-			context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, invocation.GetLocation()));
-			return;
-		}
-
-		if (invocation.ArgumentList.Arguments.Count < 1)
-			return;
-
-		var handlerExpr = invocation.ArgumentList.Arguments[0].Expression;
-		if (handlerExpr is LambdaExpressionSyntax)
-		{
-			TryExpandLambdaRootCommand(context, model, invocation, handlerExpr, routePrefix, targetNode);
-			return;
-		}
-
-		var handler = ResolveHandlerMethod(model, handlerExpr, context, invocation);
-		if (handler is null)
-			return;
-
-		var parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
-		targetNode.RootCommand = CommandModel.FromRootMethod(handler, parseOpts, routePrefix, context, invocation.GetLocation());
-	}
 
 	/// <summary>Select-step (no SourceProductionContext) variant of <see cref="TryExpandLambdaRootCommand"/>.</summary>
 	private static void TryExpandLambdaRootCommandAcc(
@@ -2261,7 +2153,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
 		var paramBuilder = ImmutableArray.CreateBuilder<ParameterModel>();
 		foreach (var p in invokeMethod.Parameters)
-			paramBuilder.Add(ParameterModel.From(p, context, null, invocation.GetLocation()));
+			paramBuilder.Add(ParameterModel.From(p, reportFallbackLocation: invocation.GetLocation()));
 		var parameters = paramBuilder.ToImmutable();
 		var usage = UsageSynopsis.Build(parameters);
 		var runName = CommandModel.BuildRootDefaultRunMethodName(routePrefix);
@@ -2306,34 +2198,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		targetNode.RootCommand = cmd;
 	}
 
-	private static void ExpandTypeRegistration(
-		SourceProductionContext context,
-		InvocationExpressionSyntax invocation,
-		INamedTypeSymbol type,
-		ImmutableArray<string> routePrefix,
-		bool mergeOuterTypeSegment,
-		RegistryNode attachTo,
-		CSharpParseOptions parseOpts)
-	{
-		if (mergeOuterTypeSegment)
-		{
-			AddMethodsFromType(context, invocation, type, routePrefix, attachTo, parseOpts);
-		}
-		else
-		{
-			var seg = Naming.ToTypeSegmentName(type.Name);
-			var wrapper = new RegistryNode();
-			var outerPrefix = AppendSegment(routePrefix, seg);
-			ExpandTypeRegistration(context, invocation, type, outerPrefix, mergeOuterTypeSegment: true, wrapper, parseOpts);
-			attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild
-			{
-				Segment = seg,
-				Node = wrapper,
-				SummaryOneLiner = GetTypeListingSummaryOneLiner(type),
-				Location = invocation.GetLocation()
-			});
-		}
-	}
 
 	private static ImmutableArray<string> AppendSegment(ImmutableArray<string> prefix, string segment)
 	{
@@ -2344,63 +2208,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return b.MoveToImmutable();
 	}
 
-	private static void AddMethodsFromType(
-		SourceProductionContext context,
-		InvocationExpressionSyntax invocation,
-		INamedTypeSymbol type,
-		ImmutableArray<string> routePrefix,
-		RegistryNode targetNode,
-		CSharpParseOptions parseOpts)
-	{
-		IMethodSymbol? defaultCommand = null;
-		foreach (var member in type.GetMembers())
-		{
-			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary)
-				continue;
-			if (method.AssociatedSymbol is not null)
-				continue;
-			if (method.DeclaredAccessibility != Accessibility.Public)
-				continue;
-			if (!HasDefaultCommandAttribute(method))
-				continue;
-			if (defaultCommand is not null)
-			{
-				context.ReportDiagnostic(Diagnostic.Create(
-					MultipleDefaultCommandAttributes,
-					method.Locations.FirstOrDefault() ?? invocation.GetLocation(),
-					type.Name));
-				continue;
-			}
-
-			defaultCommand = method;
-		}
-
-		if (defaultCommand is not null)
-		{
-			if (targetNode.RootCommand is not null)
-				context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, invocation.GetLocation()));
-			else
-				targetNode.RootCommand = CommandModel.FromRootMethod(defaultCommand, parseOpts, routePrefix, context, invocation.GetLocation());
-		}
-
-		foreach (var member in type.GetMembers())
-		{
-			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary)
-				continue;
-
-			if (method.AssociatedSymbol is not null)
-				continue;
-
-			if (method.DeclaredAccessibility != Accessibility.Public)
-				continue;
-
-			if (defaultCommand is not null && SymbolEqualityComparer.Default.Equals(method, defaultCommand))
-				continue;
-
-			var cmdName = TryGetCommandNameAttribute(method) ?? Naming.ToCommandName(method.Name);
-			targetNode.Commands.Add(CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, context, invocation.GetLocation()));
-		}
-	}
 
 	/// <summary>DiagnosticAccumulator-based variant of <see cref="AddMethodsFromType"/> for use in the Select-step analysis.</summary>
 	private static void AddMethodsFromTypeAcc(
@@ -3053,35 +2860,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return b.ToImmutable();
 	}
 
-	private static IMethodSymbol? ResolveHandlerMethod(
-		SemanticModel model,
-		ExpressionSyntax handlerExpr,
-		SourceProductionContext context,
-		InvocationExpressionSyntax invocation)
-	{
-		var symbol = model.GetSymbolInfo(handlerExpr).Symbol;
-		switch (symbol)
-		{
-			case IMethodSymbol m:
-				return m;
-			case IFieldSymbol { IsStatic: true, ConstantValue: { } }:
-				context.ReportDiagnostic(Diagnostic.Create(HandlerMustBeMethod, handlerExpr.GetLocation()));
-				return null;
-		}
-
-		var op = model.GetOperation(handlerExpr);
-		while (op is IConversionOperation conv)
-			op = conv.Operand;
-
-		if (op is IMethodReferenceOperation directRef)
-			return directRef.Method;
-
-		if (op is IDelegateCreationOperation del && del.Target is IMethodReferenceOperation reference)
-			return reference.Method;
-
-		context.ReportDiagnostic(Diagnostic.Create(HandlerMustBeMethod, handlerExpr.GetLocation()));
-		return null;
-	}
 
 
 	private static bool IsInjectedType(ITypeSymbol type)
@@ -3262,38 +3040,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return prop.SetMethod is not null;
 	}
 
-	private static void ReportBoolNegationSwitchConflicts(
-		SourceProductionContext context,
-		Location fallbackLocation,
-		ImmutableArray<ParameterModel> parameters,
-		IMethodSymbol method)
-	{
-		var locByParamName = new Dictionary<string, Location>(StringComparer.Ordinal);
-		foreach (var sym in method.Parameters)
-		{
-			if (sym.Locations.Length == 0)
-				continue;
-			var loc = sym.Locations[0];
-			if (loc.IsInSource)
-				locByParamName[sym.Name] = loc;
-		}
-
-		foreach (var nullable in parameters)
-		{
-			if (nullable.Kind != ParameterKind.Flag || nullable.Special != BoolSpecialKind.NullableBool)
-				continue;
-			var negCli = "no-" + nullable.CliLongName;
-			foreach (var plain in parameters)
-			{
-				if (plain.Kind != ParameterKind.Flag || plain.Special != BoolSpecialKind.Bool)
-					continue;
-				if (!string.Equals(plain.CliLongName, negCli, StringComparison.OrdinalIgnoreCase))
-					continue;
-				var loc = locByParamName.TryGetValue(plain.SymbolName, out var l) ? l : fallbackLocation;
-				context.ReportDiagnostic(Diagnostic.Create(BoolFlagCollidesWithNullableNegation, loc, plain.SymbolName, plain.CliLongName));
-			}
-		}
-	}
 
 	private static void ReportBoolNegationSwitchConflictsAcc(
 		DiagnosticAccumulator acc,
@@ -3328,74 +3074,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void ReportDuplicateCliNames(SourceProductionContext context, Location location, ImmutableArray<ParameterModel> parameters)
-	{
-		var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		foreach (var p in parameters)
-		{
-			if (p.Kind != ParameterKind.Flag)
-				continue;
-			void check(string name)
-			{
-				if (string.IsNullOrEmpty(name))
-					return;
-				if (seen.TryGetValue(name, out var first))
-				{
-					if (!string.Equals(first, p.SymbolName, StringComparison.Ordinal))
-						context.ReportDiagnostic(Diagnostic.Create(DuplicateCliNames, location, name));
-				}
-				else
-				{
-					seen[name] = p.SymbolName;
-				}
-			}
 
-			check(p.CliLongName);
-			foreach (var al in p.Aliases)
-				check(al);
-			if (p.Special == BoolSpecialKind.NullableBool)
-				check("no-" + p.CliLongName);
-		}
-	}
 
-	private static void ValidateExpandedParameterLayout(SourceProductionContext context, Location location, ImmutableArray<ParameterModel> expanded)
-	{
-		var seenFlag = false;
-		foreach (var p in expanded)
-		{
-			if (p.Kind == ParameterKind.Injected)
-				continue;
-			if (p.Kind == ParameterKind.Flag)
-			{
-				seenFlag = true;
-				continue;
-			}
-
-			// A variadic positional (e.g. params T[]) is allowed after flags — C# requires params to be last.
-			if (p.Kind == ParameterKind.Positional && seenFlag && !p.IsVariadic)
-			{
-				context.ReportDiagnostic(Diagnostic.Create(ArgumentOrder, location));
-				return;
-			}
-		}
-	}
-
-	private static void ValidateVariadicPositionalIsLast(SourceProductionContext context, Location location, ImmutableArray<ParameterModel> parameters)
-	{
-		var sawVariadic = false;
-		foreach (var p in parameters)
-		{
-			if (p.Kind != ParameterKind.Positional)
-				continue;
-			if (sawVariadic)
-			{
-				context.ReportDiagnostic(Diagnostic.Create(VariadicMustBeLastPositional, location));
-				return;
-			}
-			if (p.IsVariadic)
-				sawVariadic = true;
-		}
-	}
 
 	/// <summary>DiagnosticAccumulator-based overload for Select-step analysis.</summary>
 	private static void ReportDuplicateCliNamesAcc(DiagnosticAccumulator acc, Location location, ImmutableArray<ParameterModel> parameters)
@@ -3538,7 +3218,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			{
 				ctorNames.Add(cp.Name);
 				list.Add(ParameterModel.FromAsParametersCtorParameter(owner, typeFq, type, cp, pfx, order++, compilation, parseOptions,
-					null,
 					acc,
 					location));
 			}
@@ -3558,7 +3237,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				if (ctorNames.Contains(prop.Name)) continue;
 				if (!seenPropNames.Add(prop.Name)) continue;
 				list.Add(ParameterModel.FromAsParametersInitProperty(methodParamName: owner, typeFq, prop, pfx, order++, compilation, parseOptions,
-					null,
 					acc,
 					location));
 			}
@@ -3568,109 +3246,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		return list.ToImmutableArray();
 	}
 
-	private static ImmutableArray<ParameterModel> FlattenAsParametersType(
-		SourceProductionContext context,
-		Location location,
-		HandlerParam handlerParam,
-		INamedTypeSymbol type,
-		string? prefix,
-		Compilation? compilation,
-		CSharpParseOptions parseOptions)
-	{
-		return FlattenAsParametersType(context, location, handlerParam.Name, type, prefix, compilation, parseOptions);
-	}
-
-	private static ImmutableArray<ParameterModel> FlattenAsParametersType(
-		SourceProductionContext context,
-		Location location,
-		IParameterSymbol methodParam,
-		INamedTypeSymbol type,
-		string? prefix,
-		Compilation? compilation,
-		CSharpParseOptions parseOptions)
-	{
-		return FlattenAsParametersType(context, location, methodParam.Name, type, prefix, compilation, parseOptions);
-	}
-
-	private static ImmutableArray<ParameterModel> FlattenAsParametersType(
-		SourceProductionContext context,
-		Location location,
-		string methodParamName,
-		INamedTypeSymbol type,
-		string? prefix,
-		Compilation? compilation,
-		CSharpParseOptions parseOptions)
-	{
-		var pfx = string.IsNullOrWhiteSpace(prefix) ? "" : Naming.ToCliLongName(prefix!.Trim()) + "-";
-		var owner = methodParamName;
-		var typeFq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-		var primary = TryGetPrimaryConstructor(type);
-		var ctorNames = new HashSet<string>(StringComparer.Ordinal);
-		var list = new List<ParameterModel>();
-		var order = 0;
-
-		if (primary is not null)
-		{
-			foreach (var cp in primary.Parameters)
-			{
-				ctorNames.Add(cp.Name);
-				list.Add(ParameterModel.FromAsParametersCtorParameter(
-					owner,
-					typeFq,
-					type,
-					cp,
-					pfx,
-					order++,
-					compilation,
-					parseOptions,
-					context,
-					null,
-					location));
-			}
-		}
-
-		var chain = new List<INamedTypeSymbol>();
-		for (var t = type; t is not null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)
-			chain.Add(t);
-
-		var seenPropNames = new HashSet<string>(StringComparer.Ordinal);
-		for (var i = chain.Count - 1; i >= 0; i--)
-		{
-			var tt = chain[i];
-			foreach (var member in tt.GetMembers())
-			{
-				if (member is not IPropertySymbol prop)
-					continue;
-				if (prop.DeclaredAccessibility != Accessibility.Public || prop.IsStatic)
-					continue;
-				if (prop.IsIndexer)
-					continue;
-				if (!IsSettableForAsParameters(prop))
-					continue;
-				if (ctorNames.Contains(prop.Name))
-					continue;
-				if (!seenPropNames.Add(prop.Name))
-					continue;
-
-				list.Add(ParameterModel.FromAsParametersInitProperty(
-					methodParamName: owner,
-					typeFq,
-					prop,
-					pfx,
-					order++,
-					compilation,
-					parseOptions,
-					context,
-					null,
-					location));
-			}
-		}
-
-		if (list.Count == 0)
-			context.ReportDiagnostic(Diagnostic.Create(AsParametersEmptyType, location, type.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat)));
-
-		return list.ToImmutableArray();
-	}
 
 	private static string? TryGetStringLiteral(ExpressionSyntax expr) =>
 		expr switch
@@ -8489,30 +8064,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		CliScalarKind scalarKind,
 		string declaredName,
 		DiagnosticAccumulator? acc,
-		SourceProductionContext? ctx,
 		Location? fallbackLocation,
 		CliScalarKind? filesystemScalarKind = null)
 	{
 		Location loc = host.Locations.FirstOrDefault() ?? fallbackLocation ?? Location.None;
 		var fsKind = filesystemScalarKind ?? scalarKind;
-
-		static void ReportFilesystemDiag(DiagnosticAccumulator? a, SourceProductionContext? c, DiagnosticDescriptor d, Location location,
-			string arg0)
-		{
-			if (c.HasValue)
-				c.Value.ReportDiagnostic(Diagnostic.Create(d, location, arg0));
-			else if (a is not null)
-				a.Add(d, location, arg0);
-		}
-
-		static void ReportFilesystemDiagTwo(DiagnosticAccumulator? a, SourceProductionContext? c, DiagnosticDescriptor d, Location location,
-			string arg0, string arg1)
-		{
-			if (c.HasValue)
-				c.Value.ReportDiagnostic(Diagnostic.Create(d, location, arg0, arg1));
-			else if (a is not null)
-				a.Add(d, location, arg0, arg1);
-		}
 
 		var hasExisting = false;
 		var hasNonExisting = false;
@@ -8544,30 +8100,30 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		}
 
 		if (hasExisting && hasNonExisting)
-			ReportFilesystemDiag(acc, ctx, PathExistenceAttributesConflict, loc, declaredName);
+			acc?.Add(PathExistenceAttributesConflict, loc, declaredName);
 
 		var isFileInfo = fsKind == CliScalarKind.FileInfo;
 		var isDirInfo = fsKind == CliScalarKind.DirectoryInfo;
 		var isFileOrDir = isFileInfo || isDirInfo;
 
 		if (hasExisting && !isFileOrDir)
-			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
+			acc?.Add(FilesystemPathAttributeTypeMismatch, loc, declaredName,
 				"[Existing] only applies to FileInfo, FileInfo?, DirectoryInfo, DirectoryInfo?, or a collection of FileInfo/DirectoryInfo parameters and properties.");
 
 		if (hasNonExisting && !isFileOrDir)
-			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
+			acc?.Add(FilesystemPathAttributeTypeMismatch, loc, declaredName,
 				"[NonExisting] only applies to FileInfo, FileInfo?, DirectoryInfo, DirectoryInfo?, or a collection of FileInfo/DirectoryInfo parameters and properties.");
 
 		if (hasExpandProfile && !isFileOrDir)
-			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
+			acc?.Add(FilesystemPathAttributeTypeMismatch, loc, declaredName,
 				"[ExpandUserProfile] only applies to FileInfo, DirectoryInfo, or a collection of FileInfo/DirectoryInfo parameters and properties.");
 
 		if (hasRejectSymlinks && !isFileOrDir)
-			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
+			acc?.Add(FilesystemPathAttributeTypeMismatch, loc, declaredName,
 				"[RejectSymbolicLinks] only applies to FileInfo, DirectoryInfo, or a collection of FileInfo/DirectoryInfo parameters and properties.");
 
 		if (hasFileExtensions && !isFileInfo)
-			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
+			acc?.Add(FilesystemPathAttributeTypeMismatch, loc, declaredName,
 				"[FileExtensions] only applies to FileInfo, FileInfo?, or a collection of FileInfo parameters and properties.");
 	}
 
@@ -9468,140 +9024,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		CommandIntentData? Intent = null,
 		CommandOutputData? Output = null)
 	{
-		public static CommandModel FromRootMethod(
-			IMethodSymbol method,
-			CSharpParseOptions parseOptions,
-			ImmutableArray<string> routePrefix,
-			SourceProductionContext context,
-			Location diagnosticLocation,
-			Compilation? compilation = null)
-		{
-			var parameters = BuildParameterModels(method, parseOptions, context, diagnosticLocation, compilation);
-			ReportDuplicateCliNames(context, diagnosticLocation, parameters);
-			ReportBoolNegationSwitchConflicts(context, diagnosticLocation, parameters, method);
-			ValidateExpandedParameterLayout(context, diagnosticLocation, parameters);
-			ValidateVariadicPositionalIsLast(context, diagnosticLocation, parameters);
-			foreach (var p in parameters)
-			{
-				if (p.IsCollection && p.Kind == ParameterKind.Positional && !p.IsVariadic)
-					context.ReportDiagnostic(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
-				if (p.IsVariadic && !p.CollectionTargetIsArray)
-					context.ReportDiagnostic(Diagnostic.Create(VariadicCollectionMustBeArray, diagnosticLocation));
-				if (p.CollectionTargetIsReadOnlySet && !p.ElementIsValueType)
-					context.ReportDiagnostic(Diagnostic.Create(ReadOnlySetInvalidElementType, diagnosticLocation, p.ElementTypeName));
-			}
 
-			var docs = MergeMethodDocumentationFromTrivia(
-				method,
-				Documentation.ParseMethod(method.GetDocumentationCommentXml(), parseOptions),
-				parseOptions);
-
-			var withDocs = ApplyParamDocumentation(parameters, method, docs.ParamDocsRaw);
-			withDocs = ApplyCollectionSeparatorsFromDocumentation(withDocs, method, docs.ParamSeparators);
-			var usage = UsageSynopsis.Build(withDocs);
-			var runName = BuildRootDefaultRunMethodName(routePrefix);
-			var containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt &&
-			                       HasPublicParameterlessCtor(namedCt);
-			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) =
-				ExtractHandlerAnalysis(method);
-			return new CommandModel(
-				routePrefix,
-				RootDefaultInternalCommandName,
-				runName,
-				containingFq,
-				method.Name,
-				!method.IsStatic,
-				hasParamlessCtor,
-				retFq,
-				retIsAsync,
-				retIsVoid,
-				withDocs,
-				handlerNoInj,
-				handlerParams,
-				handlerLoc,
-				ctorParams,
-				docId,
-				docs.SummaryOneLiner,
-				docs.RemarksRendered,
-				docs.SummaryInnerXml,
-				docs.RemarksInnerXml,
-				docs.ExamplesRendered,
-				usage,
-				mwData,
-				IsRootDefault: true);
-		}
-
-		public static CommandModel FromMethod(
-			string commandName,
-			IMethodSymbol method,
-			CSharpParseOptions parseOptions,
-			ImmutableArray<string> routePrefix,
-			SourceProductionContext context,
-			Location diagnosticLocation,
-			Compilation? compilation = null)
-		{
-			var parameters = BuildParameterModels(method, parseOptions, context, diagnosticLocation, compilation);
-			ReportDuplicateCliNames(context, diagnosticLocation, parameters);
-			ReportBoolNegationSwitchConflicts(context, diagnosticLocation, parameters, method);
-			ValidateExpandedParameterLayout(context, diagnosticLocation, parameters);
-			ValidateVariadicPositionalIsLast(context, diagnosticLocation, parameters);
-			foreach (var p in parameters)
-			{
-				if (p.IsCollection && p.Kind == ParameterKind.Positional && !p.IsVariadic)
-					context.ReportDiagnostic(Diagnostic.Create(CollectionPositionalNotSupported, diagnosticLocation));
-				if (p.IsVariadic && !p.CollectionTargetIsArray)
-					context.ReportDiagnostic(Diagnostic.Create(VariadicCollectionMustBeArray, diagnosticLocation));
-				if (p.CollectionTargetIsReadOnlySet && !p.ElementIsValueType)
-					context.ReportDiagnostic(Diagnostic.Create(ReadOnlySetInvalidElementType, diagnosticLocation, p.ElementTypeName));
-			}
-
-			var docs = MergeMethodDocumentationFromTrivia(
-				method,
-				Documentation.ParseMethod(method.GetDocumentationCommentXml(), parseOptions),
-				parseOptions);
-			var withDocs = ApplyParamDocumentation(parameters, method, docs.ParamDocsRaw);
-			withDocs = ApplyCollectionSeparatorsFromDocumentation(withDocs, method, docs.ParamSeparators);
-			var usage = UsageSynopsis.Build(withDocs);
-			var runName = BuildRunMethodName(routePrefix, commandName);
-			var containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt &&
-			                       HasPublicParameterlessCtor(namedCt);
-			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) =
-				ExtractHandlerAnalysis(method);
-			var (isObs, obsMsg) = TryGetObsoleteAttribute(method);
-			return new CommandModel(
-				routePrefix,
-				commandName,
-				runName,
-				containingFq,
-				method.Name,
-				!method.IsStatic,
-				hasParamlessCtor,
-				retFq,
-				retIsAsync,
-				retIsVoid,
-				withDocs,
-				handlerNoInj,
-				handlerParams,
-				handlerLoc,
-				ctorParams,
-				docId,
-				docs.SummaryOneLiner,
-				docs.RemarksRendered,
-				docs.SummaryInnerXml,
-				docs.RemarksInnerXml,
-				docs.ExamplesRendered,
-				usage,
-				mwData,
-				IsIntrinsic: HasCommandIntrinsicAttribute(method),
-				CommandAliases: TryGetCommandAliasesFromAttribute(method),
-				IsHidden: HasHiddenAttribute(method),
-				IsDeprecated: isObs,
-				DeprecationMessage: obsMsg,
-				Intent: TryGetCommandIntentData(method),
-				Output: BuildCommandOutputFromParameters(withDocs));
-		}
 
 		/// <summary>Overload for the per-invocation Select step — uses <see cref="DiagnosticAccumulator"/> instead of SourceProductionContext.</summary>
 		public static CommandModel FromRootMethod(
@@ -9697,43 +9120,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						builder.Add(pm);
 					continue;
 				}
-				builder.Add(ParameterModel.From(p, null, acc, diagnosticLocation));
+				builder.Add(ParameterModel.From(p, acc, diagnosticLocation));
 			}
 			return builder.ToImmutable();
 		}
 
-		private static ImmutableArray<ParameterModel> BuildParameterModels(
-			IMethodSymbol method,
-			CSharpParseOptions parseOptions,
-			SourceProductionContext context,
-			Location diagnosticLocation,
-			Compilation? compilation = null)
-		{
-			var builder = ImmutableArray.CreateBuilder<ParameterModel>();
-			foreach (var p in method.Parameters)
-			{
-				if (IsInjected(p))
-				{
-					builder.Add(ParameterModel.From(p));
-					continue;
-				}
-
-				if (HasAsParametersAttribute(p))
-				{
-					if (p.Type is not INamedTypeSymbol namedType || namedType.TypeKind == TypeKind.Error)
-						continue;
-
-					var prefix = GetAsParametersPrefix(p);
-					foreach (var pm in FlattenAsParametersType(context, diagnosticLocation, p, namedType, prefix, compilation, parseOptions))
-						builder.Add(pm);
-					continue;
-				}
-
-				builder.Add(ParameterModel.From(p, context, null, diagnosticLocation));
-			}
-
-			return builder.ToImmutable();
-		}
 
 		private static ImmutableArray<ParameterModel> ApplyCollectionSeparatorsFromDocumentation(
 			ImmutableArray<ParameterModel> parameters,
@@ -10091,7 +9482,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			char? flagShortOpt = null,
 			ImmutableArray<string> synopsisAliasesFromSummary = default,
 			bool isVariadic = false,
-			SourceProductionContext? reportCtx = null,
 			DiagnosticAccumulator? reportAcc = null,
 			Location? reportFallbackLocation = null)
 		{
@@ -10099,8 +9489,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				out var elemSk, out var elemTn, out var eFq, out var eMem, out var pFq, out var cFq);
 			var eCliMem = elemSk == CliScalarKind.Enum ? TryGetEnumCliNames(elementType) : default;
 			var elemEnumDocs = elemSk == CliScalarKind.Enum ? TryGetEnumDocs(elementType) : null;
-			if (reportCtx is not null || reportAcc is not null)
-				ReportFilesystemPathAttributeIssues(attributeHost, CliScalarKind.Collection, symbolName, reportAcc, reportCtx,
+			if (reportAcc is not null)
+				ReportFilesystemPathAttributeIssues(attributeHost, CliScalarKind.Collection, symbolName, reportAcc,
 					reportFallbackLocation, filesystemScalarKind: elemSk);
 			var sep = TryGetCollectionSeparatorFromAttribute(attributeHost);
 			var required = isSeparateType
@@ -10172,7 +9562,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 
 		// ── five factory methods ─────────────────────────────────────────────
 
-		public static ParameterModel From(IParameterSymbol p, SourceProductionContext? reportCtx = null, DiagnosticAccumulator? reportAcc = null,
+		public static ParameterModel From(IParameterSymbol p, DiagnosticAccumulator? reportAcc = null,
 			Location? reportFallbackLocation = null)
 		{
 			var isArg = HasArgumentAttribute(p);
@@ -10206,13 +9596,13 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				return BuildCollectionParameterModel(p.Type, elemType, p, kind,
 					Naming.ToCliLongName(p.Name), SafeLocalName(p.Name), p.Name,
 					isSeparateType: false, defLitColl, "", asParams: null, isVariadic: isVariadic,
-					reportCtx: reportCtx, reportAcc: reportAcc, reportFallbackLocation: reportFallbackLocation);
+					reportAcc: reportAcc, reportFallbackLocation: reportFallbackLocation);
 			}
 
 			ClassifyScalarUnified(p.Type, p, bs, isSeparateType: false,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
-			if (reportCtx is not null || reportAcc is not null)
-				ReportFilesystemPathAttributeIssues(p, sk, p.Name, reportAcc, reportCtx, reportFallbackLocation);
+			if (reportAcc is not null)
+				ReportFilesystemPathAttributeIssues(p, sk, p.Name, reportAcc, reportFallbackLocation);
 
 			var required = ComputeRequired(p, bs);
 			var defLit = TryGetDefaultLiteral(p, bs);
@@ -10371,7 +9761,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			int memberOrder,
 			Compilation? compilation,
 			CSharpParseOptions parseOptions,
-			SourceProductionContext? reportCtx = null,
 			DiagnosticAccumulator? reportAcc = null,
 			Location? reportFallbackLocation = null)
 		{
@@ -10432,14 +9821,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var defLitColl = TryGetDefaultLiteral(cp, BoolSpecialKind.None);
 				return BuildCollectionParameterModel(cp.Type, elemType, cp, kind, cli, local, cp.Name,
 					isSeparateType: false, defLitColl, desc, meta, isVariadic: isVariadicCp,
-					reportCtx: reportCtx, reportAcc: reportAcc,
+					reportAcc: reportAcc,
 					reportFallbackLocation: cp.Locations.FirstOrDefault() ?? reportFallbackLocation);
 			}
 
 			ClassifyScalarUnified(cp.Type, cp, bs, isSeparateType: false,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
-			if (reportCtx is not null || reportAcc is not null)
-				ReportFilesystemPathAttributeIssues(cp, sk, cp.Name, reportAcc, reportCtx,
+			if (reportAcc is not null)
+				ReportFilesystemPathAttributeIssues(cp, sk, cp.Name, reportAcc,
 					cp.Locations.FirstOrDefault() ?? reportFallbackLocation);
 
 			var required = ComputeRequired(cp, bs);
@@ -10490,7 +9879,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			int memberOrder,
 			Compilation? compilation,
 			CSharpParseOptions parseOptions,
-			SourceProductionContext? reportCtx = null,
 			DiagnosticAccumulator? reportAcc = null,
 			Location? reportFallbackLocation = null)
 		{
@@ -10538,14 +9926,14 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				return BuildCollectionParameterModel(prop.Type, elemType, prop, kind, cli, local, prop.Name,
 					isSeparateType: true, defaultLiteral: null, doc.Description, meta,
 					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases, isVariadic: isVariadicProp,
-					reportCtx: reportCtx, reportAcc: reportAcc,
+					reportAcc: reportAcc,
 					reportFallbackLocation: prop.Locations.FirstOrDefault() ?? reportFallbackLocation);
 			}
 
 			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
 				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
-			if (reportCtx is not null || reportAcc is not null)
-				ReportFilesystemPathAttributeIssues(prop, sk, prop.Name, reportAcc, reportCtx,
+			if (reportAcc is not null)
+				ReportFilesystemPathAttributeIssues(prop, sk, prop.Name, reportAcc,
 					prop.Locations.FirstOrDefault() ?? reportFallbackLocation);
 
 			var defaultValueLiteral = compilation is not null ? TryGetOptionsPropertyDefaultLiteral(prop, compilation) : null;
