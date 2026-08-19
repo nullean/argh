@@ -68,6 +68,8 @@ public class RootHelpFullTextTests
 			  enum-cmd                              Enum and short options.
 			  enum-value-cmd                        Enum with custom CLI value strings via
 			                                        EnumValueAttribute.
+			  exit-code-cmd
+			  exit-code-lambda
 			  ext-ns-as-params-echo                 Echo verbose and tag from an
 			                                        [AsParameters] DTO in an unrelated
 			                                        external namespace.

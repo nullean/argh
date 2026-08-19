@@ -2032,6 +2032,38 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		targetNode.Commands.Add(CommandModel.FromMethod(commandName, handler, parseOpts, routePrefix, context, invocation.GetLocation()));
 	}
 
+	/// <summary>
+	/// Synthesizes the fully-qualified BCL delegate type (<c>System.Func&lt;...&gt;</c> / <c>System.Action&lt;...&gt;</c>)
+	/// that the C# compiler infers as the "natural type" for a lambda with this signature. Used instead of reading the
+	/// converted-to type off the enclosing <see cref="IConversionOperation"/>, because when a lambda is passed to a
+	/// <c>Delegate</c>-typed parameter (e.g. <c>Map(string, Delegate)</c>) that conversion's <c>Type</c> is
+	/// <c>System.Delegate</c> itself, not the lambda's actual runtime delegate type.
+	/// </summary>
+	private static string? BuildNaturalDelegateTypeFq(IMethodSymbol invokeMethod)
+	{
+		if (invokeMethod.Parameters.Length > 16)
+			return null; // Func<>/Action<> top out at 16 parameters; fall back to Delegate.
+
+		foreach (var p in invokeMethod.Parameters)
+			if (p.RefKind != RefKind.None)
+				return null; // ref/out/in params have no Func<>/Action<> natural type; fall back to Delegate.
+
+		var paramFqs = new string[invokeMethod.Parameters.Length];
+		for (var i = 0; i < invokeMethod.Parameters.Length; i++)
+			paramFqs[i] = invokeMethod.Parameters[i].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+		if (invokeMethod.ReturnsVoid)
+		{
+			return paramFqs.Length == 0
+				? "global::System.Action"
+				: $"global::System.Action<{string.Join(", ", paramFqs)}>";
+		}
+
+		var retFq = invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		var allArgs = paramFqs.Length == 0 ? retFq : string.Join(", ", paramFqs) + ", " + retFq;
+		return $"global::System.Func<{allArgs}>";
+	}
+
 	/// <summary>Select-step (no SourceProductionContext) variant of <see cref="TryExpandLambdaDelegate"/>.</summary>
 	private static void TryExpandLambdaDelegateAcc(
 		SemanticModel model,
@@ -2058,16 +2090,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			op = conv.Operand;
 
 		IMethodSymbol? invokeMethod = null;
-		INamedTypeSymbol? delegateType = null;
 
 		if (op is IAnonymousFunctionOperation anonFunc)
-		{
 			invokeMethod = anonFunc.Symbol;
-			// Get the converted-to delegate type from the parent conversion
-			var parent = model.GetOperation(handlerExpr);
-			if (parent is IConversionOperation parentConv && parentConv.Type is INamedTypeSymbol dt)
-				delegateType = dt;
-		}
 
 		if (invokeMethod is null)
 			return;
@@ -2077,8 +2102,11 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			? commandName
 			: string.Join("/", routePrefix) + "/" + commandName;
 
-		// Get the FQ delegate type string for casting at runtime
-		var delegateFq = delegateType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "global::System.Delegate";
+		// Get the FQ delegate type string for casting at runtime. Synthesized from the lambda's own signature
+		// rather than the enclosing conversion's Type, which — since the target parameter is `Delegate` — would
+		// otherwise resolve to `System.Delegate` itself and force a reflection-based DynamicInvoke fallback that
+		// silently discards the handler's return value (see BuildNaturalDelegateTypeFq).
+		var delegateFq = BuildNaturalDelegateTypeFq(invokeMethod) ?? "global::System.Delegate";
 
 		var parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
 
@@ -2103,7 +2131,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			runName = rnSb.ToString();
 		}
 		var retFq = invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-		var retIsVoid = retFq is "global::System.Void"
+		// FullyQualifiedFormat renders special types via their C# keyword ("void"), not "global::System.Void".
+		var retIsVoid = retFq is "void"
 			or "global::System.Threading.Tasks.Task"
 			or "global::System.Threading.Tasks.ValueTask";
 		var retIsAsync = retFq is "global::System.Threading.Tasks.Task"
@@ -2201,10 +2230,6 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			return;
 
 		var invokeMethod = anonFunc.Symbol;
-		var parent = model.GetOperation(handlerExpr);
-		INamedTypeSymbol? delegateType = null;
-		if (parent is IConversionOperation parentConv && parentConv.Type is INamedTypeSymbol dt)
-			delegateType = dt;
 
 		if (invokeMethod is null)
 			return;
@@ -2212,7 +2237,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var storageKey = routePrefix.IsDefaultOrEmpty
 			? "__argh_root"
 			: string.Join("/", routePrefix) + "/__argh_root";
-		var delegateFq = delegateType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "global::System.Delegate";
+		// Synthesized from the lambda's own signature — see BuildNaturalDelegateTypeFq for why the enclosing
+		// conversion's Type (System.Delegate) can't be used here.
+		var delegateFq = BuildNaturalDelegateTypeFq(invokeMethod) ?? "global::System.Delegate";
 		var parseOpts = invocation.SyntaxTree.Options as CSharpParseOptions ?? CSharpParseOptions.Default;
 		var paramBuilder = ImmutableArray.CreateBuilder<ParameterModel>();
 		foreach (var p in invokeMethod.Parameters)
@@ -2221,7 +2248,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var usage = UsageSynopsis.Build(parameters);
 		var runName = CommandModel.BuildRootDefaultRunMethodName(routePrefix);
 		var lambdaRetFq = invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-		var lambdaRetIsVoid = lambdaRetFq is "global::System.Void"
+		// FullyQualifiedFormat renders special types via their C# keyword ("void"), not "global::System.Void".
+		var lambdaRetIsVoid = lambdaRetFq is "void"
 			or "global::System.Threading.Tasks.Task"
 			or "global::System.Threading.Tasks.ValueTask";
 		var lambdaRetIsAsync = lambdaRetFq is "global::System.Threading.Tasks.Task"
@@ -8111,15 +8139,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			: $"{lineIndent}{commandContextVar}.ExitCode = 0;\n{lineIndent}return;";
 
 		var retFq = cmd.ReturnTypeFq;
-		// Empty string means no return type info (shouldn't happen for method handlers)
-		if (retFq == "" || retFq == "global::System.Void")
+		// Empty string means no return type info (shouldn't happen for method handlers).
+		// Note: retFq comes from SymbolDisplayFormat.FullyQualifiedFormat, which renders special
+		// types using their C# keyword ("void", "int") rather than "global::System.Void"/"global::System.Int32" —
+		// keep these checks in that form (see also the "int" checks inside Task<int>/ValueTask<int> below).
+		if (retFq == "" || retFq == "void")
 		{
 			sb.AppendLine($"{lineIndent}{call};");
 			sb.AppendLine(ret0);
 			return;
 		}
 
-		if (retFq == "global::System.Int32")
+		if (retFq == "int")
 		{
 			if (commandContextVar is null)
 				sb.AppendLine($"{lineIndent}return {call};");
@@ -8242,7 +8273,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					sb.AppendLine($"{lineIndent}return;");
 				}
 			}
-			else if (lambdaRetFq == "global::System.Int32")
+			else if (lambdaRetFq == "int")
 			{
 				if (commandContextVar is null)
 					sb.AppendLine($"{lineIndent}return __lambdaDelegate({lambdaArgList});");
@@ -9614,7 +9645,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		{
 			// Return type
 			var retFq = method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var retIsVoid = retFq is "global::System.Void"
+			// FullyQualifiedFormat renders special types via their C# keyword ("void"), not "global::System.Void".
+			var retIsVoid = retFq is "void"
 				or "global::System.Threading.Tasks.Task"
 				or "global::System.Threading.Tasks.ValueTask";
 			var retIsAsync = retFq is "global::System.Threading.Tasks.Task"

@@ -232,6 +232,14 @@ internal static class CliTestHandlers
 	public static void AsParamsReferencedDto(TestGlobalCliOptions g, [AsParameters] IsolatedBuildOptions options) =>
 		Console.Out.WriteLine($"as-params-referenced:{options.Path ?? "null"}:{options.Output ?? "null"}:{options.Source?.ToString() ?? "null"}");
 
+	// Regression: a synchronous handler returning int must propagate that value as the process exit code.
+	[NoOptionsInjection]
+	public static int ExitCodeCmd(int code)
+	{
+		Console.Out.WriteLine($"exit-code:{code}");
+		return code;
+	}
+
 	internal readonly record struct Point(int X, int Y);
 
 	internal sealed class PointParser : IArgumentParser<Point>

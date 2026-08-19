@@ -49,6 +49,9 @@ internal static class CliRegistrationModule
 		app.Map("doc-lambda", DocLambdaEcho);
 		// Anonymous lambdas have no XML docs; use a named handler (e.g. DocLambdaEcho) for help text.
 		app.Map("lambda-cmd", (string msg) => Console.Out.WriteLine($"lambda:{msg}"));
+		app.Map("exit-code-cmd", CliTestHandlers.ExitCodeCmd);
+		// Regression: a synchronous int-returning lambda must propagate its return value as the exit code too.
+		app.Map("exit-code-lambda", (int code) => code);
 		app.Map("validate-range", ValidationCliHandlers.ValidateRange);
 		app.Map("validate-length", ValidationCliHandlers.ValidateLength);
 		app.Map("validate-regex", ValidationCliHandlers.ValidateRegex);

@@ -133,4 +133,24 @@ public class CommandOutputTests
 		result.ExitCode.Should().Be(0);
 		CliHostRunner.StdoutText(result).Trim().Should().Be("doc-lambda:ping");
 	}
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(3)]
+	[InlineData(42)]
+	public void Synchronous_int_returning_method_handler_sets_exit_code(int code)
+	{
+		var result = CliHostRunner.Run("exit-code-cmd", "--code", code.ToString());
+		result.ExitCode.Should().Be(code);
+		CliHostRunner.StdoutText(result).Trim().Should().Be($"exit-code:{code}");
+	}
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(7)]
+	public void Synchronous_int_returning_lambda_handler_sets_exit_code(int code)
+	{
+		var result = CliHostRunner.Run("exit-code-lambda", "--code", code.ToString());
+		result.ExitCode.Should().Be(code);
+	}
 }
