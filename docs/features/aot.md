@@ -29,6 +29,10 @@ builder.Services.AddArgh(args, b =>
 Lambda handlers (`UseMiddleware` inline delegates) are the one exception to the zero-reflection rule and emit warning **AGH0006**. Prefer method groups or class registration for AOT-published apps.
 :::
 
+## Binary size
+
+`Nullean.Argh.Core` has no dependency on `System.Text.Json` or any other reflection-based serializer. The `__schema` command (and `ArghRuntime.FormatCliSchemaJson()`) is served by a small hand-rolled, write-only JSON emitter, since the schema document is the only JSON ever produced by Argh and it is never deserialized at runtime. This keeps the Native AOT size overhead of adding Argh to an app to well under 500 KB on top of a blank `PublishAot` executable.
+
 ## CI validation
 
 The project includes an `aot-validate` CI job that publishes with Native AOT on Linux, macOS, and Windows and invokes `__schema` on the native binary to verify correct operation.

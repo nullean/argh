@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Nullean.Argh.Schema;
 
 namespace Nullean.Argh.Runtime;
@@ -54,7 +53,7 @@ public static class ArghRuntime
 			throw new InvalidOperationException(
 				"CLI schema factory is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so generated entry types are emitted in this assembly.");
 
-		return JsonSerializer.Serialize(_cliSchemaFactory(), ArghCliSchemaJsonContext.Default.ArghCliSchemaDocument);
+		return CliSchemaJsonWriter.Write(_cliSchemaFactory());
 	}
 
 	/// <summary>
