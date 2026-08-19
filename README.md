@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/argh-lockup.svg"/>
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/argh-lockup-light.svg"/>
+    <img src="docs/images/argh-lockup.svg" alt="--argh_" width="174" height="96"/>
+  </picture>
+</p>
+
 # Nullean.Argh
 
 [![NuGet](https://img.shields.io/nuget/v/Nullean.Argh.svg)](https://www.nuget.org/packages/Nullean.Argh)

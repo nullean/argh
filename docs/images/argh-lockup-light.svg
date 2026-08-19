@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 174 96" width="174" height="96" role="img" aria-label="--argh">
+  <defs>
+    <linearGradient id="fL" x1="0" y1="0.2" x2="1" y2="0.8"><stop offset="0.44" stop-color="#8FD420"></stop><stop offset="0.56" stop-color="#2F6EDE"></stop></linearGradient>
+    <radialGradient id="gL" cx="0.18" cy="0.12" r="1.2"><stop offset="0" stop-color="#1B2126"></stop><stop offset="0.55" stop-color="#0D1013"></stop><stop offset="1" stop-color="#08090B"></stop></radialGradient>
+  </defs>
+  <rect width="174" height="96" rx="10" fill="url(#fL)"></rect>
+  <rect x="6" y="6" width="162" height="84" rx="5" fill="url(#gL)"></rect>
+  <g font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="30" font-weight="700" dominant-baseline="central">
+    <text x="24" y="49.5" fill="#B8FF3D">--</text>
+    <text x="60" y="48" fill="#FFFFFF">argh</text>
+    <text x="132" y="48" fill="#6BA3FF">_</text>
+  </g>
+</svg>

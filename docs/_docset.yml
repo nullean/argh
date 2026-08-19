@@ -2,7 +2,7 @@ project: argh
 max_toc_depth: 2
 
 branding:
-  icon: assets/logo.svg
+  icon: images/argh-mark.svg
 
 toc:
   - file: index.md
