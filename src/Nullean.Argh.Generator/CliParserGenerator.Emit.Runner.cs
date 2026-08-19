@@ -967,175 +967,34 @@ public sealed partial class CliParserGenerator
 		bool outVarKeyword = false, string failureExit = "return 2", string? helpMethodName = null, string? flagHelpStdErrMethodName = null, string? parseFailureRunHint = null)
 	{
 		var ind = "\t\t\t" + indentExtra;
-		var e = Escape(p.CliLongName);
-		string Out(string name) => outVarKeyword ? "out var " + name : "out " + name;
 
 		if (p.ScalarKind == CliScalarKind.Enum && p.EnumTypeFq is not null && !p.EnumMemberNames.IsDefaultOrEmpty)
 		{
-			var evVar = "__ev_" + p.LocalVarName;
-			var evParsed = "__evp_" + p.LocalVarName;
-			sb.AppendLine($"{ind}var {evParsed} = false;");
-			sb.AppendLine($"{ind}{p.EnumTypeFq} {evVar} = default;");
-			sb.AppendLine($"{ind}switch (({rawExpr} ?? \"\").ToLowerInvariant())");
-			sb.AppendLine($"{ind}{{");
-			for (var i = 0; i < p.EnumMemberNames.Length; i++)
-			{
-				var memberName = p.EnumMemberNames[i];
-				var cliName = ResolveEnumMemberCliName(p.EnumMemberCliNames, i, memberName);
-				sb.AppendLine($"{ind}\tcase \"{Escape(cliName.ToLowerInvariant())}\": {evVar} = {p.EnumTypeFq}.{memberName}; {evParsed} = true; break;");
-			}
-			sb.AppendLine($"{ind}}}");
-			sb.AppendLine($"{ind}if (!{evParsed})");
-			sb.AppendLine($"{ind}{{");
-			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}: '{{{rawExpr}}}'.\");");
-			EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-			sb.AppendLine($"{ind}\t{failureExit};");
-			sb.AppendLine($"{ind}}}");
-			if (outVarKeyword)
-				sb.AppendLine($"{ind}var {targetVar} = {evVar};");
-			else
-				sb.AppendLine($"{ind}{targetVar} = {evVar};");
+			EmitEnumParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 			return;
 		}
 
 		if (p.ScalarKind == CliScalarKind.FileInfo)
 		{
-			// Optional FileInfo? must omit new FileInfo when the flag was not provided (null), not pass null into the ctor (ArgumentNullException).
-			if (!p.IsRequired)
-			{
-				var csharpNullableFi = GetCSharpCliType(p);
-				var tmpFi = "__nullableFileInfo_" + Naming.SanitizeIdentifier(p.LocalVarName);
-				sb.AppendLine($"{ind}{csharpNullableFi} {tmpFi} = null;");
-				sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
-				sb.AppendLine($"{ind}{{");
-				var innerFi = ind + "\t";
-				string pathSrcOpt = $"{rawExpr}!";
-				if (p.ExpandUserProfileBeforeBind)
-				{
-					var expandedOpt = "__path_" + Naming.SanitizeIdentifier(p.LocalVarName);
-					sb.AppendLine($"{innerFi}var {expandedOpt} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
-					pathSrcOpt = expandedOpt;
-				}
-
-				sb.AppendLine($"{innerFi}{tmpFi} = new global::System.IO.FileInfo({pathSrcOpt});");
-				sb.AppendLine($"{ind}}}");
-				if (outVarKeyword)
-					sb.AppendLine($"{ind}var {targetVar} = {tmpFi};");
-				else
-					sb.AppendLine($"{ind}{targetVar} = {tmpFi};");
-				return;
-			}
-
-			string pathSrc = $"{rawExpr}!";
-			if (p.ExpandUserProfileBeforeBind)
-			{
-				var expandedName = "__path_" + Naming.SanitizeIdentifier(p.LocalVarName);
-				sb.AppendLine($"{ind}var {expandedName} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
-				pathSrc = expandedName;
-			}
-
-			if (outVarKeyword)
-				sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.FileInfo({pathSrc});");
-			else
-				sb.AppendLine($"{ind}{targetVar} = new global::System.IO.FileInfo({pathSrc});");
+			EmitFileInfoParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 			return;
 		}
 
 		if (p.ScalarKind == CliScalarKind.DirectoryInfo)
 		{
-			// Optional DirectoryInfo? must omit new DirectoryInfo when the flag was not provided (null), not pass null into the ctor (ArgumentNullException).
-			if (!p.IsRequired)
-			{
-				var csharpNullableDi = GetCSharpCliType(p);
-				var tmpDi = "__nullableDirectoryInfo_" + Naming.SanitizeIdentifier(p.LocalVarName);
-				sb.AppendLine($"{ind}{csharpNullableDi} {tmpDi} = null;");
-				sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
-				sb.AppendLine($"{ind}{{");
-				var innerDi = ind + "\t";
-				string pathSrcDirOpt = $"{rawExpr}!";
-				if (p.ExpandUserProfileBeforeBind)
-				{
-					var expandedOptDir = "__dir_" + Naming.SanitizeIdentifier(p.LocalVarName);
-					sb.AppendLine($"{innerDi}var {expandedOptDir} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
-					pathSrcDirOpt = expandedOptDir;
-				}
-
-				sb.AppendLine($"{innerDi}{tmpDi} = new global::System.IO.DirectoryInfo({pathSrcDirOpt});");
-				sb.AppendLine($"{ind}}}");
-				if (outVarKeyword)
-					sb.AppendLine($"{ind}var {targetVar} = {tmpDi};");
-				else
-					sb.AppendLine($"{ind}{targetVar} = {tmpDi};");
-				return;
-			}
-
-			string pathSrcDir = $"{rawExpr}!";
-			if (p.ExpandUserProfileBeforeBind)
-			{
-				var expandedDir = "__dir_" + Naming.SanitizeIdentifier(p.LocalVarName);
-				sb.AppendLine($"{ind}var {expandedDir} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
-				pathSrcDir = expandedDir;
-			}
-
-			if (outVarKeyword)
-				sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.DirectoryInfo({pathSrcDir});");
-			else
-				sb.AppendLine($"{ind}{targetVar} = new global::System.IO.DirectoryInfo({pathSrcDir});");
+			EmitDirectoryInfoParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 			return;
 		}
 
 		if (p.ScalarKind == CliScalarKind.Uri)
 		{
-			// Optional Uri? must treat omitted flags as null (raw text is null), not run Uri.TryCreate on null/whitespace.
-			if (!p.IsRequired)
-			{
-				var csharpNullableUri = GetCSharpCliType(p);
-				var tmpUri = "__nullableUriParsed_" + Naming.SanitizeIdentifier(p.LocalVarName);
-				sb.AppendLine($"{ind}{csharpNullableUri} {tmpUri} = null;");
-				sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
-				sb.AppendLine($"{ind}{{");
-				sb.AppendLine(
-					$"{ind}\tif (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
-				sb.AppendLine($"{ind}\t{{");
-				sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
-				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"{ind}\t\t{failureExit};");
-				sb.AppendLine($"{ind}\t}}");
-				sb.AppendLine($"{ind}\t{tmpUri} = __uri;");
-				sb.AppendLine($"{ind}}}");
-				if (outVarKeyword)
-					sb.AppendLine($"{ind}var {targetVar} = {tmpUri};");
-				else
-					sb.AppendLine($"{ind}{targetVar} = {tmpUri};");
-				return;
-			}
-
-			sb.AppendLine($"{ind}if (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
-			sb.AppendLine($"{ind}{{");
-			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
-			EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-			sb.AppendLine($"{ind}\t{failureExit};");
-			sb.AppendLine($"{ind}}}");
-			if (outVarKeyword)
-				sb.AppendLine($"{ind}var {targetVar} = __uri;");
-			else
-				sb.AppendLine($"{ind}{targetVar} = __uri;");
+			EmitUriParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 			return;
 		}
 
 		if (p.ScalarKind == CliScalarKind.CustomParser && p.ParserTypeFq is not null && p.CustomValueTypeFq is not null)
 		{
-			sb.AppendLine($"{ind}var __parser = new {p.ParserTypeFq}();");
-			sb.AppendLine($"{ind}if (!__parser.TryParse({rawExpr}!, out var __pv))");
-			sb.AppendLine($"{ind}{{");
-			sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}.\");");
-			EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-			sb.AppendLine($"{ind}\t{failureExit};");
-			sb.AppendLine($"{ind}}}");
-			if (outVarKeyword)
-				sb.AppendLine($"{ind}var {targetVar} = __pv;");
-			else
-				sb.AppendLine($"{ind}{targetVar} = __pv;");
+			EmitCustomParserFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 			return;
 		}
 
@@ -1151,142 +1010,324 @@ public sealed partial class CliParserGenerator
 			return;
 		}
 
-		switch (p.Special)
-		{
-			case BoolSpecialKind.None when p.TypeName == "string":
-			{
-				if (outVarKeyword)
-					sb.AppendLine($"{ind}var {targetVar} = {rawExpr};");
-				else
-				{
-					var nonNull = p.IsRequired ? "!" : "";
-					sb.AppendLine($"{ind}{targetVar} = {rawExpr}{nonNull};");
-				}
+		EmitPrimitiveScalarParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+	}
 
-				break;
-			}
-			case BoolSpecialKind.None when p.TypeName == "int":
-				sb.AppendLine(
-					$"{ind}if (!int.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
-				sb.AppendLine($"{ind}{{");
-				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid int for --{e}: '{{{rawExpr}}}'.\");");
-				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"{ind}\t{failureExit};");
-				sb.AppendLine($"{ind}}}");
-				break;
-			case BoolSpecialKind.None when p.TypeName == "long":
-				sb.AppendLine(
-					$"{ind}if (!long.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
-				sb.AppendLine($"{ind}{{");
-				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid long for --{e}: '{{{rawExpr}}}'.\");");
-				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"{ind}\t{failureExit};");
-				sb.AppendLine($"{ind}}}");
-				break;
-			case BoolSpecialKind.None when p.TypeName == "float":
-				sb.AppendLine(
-					$"{ind}if (!float.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))");
-				sb.AppendLine($"{ind}{{");
-				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid float for --{e}: '{{{rawExpr}}}'.\");");
-				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"{ind}\t{failureExit};");
-				sb.AppendLine($"{ind}}}");
-				break;
-			case BoolSpecialKind.None when p.TypeName == "double":
-				sb.AppendLine(
-					$"{ind}if (!double.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))");
-				sb.AppendLine($"{ind}{{");
-				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid double for --{e}: '{{{rawExpr}}}'.\");");
-				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"{ind}\t{failureExit};");
-				sb.AppendLine($"{ind}}}");
-				break;
-			case BoolSpecialKind.None when p.TypeName == "decimal":
-				sb.AppendLine(
-					$"{ind}if (!decimal.TryParse({rawExpr}, NumberStyles.Number, CultureInfo.InvariantCulture, {Out(targetVar)}))");
-				sb.AppendLine($"{ind}{{");
-				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid decimal for --{e}: '{{{rawExpr}}}'.\");");
-				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"{ind}\t{failureExit};");
-				sb.AppendLine($"{ind}}}");
-				break;
-			case BoolSpecialKind.None when p.TypeName == "DateTime":
-			{
-				var tmp = "__dt_" + p.LocalVarName;
-				sb.AppendLine(
-					$"{ind}if (!global::System.DateTime.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))");
-				sb.AppendLine($"{ind}{{");
-				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTime for --{e}: '{{{rawExpr}}}'.\");");
-				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"{ind}\t{failureExit};");
-				sb.AppendLine($"{ind}}}");
-				if (outVarKeyword)
-					sb.AppendLine($"{ind}var {targetVar} = {tmp};");
-				else
-					sb.AppendLine($"{ind}{targetVar} = {tmp};");
-				break;
-			}
-			case BoolSpecialKind.None when p.TypeName == "DateTimeOffset":
-			{
-				var tmp = "__dto_" + p.LocalVarName;
-				sb.AppendLine(
-					$"{ind}if (!global::System.DateTimeOffset.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))");
-				sb.AppendLine($"{ind}{{");
-				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTimeOffset for --{e}: '{{{rawExpr}}}'.\");");
-				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"{ind}\t{failureExit};");
-				sb.AppendLine($"{ind}}}");
-				if (outVarKeyword)
-					sb.AppendLine($"{ind}var {targetVar} = {tmp};");
-				else
-					sb.AppendLine($"{ind}{targetVar} = {tmp};");
-				break;
-			}
-			case BoolSpecialKind.None when p.TypeName == "TimeSpan":
-			{
-				var tmp = "__ts_" + p.LocalVarName;
-				sb.AppendLine($"{ind}if (!global::Nullean.Argh.ArghTimeSpan.TryParse({rawExpr}, out var {tmp}))");
-				sb.AppendLine($"{ind}{{");
-				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid TimeSpan for --{e}: '{{{rawExpr}}}'.\");");
-				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"{ind}\t{failureExit};");
-				sb.AppendLine($"{ind}}}");
-				if (outVarKeyword)
-					sb.AppendLine($"{ind}var {targetVar} = {tmp};");
-				else
-					sb.AppendLine($"{ind}{targetVar} = {tmp};");
-				break;
-			}
-			case BoolSpecialKind.None when p.TypeName == "DateOnly":
-			{
-				var tmp = "__do_" + p.LocalVarName;
-				sb.AppendLine(
-					$"{ind}if (!global::System.DateOnly.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.None, out var {tmp}))");
-				sb.AppendLine($"{ind}{{");
-				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateOnly for --{e}: '{{{rawExpr}}}'.\");");
-				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"{ind}\t{failureExit};");
-				sb.AppendLine($"{ind}}}");
-				if (outVarKeyword)
-					sb.AppendLine($"{ind}var {targetVar} = {tmp};");
-				else
-					sb.AppendLine($"{ind}{targetVar} = {tmp};");
-				break;
-			}
-			case BoolSpecialKind.None when p.TypeName == "bool":
-				if (outVarKeyword)
-					sb.AppendLine(
-						$"{ind}var {targetVar} = bool.TryParse({rawExpr}, out var tmpBool) ? tmpBool : true;");
-				else
-					sb.AppendLine($"{ind}{targetVar} = bool.TryParse({rawExpr}, out var tmpBool) ? tmpBool : true;");
-				break;
-			default:
-				if (outVarKeyword)
-					sb.AppendLine($"{ind}var {targetVar} = {rawExpr};");
-				else
-					sb.AppendLine($"{ind}{targetVar} = {rawExpr}; // fallback");
-				break;
+
+
+	private static void EmitEnumParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		var e = Escape(p.CliLongName);
+		string Out(string name) => outVarKeyword ? "out var " + name : "out " + name;
+var evVar = "__ev_" + p.LocalVarName;
+var evParsed = "__evp_" + p.LocalVarName;
+sb.AppendLine($"{ind}var {evParsed} = false;");
+sb.AppendLine($"{ind}{p.EnumTypeFq} {evVar} = default;");
+sb.AppendLine($"{ind}switch (({rawExpr} ?? \"\").ToLowerInvariant())");
+sb.AppendLine($"{ind}{{");
+for (var i = 0; i < p.EnumMemberNames.Length; i++)
+{
+	var memberName = p.EnumMemberNames[i];
+	var cliName = ResolveEnumMemberCliName(p.EnumMemberCliNames, i, memberName);
+	sb.AppendLine($"{ind}\tcase \"{Escape(cliName.ToLowerInvariant())}\": {evVar} = {p.EnumTypeFq}.{memberName}; {evParsed} = true; break;");
+}
+sb.AppendLine($"{ind}}}");
+sb.AppendLine($"{ind}if (!{evParsed})");
+sb.AppendLine($"{ind}{{");
+sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}: '{{{rawExpr}}}'.\");");
+EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+sb.AppendLine($"{ind}\t{failureExit};");
+sb.AppendLine($"{ind}}}");
+if (outVarKeyword)
+	sb.AppendLine($"{ind}var {targetVar} = {evVar};");
+else
+	sb.AppendLine($"{ind}{targetVar} = {evVar};");
+return;
+	}
+
+	private static void EmitFileInfoParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+// Optional FileInfo? must omit new FileInfo when the flag was not provided (null), not pass null into the ctor (ArgumentNullException).
+if (!p.IsRequired)
+{
+	var csharpNullableFi = GetCSharpCliType(p);
+	var tmpFi = "__nullableFileInfo_" + Naming.SanitizeIdentifier(p.LocalVarName);
+	sb.AppendLine($"{ind}{csharpNullableFi} {tmpFi} = null;");
+	sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
+	sb.AppendLine($"{ind}{{");
+	var innerFi = ind + "\t";
+	string pathSrcOpt = $"{rawExpr}!";
+	if (p.ExpandUserProfileBeforeBind)
+	{
+		var expandedOpt = "__path_" + Naming.SanitizeIdentifier(p.LocalVarName);
+		sb.AppendLine($"{innerFi}var {expandedOpt} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+		pathSrcOpt = expandedOpt;
+	}
+
+	sb.AppendLine($"{innerFi}{tmpFi} = new global::System.IO.FileInfo({pathSrcOpt});");
+	sb.AppendLine($"{ind}}}");
+	if (outVarKeyword)
+		sb.AppendLine($"{ind}var {targetVar} = {tmpFi};");
+	else
+		sb.AppendLine($"{ind}{targetVar} = {tmpFi};");
+	return;
+}
+
+string pathSrc = $"{rawExpr}!";
+if (p.ExpandUserProfileBeforeBind)
+{
+	var expandedName = "__path_" + Naming.SanitizeIdentifier(p.LocalVarName);
+	sb.AppendLine($"{ind}var {expandedName} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+	pathSrc = expandedName;
+}
+
+if (outVarKeyword)
+	sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.FileInfo({pathSrc});");
+else
+	sb.AppendLine($"{ind}{targetVar} = new global::System.IO.FileInfo({pathSrc});");
+return;
+	}
+
+	private static void EmitDirectoryInfoParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+// Optional DirectoryInfo? must omit new DirectoryInfo when the flag was not provided (null), not pass null into the ctor (ArgumentNullException).
+if (!p.IsRequired)
+{
+	var csharpNullableDi = GetCSharpCliType(p);
+	var tmpDi = "__nullableDirectoryInfo_" + Naming.SanitizeIdentifier(p.LocalVarName);
+	sb.AppendLine($"{ind}{csharpNullableDi} {tmpDi} = null;");
+	sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
+	sb.AppendLine($"{ind}{{");
+	var innerDi = ind + "\t";
+	string pathSrcDirOpt = $"{rawExpr}!";
+	if (p.ExpandUserProfileBeforeBind)
+	{
+		var expandedOptDir = "__dir_" + Naming.SanitizeIdentifier(p.LocalVarName);
+		sb.AppendLine($"{innerDi}var {expandedOptDir} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+		pathSrcDirOpt = expandedOptDir;
+	}
+
+	sb.AppendLine($"{innerDi}{tmpDi} = new global::System.IO.DirectoryInfo({pathSrcDirOpt});");
+	sb.AppendLine($"{ind}}}");
+	if (outVarKeyword)
+		sb.AppendLine($"{ind}var {targetVar} = {tmpDi};");
+	else
+		sb.AppendLine($"{ind}{targetVar} = {tmpDi};");
+	return;
+}
+
+string pathSrcDir = $"{rawExpr}!";
+if (p.ExpandUserProfileBeforeBind)
+{
+	var expandedDir = "__dir_" + Naming.SanitizeIdentifier(p.LocalVarName);
+	sb.AppendLine($"{ind}var {expandedDir} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+	pathSrcDir = expandedDir;
+}
+
+if (outVarKeyword)
+	sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.DirectoryInfo({pathSrcDir});");
+else
+	sb.AppendLine($"{ind}{targetVar} = new global::System.IO.DirectoryInfo({pathSrcDir});");
+return;
+	}
+
+	private static void EmitUriParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		var e = Escape(p.CliLongName);
+// Optional Uri? must treat omitted flags as null (raw text is null), not run Uri.TryCreate on null/whitespace.
+if (!p.IsRequired)
+{
+	var csharpNullableUri = GetCSharpCliType(p);
+	var tmpUri = "__nullableUriParsed_" + Naming.SanitizeIdentifier(p.LocalVarName);
+	sb.AppendLine($"{ind}{csharpNullableUri} {tmpUri} = null;");
+	sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
+	sb.AppendLine($"{ind}{{");
+	sb.AppendLine(
+		$"{ind}\tif (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
+	sb.AppendLine($"{ind}\t{{");
+	sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
+	EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+	sb.AppendLine($"{ind}\t\t{failureExit};");
+	sb.AppendLine($"{ind}\t}}");
+	sb.AppendLine($"{ind}\t{tmpUri} = __uri;");
+	sb.AppendLine($"{ind}}}");
+	if (outVarKeyword)
+		sb.AppendLine($"{ind}var {targetVar} = {tmpUri};");
+	else
+		sb.AppendLine($"{ind}{targetVar} = {tmpUri};");
+	return;
+}
+
+sb.AppendLine($"{ind}if (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
+sb.AppendLine($"{ind}{{");
+sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
+EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+sb.AppendLine($"{ind}\t{failureExit};");
+sb.AppendLine($"{ind}}}");
+if (outVarKeyword)
+	sb.AppendLine($"{ind}var {targetVar} = __uri;");
+else
+	sb.AppendLine($"{ind}{targetVar} = __uri;");
+return;
+	}
+
+	private static void EmitCustomParserFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		var e = Escape(p.CliLongName);
+sb.AppendLine($"{ind}var __parser = new {p.ParserTypeFq}();");
+sb.AppendLine($"{ind}if (!__parser.TryParse({rawExpr}!, out var __pv))");
+sb.AppendLine($"{ind}{{");
+sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}.\");");
+EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+sb.AppendLine($"{ind}\t{failureExit};");
+sb.AppendLine($"{ind}}}");
+if (outVarKeyword)
+	sb.AppendLine($"{ind}var {targetVar} = __pv;");
+else
+	sb.AppendLine($"{ind}{targetVar} = __pv;");
+return;
+	}
+
+	private static void EmitPrimitiveScalarParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		var e = Escape(p.CliLongName);
+		string Out(string name) => outVarKeyword ? "out var " + name : "out " + name;
+switch (p.Special)
+{
+	case BoolSpecialKind.None when p.TypeName == "string":
+	{
+		if (outVarKeyword)
+			sb.AppendLine($"{ind}var {targetVar} = {rawExpr};");
+		else
+		{
+			var nonNull = p.IsRequired ? "!" : "";
+			sb.AppendLine($"{ind}{targetVar} = {rawExpr}{nonNull};");
 		}
+
+		break;
+	}
+	case BoolSpecialKind.None when p.TypeName == "int":
+		sb.AppendLine(
+			$"{ind}if (!int.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
+		sb.AppendLine($"{ind}{{");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid int for --{e}: '{{{rawExpr}}}'.\");");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t{failureExit};");
+		sb.AppendLine($"{ind}}}");
+		break;
+	case BoolSpecialKind.None when p.TypeName == "long":
+		sb.AppendLine(
+			$"{ind}if (!long.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
+		sb.AppendLine($"{ind}{{");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid long for --{e}: '{{{rawExpr}}}'.\");");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t{failureExit};");
+		sb.AppendLine($"{ind}}}");
+		break;
+	case BoolSpecialKind.None when p.TypeName == "float":
+		sb.AppendLine(
+			$"{ind}if (!float.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))");
+		sb.AppendLine($"{ind}{{");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid float for --{e}: '{{{rawExpr}}}'.\");");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t{failureExit};");
+		sb.AppendLine($"{ind}}}");
+		break;
+	case BoolSpecialKind.None when p.TypeName == "double":
+		sb.AppendLine(
+			$"{ind}if (!double.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))");
+		sb.AppendLine($"{ind}{{");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid double for --{e}: '{{{rawExpr}}}'.\");");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t{failureExit};");
+		sb.AppendLine($"{ind}}}");
+		break;
+	case BoolSpecialKind.None when p.TypeName == "decimal":
+		sb.AppendLine(
+			$"{ind}if (!decimal.TryParse({rawExpr}, NumberStyles.Number, CultureInfo.InvariantCulture, {Out(targetVar)}))");
+		sb.AppendLine($"{ind}{{");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid decimal for --{e}: '{{{rawExpr}}}'.\");");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t{failureExit};");
+		sb.AppendLine($"{ind}}}");
+		break;
+	case BoolSpecialKind.None when p.TypeName == "DateTime":
+	{
+		var tmp = "__dt_" + p.LocalVarName;
+		sb.AppendLine(
+			$"{ind}if (!global::System.DateTime.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))");
+		sb.AppendLine($"{ind}{{");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTime for --{e}: '{{{rawExpr}}}'.\");");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t{failureExit};");
+		sb.AppendLine($"{ind}}}");
+		if (outVarKeyword)
+			sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+		else
+			sb.AppendLine($"{ind}{targetVar} = {tmp};");
+		break;
+	}
+	case BoolSpecialKind.None when p.TypeName == "DateTimeOffset":
+	{
+		var tmp = "__dto_" + p.LocalVarName;
+		sb.AppendLine(
+			$"{ind}if (!global::System.DateTimeOffset.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))");
+		sb.AppendLine($"{ind}{{");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTimeOffset for --{e}: '{{{rawExpr}}}'.\");");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t{failureExit};");
+		sb.AppendLine($"{ind}}}");
+		if (outVarKeyword)
+			sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+		else
+			sb.AppendLine($"{ind}{targetVar} = {tmp};");
+		break;
+	}
+	case BoolSpecialKind.None when p.TypeName == "TimeSpan":
+	{
+		var tmp = "__ts_" + p.LocalVarName;
+		sb.AppendLine($"{ind}if (!global::Nullean.Argh.ArghTimeSpan.TryParse({rawExpr}, out var {tmp}))");
+		sb.AppendLine($"{ind}{{");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid TimeSpan for --{e}: '{{{rawExpr}}}'.\");");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t{failureExit};");
+		sb.AppendLine($"{ind}}}");
+		if (outVarKeyword)
+			sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+		else
+			sb.AppendLine($"{ind}{targetVar} = {tmp};");
+		break;
+	}
+	case BoolSpecialKind.None when p.TypeName == "DateOnly":
+	{
+		var tmp = "__do_" + p.LocalVarName;
+		sb.AppendLine(
+			$"{ind}if (!global::System.DateOnly.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.None, out var {tmp}))");
+		sb.AppendLine($"{ind}{{");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateOnly for --{e}: '{{{rawExpr}}}'.\");");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t{failureExit};");
+		sb.AppendLine($"{ind}}}");
+		if (outVarKeyword)
+			sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+		else
+			sb.AppendLine($"{ind}{targetVar} = {tmp};");
+		break;
+	}
+	case BoolSpecialKind.None when p.TypeName == "bool":
+		if (outVarKeyword)
+			sb.AppendLine(
+				$"{ind}var {targetVar} = bool.TryParse({rawExpr}, out var tmpBool) ? tmpBool : true;");
+		else
+			sb.AppendLine($"{ind}{targetVar} = bool.TryParse({rawExpr}, out var tmpBool) ? tmpBool : true;");
+		break;
+	default:
+		if (outVarKeyword)
+			sb.AppendLine($"{ind}var {targetVar} = {rawExpr};");
+		else
+			sb.AppendLine($"{ind}{targetVar} = {rawExpr}; // fallback");
+		break;
+}
 	}
 
 	private static void EmitNullableNumericParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar,
