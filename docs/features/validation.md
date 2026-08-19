@@ -48,7 +48,7 @@ Options:
 | `[EmailAddress]` | `string` | `user@host` shape | `[email]` |
 | `[Url]` | `string` | absolute URL | `[url]` |
 | `[Url]` | `Uri` | http or https | `[schemes: http\|https]` |
-| `[FileExtensions(Extensions="json,yaml")]` | `FileInfo` | file extension | `[extensions: json\|yaml]` |
+| `[FileExtensions(Extensions="json,yaml")]` | `FileInfo` (incl. collections) | file extension | `[extensions: json\|yaml]` |
 | `[UriScheme("https")]` | `Uri` | URI scheme | `[schemes: https]` |
 :::
 
@@ -68,15 +68,15 @@ Enum parameters automatically show `[allowed: Member1|Member2]` in help. The enu
 
 ## Filesystem path validation
 
-These attributes apply to `FileInfo` / `DirectoryInfo` parameters (including on `[AsParameters]` members). Incompatible combinations (such as `[Existing]` with `[NonExisting]`) are diagnosed at compile time.
+These attributes apply to `FileInfo` / `DirectoryInfo` parameters (including on `[AsParameters]` members and `[Argument]` positionals). Incompatible combinations (such as `[Existing]` with `[NonExisting]`) are diagnosed at compile time, as is applying `[FileExtensions]` to a `DirectoryInfo`.
 
 | Attribute | Applies to | Help token |
 |-----------|------------|------------|
-| `[Existing]` | `FileInfo` | `[existing]` |
-| `[Existing]` | `DirectoryInfo` | `[existing]` |
+| `[Existing]` | `FileInfo` or `DirectoryInfo` | `[existing]` |
 | `[NonExisting]` | `FileInfo` or `DirectoryInfo` | `[unused path]` |
 | `[RejectSymbolicLinks]` | `FileInfo` or `DirectoryInfo` | `[no symlinks]` |
 | `[ExpandUserProfile]` | `FileInfo` or `DirectoryInfo` | `[expand ~ profile]` |
+| `[FileExtensions(Extensions="…")]` | `FileInfo` only | `[extensions: …]` |
 
 :::{important}
 `[RejectSymbolicLinks]` runs before existence checks. A symlink pointing to a real path still fails when symlink rejection is enabled.
@@ -92,6 +92,27 @@ public static Task<int> Lint(
 ```
 
 Failures produce stderr messages such as *file does not exist* or *path must not be a symbolic link* (exit code 2).
+
+### Collections of FileInfo / DirectoryInfo
+
+All five filesystem attributes also work on a collection of `FileInfo` / `DirectoryInfo` — `List<FileInfo>`, `FileInfo[]`, `DirectoryInfo[]`, etc. — including a variadic `[Argument]` collection (`FileInfo[]`/`params FileInfo[]`). Each attribute is applied **per item**, and every failing item is reported together in a single error, not just the first one encountered:
+
+```csharp
+public static void Ingest(
+    [Existing][FileExtensions(Extensions = "json,yaml")] List<FileInfo> configs) { … }
+
+public static void Archive(
+    [Argument][Existing][FileExtensions(Extensions = "zip")] FileInfo[] files) { … }
+```
+
+```
+$ myapp ingest --configs a.json --configs missing.txt --configs b.png
+Error: --configs: /path/missing.txt: file does not exist.
+Error: --configs: /path/b.png: extension must be one of: json, yaml.
+Run 'myapp ingest --help' for usage.
+```
+
+`[MinLength]` / `[MaxLength]` / `[Length]` on the same collection continue to validate item *count* (see [Collection validation](#collection-validation) above) and combine with the per-item filesystem checks.
 
 ## Schema integration
 

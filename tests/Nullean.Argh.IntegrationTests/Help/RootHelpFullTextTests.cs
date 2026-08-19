@@ -42,48 +42,57 @@ public class RootHelpFullTextTests
 			  support         Support commands
 
 			Commands:
-			  archive-variadic                      Archive files with count constraints.
+			  archive-files-variadic                        Variadic positional FileInfo
+			                                                array with [Existing] +
+			                                                [FileExtensions]; reports every
+			                                                failing item.
+			  archive-variadic                              Archive files with count
+			                                                constraints.
 			  as-params-collection-syntax
 			  as-params-optional-collection-syntax
 			  as-params-referenced-dto
 			  as-params-tag-set
 			  as-params-with-ct
-			  brace-doc                             Regression: braces in XML docs must not
-			                                        become C# interpolation in generated
-			                                        help.
-			  build                                 Integration-test default when no
-			                                        sub-command is given at the app root.
+			  brace-doc                                     Regression: braces in XML docs
+			                                                must not become C# interpolation
+			                                                in generated help.
+			  build                                         Integration-test default when no
+			                                                sub-command is given at the app
+			                                                root.
 			  color-set
-			  compile-variadic                      Compile sources: variadic positional
-			                                        with a flag after.
-			  copy-variadic                         Copy files using a variadic positional
-			                                        with an enum arg before it.
+			  compile-variadic                              Compile sources: variadic
+			                                                positional with a flag after.
+			  copy-variadic                                 Copy files using a variadic
+			                                                positional with an enum arg
+			                                                before it.
 			  count-cmd
 			  cross-assembly-echo
 			  deploy
 			  dir-cmd
-			  doc-lambda                            Documented handler for lambda-style Map
-			                                        (XML appears in help).
+			  doc-lambda                                    Documented handler for
+			                                                lambda-style Map (XML appears in
+			                                                help).
 			  dry-run-cmd
-			  enum-cmd                              Enum and short options.
-			  enum-value-cmd                        Enum with custom CLI value strings via
-			                                        EnumValueAttribute.
+			  enum-cmd                                      Enum and short options.
+			  enum-value-cmd                                Enum with custom CLI value
+			                                                strings via EnumValueAttribute.
 			  exit-code-cmd
 			  exit-code-lambda
-			  ext-ns-as-params-echo                 Echo verbose and tag from an
-			                                        [AsParameters] DTO in an unrelated
-			                                        external namespace.
+			  ext-ns-as-params-echo                         Echo verbose and tag from an
+			                                                [AsParameters] DTO in an
+			                                                unrelated external namespace.
 			  file-cmd
-			  hello                                 Greet someone by name.
+			  hello                                         Greet someone by name.
 			  lambda-cmd
-			  long-name-override                    Long name override: param is named
-			                                        'tags' but flag is --tag.
-			  mixed-variadic                        Mixed: scalar positional then flags then
-			                                        variadic positional (C# params must be
-			                                        last).
+			  long-name-override                            Long name override: param is
+			                                                named 'tags' but flag is --tag.
+			  mixed-variadic                                Mixed: scalar positional then
+			                                                flags then variadic positional
+			                                                (C# params must be last).
 			  multi-enum-as-params
-			  nin-hello                             Greet by name without a global-options
-			                                        handler parameter (-m still parses).
+			  nin-hello                                     Greet by name without a
+			                                                global-options handler parameter
+			                                                (-m still parses).
 			  nullable-numeric-as-params
 			  opt-tag-set
 			  optional-uri-as-params
@@ -94,21 +103,24 @@ public class RootHelpFullTextTests
 			  point-cmd
 			  prop-doc-as-params
 			  renamed-cmd
-			  schema-default-value                  Schema test: command with a default
-			                                        value on --level.
-			  schema-deprecated-param               A command with a deprecated parameter
-			                                        via [AsParameters].
-			  schema-deprecated-simple              A command that is deprecated without a
-			                                        message.
-			  schema-deprecated-with-message        A command that is deprecated with a
-			                                        migration message.
-			  schema-hidden-param                   Schema test: command with a hidden
-			                                        parameter.
-			  schema-intent-destructive             Deletes all resources permanently.
-			  schema-intent-read                    Lists resources safely.
-			  schema-output-formats                 Reports status in multiple formats.
-			  schema-separator-list                 Schema test: command with a
-			                                        separator-based collection on --ids.
+			  schema-default-value                          Schema test: command with a
+			                                                default value on --level.
+			  schema-deprecated-param                       A command with a deprecated
+			                                                parameter via [AsParameters].
+			  schema-deprecated-simple                      A command that is deprecated
+			                                                without a message.
+			  schema-deprecated-with-message                A command that is deprecated
+			                                                with a migration message.
+			  schema-hidden-param                           Schema test: command with a
+			                                                hidden parameter.
+			  schema-intent-destructive                     Deletes all resources
+			                                                permanently.
+			  schema-intent-read                            Lists resources safely.
+			  schema-output-formats                         Reports status in multiple
+			                                                formats.
+			  schema-separator-list                         Schema test: command with a
+			                                                separator-based collection on
+			                                                --ids.
 			  severity-cmd
 			  tag-set
 			  tag-set-parser
@@ -116,36 +128,60 @@ public class RootHelpFullTextTests
 			  tags
 			  temporal-cmd
 			  uri-cmd
-			  validate-allowed                      Validate allowed values on --env.
-			  validate-dto                          Validate DTO fields with range
-			                                        constraint.
-			  validate-email                        Validate email format on --address.
-			  validate-email-opt                    Optional nullable mailbox (email).
-			  validate-existing-directory           Require directory to exist.
-			  validate-existing-directory-opt       Optional directory: [Existing] skips
-			                                        when omitted.
-			  validate-existing-file                Require path to reference an existing
-			                                        file.
-			  validate-expand-home-file             Expand ~ profile prefix before binding
-			                                        FileInfo.
-			  validate-length                       Validate string length on --name.
-			  validate-no-symlink-file              Existing file that must not be a
-			                                        symbolic link.
-			  validate-no-symlink-file-opt          Optional file: [RejectSymbolicLinks]
-			                                        skips when omitted.
-			  validate-non-existing-file            Require path to reference a non-existing
-			                                        file path.
-			  validate-non-existing-file-opt        Optional file path: [NonExisting] skips
-			                                        when omitted.
-			  validate-non-nullable-range           Validate numeric range on non-nullable
-			                                        --page-per with default.
-			  validate-range                        Validate numeric range on --port.
-			  validate-regex                        Validate regex pattern on --slug.
-			  validate-timespan-range               Validate TimeSpan inclusive range.
-			  validate-uri-scheme                   Validate URI scheme restriction on
-			                                        --endpoint.
-			  validate-uri-scheme-opt               Optional nullable HTTPS endpoint.
-			  visible-cmd                           A command that is visible.
+			  validate-allowed                              Validate allowed values on
+			                                                --env.
+			  validate-dto                                  Validate DTO fields with range
+			                                                constraint.
+			  validate-email                                Validate email format on
+			                                                --address.
+			  validate-email-opt                            Optional nullable mailbox
+			                                                (email).
+			  validate-existing-directories                 Require every directory in a
+			                                                repeatable flag collection to
+			                                                exist.
+			  validate-existing-directory                   Require directory to exist.
+			  validate-existing-directory-opt               Optional directory: [Existing]
+			                                                skips when omitted.
+			  validate-existing-file                        Require path to reference an
+			                                                existing file.
+			  validate-existing-file-extensions-collection  Combine [Existing] and
+			                                                [FileExtensions] on a
+			                                                collection: every failing item
+			                                                is reported, not just the first.
+			  validate-existing-files                       Require every file in a
+			                                                repeatable flag collection to
+			                                                exist.
+			  validate-expand-home-file                     Expand ~ profile prefix before
+			                                                binding FileInfo.
+			  validate-file-extensions-collection           File extension constraint
+			                                                applied per-item to a FileInfo
+			                                                collection.
+			  validate-length                               Validate string length on
+			                                                --name.
+			  validate-no-symlink-file                      Existing file that must not be a
+			                                                symbolic link.
+			  validate-no-symlink-file-opt                  Optional file:
+			                                                [RejectSymbolicLinks] skips when
+			                                                omitted.
+			  validate-non-existing-file                    Require path to reference a
+			                                                non-existing file path.
+			  validate-non-existing-file-opt                Optional file path:
+			                                                [NonExisting] skips when
+			                                                omitted.
+			  validate-non-nullable-range                   Validate numeric range on
+			                                                non-nullable --page-per with
+			                                                default.
+			  validate-range                                Validate numeric range on
+			                                                --port.
+			  validate-regex                                Validate regex pattern on
+			                                                --slug.
+			  validate-timespan-range                       Validate TimeSpan inclusive
+			                                                range.
+			  validate-uri-scheme                           Validate URI scheme restriction
+			                                                on --endpoint.
+			  validate-uri-scheme-opt                       Optional nullable HTTPS
+			                                                endpoint.
+			  visible-cmd                                   A command that is visible.
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		TrimLines(text).Should().Be(TrimLines(expected));
 	}
