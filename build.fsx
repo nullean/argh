@@ -190,7 +190,7 @@ app.Bind <| function
             let ver = currentVersion.Value
             let assembliesDir id =
                 match id with
-                | "Nullean.Argh.Hosting" | "Nullean.Argh.Interfaces" ->
+                | "Nullean.Argh.Hosting" | "Nullean.Argh.Interfaces" | "Nullean.Argh.Core" ->
                     $".artifacts/bin/%s{id}/release_%s{MainTfm}"
                 | _ -> $".artifacts/bin/%s{id}/release"
 
