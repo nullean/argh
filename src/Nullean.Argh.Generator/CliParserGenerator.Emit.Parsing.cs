@@ -783,10 +783,6 @@ public sealed partial class CliParserGenerator
 
 			var cliName = p.CliLongName;
 			var varName = p.LocalVarName;
-			var isNullable = !p.IsRequired;
-			var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None
-				&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string"
-				&& p.TypeName.EndsWith("?", StringComparison.Ordinal);
 
 			// Build the run-hint line (baked in as a string literal)
 			string? runHint = null;
@@ -810,291 +806,358 @@ public sealed partial class CliParserGenerator
 
 				switch (constraint)
 				{
-					case RangeConstraint r:
-					{
-						var guard = isNullableValueType ? $"{varName}.HasValue && (" : "";
-						var closeGuard = isNullableValueType ? ")" : "";
-						var access = isNullableValueType ? $"{varName}.Value" : varName;
-						sb.AppendLine($"\t\t\tif ({guard}{access} < {r.MinLiteral} || {access} > {r.MaxLiteral}{closeGuard})");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(r.MinLiteral.Trim('"'))} and {Escape(r.MaxLiteral.Trim('"'))}.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-					case TimeSpanRangeConstraint tsr:
-					{
-						var tsMin = "__tsRangeMin_" + varName;
-						var tsMax = "__tsRangeMax_" + varName;
-						sb.AppendLine($"\t\t\tif (!global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MinLiteral}, out var {tsMin}) || !global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MaxLiteral}, out var {tsMax}))");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: invalid TimeSpanRange bounds.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						var guard = isNullableValueType ? $"{varName}.HasValue && (" : "";
-						var closeGuard = isNullableValueType ? ")" : "";
-						var access = isNullableValueType ? $"{varName}.Value" : varName;
-						sb.AppendLine($"\t\t\tif ({guard}{access} < {tsMin} || {access} > {tsMax}{closeGuard})");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(tsr.MinLiteral.Trim('"'))} and {Escape(tsr.MaxLiteral.Trim('"'))}.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-					case CollectionCountConstraint cc:
-					{
-						var lenExpr = p.CollectionTargetIsArray ? $"{varName}.Length" : $"{varName}.Count";
-						var nullGuard = !p.IsRequired && p.DeclaredNullableAnnotated ? $"{varName} != null && " : "";
-						string ccCond;
-						string ccMsg;
-						if (cc.Min.HasValue && cc.Max.HasValue)
-						{
-							ccCond = $"{nullGuard}({lenExpr} < {cc.Min} || {lenExpr} > {cc.Max})";
-							ccMsg = $"must have between {cc.Min} and {cc.Max} items.";
-						}
-						else if (cc.Min.HasValue)
-						{
-							ccCond = $"{nullGuard}{lenExpr} < {cc.Min}";
-							ccMsg = $"must have at least {cc.Min} items.";
-						}
-						else
-						{
-							ccCond = $"{nullGuard}{lenExpr} > {cc.Max}";
-							ccMsg = $"must have at most {cc.Max} items.";
-						}
-						var ccPrefix = p.Kind == ParameterKind.Positional ? $"<{Escape(cliName)}>" : $"--{Escape(cliName)}";
-						sb.AppendLine($"\t\t\tif ({ccCond})");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: {ccPrefix}: {Escape(ccMsg)}\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-					case StringLengthConstraint s:
-					{
-						// For required non-nullable strings: access with ! to avoid introducing a null-path
-						// in the condition (which would cause CS8604 at the handler call site).
-						// For optional strings: wrap with a null guard.
-						var sv = isNullable ? varName : varName + "!";
-						var nullPrefix = isNullable ? $"{varName} != null && " : "";
-						string cond;
-						string msg;
-						if (s.Min.HasValue && s.Max.HasValue)
-						{
-							cond = $"{nullPrefix}({sv}.Length < {s.Min} || {sv}.Length > {s.Max})";
-							msg = $"value must be between {s.Min} and {s.Max} characters.";
-						}
-						else if (s.Min.HasValue)
-						{
-							cond = $"{nullPrefix}{sv}.Length < {s.Min}";
-							msg = $"value must be at least {s.Min} characters.";
-						}
-						else
-						{
-							cond = $"{nullPrefix}{sv}.Length > {s.Max}";
-							msg = $"value must be at most {s.Max} characters.";
-						}
-						sb.AppendLine($"\t\t\tif ({cond})");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: {Escape(msg)}\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-					case RegexConstraint rx:
-					{
-						var rv = isNullable ? varName : varName + "!";
-						var cond = isNullable
-							? $"{varName} != null && !global::System.Text.RegularExpressions.Regex.IsMatch({rv}, @\"{EscapeVerbatimString(rx.Pattern)}\")"
-							: $"!global::System.Text.RegularExpressions.Regex.IsMatch({rv}, @\"{EscapeVerbatimString(rx.Pattern)}\")";
-						sb.AppendLine($"\t\t\tif ({cond})");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value does not match required pattern {Escape(rx.Pattern)}.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-					case AllowedValuesConstraint av:
-					{
-						var isStringType = p.TypeName == "string";
-						string cond;
-						if (isStringType)
-						{
-							var avv = isNullable ? varName : varName + "!";
-							var checks = av.Values
-								.Select(v => $"!string.Equals({avv}, {v}, global::System.StringComparison.Ordinal)")
-								.ToList();
-							var nullGuard = isNullable ? $"{varName} != null && " : "";
-							cond = $"{nullGuard}({string.Join(" && ", checks)})";
-						}
-						else
-						{
-							var checks = av.Values.Select(v => $"{varName} != {v}").ToList();
-							var nullGuard = isNullableValueType ? $"{varName}.HasValue && " : "";
-							var access = isNullableValueType ? $"{varName}.Value" : varName;
-							cond = $"{nullGuard}({string.Join(" && ", checks.Select(c => c.Replace(varName, access)))})";
-						}
-						var displayVals = string.Join(", ", av.Values.Select(v => v.Trim('"')));
-						sb.AppendLine($"\t\t\tif ({cond})");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be one of: {Escape(displayVals)}.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-					case DeniedValuesConstraint dv:
-					{
-						var isStringType = p.TypeName == "string";
-						string cond;
-						if (isStringType)
-						{
-							var dvv = isNullable ? varName : varName + "!";
-							var checks = dv.Values
-								.Select(v => $"string.Equals({dvv}, {v}, global::System.StringComparison.Ordinal)")
-								.ToList();
-							var nullGuard = isNullable ? $"{varName} != null && " : "";
-							cond = $"{nullGuard}({string.Join(" || ", checks)})";
-						}
-						else
-						{
-							var checks = dv.Values.Select(v => $"{varName} == {v}").ToList();
-							var nullGuard = isNullableValueType ? $"{varName}.HasValue && " : "";
-							var access = isNullableValueType ? $"{varName}.Value" : varName;
-							cond = $"{nullGuard}({string.Join(" || ", checks.Select(c => c.Replace(varName, access)))})";
-						}
-						var displayVals = string.Join(", ", dv.Values.Select(v => v.Trim('"')));
-						sb.AppendLine($"\t\t\tif ({cond})");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must not be: {Escape(displayVals)}.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-					case EmailConstraint:
-					{
-						// Simple email check: at least one char, @, at least one char (DataAnnotations-compatible)
-						var ev = isNullable ? varName : varName + "!";
-						var cond = isNullable
-							? $"{varName} != null && ({ev}.IndexOf('@') < 1 || {ev}.IndexOf('@') == {ev}.Length - 1)"
-							: $"({ev}.IndexOf('@') < 1 || {ev}.IndexOf('@') == {ev}.Length - 1)";
-						sb.AppendLine($"\t\t\tif ({cond})");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value is not a valid email address.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-					case UrlConstraint:
-					{
-						// Validates absolute URL with http, https, or ftp scheme
-						sb.AppendLine($"\t\t\tif ({(isNullable ? $"{varName} != null && " : "")}!");
-						sb.AppendLine($"\t\t\t\t(global::System.Uri.TryCreate({varName}, global::System.UriKind.Absolute, out var __urlCheck_{varName}) &&");
-						sb.AppendLine($"\t\t\t\t (__urlCheck_{varName}.Scheme == \"http\" || __urlCheck_{varName}.Scheme == \"https\" || __urlCheck_{varName}.Scheme == \"ftp\")))");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value is not a valid URL.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-					case UriSchemeConstraint us:
-					{
-						// varName is a Uri? or Uri instance (already parsed)
-						var access = isNullable ? $"{varName}!" : varName;
-						var schemeChecks = us.Schemes
-							.Select(s => $"{access}.Scheme == \"{Escape(s)}\"")
-							.ToList();
-						var nullGuard = isNullable ? $"{varName} != null && " : "";
-						var displaySchemes = string.Join(", ", us.Schemes);
-						sb.AppendLine($"\t\t\tif ({nullGuard}(!{access}.IsAbsoluteUri || !({string.Join(" || ", schemeChecks)})))");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: URI scheme must be one of: {Escape(displaySchemes)}.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-					case RejectSymbolicLinksConstraint:
-					{
-						var access = isNullable ? $"{varName}!" : varName;
-						var nullGuard = isNullable ? $"{varName} != null && " : "";
-						sb.AppendLine($"\t\t\tif ({nullGuard}global::Nullean.Argh.ArghIO.PathIsSymbolicOrReparsePoint({access}.FullName))");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path must not be a symbolic link or reparse point.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-					case ExistingPathConstraint:
-					{
-						var access = isNullable ? $"{varName}!" : varName;
-						var nullGuard = isNullable ? $"{varName} != null && " : "";
-						if (p.ScalarKind == CliScalarKind.FileInfo)
-						{
-							sb.AppendLine($"\t\t\tif ({nullGuard}!global::System.IO.File.Exists({access}.FullName))");
-							sb.AppendLine("\t\t\t{");
-							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: file does not exist.\");");
-							EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-							sb.AppendLine($"\t\t\t\t{failureExit};");
-							sb.AppendLine("\t\t\t}");
-						}
-						else
-						{
-							sb.AppendLine($"\t\t\tif ({nullGuard}!global::System.IO.Directory.Exists({access}.FullName))");
-							sb.AppendLine("\t\t\t{");
-							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: directory does not exist.\");");
-							EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-							sb.AppendLine($"\t\t\t\t{failureExit};");
-							sb.AppendLine("\t\t\t}");
-						}
-						break;
-					}
-					case NonExistingPathConstraint:
-					{
-						var access = isNullable ? $"{varName}!" : varName;
-						var nullGuard = isNullable ? $"{varName} != null && " : "";
-						sb.AppendLine($"\t\t\tif ({nullGuard}(global::System.IO.File.Exists({access}.FullName) || global::System.IO.Directory.Exists({access}.FullName)))");
-						sb.AppendLine("\t\t\t{");
-						if (p.ScalarKind == CliScalarKind.FileInfo)
-							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path already exists or is occupied by a directory.\");");
-						else
-							sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path already exists.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
-
-					case FileExtensionsConstraint fe:
-					{
-						// varName is a FileInfo? or FileInfo instance
-						var access = isNullable ? $"{varName}!" : varName;
-						var extChecks = fe.Extensions
-							.Select(ext => $"!string.Equals(global::System.IO.Path.GetExtension({access}.Name).TrimStart('.'), \"{Escape(ext)}\", global::System.StringComparison.OrdinalIgnoreCase)")
-							.ToList();
-						var nullGuard = isNullable ? $"{varName} != null && " : "";
-						var displayExts = string.Join(", ", fe.Extensions);
-						sb.AppendLine($"\t\t\tif ({nullGuard}({string.Join(" && ", extChecks)}))");
-						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: extension must be one of: {Escape(displayExts)}.\");");
-						EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
-						sb.AppendLine($"\t\t\t\t{failureExit};");
-						sb.AppendLine("\t\t\t}");
-						break;
-					}
+					case RangeConstraint r:                         EmitRangeConstraintCheck(sb, r, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case TimeSpanRangeConstraint tsr:               EmitTimeSpanRangeConstraintCheck(sb, tsr, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case CollectionCountConstraint cc:              EmitCollectionCountConstraintCheck(sb, cc, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case StringLengthConstraint s:                  EmitStringLengthConstraintCheck(sb, s, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case RegexConstraint rx:                        EmitRegexConstraintCheck(sb, rx, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case AllowedValuesConstraint av:                EmitAllowedValuesConstraintCheck(sb, av, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case DeniedValuesConstraint dv:                 EmitDeniedValuesConstraintCheck(sb, dv, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case EmailConstraint:                           EmitEmailConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case UrlConstraint:                             EmitUrlConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case UriSchemeConstraint us:                    EmitUriSchemeConstraintCheck(sb, us, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case RejectSymbolicLinksConstraint:             EmitRejectSymbolicLinksConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case ExistingPathConstraint:                    EmitExistingPathConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case NonExistingPathConstraint:                 EmitNonExistingPathConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case FileExtensionsConstraint fe:               EmitFileExtensionsConstraintCheck(sb, fe, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
 				}
 			}
 		}
+	}
+
+
+	private static void EmitRangeConstraintCheck(
+		StringBuilder sb, RangeConstraint r, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None
+			&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string"
+			&& p.TypeName.EndsWith("?", StringComparison.Ordinal);
+		var guard = isNullableValueType ? $"{varName}.HasValue && (" : "";
+		var closeGuard = isNullableValueType ? ")" : "";
+		var access = isNullableValueType ? $"{varName}.Value" : varName;
+		sb.AppendLine($"\t\t\tif ({guard}{access} < {r.MinLiteral} || {access} > {r.MaxLiteral}{closeGuard})");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(r.MinLiteral.Trim('"'))} and {Escape(r.MaxLiteral.Trim('"'))}.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitTimeSpanRangeConstraintCheck(
+		StringBuilder sb, TimeSpanRangeConstraint tsr, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None
+			&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string"
+			&& p.TypeName.EndsWith("?", StringComparison.Ordinal);
+		var tsMin = "__tsRangeMin_" + varName;
+		var tsMax = "__tsRangeMax_" + varName;
+		sb.AppendLine($"\t\t\tif (!global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MinLiteral}, out var {tsMin}) || !global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MaxLiteral}, out var {tsMax}))");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: invalid TimeSpanRange bounds.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+		var guard = isNullableValueType ? $"{varName}.HasValue && (" : "";
+		var closeGuard = isNullableValueType ? ")" : "";
+		var access = isNullableValueType ? $"{varName}.Value" : varName;
+		sb.AppendLine($"\t\t\tif ({guard}{access} < {tsMin} || {access} > {tsMax}{closeGuard})");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(tsr.MinLiteral.Trim('"'))} and {Escape(tsr.MaxLiteral.Trim('"'))}.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitCollectionCountConstraintCheck(
+		StringBuilder sb, CollectionCountConstraint cc, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var lenExpr = p.CollectionTargetIsArray ? $"{varName}.Length" : $"{varName}.Count";
+		var nullGuard = !p.IsRequired && p.DeclaredNullableAnnotated ? $"{varName} != null && " : "";
+		string ccCond;
+		string ccMsg;
+		if (cc.Min.HasValue && cc.Max.HasValue)
+		{
+			ccCond = $"{nullGuard}({lenExpr} < {cc.Min} || {lenExpr} > {cc.Max})";
+			ccMsg = $"must have between {cc.Min} and {cc.Max} items.";
+		}
+		else if (cc.Min.HasValue)
+		{
+			ccCond = $"{nullGuard}{lenExpr} < {cc.Min}";
+			ccMsg = $"must have at least {cc.Min} items.";
+		}
+		else
+		{
+			ccCond = $"{nullGuard}{lenExpr} > {cc.Max}";
+			ccMsg = $"must have at most {cc.Max} items.";
+		}
+		var ccPrefix = p.Kind == ParameterKind.Positional ? $"<{Escape(cliName)}>" : $"--{Escape(cliName)}";
+		sb.AppendLine($"\t\t\tif ({ccCond})");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: {ccPrefix}: {Escape(ccMsg)}\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitStringLengthConstraintCheck(
+		StringBuilder sb, StringLengthConstraint s, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		// For required non-nullable strings: access with ! to avoid introducing a null-path
+		// in the condition (which would cause CS8604 at the handler call site).
+		// For optional strings: wrap with a null guard.
+		var sv = isNullable ? varName : varName + "!";
+		var nullPrefix = isNullable ? $"{varName} != null && " : "";
+		string cond;
+		string msg;
+		if (s.Min.HasValue && s.Max.HasValue)
+		{
+			cond = $"{nullPrefix}({sv}.Length < {s.Min} || {sv}.Length > {s.Max})";
+			msg = $"value must be between {s.Min} and {s.Max} characters.";
+		}
+		else if (s.Min.HasValue)
+		{
+			cond = $"{nullPrefix}{sv}.Length < {s.Min}";
+			msg = $"value must be at least {s.Min} characters.";
+		}
+		else
+		{
+			cond = $"{nullPrefix}{sv}.Length > {s.Max}";
+			msg = $"value must be at most {s.Max} characters.";
+		}
+		sb.AppendLine($"\t\t\tif ({cond})");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: {Escape(msg)}\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitRegexConstraintCheck(
+		StringBuilder sb, RegexConstraint rx, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		var rv = isNullable ? varName : varName + "!";
+		var cond = isNullable
+			? $"{varName} != null && !global::System.Text.RegularExpressions.Regex.IsMatch({rv}, @\"{EscapeVerbatimString(rx.Pattern)}\")"
+			: $"!global::System.Text.RegularExpressions.Regex.IsMatch({rv}, @\"{EscapeVerbatimString(rx.Pattern)}\")";
+		sb.AppendLine($"\t\t\tif ({cond})");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value does not match required pattern {Escape(rx.Pattern)}.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitAllowedValuesConstraintCheck(
+		StringBuilder sb, AllowedValuesConstraint av, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None
+			&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string"
+			&& p.TypeName.EndsWith("?", StringComparison.Ordinal);
+		var isStringType = p.TypeName == "string";
+		string cond;
+		if (isStringType)
+		{
+			var avv = isNullable ? varName : varName + "!";
+			var checks = av.Values
+				.Select(v => $"!string.Equals({avv}, {v}, global::System.StringComparison.Ordinal)")
+				.ToList();
+			var nullGuard = isNullable ? $"{varName} != null && " : "";
+			cond = $"{nullGuard}({string.Join(" && ", checks)})";
+		}
+		else
+		{
+			var checks = av.Values.Select(v => $"{varName} != {v}").ToList();
+			var nullGuard = isNullableValueType ? $"{varName}.HasValue && " : "";
+			var access = isNullableValueType ? $"{varName}.Value" : varName;
+			cond = $"{nullGuard}({string.Join(" && ", checks.Select(c => c.Replace(varName, access)))})";
+		}
+		var displayVals = string.Join(", ", av.Values.Select(v => v.Trim('"')));
+		sb.AppendLine($"\t\t\tif ({cond})");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be one of: {Escape(displayVals)}.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitDeniedValuesConstraintCheck(
+		StringBuilder sb, DeniedValuesConstraint dv, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None
+			&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string"
+			&& p.TypeName.EndsWith("?", StringComparison.Ordinal);
+		var isStringType = p.TypeName == "string";
+		string cond;
+		if (isStringType)
+		{
+			var dvv = isNullable ? varName : varName + "!";
+			var checks = dv.Values
+				.Select(v => $"string.Equals({dvv}, {v}, global::System.StringComparison.Ordinal)")
+				.ToList();
+			var nullGuard = isNullable ? $"{varName} != null && " : "";
+			cond = $"{nullGuard}({string.Join(" || ", checks)})";
+		}
+		else
+		{
+			var checks = dv.Values.Select(v => $"{varName} == {v}").ToList();
+			var nullGuard = isNullableValueType ? $"{varName}.HasValue && " : "";
+			var access = isNullableValueType ? $"{varName}.Value" : varName;
+			cond = $"{nullGuard}({string.Join(" || ", checks.Select(c => c.Replace(varName, access)))})";
+		}
+		var displayVals = string.Join(", ", dv.Values.Select(v => v.Trim('"')));
+		sb.AppendLine($"\t\t\tif ({cond})");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must not be: {Escape(displayVals)}.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitEmailConstraintCheck(
+		StringBuilder sb, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		// Simple email check: at least one char, @, at least one char (DataAnnotations-compatible)
+		var ev = isNullable ? varName : varName + "!";
+		var cond = isNullable
+			? $"{varName} != null && ({ev}.IndexOf('@') < 1 || {ev}.IndexOf('@') == {ev}.Length - 1)"
+			: $"({ev}.IndexOf('@') < 1 || {ev}.IndexOf('@') == {ev}.Length - 1)";
+		sb.AppendLine($"\t\t\tif ({cond})");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value is not a valid email address.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitUrlConstraintCheck(
+		StringBuilder sb, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		// Validates absolute URL with http, https, or ftp scheme
+		sb.AppendLine($"\t\t\tif ({(isNullable ? $"{varName} != null && " : "")}!");
+		sb.AppendLine($"\t\t\t\t(global::System.Uri.TryCreate({varName}, global::System.UriKind.Absolute, out var __urlCheck_{varName}) &&");
+		sb.AppendLine($"\t\t\t\t (__urlCheck_{varName}.Scheme == \"http\" || __urlCheck_{varName}.Scheme == \"https\" || __urlCheck_{varName}.Scheme == \"ftp\")))");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value is not a valid URL.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitUriSchemeConstraintCheck(
+		StringBuilder sb, UriSchemeConstraint us, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		// varName is a Uri? or Uri instance (already parsed)
+		var access = isNullable ? $"{varName}!" : varName;
+		var schemeChecks = us.Schemes
+			.Select(s => $"{access}.Scheme == \"{Escape(s)}\"")
+			.ToList();
+		var nullGuard = isNullable ? $"{varName} != null && " : "";
+		var displaySchemes = string.Join(", ", us.Schemes);
+		sb.AppendLine($"\t\t\tif ({nullGuard}(!{access}.IsAbsoluteUri || !({string.Join(" || ", schemeChecks)})))");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: URI scheme must be one of: {Escape(displaySchemes)}.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitRejectSymbolicLinksConstraintCheck(
+		StringBuilder sb, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		var access = isNullable ? $"{varName}!" : varName;
+		var nullGuard = isNullable ? $"{varName} != null && " : "";
+		sb.AppendLine($"\t\t\tif ({nullGuard}global::Nullean.Argh.ArghIO.PathIsSymbolicOrReparsePoint({access}.FullName))");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path must not be a symbolic link or reparse point.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitExistingPathConstraintCheck(
+		StringBuilder sb, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		var access = isNullable ? $"{varName}!" : varName;
+		var nullGuard = isNullable ? $"{varName} != null && " : "";
+		if (p.ScalarKind == CliScalarKind.FileInfo)
+		{
+			sb.AppendLine($"\t\t\tif ({nullGuard}!global::System.IO.File.Exists({access}.FullName))");
+			sb.AppendLine("\t\t\t{");
+			sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: file does not exist.\");");
+			EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+			sb.AppendLine($"\t\t\t\t{failureExit};");
+			sb.AppendLine("\t\t\t}");
+		}
+		else
+		{
+			sb.AppendLine($"\t\t\tif ({nullGuard}!global::System.IO.Directory.Exists({access}.FullName))");
+			sb.AppendLine("\t\t\t{");
+			sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: directory does not exist.\");");
+			EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+			sb.AppendLine($"\t\t\t\t{failureExit};");
+			sb.AppendLine("\t\t\t}");
+		}
+	}
+
+	private static void EmitNonExistingPathConstraintCheck(
+		StringBuilder sb, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		var access = isNullable ? $"{varName}!" : varName;
+		var nullGuard = isNullable ? $"{varName} != null && " : "";
+		sb.AppendLine($"\t\t\tif ({nullGuard}(global::System.IO.File.Exists({access}.FullName) || global::System.IO.Directory.Exists({access}.FullName)))");
+		sb.AppendLine("\t\t\t{");
+		if (p.ScalarKind == CliScalarKind.FileInfo)
+			sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path already exists or is occupied by a directory.\");");
+		else
+			sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: path already exists.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
+	}
+
+	private static void EmitFileExtensionsConstraintCheck(
+		StringBuilder sb, FileExtensionsConstraint fe, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		var isNullable = !p.IsRequired;
+		// varName is a FileInfo? or FileInfo instance
+		var access = isNullable ? $"{varName}!" : varName;
+		var extChecks = fe.Extensions
+			.Select(ext => $"!string.Equals(global::System.IO.Path.GetExtension({access}.Name).TrimStart('.'), \"{Escape(ext)}\", global::System.StringComparison.OrdinalIgnoreCase)")
+			.ToList();
+		var nullGuard = isNullable ? $"{varName} != null && " : "";
+		var displayExts = string.Join(", ", fe.Extensions);
+		sb.AppendLine($"\t\t\tif ({nullGuard}({string.Join(" && ", extChecks)}))");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: extension must be one of: {Escape(displayExts)}.\");");
+		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t}");
 	}
 
 	private static bool IsCollectionFilesystemConstraint(ValidationConstraint c) =>
