@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.IO;
+using System.Linq;
 using Nullean.Argh;
 
 namespace Nullean.Argh.Tests.Fixtures;
@@ -91,6 +92,24 @@ internal static class ValidationCliHandlers
 	public static void ValidateNoSymlinkOptionalFile(TestGlobalCliOptions g, [Existing][RejectSymbolicLinks] FileInfo? file = null) =>
 		Console.Out.WriteLine($"file:{file?.FullName ?? "(null)"}");
 
+	// ── Filesystem path validations on collections (List<>/array of FileInfo/DirectoryInfo) ─────
+
+	/// <summary>Require every file in a repeatable flag collection to exist.</summary>
+	public static void ValidateExistingFiles(TestGlobalCliOptions g, [Existing] List<FileInfo> files) =>
+		Console.Out.WriteLine($"files:{string.Join(",", files.Select(f => f.FullName))}");
+
+	/// <summary>Require every directory in a repeatable flag collection to exist.</summary>
+	public static void ValidateExistingDirectories(TestGlobalCliOptions g, [Existing] DirectoryInfo[] dirs) =>
+		Console.Out.WriteLine($"dirs:{string.Join(",", dirs.Select(d => d.FullName))}");
+
+	/// <summary>File extension constraint applied per-item to a FileInfo collection.</summary>
+	public static void ValidateFileExtensionsCollection(TestGlobalCliOptions g, [FileExtensions(Extensions = "txt,json")] List<FileInfo> files) =>
+		Console.Out.WriteLine($"files:{string.Join(",", files.Select(f => f.Name))}");
+
+	/// <summary>Combine [Existing] and [FileExtensions] on a collection: every failing item is reported, not just the first.</summary>
+	public static void ValidateExistingFileExtensionsCollection(TestGlobalCliOptions g, [Existing][FileExtensions(Extensions = "txt")] List<FileInfo> files) =>
+		Console.Out.WriteLine($"files:{string.Join(",", files.Select(f => f.Name))}");
+
 	// ── Variadic positional tests ─────────────────────────────────────────────
 
 	/// <summary>Copy files using a variadic positional with an enum arg before it.</summary>
@@ -120,6 +139,12 @@ internal static class ValidationCliHandlers
 	[NoOptionsInjection]
 	public static void ArchiveVariadic([Argument][MinLength(2)][MaxLength(10)] string[] files) =>
 		Console.Out.WriteLine($"files:{string.Join(",", files)}");
+
+	/// <summary>Variadic positional FileInfo array with [Existing] + [FileExtensions]; reports every failing item.</summary>
+	/// <param name="files">Zip files to archive.</param>
+	[NoOptionsInjection]
+	public static void ArchiveFilesVariadic([Argument][Existing][FileExtensions(Extensions = "zip")] FileInfo[] files) =>
+		Console.Out.WriteLine($"files:{string.Join(",", files.Select(f => f.Name))}");
 
 	// ── Long name override tests ──────────────────────────────────────────────
 

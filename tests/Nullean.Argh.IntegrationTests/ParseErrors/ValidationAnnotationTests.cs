@@ -443,6 +443,135 @@ public class ValidationAnnotationTests
 		text.Should().Contain("[existing]");
 	}
 
+	// ── filesystem path validations on collections (List<>/array of FileInfo/DirectoryInfo) ─
+
+	[Fact]
+	public void ExistingFiles_all_present_succeeds()
+	{
+		var a = Path.GetTempFileName();
+		var b = Path.GetTempFileName();
+		try
+		{
+			var r = CliHostRunner.Run(NoColor, "validate-existing-files", "--files", a, "--files", b);
+			r.ExitCode.Should().Be(0);
+			ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("files:");
+		}
+		finally
+		{
+			try { File.Delete(a); } catch { }
+			try { File.Delete(b); } catch { }
+		}
+	}
+
+	[Fact]
+	public void ExistingFiles_multiple_missing_reports_every_failure_not_just_first()
+	{
+		var missing1 = Path.Combine(Path.GetTempPath(), "argh-missing-1-" + Guid.NewGuid());
+		var missing2 = Path.Combine(Path.GetTempPath(), "argh-missing-2-" + Guid.NewGuid());
+		var r = CliHostRunner.Run(NoColor, "validate-existing-files", "--files", missing1, "--files", missing2);
+		r.ExitCode.Should().Be(2);
+		var stderr = ConsoleOutput.Normalize(CliHostRunner.StderrText(r));
+		stderr.Should().Contain(missing1).And.Contain(missing2);
+		stderr.Should().Contain("file does not exist.");
+	}
+
+	[Fact]
+	public void ExistingDirectories_missing_one_of_two_reports_only_the_missing_one()
+	{
+		var okDir = Path.Combine(Path.GetTempPath(), "argh-okdir-" + Guid.NewGuid());
+		Directory.CreateDirectory(okDir);
+		var missingDir = Path.Combine(Path.GetTempPath(), "argh-missingdir-" + Guid.NewGuid());
+		try
+		{
+			var r = CliHostRunner.Run(NoColor, "validate-existing-directories", "--dirs", okDir, "--dirs", missingDir);
+			r.ExitCode.Should().Be(2);
+			var stderr = ConsoleOutput.Normalize(CliHostRunner.StderrText(r));
+			stderr.Should().Contain(missingDir);
+			stderr.Should().NotContain($"{okDir}: directory does not exist");
+		}
+		finally { try { Directory.Delete(okDir); } catch { } }
+	}
+
+	[Fact]
+	public void FileExtensionsCollection_all_matching_extension_succeeds()
+	{
+		var r = CliHostRunner.Run(NoColor, "validate-file-extensions-collection", "--files", "a.txt", "--files", "b.json");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("files:a.txt,b.json");
+	}
+
+	[Fact]
+	public void FileExtensionsCollection_wrong_extension_returns_exit_2()
+	{
+		var r = CliHostRunner.Run(NoColor, "validate-file-extensions-collection", "--files", "a.txt", "--files", "b.png");
+		r.ExitCode.Should().Be(2);
+		var stderr = ConsoleOutput.Normalize(CliHostRunner.StderrText(r));
+		stderr.Should().Contain("b.png").And.Contain("extension must be one of: txt, json.");
+	}
+
+	[Fact]
+	public void ExistingFileExtensionsCollection_reports_both_missing_and_wrong_extension_failures_together()
+	{
+		var okFile = Path.GetTempFileName();
+		try
+		{
+			var missing = Path.Combine(Path.GetTempPath(), "argh-missing-ext-" + Guid.NewGuid()) + ".png";
+			var r = CliHostRunner.Run(NoColor, "validate-existing-file-extensions-collection", "--files", okFile, "--files", missing);
+			r.ExitCode.Should().Be(2);
+			var stderr = ConsoleOutput.Normalize(CliHostRunner.StderrText(r));
+			stderr.Should().Contain($"{missing}: file does not exist.");
+			stderr.Should().Contain($"{missing}: extension must be one of: txt.");
+		}
+		finally { try { File.Delete(okFile); } catch { } }
+	}
+
+	[Fact]
+	public void ExistingFiles_help_lists_existing_annotation_for_collection()
+	{
+		var r = CliHostRunner.Run(NoColor, "validate-existing-files", "--help");
+		r.ExitCode.Should().Be(0);
+		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("[existing]");
+	}
+
+	// ── Variadic positional collections of FileInfo ──────────────────────────
+
+	[Fact]
+	public void VariadicFileCollection_existing_zip_files_succeeds()
+	{
+		var a = Path.Combine(Path.GetTempPath(), "argh-var-" + Guid.NewGuid() + ".zip");
+		var b = Path.Combine(Path.GetTempPath(), "argh-var-" + Guid.NewGuid() + ".zip");
+		File.WriteAllText(a, "");
+		File.WriteAllText(b, "");
+		try
+		{
+			var r = CliHostRunner.Run(NoColor, "archive-files-variadic", a, b);
+			r.ExitCode.Should().Be(0);
+			ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("files:");
+		}
+		finally
+		{
+			try { File.Delete(a); } catch { }
+			try { File.Delete(b); } catch { }
+		}
+	}
+
+	[Fact]
+	public void VariadicFileCollection_reports_missing_and_wrong_extension_together()
+	{
+		var wrongExt = Path.Combine(Path.GetTempPath(), "argh-var-" + Guid.NewGuid() + ".txt");
+		File.WriteAllText(wrongExt, "");
+		var missing = Path.Combine(Path.GetTempPath(), "argh-var-missing-" + Guid.NewGuid() + ".zip");
+		try
+		{
+			var r = CliHostRunner.Run(NoColor, "archive-files-variadic", wrongExt, missing);
+			r.ExitCode.Should().Be(2);
+			var stderr = ConsoleOutput.Normalize(CliHostRunner.StderrText(r));
+			stderr.Should().Contain($"{wrongExt}: extension must be one of: zip.");
+			stderr.Should().Contain($"{missing}: file does not exist.");
+		}
+		finally { try { File.Delete(wrongExt); } catch { } }
+	}
+
 	// ── Variadic positionals ──────────────────────────────────────────────────
 
 	[Fact]

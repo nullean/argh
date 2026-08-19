@@ -720,8 +720,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	/// For <c>Add&lt;T&gt;</c>, <see cref="TypeSnapshot"/> holds the full registry structure;
 	/// for <c>Add(name, handler)</c>, <see cref="Commands"/> holds the single command.
 	/// </summary>
-	private sealed record AIMapCommand(string FilePath, int SpanStart, ImmutableArray<CommandModel> Commands, RegistryNodeSnapshot? TypeSnapshot = null)
-		: AnalyzedInvocation(FilePath, SpanStart);
+	private sealed record AIMapCommand(
+		string FilePath,
+		int SpanStart,
+		ImmutableArray<CommandModel> Commands,
+		RegistryNodeSnapshot? TypeSnapshot = null,
+		/// <summary>
+		/// Diagnostics accumulated while expanding <see cref="TypeSnapshot"/> (e.g. AGH0007 duplicate CLI names,
+		/// AGH0032 filesystem attribute misuse) — empty for the <c>Map(name, handler)</c> overload, which reports
+		/// directly via its own <see cref="DiagnosticAccumulator"/> plumbing.
+		/// </summary>
+		ImmutableArray<PendingDiagnostic> EmbeddedDiagnostics = default)
+		: AnalyzedInvocation(FilePath, SpanStart)
+	{
+		public ImmutableArray<PendingDiagnostic> EmbeddedDiagnosticsOrEmpty =>
+			EmbeddedDiagnostics.IsDefault ? ImmutableArray<PendingDiagnostic>.Empty : EmbeddedDiagnostics;
+	}
 
 	/// <summary>An <c>AddRootCommand(handler)</c> or <c>AddNamespaceRootCommand(handler)</c> invocation.</summary>
 	private sealed record AIMapRootCommand(string FilePath, int SpanStart, CommandModel Cmd, bool IsNamespaceRoot)
@@ -899,7 +913,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var wrapper = new RegistryNode();
 				ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, mergeOuterTypeSegment: true, wrapper, parseOpts, semanticModel.Compilation);
 				var snap = BuildRegistryNodeSnapshot(wrapper);
-				return new AIMapCommand(filePath, spanStart, ImmutableArray<CommandModel>.Empty, TypeSnapshot: snap);
+				return new AIMapCommand(filePath, spanStart, ImmutableArray<CommandModel>.Empty, TypeSnapshot: snap, EmbeddedDiagnostics: acc.ToImmutable());
 			}
 			case "MapAndRootAlias" when method.IsGenericMethod && method.TypeArguments.Length > 0:
 			{
@@ -929,7 +943,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				if (handler is null) return null;
 				var acc2 = new DiagnosticAccumulator();
 				var cmd = CommandModel.FromMethod(commandName, handler, parseOpts, ImmutableArray<string>.Empty, acc2, invocation.GetLocation(), semanticModel.Compilation);
-				return new AIMapCommand(filePath, spanStart, ImmutableArray.Create(cmd));
+				return new AIMapCommand(filePath, spanStart, ImmutableArray.Create(cmd), EmbeddedDiagnostics: acc2.ToImmutable());
 			}
 			case "UseCliDescription":
 			{
@@ -1352,8 +1366,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 						Location.None,
 						"T"));
 					break;
-				case AIMapCommand { TypeSnapshot: { } typeSnap }:
+				case AIMapCommand { TypeSnapshot: { } typeSnap } mapCmd:
 				{
+					foreach (var pd in mapCmd.EmbeddedDiagnosticsOrEmpty)
+						context.ReportDiagnostic(Diagnostic.Create(GetDescriptorById(pd.DescriptorId), pd.Span.ToLocation(), pd.Arg0, pd.Arg1));
 					// Map<T> always hoists: merge the snapshot's commands directly into the current node.
 					if (typeSnap.RootCommand is { } snapRc && node.RootCommand is not null)
 						context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, snapRc.HandlerSpanInfo.ToLocation()));
@@ -1373,6 +1389,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					break;
 				}
 				case AIMapCommand ac:
+					foreach (var pd in ac.EmbeddedDiagnosticsOrEmpty)
+						context.ReportDiagnostic(Diagnostic.Create(GetDescriptorById(pd.DescriptorId), pd.Span.ToLocation(), pd.Arg0, pd.Arg1));
 					foreach (var cmd in ac.Commands)
 					{
 						// Re-prefix with the current path (commands were analyzed with empty prefix).
@@ -6311,8 +6329,16 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				runHint = $"Run '{Escape(entryAssemblyName)} {Escape(route)}{Escape(cmd.CommandName)} --help' for usage.";
 			}
 
+			if (p.IsCollection)
+				EmitCollectionFilesystemValidation(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+
 			foreach (var constraint in p.Validations)
 			{
+				// Filesystem-path-family constraints on collections are handled per-element above
+				// (varName is the whole list/array, not a single FileInfo/DirectoryInfo instance).
+				if (p.IsCollection && IsCollectionFilesystemConstraint(constraint))
+					continue;
+
 				switch (constraint)
 				{
 					case RangeConstraint r:
@@ -6600,6 +6626,101 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				}
 			}
 		}
+	}
+
+	private static bool IsCollectionFilesystemConstraint(ValidationConstraint c) =>
+		c is ExistingPathConstraint or NonExistingPathConstraint or RejectSymbolicLinksConstraint or FileExtensionsConstraint;
+
+	/// <summary>
+	/// Collection-aware emission for the filesystem-path attribute family (<c>[Existing]</c>, <c>[NonExisting]</c>,
+	/// <c>[RejectSymbolicLinks]</c>, <c>[FileExtensions]</c>) applied to a <c>List&lt;FileInfo&gt;</c>,
+	/// <c>FileInfo[]</c>, <c>DirectoryInfo[]</c>, etc. — including variadic <c>[Argument]</c> collections.
+	/// Unlike the scalar constraint switch above (which exits on the first violation), this loops over every
+	/// element and collects every failing item before printing one error block and exiting once, so a user
+	/// passing e.g. five files with two missing sees both, not just the first.
+	/// </summary>
+	private static void EmitCollectionFilesystemValidation(
+		StringBuilder sb, ParameterModel p, string cliName, string varName,
+		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+	{
+		if (p.Validations.IsDefaultOrEmpty)
+			return;
+		var fsConstraints = p.Validations.Where(IsCollectionFilesystemConstraint).ToList();
+		if (fsConstraints.Count == 0)
+			return;
+
+		var isDir = p.ElementScalarKind == CliScalarKind.DirectoryInfo;
+		var failuresVar = "__fsFailures_" + p.LocalVarName;
+		var itemVar = "__fsItem_" + p.LocalVarName;
+		var msgVar = "__fsMsg_" + p.LocalVarName;
+		var argToken = p.Kind == ParameterKind.Positional ? $"<{Escape(cliName)}>" : $"--{Escape(cliName)}";
+		var nullGuard = !p.IsRequired && p.DeclaredNullableAnnotated;
+		const string outerIndent = "\t\t\t";
+		var loopIndent = nullGuard ? outerIndent + "\t" : outerIndent;
+		var bodyIndent = loopIndent + "\t";
+
+		sb.AppendLine($"{outerIndent}var {failuresVar} = new List<string>();");
+		if (nullGuard)
+		{
+			sb.AppendLine($"{outerIndent}if ({varName} != null)");
+			sb.AppendLine($"{outerIndent}{{");
+		}
+
+		sb.AppendLine($"{loopIndent}foreach (var {itemVar} in {varName})");
+		sb.AppendLine($"{loopIndent}{{");
+
+		foreach (var c in fsConstraints)
+		{
+			switch (c)
+			{
+				case RejectSymbolicLinksConstraint:
+					// Runs before existence/extension checks; a rejected symlink skips further checks for that item.
+					sb.AppendLine($"{bodyIndent}if (global::Nullean.Argh.ArghIO.PathIsSymbolicOrReparsePoint({itemVar}.FullName))");
+					sb.AppendLine($"{bodyIndent}{{");
+					sb.AppendLine($"{bodyIndent}\t{failuresVar}.Add({itemVar}.FullName + \": path must not be a symbolic link or reparse point.\");");
+					sb.AppendLine($"{bodyIndent}\tcontinue;");
+					sb.AppendLine($"{bodyIndent}}}");
+					break;
+				case ExistingPathConstraint:
+					if (isDir)
+					{
+						sb.AppendLine($"{bodyIndent}if (!global::System.IO.Directory.Exists({itemVar}.FullName))");
+						sb.AppendLine($"{bodyIndent}\t{failuresVar}.Add({itemVar}.FullName + \": directory does not exist.\");");
+					}
+					else
+					{
+						sb.AppendLine($"{bodyIndent}if (!global::System.IO.File.Exists({itemVar}.FullName))");
+						sb.AppendLine($"{bodyIndent}\t{failuresVar}.Add({itemVar}.FullName + \": file does not exist.\");");
+					}
+					break;
+				case NonExistingPathConstraint:
+					sb.AppendLine($"{bodyIndent}if (global::System.IO.File.Exists({itemVar}.FullName) || global::System.IO.Directory.Exists({itemVar}.FullName))");
+					sb.AppendLine($"{bodyIndent}\t{failuresVar}.Add({itemVar}.FullName + \": path already exists.\");");
+					break;
+				case FileExtensionsConstraint fe:
+				{
+					var extChecks = fe.Extensions
+						.Select(ext => $"!string.Equals(global::System.IO.Path.GetExtension({itemVar}.Name).TrimStart('.'), \"{Escape(ext)}\", global::System.StringComparison.OrdinalIgnoreCase)")
+						.ToList();
+					var displayExts = string.Join(", ", fe.Extensions);
+					sb.AppendLine($"{bodyIndent}if ({string.Join(" && ", extChecks)})");
+					sb.AppendLine($"{bodyIndent}\t{failuresVar}.Add({itemVar}.FullName + \": extension must be one of: {Escape(displayExts)}.\");");
+					break;
+				}
+			}
+		}
+
+		sb.AppendLine($"{loopIndent}}}");
+		if (nullGuard)
+			sb.AppendLine($"{outerIndent}}}");
+
+		sb.AppendLine($"{outerIndent}if ({failuresVar}.Count > 0)");
+		sb.AppendLine($"{outerIndent}{{");
+		sb.AppendLine($"{outerIndent}\tforeach (var {msgVar} in {failuresVar})");
+		sb.AppendLine($"{outerIndent}\t\tConsole.Error.WriteLine(\"Error: {argToken}: \" + {msgVar});");
+		EmitValidationErrorFooter(sb, p, cliName, outerIndent + "\t", flagHelpStdErrMethodName, runHint);
+		sb.AppendLine($"{outerIndent}\t{failureExit};");
+		sb.AppendLine($"{outerIndent}}}");
 	}
 
 	private static string EscapeVerbatimString(string s) => s.Replace("\"", "\"\"");
@@ -8358,15 +8479,22 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	}
 
 
+	/// <summary>
+	/// Diagnoses misuse of the filesystem-path attribute family. <paramref name="filesystemScalarKind"/> lets
+	/// collection call sites pass the *element* kind (e.g. <c>FileInfo</c> for <c>List&lt;FileInfo&gt;</c>) so these
+	/// attributes are correctly recognized on collections of FileInfo/DirectoryInfo, not just scalars.
+	/// </summary>
 	private static void ReportFilesystemPathAttributeIssues(
 		ISymbol host,
 		CliScalarKind scalarKind,
 		string declaredName,
 		DiagnosticAccumulator? acc,
 		SourceProductionContext? ctx,
-		Location? fallbackLocation)
+		Location? fallbackLocation,
+		CliScalarKind? filesystemScalarKind = null)
 	{
 		Location loc = host.Locations.FirstOrDefault() ?? fallbackLocation ?? Location.None;
+		var fsKind = filesystemScalarKind ?? scalarKind;
 
 		static void ReportFilesystemDiag(DiagnosticAccumulator? a, SourceProductionContext? c, DiagnosticDescriptor d, Location location,
 			string arg0)
@@ -8390,6 +8518,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 		var hasNonExisting = false;
 		var hasExpandProfile = false;
 		var hasRejectSymlinks = false;
+		var hasFileExtensions = false;
 
 		foreach (var attr in host.GetAttributes())
 		{
@@ -8408,31 +8537,38 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				case "global::Nullean.Argh.RejectSymbolicLinksAttribute":
 					hasRejectSymlinks = true;
 					break;
+				case "global::System.ComponentModel.DataAnnotations.FileExtensionsAttribute":
+					hasFileExtensions = true;
+					break;
 			}
 		}
 
 		if (hasExisting && hasNonExisting)
 			ReportFilesystemDiag(acc, ctx, PathExistenceAttributesConflict, loc, declaredName);
 
-		var isFileInfo = scalarKind == CliScalarKind.FileInfo;
-		var isDirInfo = scalarKind == CliScalarKind.DirectoryInfo;
+		var isFileInfo = fsKind == CliScalarKind.FileInfo;
+		var isDirInfo = fsKind == CliScalarKind.DirectoryInfo;
 		var isFileOrDir = isFileInfo || isDirInfo;
 
 		if (hasExisting && !isFileOrDir)
 			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
-				"[Existing] only applies to FileInfo, FileInfo?, DirectoryInfo, or DirectoryInfo? parameters and properties.");
+				"[Existing] only applies to FileInfo, FileInfo?, DirectoryInfo, DirectoryInfo?, or a collection of FileInfo/DirectoryInfo parameters and properties.");
 
 		if (hasNonExisting && !isFileOrDir)
 			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
-				"[NonExisting] only applies to FileInfo, FileInfo?, DirectoryInfo, or DirectoryInfo? parameters and properties.");
+				"[NonExisting] only applies to FileInfo, FileInfo?, DirectoryInfo, DirectoryInfo?, or a collection of FileInfo/DirectoryInfo parameters and properties.");
 
 		if (hasExpandProfile && !isFileOrDir)
 			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
-				"[ExpandUserProfile] only applies to FileInfo or DirectoryInfo parameters and properties.");
+				"[ExpandUserProfile] only applies to FileInfo, DirectoryInfo, or a collection of FileInfo/DirectoryInfo parameters and properties.");
 
 		if (hasRejectSymlinks && !isFileOrDir)
 			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
-				"[RejectSymbolicLinks] only applies to FileInfo or DirectoryInfo parameters and properties.");
+				"[RejectSymbolicLinks] only applies to FileInfo, DirectoryInfo, or a collection of FileInfo/DirectoryInfo parameters and properties.");
+
+		if (hasFileExtensions && !isFileInfo)
+			ReportFilesystemDiagTwo(acc, ctx, FilesystemPathAttributeTypeMismatch, loc, declaredName,
+				"[FileExtensions] only applies to FileInfo, FileInfo?, or a collection of FileInfo parameters and properties.");
 	}
 
 	private static bool TryReadExpandUserProfileBeforeBind(ISymbol host, CliScalarKind scalarKind)
@@ -8450,9 +8586,20 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 	}
 
 
+	/// <summary>
+	/// Reads DataAnnotations/Argh validation attributes off <paramref name="attributeHost"/>.
+	/// </summary>
+	/// <param name="filesystemScalarKind">
+	/// Kind used to gate the filesystem-path family ([Existing], [NonExisting], [RejectSymbolicLinks], [FileExtensions]).
+	/// For scalar parameters this equals <paramref name="scalarKind"/> (the default when null). For collection
+	/// parameters (<c>List&lt;FileInfo&gt;</c>, <c>DirectoryInfo[]</c>, ...) callers pass the *element* kind here so
+	/// these attributes are recognized per-item while <paramref name="scalarKind"/> stays <see cref="CliScalarKind.Collection"/>
+	/// for the other (non filesystem-family) constraint decisions such as [Url] vs Uri-scheme.
+	/// </param>
 	private static ImmutableArray<ValidationConstraint> ReadValidationConstraints(ISymbol attributeHost, CliScalarKind scalarKind,
-		string primitiveTypeName, bool isCollection = false)
+		string primitiveTypeName, bool isCollection = false, CliScalarKind? filesystemScalarKind = null)
 	{
+		var fsKind = filesystemScalarKind ?? scalarKind;
 		var builder = ImmutableArray.CreateBuilder<ValidationConstraint>();
 		foreach (var attr in attributeHost.GetAttributes())
 		{
@@ -8539,6 +8686,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					break;
 				case "global::System.ComponentModel.DataAnnotations.FileExtensionsAttribute":
 				{
+					if (fsKind != CliScalarKind.FileInfo)
+						break;
 					string? extsStr = null;
 					foreach (var n in attr.NamedArguments)
 						if (n.Key == "Extensions") extsStr = n.Value.Value as string;
@@ -8557,15 +8706,15 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 					}
 					break;
 				case "global::Nullean.Argh.ExistingAttribute":
-					if (scalarKind is CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo)
+					if (fsKind is CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo)
 						builder.Add(new ExistingPathConstraint());
 					break;
 				case "global::Nullean.Argh.NonExistingAttribute":
-					if (scalarKind is CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo)
+					if (fsKind is CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo)
 						builder.Add(new NonExistingPathConstraint());
 					break;
 				case "global::Nullean.Argh.RejectSymbolicLinksAttribute":
-					if (scalarKind is CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo)
+					if (fsKind is CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo)
 						builder.Add(new RejectSymbolicLinksConstraint());
 					break;
 			}
@@ -9941,12 +10090,18 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			AsParametersMeta? asParams,
 			char? flagShortOpt = null,
 			ImmutableArray<string> synopsisAliasesFromSummary = default,
-			bool isVariadic = false)
+			bool isVariadic = false,
+			SourceProductionContext? reportCtx = null,
+			DiagnosticAccumulator? reportAcc = null,
+			Location? reportFallbackLocation = null)
 		{
 			ClassifyScalarForType(elementType, attributeHost, BoolSpecialKind.None,
 				out var elemSk, out var elemTn, out var eFq, out var eMem, out var pFq, out var cFq);
 			var eCliMem = elemSk == CliScalarKind.Enum ? TryGetEnumCliNames(elementType) : default;
 			var elemEnumDocs = elemSk == CliScalarKind.Enum ? TryGetEnumDocs(elementType) : null;
+			if (reportCtx is not null || reportAcc is not null)
+				ReportFilesystemPathAttributeIssues(attributeHost, CliScalarKind.Collection, symbolName, reportAcc, reportCtx,
+					reportFallbackLocation, filesystemScalarKind: elemSk);
 			var sep = TryGetCollectionSeparatorFromAttribute(attributeHost);
 			var required = isSeparateType
 				? ComputeRequiredForOptionsType(collectionType, BoolSpecialKind.None)
@@ -9958,7 +10113,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				: synopsisAliasesFromSummary;
 			var fq = collectionType.ToDisplayString(FullyQualifiedFormatWithNullableRefAnnotations);
 			var declaredNullableAnnotated = collectionType.NullableAnnotation == NullableAnnotation.Annotated;
-			var collValidations = ReadValidationConstraints(attributeHost, CliScalarKind.Collection, "values", isCollection: true);
+			var collValidations = ReadValidationConstraints(attributeHost, CliScalarKind.Collection, "values", isCollection: true,
+				filesystemScalarKind: elemSk);
+			var expandProfileElem = TryReadExpandUserProfileBeforeBind(attributeHost, elemSk);
 			// Variadic positionals always allow zero items by C# params convention.
 			// Minimum count enforcement is handled via CollectionCountConstraint ([MinLength]).
 			if (isVariadic) required = false;
@@ -10001,6 +10158,7 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				AsParametersTypeFq: asParams?.TypeFq,
 				AsParametersUseInit: asParams?.UseInit ?? false,
 				AsParametersClrName: asParams?.ClrName,
+				ExpandUserProfileBeforeBind: expandProfileElem,
 				Validations: collValidations,
 				IsHidden: HasHiddenAttribute(attributeHost),
 				IsVariadic: isVariadic,
@@ -10047,7 +10205,8 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var defLitColl = TryGetDefaultLiteral(p, BoolSpecialKind.None);
 				return BuildCollectionParameterModel(p.Type, elemType, p, kind,
 					Naming.ToCliLongName(p.Name), SafeLocalName(p.Name), p.Name,
-					isSeparateType: false, defLitColl, "", asParams: null, isVariadic: isVariadic);
+					isSeparateType: false, defLitColl, "", asParams: null, isVariadic: isVariadic,
+					reportCtx: reportCtx, reportAcc: reportAcc, reportFallbackLocation: reportFallbackLocation);
 			}
 
 			ClassifyScalarUnified(p.Type, p, bs, isSeparateType: false,
@@ -10272,7 +10431,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var isVariadicCp = isArg && cp.Type is IArrayTypeSymbol;
 				var defLitColl = TryGetDefaultLiteral(cp, BoolSpecialKind.None);
 				return BuildCollectionParameterModel(cp.Type, elemType, cp, kind, cli, local, cp.Name,
-					isSeparateType: false, defLitColl, desc, meta, isVariadic: isVariadicCp);
+					isSeparateType: false, defLitColl, desc, meta, isVariadic: isVariadicCp,
+					reportCtx: reportCtx, reportAcc: reportAcc,
+					reportFallbackLocation: cp.Locations.FirstOrDefault() ?? reportFallbackLocation);
 			}
 
 			ClassifyScalarUnified(cp.Type, cp, bs, isSeparateType: false,
@@ -10376,7 +10537,9 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 				var isVariadicProp = isArg && prop.Type is IArrayTypeSymbol;
 				return BuildCollectionParameterModel(prop.Type, elemType, prop, kind, cli, local, prop.Name,
 					isSeparateType: true, defaultLiteral: null, doc.Description, meta,
-					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases, isVariadic: isVariadicProp);
+					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases, isVariadic: isVariadicProp,
+					reportCtx: reportCtx, reportAcc: reportAcc,
+					reportFallbackLocation: prop.Locations.FirstOrDefault() ?? reportFallbackLocation);
 			}
 
 			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
