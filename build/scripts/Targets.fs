@@ -163,6 +163,11 @@ let private validateSchema (arguments:ParseResults<Arguments>) =
     finally
         if File.Exists tempPath then File.Delete tempPath
 
+let private docs (arguments:ParseResults<Arguments>) =
+    Documentation.build ()
+    let port = 8080
+    Documentation.serve port
+
 let private release (arguments:ParseResults<Arguments>) = printfn "release"
 
 let private publish (arguments:ParseResults<Arguments>) = printfn "publish"
@@ -185,6 +190,7 @@ let Setup (parsed:ParseResults<Arguments>) (subCommand:Arguments) =
 
     step UpdateSchema.Name updateSchema
     step ValidateSchema.Name validateSchema
+    step Docs.Name docs
 
     cmd Test.Name (Some [Build.Name;]) None <| fun _ -> test parsed
 

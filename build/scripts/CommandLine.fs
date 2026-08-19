@@ -16,6 +16,8 @@ type Arguments =
     | [<CliPrefix(CliPrefix.None);SubCommand>] UpdateSchema
     | [<CliPrefix(CliPrefix.None);SubCommand>] ValidateSchema
 
+    | [<CliPrefix(CliPrefix.None);SubCommand>] Docs
+
     | [<CliPrefix(CliPrefix.None);SubCommand>] Release
 
     | [<CliPrefix(CliPrefix.None);Hidden;SubCommand>] CreateReleaseOnGithub
@@ -40,6 +42,7 @@ with
 
             | UpdateSchema -> "Run the schema export tool and write schema/argh-cli-schema.json"
             | ValidateSchema -> "Fail if schema/argh-cli-schema.json is out of date"
+            | Docs -> "Build the documentation site and serve it locally"
 
             | PristineCheck
             | GeneratePackages

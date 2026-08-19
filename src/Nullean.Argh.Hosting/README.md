@@ -1,3 +1,5 @@
+<p align="center"><img src="https://cdn.jsdelivr.net/gh/nullean/argh@main/docs/images/png/argh-lockup-348x192.png" alt="--argh_" width="174" height="96"/></p>
+
 # Nullean.Argh.Hosting
 
 [![NuGet](https://img.shields.io/nuget/v/Nullean.Argh.Hosting.svg)](https://www.nuget.org/packages/Nullean.Argh.Hosting)

@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Nullean.Argh — source-generated .NET CLIs</title>
+<meta name="description" content="Build full-featured .NET CLIs without writing a parser. Methods become commands, XML docs become help text. Source-generated, AOT-safe, no reflection."/>
+<base href="/"/>
+
+<link rel="icon" type="image/svg+xml" href="images/argh-mark.svg"/>
+<link rel="icon" type="image/png" sizes="32x32" href="images/png/argh-mark-32.png"/>
+<link rel="icon" type="image/png" sizes="16x16" href="images/png/argh-mark-16.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="images/png/argh-mark-180.png"/>
+<meta name="theme-color" content="#08090B"/>
+
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #08090B;
+    --bg2:       #0D1013;
+    --bg3:       #1B2126;
+    --lime:      #B8FF3D;
+    --lime-hi:   #CCFF72;
+    --lime-dim:  #263A0A;
+    --blue:      #4A8CFF;
+    --blue-hi:   #6BA3FF;
+    --blue-dim:  #0D1F3D;
+    --text:      #E9ECF1;
+    --muted:     #98A1AE;
+    --dim:       #5A6472;
+    --line:      rgba(184,255,61,0.10);
+    --line-soft: rgba(184,255,61,0.055);
+    --mono:      'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --display:   'Space Grotesk', system-ui, sans-serif;
+    --maxw:      1240px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── mesh background via pseudo-elements, same technique as nullean.net ─── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(at 8% 18%,  rgba(184,255,61,0.20)  0px, transparent 55%),
+      radial-gradient(at 92% 6%,  rgba(74,140,255,0.28)  0px, transparent 50%),
+      radial-gradient(at 60% 78%, rgba(74,140,255,0.22)  0px, transparent 55%),
+      radial-gradient(at 22% 88%, rgba(184,255,61,0.08)  0px, transparent 50%),
+      radial-gradient(at 80% 48%, rgba(107,163,255,0.16) 0px, transparent 50%),
+      radial-gradient(at 45% 42%, rgba(184,255,61,0.05)  0px, transparent 45%);
+  }
+
+  nav, section, footer { position: relative; z-index: 1; }
+
+  .inner { max-width: var(--maxw); margin: 0 auto; padding: 0 2.5rem; }
+
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; border-radius: 2px; }
+  code { font-family: var(--mono); }
+
+  /* ─────────────────────────  ANIMATED LOCKUP CSS  ───────────────────────── */
+  @keyframes ar-sheen-slide {
+    0%   { transform: skewX(-18deg) translateX(0); }
+    100% { transform: skewX(-18deg) translateX(312px); }
+  }
+  @keyframes ar-in-reveal {
+    0%   { opacity: 0; transform: translateX(-6px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes ar-cur-appear {
+    0%, 79%  { opacity: 0; }
+    80%, 100% { opacity: 1; }
+  }
+  @keyframes ar-blink-anim {
+    0%, 49%  { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+
+  .ar-sheen {
+    animation: ar-sheen-slide 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation-delay: 0.4s;
+  }
+  .ar-in {
+    animation: ar-in-reveal 0.35s ease-out both;
+    animation-delay: 0.15s;
+  }
+  .ar-cur-in {
+    animation: ar-cur-appear 1.2s ease both;
+  }
+  .ar-blink {
+    animation: ar-blink-anim 1.1s step-end infinite;
+    animation-delay: 1.4s;
+  }
+
+  /* ─────────────────────────  NAV  ───────────────────────── */
+  nav { border-bottom: 1px solid var(--line-soft); }
+  nav .inner {
+    display: flex; align-items: center; gap: 2rem;
+    padding-top: 1.1rem; padding-bottom: 1.1rem;
+  }
+  .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; margin-right: auto; }
+  .nav-logo img { width: 30px; height: 30px; display: block; }
+  .nav-wordmark { font-size: 1rem; font-weight: 700; letter-spacing: -0.03em; color: var(--text); }
+  .nav-wordmark em { font-style: normal; color: var(--lime); }
+  .nav-links { display: flex; gap: 2rem; list-style: none; }
+  .nav-links a { font-size: 0.8rem; color: var(--muted); text-decoration: none; transition: color .18s; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta {
+    font-size: 0.78rem; font-weight: 700; color: var(--lime);
+    border: 1px solid var(--lime-dim); padding: 0.45rem 1rem; border-radius: 4px;
+    text-decoration: none; white-space: nowrap;
+    transition: background .18s, color .18s, border-color .18s;
+  }
+  .nav-cta:hover { background: var(--lime); border-color: var(--lime); color: var(--bg); }
+
+  /* ─────────────────────────  HERO  ───────────────────────── */
+  .hero .inner {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3.5rem;
+    align-items: center; padding-top: 4.5rem; padding-bottom: 5.5rem;
+  }
+
+  /* nav animated lockup */
+  .nav-lockup { display: block; width: 87px; height: 48px; }
+
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 0.65rem; letter-spacing: 0.10em; text-transform: uppercase;
+    color: var(--lime); border: 1px solid var(--lime-dim);
+    background: rgba(184,255,61,0.04);
+    padding: 0.28rem 0.75rem; border-radius: 2px; white-space: nowrap;
+  }
+  .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--lime); animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+
+  h1 {
+    font-family: var(--display); font-weight: 700;
+    font-size: clamp(2.4rem, 4.2vw, 4rem); line-height: 1.04; letter-spacing: -0.035em;
+    margin-bottom: 1.4rem;
+  }
+  h1 em { font-style: normal; color: var(--lime); }
+
+  .hero-sub { font-size: 1rem; color: var(--muted); max-width: 34rem; margin-bottom: 1.5rem; }
+  .hero-sub strong { color: var(--text); font-weight: 500; }
+
+  .hero-tagline {
+    display: flex; align-items: center; gap: 0.85rem;
+    font-family: var(--display); font-weight: 700; font-size: 1.1rem;
+    letter-spacing: -0.02em; color: var(--lime); margin-bottom: 2.25rem;
+  }
+  .hero-tagline::before { content: ''; width: 24px; height: 2px; background: var(--lime); flex-shrink: 0; }
+
+  .actions { display: flex; gap: 0.9rem; flex-wrap: wrap; }
+  .btn-primary, .btn-secondary {
+    font-family: var(--mono); font-size: 0.82rem; font-weight: 700;
+    padding: 0.78rem 1.6rem; border-radius: 4px; text-decoration: none;
+    transition: transform .15s, opacity .18s, border-color .18s;
+  }
+  .btn-primary { background: var(--lime); color: var(--bg); }
+  .btn-primary:hover { opacity: .88; transform: translateY(-1px); }
+  .btn-secondary { color: var(--text); border: 1px solid rgba(233,236,241,0.16); font-weight: 500; }
+  .btn-secondary:hover { border-color: rgba(233,236,241,0.42); transform: translateY(-1px); }
+
+  /* ─────────────────────────  TERMINAL  ───────────────────────── */
+  .terminal {
+    background: var(--bg2); border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden;
+    box-shadow: 0 24px 60px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(184,255,61,0.05);
+  }
+  .terminal-bar {
+    display: flex; align-items: center; gap: 7px;
+    padding: 0.7rem 1rem; background: rgba(255,255,255,0.025);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-r { background: #ff5f57 } .dot-y { background: #febc2e } .dot-g { background: #28c840 }
+  .terminal-title { font-size: 0.72rem; color: var(--dim); margin-left: 0.5rem; }
+  .terminal-body { padding: 1.25rem 1.4rem; font-size: 0.8rem; line-height: 1.95; overflow-x: auto; }
+  .t-prompt { color: var(--lime) }
+  .t-dim    { color: var(--dim) }
+  .t-muted  { color: var(--muted) }
+  .t-lime   { color: var(--lime) }
+  .t-hi     { color: var(--lime-hi) }
+  .t-flag   { color: var(--blue-hi) }
+  .t-type   { color: var(--muted) }
+  .t-cursor {
+    display: inline-block; width: 8px; height: 1.05em; background: var(--text);
+    vertical-align: text-bottom; animation: blink 1.1s step-end infinite;
+  }
+  @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: 0 } }
+
+  /* ─────────────────────────  SECTIONS  ───────────────────────── */
+  .section .inner { padding-top: 5.5rem; padding-bottom: 5.5rem; }
+  .divider { border: none; border-top: 1px solid var(--line-soft); }
+
+  .section-label {
+    font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--lime); margin-bottom: 0.9rem;
+  }
+  .section-title {
+    font-family: var(--display); font-weight: 700;
+    font-size: clamp(1.85rem, 3.2vw, 2.7rem); line-height: 1.12; letter-spacing: -0.028em;
+    margin-bottom: 0.9rem;
+  }
+  .section-sub { color: var(--muted); max-width: 38rem; margin-bottom: 3rem; }
+
+  /* ─────────────────────────  GRIDS  ───────────────────────── */
+  .grid-3 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+    background: var(--line-soft); border: 1px solid var(--line-soft);
+    border-radius: 8px; overflow: hidden;
+  }
+  .grid-2 {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px;
+    background: var(--line-soft); border: 1px solid var(--line-soft);
+    border-radius: 8px; overflow: hidden;
+  }
+  .card {
+    background: var(--bg2); padding: 2rem 1.9rem;
+    text-decoration: none; color: inherit; display: block;
+    transition: background .18s;
+  }
+  .card:hover { background: var(--bg3); }
+  .card-kicker { font-size: 0.68rem; letter-spacing: 0.10em; text-transform: uppercase; color: var(--lime); margin-bottom: 0.65rem; }
+  .card-kicker.blue { color: var(--blue-hi); }
+  .card-title { font-family: var(--display); font-weight: 700; font-size: 1.1rem; letter-spacing: -0.02em; margin-bottom: 0.75rem; }
+  .card-body { font-size: 0.8rem; color: var(--muted); line-height: 1.75; }
+  .card-more { font-size: 0.75rem; color: var(--lime); display: inline-block; margin-top: 1rem; }
+
+  /* ─────────────────────────  FEATURE LIST  ───────────────────────── */
+  .feature-list { list-style: none; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.9rem; }
+  .feature-list li {
+    display: flex; align-items: flex-start; gap: 0.7rem;
+    font-size: 0.82rem; color: var(--muted); line-height: 1.65;
+  }
+  .feature-list li::before { content: '—'; color: var(--lime); flex-shrink: 0; margin-top: 0.05rem; }
+  .feature-list strong { color: var(--text); font-weight: 500; }
+
+  /* ─────────────────────────  SPLIT + CODE  ───────────────────────── */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5rem; align-items: start; }
+  .code-panel {
+    background: var(--bg2); border: 1px solid var(--line);
+    border-radius: 6px; overflow: hidden; margin-bottom: 1.2rem;
+  }
+  .code-panel:last-child { margin-bottom: 0; }
+  .code-panel-head {
+    padding: 0.55rem 1.1rem; font-size: 0.7rem; color: var(--dim);
+    border-bottom: 1px solid var(--line-soft); background: rgba(255,255,255,0.02);
+  }
+  .code-panel pre { padding: 1.1rem 1.25rem; font-size: 0.78rem; line-height: 1.85; overflow-x: auto; font-family: var(--mono); }
+  .c-tag  { color: var(--blue-hi) }
+  .c-key  { color: var(--lime) }
+  .c-val  { color: #E8B96A }
+  .c-type { color: var(--blue-hi) }
+  .c-kw   { color: #C792EA }
+  .c-str  { color: #C3E88D }
+  .c-com  { color: var(--dim) }
+  .c-ns   { color: var(--muted) }
+
+  /* ─────────────────────────  STEPS  ───────────────────────── */
+  .steps { display: flex; flex-direction: column; gap: 2rem; }
+  .step { display: flex; gap: 1.2rem; align-items: flex-start; }
+  .step-num { font-family: var(--display); font-weight: 700; font-size: 1.05rem; color: var(--lime); flex-shrink: 0; width: 2rem; padding-top: 0.1rem; }
+  .step-title { font-family: var(--display); font-weight: 700; font-size: 1rem; letter-spacing: -0.02em; margin-bottom: 0.4rem; }
+  .step-body { font-size: 0.82rem; color: var(--muted); line-height: 1.7; }
+
+  /* ─────────────────────────  CTA + FOOTER  ───────────────────────── */
+  .cta { text-align: center; position: relative; overflow: hidden; }
+  .cta::before {
+    content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 680px; height: 420px; pointer-events: none;
+    background: radial-gradient(ellipse, rgba(184,255,61,0.09) 0%, transparent 68%);
+  }
+  .cta h2 { font-family: var(--display); font-weight: 700; font-size: clamp(2rem, 3.6vw, 3rem); letter-spacing: -0.03em; margin-bottom: 1rem; }
+  .cta p { color: var(--muted); margin-bottom: 2rem; }
+  .cta .actions { justify-content: center; }
+
+  footer { border-top: 1px solid var(--line-soft); }
+  footer .inner {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1.5rem; flex-wrap: wrap;
+    padding-top: 1.4rem; padding-bottom: 1.4rem; font-size: 0.75rem; color: var(--dim);
+  }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--lime); }
+
+  /* nullean.net back-link pill */
+  .nullean-link {
+    display: inline-flex; align-items: center; gap: 0; text-decoration: none;
+    border-radius: 6px; overflow: hidden;
+    border: 1px solid rgba(31,158,158,0.35);
+    transition: border-color .18s;
+  }
+  .nullean-link:hover { border-color: rgba(31,158,158,0.7); }
+  .nullean-link svg { display: block; }
+
+  /* ─────────────────────────  PACKAGE COMMANDS  ───────────────────────── */
+  .pkg-commands { display: flex; flex-direction: column; gap: 0.55rem; margin-bottom: 1.75rem; }
+  .pkg-row { display: flex; align-items: stretch; gap: 0.55rem; }
+  .pkg-row .pkg-cmd { flex: 1; }
+  .pkg-nuget {
+    display: flex; align-items: center; padding: 0 0.85rem;
+    background: var(--bg2); border: 1px solid var(--line);
+    border-radius: 5px; font-size: 0.75rem; font-weight: 700;
+    color: var(--lime); text-decoration: none; white-space: nowrap;
+    transition: border-color .18s, background .18s;
+  }
+  .pkg-nuget:hover { border-color: rgba(184,255,61,0.28); background: var(--bg3); }
+  .pkg-cmd {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    background: var(--bg2); border: 1px solid var(--line);
+    border-radius: 5px; padding: 0.7rem 1rem;
+    font-family: var(--mono); font-size: 0.82rem; color: var(--text);
+    cursor: pointer; text-align: left;
+    transition: border-color .18s, background .18s;
+  }
+  .pkg-cmd:hover { border-color: rgba(184,255,61,0.28); background: var(--bg3); }
+  .pkg-cmd.copied { border-color: var(--lime); }
+  .pkg-cmd-dim { color: var(--dim); }
+  .pkg-cmd-icon { color: var(--dim); font-size: 1rem; flex-shrink: 0; transition: color .18s; }
+  .pkg-cmd:hover .pkg-cmd-icon { color: var(--lime); }
+
+  /* ─────────────────────────  REVEAL  ───────────────────────── */
+  .reveal { opacity: 0; transform: translateY(20px); transition: opacity .65s ease, transform .65s ease; }
+  .reveal.visible { opacity: 1; transform: none; }
+
+  /* ─────────────────────────  RESPONSIVE  ───────────────────────── */
+  @media (max-width: 900px) {
+    .inner { padding: 0 1.5rem; }
+    .hero .inner { grid-template-columns: 1fr; gap: 3rem; padding-top: 3rem; padding-bottom: 3.5rem; }
+    .split { grid-template-columns: 1fr; gap: 2.5rem; }
+    .grid-3, .grid-2 { grid-template-columns: 1fr; }
+    .feature-list { grid-template-columns: 1fr; }
+    .section .inner { padding-top: 3.75rem; padding-bottom: 3.75rem; }
+    .nav-links { display: none; }
+    .cta::before { display: none; }
+  }
+  @media (max-width: 420px) {
+    .actions { flex-direction: column; align-items: stretch; }
+    .btn-primary, .btn-secondary { text-align: center; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .reveal { opacity: 1; transform: none; }
+    .ar-sheen { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div hx-boost="false">
+
+<!-- ══════════════  NAV  ══════════════ -->
+<nav>
+  <div class="inner">
+    <a class="nav-logo" href="./" aria-label="argh home">
+      <!-- animated lockup inlined so ar-* CSS animations apply -->
+      <svg class="nav-lockup" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 174 96" role="img" aria-label="--argh">
+        <defs>
+          <linearGradient id="fN" x1="0" y1="0.2" x2="1" y2="0.8"><stop offset="0.44" stop-color="#B8FF3D"/><stop offset="0.56" stop-color="#4A8CFF"/></linearGradient>
+          <radialGradient id="gN" cx="0.18" cy="0.12" r="1.2"><stop offset="0" stop-color="#1B2126"/><stop offset="0.55" stop-color="#0D1013"/><stop offset="1" stop-color="#08090B"/></radialGradient>
+          <linearGradient id="shN" x1="0" y1="0" x2="1" y2="0"><stop offset="0.35" stop-color="#FFFFFF" stop-opacity="0"/><stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.8"/><stop offset="0.65" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+          <mask id="ringN"><rect width="174" height="96" rx="10" fill="#FFFFFF"/><rect x="6" y="6" width="162" height="84" rx="5" fill="#000000"/></mask>
+          <clipPath id="typeN"><rect x="60" y="24" width="72" height="48"/></clipPath>
+        </defs>
+        <rect width="174" height="96" rx="10" fill="url(#fN)"/>
+        <g mask="url(#ringN)"><rect class="ar-sheen" x="-140" y="-20" width="140" height="136" fill="url(#shN)" transform="skewX(-18)"/></g>
+        <rect x="6" y="6" width="162" height="84" rx="5" fill="url(#gN)"/>
+        <g font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="30" font-weight="700" dominant-baseline="central">
+          <text class="ar-in" x="24" y="49.5" fill="#B8FF3D">--</text>
+          <g clip-path="url(#typeN)"><text x="60" y="48" fill="#FFFFFF">argh</text></g>
+          <g class="ar-cur-in"><text class="ar-blink" x="132" y="48" fill="#6BA3FF">_</text></g>
+        </g>
+      </svg>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">features</a></li>
+      <li><a href="#quickstart">quick start</a></li>
+      <li><a href="getting-started/">docs</a></li>
+    </ul>
+    <a class="nav-cta" href="https://github.com/nullean/argh">github →</a>
+  </div>
+</nav>
+
+<!-- ══════════════  HERO  ══════════════ -->
+<section class="hero">
+  <div class="inner">
+    <div>
+      <span class="badge" style="margin-bottom:1.5rem"><span class="badge-dot"></span> .NET · source-generated · AOT-safe</span>
+      <h1>Write methods.<br/>Get a <em>CLI</em>.</h1>
+      <p class="hero-sub">
+        Methods become commands, <strong>XML docs become help text</strong>, records become option sets.
+        A Roslyn source generator emits parsing, routing, and dispatch directly into your assembly
+        — <strong>no reflection, no runtime overhead</strong>, trimming- and AOT-safe from day one.
+      </p>
+      <div class="pkg-commands">
+        <div class="pkg-row">
+          <button class="pkg-cmd" data-pkg="Nullean.Argh" onclick="copyPkg(this)">
+            <span class="pkg-cmd-text"><span class="pkg-cmd-dim">dotnet add package </span>Nullean.Argh</span>
+            <span class="pkg-cmd-icon" aria-hidden="true">⎘</span>
+          </button>
+          <a class="pkg-nuget" href="https://www.nuget.org/packages/Nullean.Argh" target="_blank" rel="noopener" title="View on NuGet">nuget ↗</a>
+        </div>
+        <div class="pkg-row">
+          <button class="pkg-cmd" data-pkg="Nullean.Argh.Hosting" onclick="copyPkg(this)">
+            <span class="pkg-cmd-text"><span class="pkg-cmd-dim">dotnet add package </span>Nullean.Argh.Hosting</span>
+            <span class="pkg-cmd-icon" aria-hidden="true">⎘</span>
+          </button>
+          <a class="pkg-nuget" href="https://www.nuget.org/packages/Nullean.Argh.Hosting" target="_blank" rel="noopener" title="View on NuGet">nuget ↗</a>
+        </div>
+      </div>
+      <div class="actions">
+        <a class="btn-primary" href="getting-started/">get started →</a>
+      </div>
+    </div>
+
+    <div class="terminal">
+      <div class="terminal-bar">
+        <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+        <span class="terminal-title">mytool --help</span>
+      </div>
+      <div class="terminal-body">
+        <div><span class="t-prompt">$</span> mytool <span class="t-flag">--help</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-lime">Usage:</span> <span class="t-hi">mytool</span> &lt;command&gt; [options]</div>
+        <div>&nbsp;</div>
+        <div><span class="t-muted">Commands:</span></div>
+        <div>&nbsp;&nbsp;<span class="t-hi">deploy</span>    <span class="t-dim">Deploy a release to an environment</span></div>
+        <div>&nbsp;&nbsp;<span class="t-hi">rollback</span>  <span class="t-dim">Roll back to the previous version</span></div>
+        <div>&nbsp;&nbsp;<span class="t-hi">status</span>    <span class="t-dim">Show current deployment status</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-prompt">$</span> mytool <span class="t-hi">deploy</span> <span class="t-flag">--help</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-lime">Usage:</span> <span class="t-hi">mytool deploy</span> [options]</div>
+        <div><span class="t-dim">&nbsp;&nbsp;Deploy a release to an environment.</span></div>
+        <div>&nbsp;</div>
+        <div>&nbsp;&nbsp;<span class="t-flag">--env</span>      <span class="t-type">&lt;string&gt;</span>  <span class="t-dim">Target environment [required]</span></div>
+        <div>&nbsp;&nbsp;<span class="t-flag">--version</span>  <span class="t-type">&lt;string&gt;</span>  <span class="t-dim">Release version tag</span></div>
+        <div>&nbsp;&nbsp;<span class="t-flag">--dry-run</span>  <span class="t-type">&lt;bool&gt;</span>    <span class="t-dim">Simulate without applying</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-prompt">$</span> <span class="t-cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ══════════════  FEATURES  ══════════════ -->
+<section class="section reveal" id="features">
+  <div class="inner">
+    <p class="section-label">// what you get</p>
+    <h2 class="section-title">Everything a CLI needs.<br/>None of the plumbing.</h2>
+    <p class="section-sub">
+      The generator emits a typed dispatch tree, option parsers, help printers, and completion
+      tables directly into your assembly at build time. Nothing to configure at runtime,
+      nothing that can go wrong at startup.
+    </p>
+
+    <div class="grid-3">
+      <a class="card" href="features/help/">
+        <div class="card-kicker">xml docs → help text</div>
+        <div class="card-title">Help that<br/>writes itself</div>
+        <p class="card-body">
+          Summaries, param descriptions, remarks, and <code>&lt;example&gt;</code> blocks flow
+          directly into <code>--help</code>. Document the method, get the help page.
+        </p>
+        <span class="card-more">help rendering →</span>
+      </a>
+      <a class="card" href="features/source-generated/">
+        <div class="card-kicker">zero reflection</div>
+        <div class="card-title">Typed at<br/>build time</div>
+        <p class="card-body">
+          Parsing, routing, and dispatch are emitted as plain C# into your assembly. No
+          <code>MethodInfo.Invoke</code>, no dynamic dispatch — just a switch tree the
+          compiler can see and optimize.
+        </p>
+        <span class="card-more">how it works →</span>
+      </a>
+      <a class="card" href="features/aot/">
+        <div class="card-kicker">trimming + native aot</div>
+        <div class="card-title">AOT-safe<br/>by default</div>
+        <p class="card-body">
+          No reflection means no linker annotations, nothing trimmed away at publish.
+          Ship a sub-10 MB native binary that starts in milliseconds — all features,
+          no runtime dependency.
+        </p>
+        <span class="card-more">aot guide →</span>
+      </a>
+      <a class="card" href="commands/namespaces/">
+        <div class="card-kicker blue">mapgroup-style nesting</div>
+        <div class="card-title">Namespaces &amp;<br/>command groups</div>
+        <p class="card-body">
+          Nest command groups with their own help pages and scoped option types —
+          exactly like <code>MapGroup</code> in ASP.NET. Depth unlimited; help renders
+          per-namespace.
+        </p>
+        <span class="card-more">namespaces →</span>
+      </a>
+      <a class="card" href="features/completions/">
+        <div class="card-kicker blue">bash · zsh · fish</div>
+        <div class="card-title">Shell completions<br/>built-in</div>
+        <p class="card-body">
+          Tab-completion for all three major shells is generated and registered with a
+          single intrinsic command. No extra package, no shell script to maintain.
+        </p>
+        <span class="card-more">completions →</span>
+      </a>
+      <a class="card" href="features/schema/">
+        <div class="card-kicker blue">cli-schema v1</div>
+        <div class="card-title">Agent-ready<br/>JSON schema</div>
+        <p class="card-body">
+          <code>myapp __schema</code> emits a machine-readable description of every
+          command and option. Conforms to the open cli-schema v1 spec — ready for
+          agentic use cases out of the box.
+        </p>
+        <span class="card-more">schema →</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ══════════════  FEATURE LIST  ══════════════ -->
+<section class="section reveal">
+  <div class="inner">
+    <p class="section-label">// more features</p>
+    <h2 class="section-title">The full picture.</h2>
+    <p class="section-sub">
+      Everything you expect from a modern .NET CLI framework — generated at build time so
+      none of it costs startup time or binary size.
+    </p>
+
+    <ul class="feature-list">
+      <li><div><strong>DTO binding with <code>[AsParameters]</code></strong> — records and classes expand into flags without a custom bind loop</div></li>
+      <li><div><strong>DataAnnotations validation</strong> — <code>[Range]</code>, <code>[StringLength]</code>, <code>[AllowedValues]</code> — constraints appear in <code>--help</code>, failures exit 2</div></li>
+      <li><div><strong>Fuzzy matching</strong> — typos produce actionable errors with ranked suggestions</div></li>
+      <li><div><strong>CancellationToken injection</strong> — add it to a handler and it tracks Ctrl+C or host shutdown</div></li>
+      <li><div><strong>Middleware pipeline</strong> — cross-cutting concerns wired once, applied to every command</div></li>
+      <li><div><strong>Global and namespace options</strong> — flags that apply to a whole tree, parsed once, injected everywhere</div></li>
+      <li><div><strong>Microsoft.Extensions.Hosting</strong> — <code>Nullean.Argh.Hosting</code> plugs into <code>IHost</code> and DI with one call</div></li>
+      <li><div><strong>Zero dep or ME.* native</strong> — <code>Nullean.Argh</code> has no <code>Microsoft.Extensions.*</code> dependency</div></li>
+    </ul>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ══════════════  QUICK START  ══════════════ -->
+<section class="section reveal" id="quickstart">
+  <div class="inner">
+    <p class="section-label">// quick start</p>
+    <h2 class="section-title">One package.<br/>Then write methods.</h2>
+    <p class="section-sub">
+      Two entry points depending on whether you need DI. Either way, registration is a single
+      method call per command — the generator does the rest.
+    </p>
+
+    <div class="split">
+      <div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">01</div>
+            <div>
+              <div class="step-title">Add the package</div>
+              <p class="step-body">Console apps use <code>Nullean.Argh</code>. Hosted apps with DI use <code>Nullean.Argh.Hosting</code>. Everything else is pulled in transitively.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">02</div>
+            <div>
+              <div class="step-title">Map your handlers</div>
+              <p class="step-body">Method groups, lambdas, or whole classes. The generator discovers every registration at build time and emits typed dispatch code.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">03</div>
+            <div>
+              <div class="step-title">Document with XML docs</div>
+              <p class="step-body">Add <code>&lt;summary&gt;</code> and <code>&lt;param&gt;</code> tags to your methods. That is your help text — no duplication, no string literals.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="code-panel">
+          <div class="code-panel-head">console app</div>
+<pre><span class="c-kw">using</span> <span class="c-ns">Nullean.Argh</span>;
+
+<span class="c-kw">var</span> app = <span class="c-kw">new</span> <span class="c-type">ArghApp</span>();
+app.<span class="c-key">Map</span>(<span class="c-str">"deploy"</span>, DeployHandlers.Run);
+app.<span class="c-key">Map</span>(<span class="c-str">"status"</span>, StatusHandlers.Show);
+
+<span class="c-kw">return await</span> app.<span class="c-key">RunAsync</span>(args);</pre>
+        </div>
+
+        <div class="code-panel">
+          <div class="code-panel-head">handler with xml docs</div>
+<pre><span class="c-com">/// &lt;summary&gt;Deploy a release to an environment.&lt;/summary&gt;</span>
+<span class="c-com">/// &lt;param name="env"&gt;Target environment.&lt;/param&gt;</span>
+<span class="c-com">/// &lt;param name="dryRun"&gt;Simulate without applying.&lt;/param&gt;</span>
+<span class="c-kw">public static async</span> <span class="c-type">Task</span>&lt;<span class="c-type">int</span>&gt; Run(
+    <span class="c-type">string</span> env,
+    <span class="c-type">bool</span> dryRun = <span class="c-kw">false</span>)
+{
+    <span class="c-com">// --env and --dry-run are generated</span>
+    <span class="c-kw">return</span> <span class="c-val">0</span>;
+}</pre>
+        </div>
+
+        <div class="code-panel">
+          <div class="code-panel-head">hosted app (DI)</div>
+<pre><span class="c-kw">using</span> <span class="c-ns">Nullean.Argh.Hosting</span>;
+
+<span class="c-kw">var</span> builder = <span class="c-type">Host</span>.<span class="c-key">CreateApplicationBuilder</span>(args);
+builder.Services.<span class="c-key">AddArgh</span>(args, b =&gt;
+    b.<span class="c-key">Map</span>(<span class="c-str">"deploy"</span>, DeployHandlers.Run));
+<span class="c-kw">await</span> builder.<span class="c-key">Build</span>().<span class="c-key">RunAsync</span>();</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ══════════════  PACKAGES  ══════════════ -->
+<section class="section reveal">
+  <div class="inner">
+    <p class="section-label">// packages</p>
+    <h2 class="section-title">Two entry points.<br/>Everything else is transitive.</h2>
+    <p class="section-sub">
+      Pick the package that fits your app model. Core, Interfaces, and the embedded source
+      generator are pulled in automatically.
+    </p>
+
+    <div class="grid-2">
+      <a class="card" href="https://www.nuget.org/packages/Nullean.Argh">
+        <div class="card-kicker">console apps</div>
+        <div class="card-title">Nullean.Argh</div>
+        <p class="card-body">
+          No <code>Microsoft.Extensions.*</code> dependency. The default for CLI tools that
+          run and exit — lightweight, zero-dep, AOT-ready.
+        </p>
+        <span class="card-more">nuget →</span>
+      </a>
+      <a class="card" href="https://www.nuget.org/packages/Nullean.Argh.Hosting">
+        <div class="card-kicker">hosted apps · di</div>
+        <div class="card-title">Nullean.Argh.Hosting</div>
+        <p class="card-body">
+          Integrates with <code>Microsoft.Extensions.Hosting</code>. Wires the CLI as an
+          <code>IHostedService</code>, connects <code>CancellationToken</code> to host lifetime.
+          Full DI support.
+        </p>
+        <span class="card-more">nuget →</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════  CTA  ══════════════ -->
+<section class="section cta reveal">
+  <div class="inner">
+    <h2>Write the method.<br/>Ship the CLI.</h2>
+    <p>One package. XML docs you already write. A source generator that handles everything else.</p>
+    <div class="actions">
+      <a class="btn-primary" href="getting-started/">get started →</a>
+      <a class="btn-secondary" href="https://github.com/nullean/argh">view on github</a>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════  FOOTER  ══════════════ -->
+<footer>
+  <div class="inner">
+    <span style="display:flex;align-items:center;gap:1rem">
+      <!-- nullean.net back-link using their pill logo style -->
+      <a class="nullean-link" href="https://nullean.net" title="nullean.net">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 36" width="120" height="36" role="img" aria-label="nullean.net">
+          <defs>
+            <linearGradient id="nullBorder" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#1F9E9E"/>
+              <stop offset="1" stop-color="#923A3A"/>
+            </linearGradient>
+          </defs>
+          <rect width="120" height="36" rx="6" fill="url(#nullBorder)"/>
+          <rect x="1" y="1" width="118" height="34" rx="5" fill="#080C0C"/>
+          <text x="12" y="23" font-family="JetBrains Mono, ui-monospace, monospace" font-size="13" font-weight="700" fill="#1F9E9E">&gt; nullean_</text>
+        </svg>
+      </a>
+      <span>Nullean.Argh — MIT licensed</span>
+    </span>
+    <span>
+      <a href="getting-started/">get started</a> ·
+      <a href="features/">features</a> ·
+      <a href="commands/">commands</a> ·
+      <a href="parameters/">parameters</a> ·
+      <a href="hosting/">hosting</a> ·
+      <a href="https://github.com/nullean/argh">github</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+  function copyPkg(btn) {
+    var pkg = btn.getAttribute('data-pkg');
+    var text = 'dotnet add package ' + pkg;
+    var icon = btn.querySelector('.pkg-cmd-icon');
+    navigator.clipboard.writeText(text).then(function() {
+      btn.classList.add('copied');
+      icon.textContent = '✓';
+      setTimeout(function() { btn.classList.remove('copied'); icon.textContent = '⎘'; }, 1800);
+    });
+  }
+
+  var els = document.querySelectorAll('.reveal');
+  if (!('IntersectionObserver' in window)) {
+    els.forEach(function(el) { el.classList.add('visible'); });
+  } else {
+    var io = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) {
+        if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.08 });
+    els.forEach(function(el) { io.observe(el); });
+  }
+</script>
+</div><!-- /hx-boost="false" -->
+</body>
+</html>
