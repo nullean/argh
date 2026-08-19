@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <RootNamespace>Nullean.Argh.Tests.CliHost</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -27,6 +27,7 @@
     <Compile Include="..\Nullean.Argh.Tests\Fixtures\ValidationCliHandlers.cs" Link="Fixtures\ValidationCliHandlers.cs" />
     <Compile Include="..\Nullean.Argh.Tests\Fixtures\RootAliasFixtures.cs" Link="Fixtures\RootAliasFixtures.cs" />
     <Compile Include="..\Nullean.Argh.Tests\Fixtures\SchemaSpecificHandlers.cs" Link="Fixtures\SchemaSpecificHandlers.cs" />
+    <Compile Include="..\Nullean.Argh.Tests\Fixtures\UnionFormatFixtures.cs" Link="Fixtures\UnionFormatFixtures.cs" />
   </ItemGroup>
 
 </Project>
