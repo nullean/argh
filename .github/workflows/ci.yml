@@ -37,6 +37,13 @@ jobs:
     - name: Invoke AOT
       shell: bash
       run: ./.artifacts/publish/ArghAotSmoketest/release/${{ matrix.binary }} __schema
+    - name: Report AOT binary size
+      shell: bash
+      run: |
+        BYTES=$(wc -c < ./.artifacts/publish/ArghAotSmoketest/release/${{ matrix.binary }})
+        echo "AOT binary size: $BYTES bytes ($((BYTES / 1024)) KB)"
+        echo "### AOT binary size (${{ matrix.runner }})" >> "$GITHUB_STEP_SUMMARY"
+        echo "$BYTES bytes ($((BYTES / 1024)) KB)" >> "$GITHUB_STEP_SUMMARY"
 
   schema-conformance:
     runs-on: ubuntu-latest

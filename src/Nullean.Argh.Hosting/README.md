@@ -30,6 +30,10 @@ await builder.Build().RunAsync();
 - **CancellationToken linked to host** — graceful shutdown propagates to your commands automatically
 - **Log suppression for intrinsic commands** — `--help`, `--version`, completions, and `__schema` run silently without host startup noise
 
+## Native AOT size
+
+`Microsoft.Extensions.Hosting` (DI, logging, options) adds several MB to a Native AOT binary, independent of Argh — this package is a thin adapter over it. If you don't need DI or hosted-service integration, use `Nullean.Argh` directly and call `app.RunAsync(args)` from `Main` for a much smaller AOT footprint. See [AOT and binary size](https://nullean.github.io/argh/features/aot.html) for measurements.
+
 ## Documentation
 
 Full documentation is available at [nullean.github.io/argh](https://nullean.github.io/argh/).
