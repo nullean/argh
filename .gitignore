@@ -85,3 +85,6 @@ docs-temp
 .artifacts/
 
 .cursor/
+
+# Claude Code personal settings
+.claude/settings.local.json
