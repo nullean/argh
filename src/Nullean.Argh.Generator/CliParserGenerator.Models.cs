@@ -302,7 +302,8 @@ public sealed partial class CliParserGenerator
 		DirectoryInfo,
 		Uri,
 		CustomParser,
-		Collection
+		Collection,
+		Union
 	}
 
 	private enum BoolSpecialKind
@@ -311,5 +312,28 @@ public sealed partial class CliParserGenerator
 		Bool,
 		NullableBool
 	}
+
+	// ── Union model records ─────────────────────────────────────────────────
+	/// <summary>A single case of a C# 15 union type (e.g. <c>Json</c> in <c>union OutputFormat(Table, Json, Csv)</c>).</summary>
+	private sealed record UnionCaseInfo(
+		/// <summary>Pascal case name of the record/class case type, e.g. <c>"Json"</c>.</summary>
+		string Name,
+		/// <summary>Fully-qualified name for use in generated code, e.g. <c>"global::My.Ns.Json"</c>.</summary>
+		string TypeFq,
+		/// <summary>Kebab-case CLI name, e.g. <c>"json"</c>.</summary>
+		string CliName,
+		/// <summary>Properties of the case record that become namespaced flags (e.g. <c>--json-pretty</c>).</summary>
+		ImmutableArray<UnionCasePropInfo> Properties);
+
+	/// <summary>A property of a union case record that becomes a CLI flag when in flag mode.</summary>
+	private sealed record UnionCasePropInfo(
+		string Name,
+		string CliName,
+		CliScalarKind ScalarKind,
+		BoolSpecialKind Special,
+		string TypeName,
+		string? DefaultValueLiteral,
+		/// <summary>Fully-qualified CLI flag name in flag mode, e.g. <c>"json-pretty"</c>.</summary>
+		string FlagModeName);
 
 }

@@ -77,7 +77,21 @@ public sealed partial class CliParserGenerator
 		bool IsCommandOutput = false,
 		ImmutableArray<string> CommandOutputExplicitFormats = default,
 		bool IsDeprecated = false,
-		string? DeprecationMessage = null)
+		string? DeprecationMessage = null,
+		// ── Union support ───────────────────────────────────────────────────────
+		/// <summary>Fully-qualified name of the union type (e.g. <c>My.Ns.OutputFormat</c>). Null when not a union.</summary>
+		string? UnionTypeFq = null,
+		/// <summary>Ordered list of cases in the union (each case may have zero or more properties).</summary>
+		ImmutableArray<UnionCaseInfo> UnionCases = default,
+		/// <summary>When true the union case is selected positionally (like <c>[Argument]</c>); when false (default) selected via <c>--format &lt;case&gt;</c>.</summary>
+		bool UnionIsArgument = false,
+		/// <summary>
+		/// True when this parameter is a complex class type (e.g. global-options DTO) that the generator
+		/// will later promote to <see cref="ParameterKind.OptionsInjected"/>. At the per-invocation
+		/// analysis step the kind is still <see cref="ParameterKind.Flag"/>; this flag lets the argument-
+		/// order validator skip it so it does not trigger AGH0003.
+		/// </summary>
+		bool IsOptionsInjectionCandidate = false)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
 
@@ -252,6 +266,16 @@ public sealed partial class CliParserGenerator
 			var expandProf = TryReadExpandUserProfileBeforeBind(p, sk);
 			var (isOutputP, outputFormatsP) = TryGetCommandOutputAttribute(p);
 			var (isDeprecatedP, deprecationMsgP) = TryGetObsoleteAttribute(p);
+			// Union fields
+			var unionTypeFq  = sk == CliScalarKind.Union && p.Type is INamedTypeSymbol unionT
+				? unionT.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null;
+			var unionCases = sk == CliScalarKind.Union && p.Type is INamedTypeSymbol unionT2
+				? GetUnionCasesFromSymbol(unionT2) : default;
+			var unionIsArg = sk == CliScalarKind.Union && isArg;
+			// Complex class types (e.g. global-options DTOs) fall through to Primitive/string; mark them
+			// so the argument-order validator can skip them (they become OptionsInjected in the collect step).
+			var isOIC = sk == CliScalarKind.Primitive && bs == BoolSpecialKind.None
+				&& p.Type is { TypeKind: TypeKind.Class, SpecialType: SpecialType.None };
 			return new ParameterModel(
 				p.Name,
 				SafeLocalName(p.Name),
@@ -279,7 +303,11 @@ public sealed partial class CliParserGenerator
 				IsCommandOutput: isOutputP,
 				CommandOutputExplicitFormats: outputFormatsP,
 				IsDeprecated: isDeprecatedP,
-				DeprecationMessage: deprecationMsgP);
+				DeprecationMessage: deprecationMsgP,
+				UnionTypeFq: unionTypeFq,
+				UnionCases: unionCases,
+				UnionIsArgument: unionIsArg,
+				IsOptionsInjectionCandidate: isOIC);
 		}
 
 		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -310,6 +338,10 @@ public sealed partial class CliParserGenerator
 			var validations = ReadValidationConstraints(prop, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
+			var unionTypeFqProp  = sk == CliScalarKind.Union && prop.Type is INamedTypeSymbol unionTp
+				? unionTp.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null;
+			var unionCasesProp = sk == CliScalarKind.Union && prop.Type is INamedTypeSymbol unionTp2
+				? GetUnionCasesFromSymbol(unionTp2) : default;
 			return new ParameterModel(
 				prop.Name,
 				SafeLocalName(prop.Name),
@@ -340,7 +372,9 @@ public sealed partial class CliParserGenerator
 				IsCommandOutput: TryGetCommandOutputAttribute(prop).IsOutput,
 				CommandOutputExplicitFormats: TryGetCommandOutputAttribute(prop).ExplicitFormats,
 				IsDeprecated: TryGetObsoleteAttribute(prop).IsDeprecated,
-				DeprecationMessage: TryGetObsoleteAttribute(prop).Message);
+				DeprecationMessage: TryGetObsoleteAttribute(prop).Message,
+				UnionTypeFq: unionTypeFqProp,
+				UnionCases: unionCasesProp);
 		}
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -706,6 +740,13 @@ public sealed partial class CliParserGenerator
 					primitiveName = "Uri";
 					return;
 				}
+
+				if (IsUnionSymbol(named))
+				{
+					kind = CliScalarKind.Union;
+					primitiveName = "union";
+					return;
+				}
 			}
 
 			kind = CliScalarKind.Primitive;
@@ -794,6 +835,13 @@ public sealed partial class CliParserGenerator
 					primitiveName = "Uri";
 					return;
 				}
+
+				if (IsUnionSymbol(named))
+				{
+					kind = CliScalarKind.Union;
+					primitiveName = "union";
+					return;
+				}
 			}
 
 			kind = CliScalarKind.Primitive;
@@ -843,6 +891,87 @@ public sealed partial class CliParserGenerator
 			if (t is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nn)
 				t = nn.TypeArguments[0];
 			return t is INamedTypeSymbol { TypeKind: TypeKind.Enum } en ? GetEnumMemberCliNames(en) : default;
+		}
+
+		// ── Union helpers ────────────────────────────────────────────────────────
+
+		/// <summary>True when <paramref name="t"/> is a C# 15 union type (implements IUnion, has [Union] attribute, or matches structural pattern).</summary>
+		private static bool IsUnionSymbol(INamedTypeSymbol t)
+		{
+			// IUnion interface (runtime marker from lowered union keyword)
+			foreach (var iface in t.AllInterfaces)
+			{
+				if (iface.Name == "IUnion") return true;
+			}
+			// [Union] attribute
+			foreach (var attr in t.GetAttributes())
+			{
+				var name = attr.AttributeClass?.Name;
+				if (name is "UnionAttribute" or "Union") return true;
+			}
+			// Structural: struct with object? Value property + ≥1 single-param public ctor
+			if (t.TypeKind == TypeKind.Struct)
+			{
+				var hasValueProp = false;
+				foreach (var m in t.GetMembers("Value"))
+				{
+					if (m is IPropertySymbol vp && vp.Type.SpecialType == SpecialType.System_Object)
+					{ hasValueProp = true; break; }
+				}
+				if (hasValueProp)
+				{
+					foreach (var ctor in t.Constructors)
+					{
+						if (ctor.Parameters.Length == 1 && ctor.DeclaredAccessibility == Accessibility.Public)
+							return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		/// <summary>Builds the <see cref="UnionCaseInfo"/> array for a union type symbol.</summary>
+		private static ImmutableArray<UnionCaseInfo> GetUnionCasesFromSymbol(INamedTypeSymbol unionType)
+		{
+			var b = ImmutableArray.CreateBuilder<UnionCaseInfo>();
+			foreach (var ctor in unionType.Constructors)
+			{
+				if (ctor.Parameters.Length != 1 || ctor.DeclaredAccessibility != Accessibility.Public) continue;
+				if (ctor.Parameters[0].Type is not INamedTypeSymbol caseNamed) continue;
+				var caseName   = caseNamed.Name;
+				var caseTypeFq = caseNamed.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				var caseCli    = Naming.ToCliLongName(caseName);
+				var props      = GetUnionCasePropsFromSymbol(caseNamed, caseCli);
+				b.Add(new UnionCaseInfo(caseName, caseTypeFq, caseCli, props));
+			}
+			return b.ToImmutable();
+		}
+
+		/// <summary>Returns all primary-ctor parameters of a union case record that become namespaced flags.</summary>
+		private static ImmutableArray<UnionCasePropInfo> GetUnionCasePropsFromSymbol(INamedTypeSymbol caseType, string caseCli)
+		{
+			var b = ImmutableArray.CreateBuilder<UnionCasePropInfo>();
+			// Find the primary constructor (highest param count public ctor)
+			IMethodSymbol? primaryCtor = null;
+			foreach (var ctor in caseType.Constructors)
+			{
+				if (ctor.DeclaredAccessibility != Accessibility.Public) continue;
+				if (primaryCtor is null || ctor.Parameters.Length > primaryCtor.Parameters.Length)
+					primaryCtor = ctor;
+			}
+			if (primaryCtor is null) return b.ToImmutable();
+			foreach (var param in primaryCtor.Parameters)
+			{
+				var bs = ClassifyBool(param.Type);
+				// Only support primitives and enums; skip nested unions / collections
+				if (param.Type is not INamedTypeSymbol) continue;
+				ClassifyScalar(param, bs, out var sk, out var typeName, out _, out _, out _, out _);
+				if (sk is CliScalarKind.Union or CliScalarKind.Collection or CliScalarKind.CustomParser) continue;
+				var defLit = TryGetDefaultLiteral(param, bs);
+				var flagName = $"{caseCli}-{Naming.ToCliLongName(param.Name)}";
+				b.Add(new UnionCasePropInfo(param.Name, Naming.ToCliLongName(param.Name), sk, bs, typeName, defLit, flagName));
+			}
+			return b.ToImmutable();
 		}
 
 		private static ImmutableDictionary<string, string> GetEnumMemberDocs(INamedTypeSymbol enumType)

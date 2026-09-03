@@ -149,7 +149,13 @@ public sealed partial class CliParserGenerator
 		foreach (var p in expanded)
 		{
 			if (p.Kind == ParameterKind.Injected) continue;
-			if (p.Kind == ParameterKind.Flag) { seenFlag = true; continue; }
+			if (p.Kind == ParameterKind.Flag)
+			{
+				// Complex class types (e.g. global-options objects) appear as Flag here but will be
+				// promoted to OptionsInjected in the collect step — don't treat them as CLI flags.
+				if (!p.IsOptionsInjectionCandidate) seenFlag = true;
+				continue;
+			}
 			// A variadic positional is allowed after flags — C# requires params to be last.
 			if (p.Kind == ParameterKind.Positional && seenFlag && !p.IsVariadic)
 			{
@@ -158,6 +164,7 @@ public sealed partial class CliParserGenerator
 			}
 		}
 	}
+
 
 	private static void ValidateVariadicPositionalIsLastAcc(DiagnosticAccumulator acc, Location location, ImmutableArray<ParameterModel> parameters)
 	{
