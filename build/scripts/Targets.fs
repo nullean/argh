@@ -73,7 +73,7 @@ let private generateApiChanges (arguments:ParseResults<Arguments>) =
     /// Unified artifacts layout (<UseArtifactsOutput>): `.artifacts/bin/<Project>/release[_<tfm>]/`.
     let assembliesDir (packageId: string) =
         match packageId with
-        | "Nullean.Argh.Hosting" | "Nullean.Argh.Interfaces" ->
+        | "Nullean.Argh.Hosting" | "Nullean.Argh.Interfaces" | "Nullean.Argh.Core" ->
             sprintf ".artifacts/bin/%s/release_%s" packageId Paths.MainTFM
         | _ -> sprintf ".artifacts/bin/%s/release" packageId
     let nugetPackages =

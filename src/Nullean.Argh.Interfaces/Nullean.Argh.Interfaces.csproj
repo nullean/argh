@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <AssemblyName>Nullean.Argh.Interfaces</AssemblyName>
-    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;net8.0;net11.0</TargetFrameworks>
     <RootNamespace>Nullean.Argh</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
