@@ -126,10 +126,11 @@ public class RootAndNamespaceHelpTests
 			  tag-set-parser-opt
 			  tags
 			  temporal-cmd
-			  union-format-arg                      Output in a specific format (argument
-			                                        mode: <format-case> [--pretty] ...).
-			  union-format-flag                     Output in a specific format (flag mode:
-			                                        --format <case>).
+			  union-format-arg                              Output in a specific format
+			                                                (argument mode: <format-case>
+			                                                [--pretty] ...).
+			  union-format-flag                             Output in a specific format
+			                                                (flag mode: --format <case>).
 			  uri-cmd
 			  validate-allowed                              Validate allowed values on
 			                                                --env.

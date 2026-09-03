@@ -84,7 +84,14 @@ public sealed partial class CliParserGenerator
 		/// <summary>Ordered list of cases in the union (each case may have zero or more properties).</summary>
 		ImmutableArray<UnionCaseInfo> UnionCases = default,
 		/// <summary>When true the union case is selected positionally (like <c>[Argument]</c>); when false (default) selected via <c>--format &lt;case&gt;</c>.</summary>
-		bool UnionIsArgument = false)
+		bool UnionIsArgument = false,
+		/// <summary>
+		/// True when this parameter is a complex class type (e.g. global-options DTO) that the generator
+		/// will later promote to <see cref="ParameterKind.OptionsInjected"/>. At the per-invocation
+		/// analysis step the kind is still <see cref="ParameterKind.Flag"/>; this flag lets the argument-
+		/// order validator skip it so it does not trigger AGH0003.
+		/// </summary>
+		bool IsOptionsInjectionCandidate = false)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
 
@@ -265,6 +272,10 @@ public sealed partial class CliParserGenerator
 			var unionCases = sk == CliScalarKind.Union && p.Type is INamedTypeSymbol unionT2
 				? GetUnionCasesFromSymbol(unionT2) : default;
 			var unionIsArg = sk == CliScalarKind.Union && isArg;
+			// Complex class types (e.g. global-options DTOs) fall through to Primitive/string; mark them
+			// so the argument-order validator can skip them (they become OptionsInjected in the collect step).
+			var isOIC = sk == CliScalarKind.Primitive && bs == BoolSpecialKind.None
+				&& p.Type is { TypeKind: TypeKind.Class, SpecialType: SpecialType.None };
 			return new ParameterModel(
 				p.Name,
 				SafeLocalName(p.Name),
@@ -295,7 +306,8 @@ public sealed partial class CliParserGenerator
 				DeprecationMessage: deprecationMsgP,
 				UnionTypeFq: unionTypeFq,
 				UnionCases: unionCases,
-				UnionIsArgument: unionIsArg);
+				UnionIsArgument: unionIsArg,
+				IsOptionsInjectionCandidate: isOIC);
 		}
 
 		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, Compilation? compilation = null, string? defaultValueLiteral = null)
