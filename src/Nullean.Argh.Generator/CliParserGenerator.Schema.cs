@@ -258,11 +258,6 @@ public sealed partial class CliParserGenerator
 		EmitSchemaNamespaceCommandsExpression(sb, node, entryAssemblyName, $"{indent}\t");
 		sb.AppendLine(",");
 		EmitSchemaNamespacesExpression(sb, node.Children, entryAssemblyName, $"{indent}\t");
-		if (ch.IsHiddenInSchema)
-		{
-			sb.AppendLine(",");
-			sb.Append($"{indent}\tHidden: true");
-		}
 		sb.AppendLine();
 		sb.Append(indent);
 		sb.Append(")");

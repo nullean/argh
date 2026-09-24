@@ -24,8 +24,7 @@ public sealed record CliNamespaceSchema(
 	CliParameterSchema[] Options,
 	CliDefaultHandlerSchema? DefaultCommand,
 	CliCommandSchema[] Commands,
-	CliNamespaceSchema[] Namespaces,
-	bool Hidden = false);
+	CliNamespaceSchema[] Namespaces);
 
 /// <summary>Registered command (non-default handler).</summary>
 public sealed record CliCommandSchema(

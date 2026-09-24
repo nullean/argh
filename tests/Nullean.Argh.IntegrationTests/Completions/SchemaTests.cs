@@ -184,21 +184,6 @@ public class SchemaTests
 	}
 
 	[Fact]
-	public void Schema_hidden_schema_namespace_has_hidden_true_in_schema()
-	{
-		var result = CliHostRunner.Run("__schema");
-		result.ExitCode.Should().Be(0);
-		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
-		var namespaces = doc.RootElement.GetProperty("namespaces");
-
-		// [Hidden(Schema=true)]: both help and schema hidden
-		var hiddenNs = namespaces.EnumerateArray()
-			.FirstOrDefault(n => n.GetProperty("segment").GetString() == "schema-hidden-schema-ns");
-		hiddenNs.ValueKind.Should().Be(JsonValueKind.Object);
-		hiddenNs.GetProperty("hidden").GetBoolean().Should().BeTrue();
-	}
-
-	[Fact]
 	public void Schema_default_value_is_emitted_for_parameters_with_defaults()
 	{
 		var result = CliHostRunner.Run("__schema");
