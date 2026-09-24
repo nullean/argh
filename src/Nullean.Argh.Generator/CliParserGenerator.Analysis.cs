@@ -280,6 +280,9 @@ public sealed partial class CliParserGenerator
 			entryTypeSnapshot = BuildRegistryNodeSnapshot(entryNode);
 		}
 
+		var (_nsHideHelp, _nsHideSchema) = namespaceEntryType is not null
+			? GetHiddenFlags(namespaceEntryType)
+			: (false, false);
 		return new AIMapNamespace(
 			filePath,
 			spanStart,
@@ -294,7 +297,9 @@ public sealed partial class CliParserGenerator
 			HasEntryType: namespaceEntryType is not null,
 			SourceSpanInfo.From(invocation.GetLocation()),
 			ImmutableArray<PendingDiagnostic>.Empty,
-			entryTypeSnapshot);
+			entryTypeSnapshot,
+			NsIsHiddenFromHelp: _nsHideHelp,
+			NsIsHiddenFromSchema: _nsHideSchema);
 	}
 
 	/// <summary>Recursively expands type registration using DiagnosticAccumulator (for Select-step analysis).</summary>
@@ -318,12 +323,15 @@ public sealed partial class CliParserGenerator
 			var wrapper = new RegistryNode();
 			var outerPrefix = AppendSegment(routePrefix, seg);
 			ExpandTypeRegistrationAcc(acc, location, type, outerPrefix, mergeOuterTypeSegment: true, wrapper, parseOpts, compilation);
+			var (_typeHideHelp, _typeHideSchema) = GetHiddenFlags(type);
 			attachTo.Children.Add(new RegistryNode.NamedCommandNamespaceChild
 			{
 				Segment = seg,
 				Node = wrapper,
 				SummaryOneLiner = GetTypeListingSummaryOneLiner(type),
-				Location = location
+				Location = location,
+				IsHidden = _typeHideHelp,
+				IsHiddenInSchema = _typeHideSchema
 			});
 		}
 	}
@@ -333,7 +341,7 @@ public sealed partial class CliParserGenerator
 	{
 		var children = ImmutableArray.CreateBuilder<ChildNamespaceSnapshot>(node.Children.Count);
 		foreach (var ch in node.Children)
-			children.Add(new ChildNamespaceSnapshot(ch.Segment, BuildRegistryNodeSnapshot(ch.Node), ch.SummaryOneLiner));
+			children.Add(new ChildNamespaceSnapshot(ch.Segment, BuildRegistryNodeSnapshot(ch.Node), ch.SummaryOneLiner, ch.IsHidden, ch.IsHiddenInSchema));
 		return new RegistryNodeSnapshot(
 			node.RootCommand,
 			node.Commands.ToImmutableArray(),
@@ -655,7 +663,9 @@ public sealed partial class CliParserGenerator
 			Segment = ns.SegmentName,
 			Node = childNode,
 			SummaryOneLiner = ns.NsSummary,
-			Location = ns.DiagnosticSpanInfo.ToLocation()
+			Location = ns.DiagnosticSpanInfo.ToLocation(),
+			IsHidden = ns.NsIsHiddenFromHelp,
+			IsHiddenInSchema = ns.NsIsHiddenFromSchema
 		});
 	}
 
@@ -717,7 +727,9 @@ public sealed partial class CliParserGenerator
 				Segment = childSnap.Segment,
 				Node = childNode,
 				SummaryOneLiner = childSnap.SummaryOneLiner,
-				Location = Location.None
+				Location = Location.None,
+				IsHidden = childSnap.IsHidden,
+				IsHiddenInSchema = childSnap.IsHiddenInSchema
 			});
 		}
 		target.SummaryInnerXml = snap.SummaryInnerXml;

@@ -93,6 +93,8 @@ internal static class CliRegistrationModule
 		app.Map("schema-intent-destructive", SchemaIntentHandlers.SchemaIntentDestructive);
 		app.Map("schema-intent-read", SchemaIntentHandlers.SchemaIntentRead);
 		app.Map("schema-output-formats", SchemaOutputHandlers.SchemaOutputFormats);
+		app.MapNamespace<SchemaHiddenNamespace>("schema-hidden-ns");
+		app.MapNamespace<SchemaHiddenSchemaNamespace>("schema-hidden-schema-ns");
 		app.MapNamespace<StorageCliCommands>("storage", g =>
 		{
 			g.UseNamespaceOptions<TestStorageCommandNamespaceOptions>();

@@ -47,6 +47,7 @@ public sealed partial class CliParserGenerator
 		bool IsIntrinsic = false,
 		ImmutableArray<string> CommandAliases = default,
 		bool IsHidden = false,
+		bool IsHiddenInSchema = false,
 		bool IsDeprecated = false,
 		string? DeprecationMessage = null,
 		CommandIntentData? Intent = null,
@@ -121,7 +122,8 @@ public sealed partial class CliParserGenerator
 			var hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt && HasPublicParameterlessCtor(namedCt);
 			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) = ExtractHandlerAnalysis(method);
 			var (isDeprecated, deprecationMsg) = TryGetObsoleteAttribute(method);
-			return new CommandModel(routePrefix, commandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData, IsIntrinsic: HasCommandIntrinsicAttribute(method), CommandAliases: TryGetCommandAliasesFromAttribute(method), IsHidden: HasHiddenAttribute(method), IsDeprecated: isDeprecated, DeprecationMessage: deprecationMsg, Intent: TryGetCommandIntentData(method), Output: BuildCommandOutputFromParameters(withDocs));
+			var (_cmdHideHelp, _cmdHideSchema) = GetHiddenFlags(method);
+			return new CommandModel(routePrefix, commandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData, IsIntrinsic: HasCommandIntrinsicAttribute(method), CommandAliases: TryGetCommandAliasesFromAttribute(method), IsHidden: _cmdHideHelp, IsHiddenInSchema: _cmdHideSchema, IsDeprecated: isDeprecated, DeprecationMessage: deprecationMsg, Intent: TryGetCommandIntentData(method), Output: BuildCommandOutputFromParameters(withDocs));
 		}
 
 		private static ImmutableArray<ParameterModel> BuildParameterModels(

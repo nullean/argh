@@ -647,7 +647,8 @@ public sealed partial class CliParserGenerator
 		var maxOptWidthRoot = Math.Min(widthCandidatesGlobalRoot.Max(), 40);
 		maxOptWidthRoot = Math.Max(maxOptWidthRoot, "-h, --help".Length);
 
-		var maxNsListingW = app.Root.Children.Count == 0 ? 0 : app.Root.Children.Max(ch => ch.Segment.Length);
+		var visibleRootChildren = app.Root.Children.Where(static ch => !ch.IsHidden).ToList();
+		var maxNsListingW = visibleRootChildren.Count == 0 ? 0 : visibleRootChildren.Max(ch => ch.Segment.Length);
 		var visibleRootCmds = app.Root.Commands.Where(static c => !c.IsHidden).ToList();
 		var maxCmdListingW = visibleRootCmds.Count == 0 ? 0 : visibleRootCmds.Max(c => c.CommandName.Length);
 
@@ -675,10 +676,10 @@ public sealed partial class CliParserGenerator
 			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("--version".PadRight(maxOptWidthRoot))}\") + \"  Show version.\");");
 		EmitHelpOptionRows(sb, rootGlobalFlags, maxOptWidthRoot);
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
-		if (app.Root.Children.Count > 0)
+		if (visibleRootChildren.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Namespaces:\"));");
-			foreach (var ch in app.Root.Children.OrderBy(ch => ch.Segment, StringComparer.OrdinalIgnoreCase).ThenBy(ch => ch.Segment, StringComparer.Ordinal))
+			foreach (var ch in visibleRootChildren.OrderBy(ch => ch.Segment, StringComparer.OrdinalIgnoreCase).ThenBy(ch => ch.Segment, StringComparer.Ordinal))
 			{
 				var sumArg = string.IsNullOrWhiteSpace(ch.SummaryOneLiner)
 					? "null"
@@ -740,9 +741,8 @@ public sealed partial class CliParserGenerator
 		var maxOptWidth = Math.Min(widthCandidatesNs.Max(), 40);
 		maxOptWidth = Math.Max(maxOptWidth, "-h, --help".Length);
 
-		var maxChildNsListingW = 0;
-		if (node.Children.Count > 0)
-			maxChildNsListingW = node.Children.Max(ch => FormatQualifiedCliPath(path, ch.Segment).Length);
+		var visibleChildNamespaces = node.Children.Where(static ch => !ch.IsHidden).ToList();
+		var maxChildNsListingW = visibleChildNamespaces.Count == 0 ? 0 : visibleChildNamespaces.Max(ch => FormatQualifiedCliPath(path, ch.Segment).Length);
 		var maxChildCmdListingW = 0;
 		var visibleNodeCmds = node.Commands.Where(static c => !c.IsHidden).ToList();
 		if (visibleNodeCmds.Count > 0)
@@ -781,10 +781,10 @@ public sealed partial class CliParserGenerator
 			}
 		}
 
-		if (node.Children.Count > 0)
+		if (visibleChildNamespaces.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Namespaces:\"));");
-			foreach (var ch in node.Children.OrderBy(ch => ch.Segment, StringComparer.OrdinalIgnoreCase).ThenBy(ch => ch.Segment, StringComparer.Ordinal))
+			foreach (var ch in visibleChildNamespaces.OrderBy(ch => ch.Segment, StringComparer.OrdinalIgnoreCase).ThenBy(ch => ch.Segment, StringComparer.Ordinal))
 			{
 				var fullNs = FormatQualifiedCliPath(path, ch.Segment);
 				var sumArg = string.IsNullOrWhiteSpace(ch.SummaryOneLiner)

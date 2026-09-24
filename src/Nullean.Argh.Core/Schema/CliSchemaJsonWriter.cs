@@ -52,6 +52,7 @@ internal sealed class CliSchemaJsonWriter
 		WriteObject("defaultCommand", ns.DefaultCommand, WriteDefaultHandler);
 		WriteObjectArray("commands", ns.Commands, WriteCommand);
 		WriteObjectArray("namespaces", ns.Namespaces, WriteNamespace);
+		WriteBool("hidden", ns.Hidden, omitWhenFalse: true);
 	}
 
 	private void WriteCommand(CliCommandSchema c)
