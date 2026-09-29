@@ -414,7 +414,7 @@ public sealed partial class CliParserGenerator
 		EmitValidationChecks(sb, cmd, failureExit, entryAssemblyName, flagHelpStdErrMethodName);
 
 		// Reconstruct options instances merging command-level flags with pre-parsed statics.
-		EmitOptionsReconstructLocals(sb, injectedOptions);
+		EmitOptionsReconstructLocals(sb, injectedOptions, environmentPrefix);
 
 		if (cmd.RequiresInstance)
 		{
@@ -1714,7 +1714,7 @@ switch (p.Special)
 
 		foreach (var p in model.Members)
 		{
-			if (p.Kind == ParameterKind.Flag)
+			if (p.Kind == ParameterKind.Flag && !p.IsHidden)
 				yield return p;
 		}
 	}

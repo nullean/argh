@@ -302,6 +302,16 @@ internal static class EnvBindingHandlers
 	/// <param name="verbose">--verbose, Enable verbose mode.</param>
 	public static void EnvBool(TestGlobalCliOptions g, [Env("MY_APP_VERBOSE")] bool verbose = false) =>
 		Console.Out.WriteLine($"env-verbose:{verbose}");
+
+	/// <summary>Echo global option api-url which is env-bound to TEST_API_URL.</summary>
+	/// <param name="g">Injected global CLI options.</param>
+	public static void EnvGlobal(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine($"env-global-api-url:{g.ApiUrl}");
+
+	/// <summary>Echo namespace option key which is env-bound to TEST_NS_KEY.</summary>
+	/// <param name="o">Namespace-scoped options with env binding.</param>
+	public static void EnvNs(EnvTestNamespaceOptions o) =>
+		Console.Out.WriteLine($"env-ns-key:{o.Key}");
 }
 
 /// </summary>

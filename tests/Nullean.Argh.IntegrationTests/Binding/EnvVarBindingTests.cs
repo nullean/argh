@@ -91,4 +91,48 @@ public class EnvVarBindingTests
 		result.ExitCode.Should().Be(0);
 		CliHostRunner.StdoutText(result).Should().Contain("[env: MY_APP_TOKEN]");
 	}
+
+	[Fact]
+	public void Env_on_global_option_falls_back_to_env_var()
+	{
+		var env = new Dictionary<string, string> { ["TEST_API_URL"] = "https://api.example.com" };
+		var result = CliHostRunner.Run(env, "env-global");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("env-global-api-url:https://api.example.com");
+	}
+
+	[Fact]
+	public void Env_on_global_option_cli_flag_wins_over_env_var()
+	{
+		var env = new Dictionary<string, string> { ["TEST_API_URL"] = "https://from-env.example.com" };
+		var result = CliHostRunner.Run(env, "env-global", "--api-url", "https://from-cli.example.com");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("env-global-api-url:https://from-cli.example.com");
+	}
+
+	[Fact]
+	public void Env_on_global_option_null_when_neither_cli_nor_env()
+	{
+		var result = CliHostRunner.Run("env-global");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("env-global-api-url:");
+	}
+
+	[Fact]
+	public void Env_on_namespace_option_falls_back_to_env_var()
+	{
+		var env = new Dictionary<string, string> { ["TEST_NS_KEY"] = "from-env-key" };
+		var result = CliHostRunner.Run(env, "env-ns", "key");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("env-ns-key:from-env-key");
+	}
+
+	[Fact]
+	public void Env_on_namespace_option_cli_flag_wins_over_env_var()
+	{
+		var env = new Dictionary<string, string> { ["TEST_NS_KEY"] = "from-env" };
+		var result = CliHostRunner.Run(env, "env-ns", "key", "--key", "from-cli");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Trim().Should().Be("env-ns-key:from-cli");
+	}
 }

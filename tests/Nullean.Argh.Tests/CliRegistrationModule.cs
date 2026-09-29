@@ -86,6 +86,12 @@ internal static class CliRegistrationModule
 		app.Map("env-cmd", EnvBindingHandlers.EnvCmd);
 		app.Map("env-required", EnvBindingHandlers.EnvRequired);
 		app.Map("env-bool", EnvBindingHandlers.EnvBool);
+		app.Map("env-global", EnvBindingHandlers.EnvGlobal);
+		app.MapNamespace("env-ns", "Env binding namespace options tests.", g =>
+		{
+			g.UseNamespaceOptions<EnvTestNamespaceOptions>();
+			g.Map("key", EnvBindingHandlers.EnvNs);
+		});
 		app.Map("schema-default-value", SchemaSpecificHandlers.SchemaDefaultValue);
 		app.Map("schema-separator-list", SchemaSpecificHandlers.SchemaSeparatorList);
 		app.Map("schema-hidden-param", SchemaSpecificHandlers.SchemaHiddenParam);

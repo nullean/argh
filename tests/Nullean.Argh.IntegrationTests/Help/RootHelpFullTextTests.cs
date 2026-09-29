@@ -32,11 +32,13 @@ public class RootHelpFullTextTests
 			  --severity <enum>    Enum default for global-flag parsing regression. [default: information]
 			                       One of: <trace|information|warning>
 			  -m, --mode <string>  Test-only global mode label (non-bool global short-option coverage). [default: ]
+			  --api-url <string>   API URL for env-binding global options tests. [env: TEST_API_URL]
 
 			Namespaces:
 			  alias-followed  Root alias followed by additional mapped command classes.
 			  alias-scope     Root-alias integration test namespace.
 			  billing         Billing commands
+			  env-ns          Env binding namespace options tests.
 			  storage         Commands under storage. Nested BlobCommands must be registered
 			                  explicitly via MapNamespace<BlobCommands>.
 			  support         Support commands
@@ -80,6 +82,8 @@ public class RootHelpFullTextTests
 			                                                supports env var fallback.
 			  env-cmd                                       Echo a token from either the
 			                                                flag or an env var fallback.
+			  env-global                                    Echo global option api-url which
+			                                                is env-bound to TEST_API_URL.
 			  env-required                                  Echo a required value that can
 			                                                come from an env var.
 			  exit-code-cmd
