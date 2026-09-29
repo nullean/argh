@@ -492,6 +492,7 @@ public sealed partial class CliParserGenerator
 		ValidateCommandOptionsInjection(context, app);
 		FixOptionsParamsInCommands(app);
 		ValidateDuplicateShortOptionLetters(context, app);
+		ValidateEnvOnBoolFlags(context, app);
 
 		return true;
 	}

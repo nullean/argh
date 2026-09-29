@@ -142,6 +142,43 @@ public sealed partial class CliParserGenerator
 		}
 	}
 
+	private static void ValidateEnvOnBoolFlags(SourceProductionContext context, AppEmitModel app)
+	{
+		void reportIfBoolEnv(ImmutableArray<ParameterModel> members, Location location)
+		{
+			foreach (var p in members)
+			{
+				if (p.Kind != ParameterKind.Flag || p.Special != BoolSpecialKind.Bool)
+					continue;
+				if (string.IsNullOrEmpty(p.EnvVarName))
+					continue;
+				context.ReportDiagnostic(Diagnostic.Create(EnvOnNonNullableBool, location, p.SymbolName, p.CliLongName));
+			}
+		}
+
+		if (app.GlobalOptionsModel is { FlattenedMembers: var gm } && !gm.IsDefaultOrEmpty)
+			reportIfBoolEnv(gm, Location.None);
+
+		static void walkNs(RegistryNode node, SourceProductionContext ctx, Action<ImmutableArray<ParameterModel>, Location> report)
+		{
+			if (node.CommandNamespaceOptionsModel is { FlattenedMembers: var nm } && !nm.IsDefaultOrEmpty)
+			{
+				var loc = node.CommandNamespaceOptionsLocation ?? Location.None;
+				report(nm, loc);
+			}
+			foreach (var ch in node.Children)
+				walkNs(ch.Node, ctx, report);
+		}
+		walkNs(app.Root, context, reportIfBoolEnv);
+
+		foreach (var cmd in app.AllCommands)
+		{
+			if (cmd.Parameters.IsDefaultOrEmpty) continue;
+			var loc = cmd.HandlerSpanInfo.ToLocation();
+			reportIfBoolEnv(cmd.Parameters, loc);
+		}
+	}
+
 	/// <summary>DiagnosticAccumulator-based overload for Select-step analysis.</summary>
 	private static void ValidateExpandedParameterLayoutAcc(DiagnosticAccumulator acc, Location location, ImmutableArray<ParameterModel> expanded)
 	{
