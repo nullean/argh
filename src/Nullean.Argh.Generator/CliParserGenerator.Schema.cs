@@ -479,10 +479,6 @@ public sealed partial class CliParserGenerator
 		if (validations != "null")
 			sb.Append($", Validations: {validations}");
 
-		var effectiveEnvVar = ComputeEffectiveEnvVarName(p, environmentPrefix);
-		if (!string.IsNullOrEmpty(effectiveEnvVar))
-			sb.Append($", Env: \"{Escape(effectiveEnvVar!)}\"");
-
 		sb.Append(")");
 		return sb.ToString();
 	}

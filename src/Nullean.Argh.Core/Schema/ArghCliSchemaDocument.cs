@@ -86,8 +86,7 @@ public sealed record CliParameterSchema(
 	bool Hidden = false,
 	bool Variadic = false,
 	CliDeprecationSchema? Deprecated = null,
-	CliConstraintSchema[]? Validations = null,
-	string? Env = null);
+	CliConstraintSchema[]? Validations = null);
 
 /// <summary>A single validation constraint on a CLI parameter.</summary>
 /// <param name="Kind">One of: range, length, count, regex, allowed, denied, email, url, uriScheme, fileExtensions, timeSpanRange, existing, nonExisting, rejectSymbolicLinks, expandUserProfile.</param>
