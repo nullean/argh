@@ -16,6 +16,19 @@ namespace Nullean.Argh;
 
 public sealed partial class CliParserGenerator
 {
+	private static string? ComputeEffectiveEnvVarName(ParameterModel p, string? environmentPrefix)
+	{
+		if (!string.IsNullOrEmpty(p.EnvVarName))
+			return p.EnvVarName;
+		if (!string.IsNullOrEmpty(environmentPrefix) && p.Kind == ParameterKind.Flag && p.Special != BoolSpecialKind.NullableBool)
+		{
+			// "--my-flag" → strip leading "--", replace "-" with "_", uppercase, prepend prefix
+			var flagName = p.CliLongName.TrimStart('-').Replace('-', '_').ToUpperInvariant();
+			return environmentPrefix + flagName;
+		}
+		return null;
+	}
+
 	private static void EmitCommandRunner(
 		StringBuilder sb,
 		CommandModel cmd,
@@ -27,7 +40,8 @@ public sealed partial class CliParserGenerator
 		string? dtoOptionsTypeFq = null,
 		ImmutableArray<string>? dtoOptionsBestCtorParamOrder = null,
 		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions = default,
-		string? entryAssemblyName = null)
+		string? entryAssemblyName = null,
+		string? environmentPrefix = null)
 	{
 		var anyRepeatedCollection = cmd.Parameters.Any(static p =>
 			p is { IsCollection: true, Kind: ParameterKind.Flag } && p.CollectionSeparator is null);
@@ -277,7 +291,14 @@ public sealed partial class CliParserGenerator
 
 			if (p.Special == BoolSpecialKind.Bool)
 			{
-				sb.AppendLine($"\t\t\tvar {p.LocalVarName} = flags.ContainsKey(\"{Escape(p.CliLongName)}\");");
+				var boolEnvVar = ComputeEffectiveEnvVarName(p, environmentPrefix);
+				if (boolEnvVar != null)
+				{
+					sb.AppendLine($"\t\t\tvar {p.LocalVarName}EnvRaw = global::System.Environment.GetEnvironmentVariable(\"{Escape(boolEnvVar)}\");");
+					sb.AppendLine($"\t\t\tvar {p.LocalVarName} = flags.ContainsKey(\"{Escape(p.CliLongName)}\") || ({p.LocalVarName}EnvRaw != null && {p.LocalVarName}EnvRaw != \"0\" && {p.LocalVarName}EnvRaw != \"false\" && {p.LocalVarName}EnvRaw.Length > 0);");
+				}
+				else
+					sb.AppendLine($"\t\t\tvar {p.LocalVarName} = flags.ContainsKey(\"{Escape(p.CliLongName)}\");");
 				continue;
 			}
 
@@ -298,17 +319,38 @@ public sealed partial class CliParserGenerator
 			}
 
 			var flagKey = Escape(p.CliLongName);
+			var effectiveEnvVar = ComputeEffectiveEnvVarName(p, environmentPrefix);
 			sb.AppendLine($"\t\t\tif (!flags.TryGetValue(\"{flagKey}\", out var {p.LocalVarName}Text))");
+			sb.AppendLine("\t\t\t{");
+			if (effectiveEnvVar != null)
+			{
+				sb.AppendLine($"\t\t\t\tvar {p.LocalVarName}EnvVal = global::System.Environment.GetEnvironmentVariable(\"{Escape(effectiveEnvVar)}\");");
+				if (p.EnvTreatEmptyAsUnset)
+					sb.AppendLine($"\t\t\t\t{p.LocalVarName}Text = ({p.LocalVarName}EnvVal != null && {p.LocalVarName}EnvVal.Length > 0) ? {p.LocalVarName}EnvVal : null;");
+				else
+					sb.AppendLine($"\t\t\t\t{p.LocalVarName}Text = {p.LocalVarName}EnvVal;");
+			}
 			if (p.IsRequired)
 			{
-				sb.AppendLine("\t\t\t{");
-				sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
-				EmitAfterCliParseErrorHelp(sb, p, "\t\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"\t\t\t\t{failureExit};");
-				sb.AppendLine("\t\t\t}");
+				if (effectiveEnvVar != null)
+				{
+					sb.AppendLine($"\t\t\t\tif ({p.LocalVarName}Text == null)");
+					sb.AppendLine("\t\t\t\t{");
+					sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
+					EmitAfterCliParseErrorHelp(sb, p, "\t\t\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+					sb.AppendLine($"\t\t\t\t\t{failureExit};");
+					sb.AppendLine("\t\t\t\t}");
+				}
+				else
+				{
+					sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
+					EmitAfterCliParseErrorHelp(sb, p, "\t\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+					sb.AppendLine($"\t\t\t\t{failureExit};");
+				}
 			}
-			else
+			else if (effectiveEnvVar == null)
 				sb.AppendLine($"\t\t\t\t{p.LocalVarName}Text = null;");
+			sb.AppendLine("\t\t\t}");
 
 			EmitParseAndAssign(sb, p, p.LocalVarName + "Text", p.LocalVarName, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 		}

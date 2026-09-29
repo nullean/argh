@@ -50,6 +50,13 @@ public sealed partial class ArghApp
 	}
 
 	/// <inheritdoc />
+	IArghRootBuilder IArghRootBuilder.UseEnvironmentPrefix(string prefix)
+	{
+		_ = UseEnvironmentPrefix(prefix);
+		return this;
+	}
+
+	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler)
 	{
 		_ = MapRoot(handler);

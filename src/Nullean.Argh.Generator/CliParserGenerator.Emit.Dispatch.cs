@@ -489,7 +489,7 @@ public sealed partial class CliParserGenerator
 			var injectedOpts = app.InjectionChains.TryGetValue(cmd.RunMethodName, out var precomputed3)
 				? precomputed3
 				: BuildOptionsInjectionChain(app, cmd);
-			EmitCommandRunner(sb, cmd, app.GlobalMiddleware, injectedOptions: injectedOpts, entryAssemblyName: entryAssemblyName);
+			EmitCommandRunner(sb, cmd, app.GlobalMiddleware, injectedOptions: injectedOpts, entryAssemblyName: entryAssemblyName, environmentPrefix: app.EnvironmentPrefix);
 		}
 
 		{

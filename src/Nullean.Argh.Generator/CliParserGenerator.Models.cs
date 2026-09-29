@@ -47,6 +47,7 @@ public sealed partial class CliParserGenerator
 		public OptionsTypeModel? GlobalOptionsModel;
 		public string RootSummary = "";
 		public string? SchemaVersionOverride;
+		public string? EnvironmentPrefix;
 		public readonly RegistryNode Root = new();
 		public ImmutableArray<CommandModel> AllCommands = ImmutableArray<CommandModel>.Empty;
 		public ImmutableArray<GlobalMiddlewareRegistration> GlobalMiddleware = ImmutableArray<GlobalMiddlewareRegistration>.Empty;
@@ -171,6 +172,10 @@ public sealed partial class CliParserGenerator
 
 	/// <summary>A <c>UseSchemaVersion(string)</c> invocation — overrides the <c>version</c> field in the <c>__schema</c> document.</summary>
 	private sealed record AIUseSchemaVersion(string FilePath, int SpanStart, string Version)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
+	/// <summary>A <c>UseEnvironmentPrefix(string)</c> invocation — sets an env var prefix for all flags.</summary>
+	private sealed record AIUseEnvironmentPrefix(string FilePath, int SpanStart, string Prefix)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>DocumentEnvironmentVariables(...)</c> invocation — only meaningful at root scope.</summary>

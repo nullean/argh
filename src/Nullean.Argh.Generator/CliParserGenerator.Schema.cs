@@ -31,11 +31,11 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\t\tnew[] { \"__complete\", \"__completion\", \"__schema\" },");
 		EmitSchemaGlobalOptionsExpression(sb, app, "\t\t\t\t");
 		sb.AppendLine(",");
-		EmitSchemaRootDefaultExpression(sb, app.Root.RootCommand, entryAssemblyName, "\t\t\t\t");
+		EmitSchemaRootDefaultExpression(sb, app.Root.RootCommand, entryAssemblyName, "\t\t\t\t", app.EnvironmentPrefix);
 		sb.AppendLine(",");
 		EmitSchemaRootCommandsExpression(sb, app, entryAssemblyName, "\t\t\t\t");
 		sb.AppendLine(",");
-		EmitSchemaNamespacesExpression(sb, app.Root.Children, entryAssemblyName, "\t\t\t\t");
+		EmitSchemaNamespacesExpression(sb, app.Root.Children, entryAssemblyName, "\t\t\t\t", app.EnvironmentPrefix);
 		EmitSchemaEnvironmentArg(sb, app, "\t\t\t\t");
 		sb.AppendLine(");");
 	}
@@ -60,13 +60,13 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(indent + "new CliParameterSchema[]");
 		sb.AppendLine(indent + "{");
 		foreach (var p in flags)
-			sb.AppendLine($"{indent}\t{EmitCliParameterSchemaNewExpression(p)},");
+			sb.AppendLine($"{indent}\t{EmitCliParameterSchemaNewExpression(p, app.EnvironmentPrefix)},");
 		sb.Append(indent);
 		sb.Append("}");
 	}
 
 	private static void EmitSchemaRootDefaultExpression(StringBuilder sb, CommandModel? rootCmd, string entryAssemblyName,
-		string indent)
+		string indent, string? environmentPrefix = null)
 	{
 		if (rootCmd is not { IsRootDefault: true } rc)
 		{
@@ -85,14 +85,14 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(",");
 		EmitExamplesStringArray(sb, rc.ExamplesRendered, $"{indent}\t");
 		sb.AppendLine(",");
-		EmitSchemaParametersForCommand(sb, rc.Parameters, $"{indent}\t");
+		EmitSchemaParametersForCommand(sb, rc.Parameters, $"{indent}\t", environmentPrefix);
 		sb.AppendLine();
 		sb.Append(indent);
 		sb.Append(")");
 	}
 
 	private static void EmitSchemaDefaultHandlerForNamespace(StringBuilder sb, CommandModel? rootCmd,
-		string entryAssemblyName, string indent)
+		string entryAssemblyName, string indent, string? environmentPrefix = null)
 	{
 		if (rootCmd is not { IsRootDefault: true } rc)
 		{
@@ -111,7 +111,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(",");
 		EmitExamplesStringArray(sb, rc.ExamplesRendered, $"{indent}\t");
 		sb.AppendLine(",");
-		EmitSchemaParametersForCommand(sb, rc.Parameters, $"{indent}\t");
+		EmitSchemaParametersForCommand(sb, rc.Parameters, $"{indent}\t", environmentPrefix);
 		sb.AppendLine();
 		sb.Append(indent);
 		sb.Append(")");
@@ -134,7 +134,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(indent + "{");
 		foreach (var cmd in cmds)
 		{
-			EmitCliCommandSchemaBody(sb, cmd, entryAssemblyName, indent + "\t");
+			EmitCliCommandSchemaBody(sb, cmd, entryAssemblyName, indent + "\t", app.EnvironmentPrefix);
 			sb.AppendLine(",");
 		}
 
@@ -142,7 +142,7 @@ public sealed partial class CliParserGenerator
 		sb.Append("}");
 	}
 
-	private static void EmitCliCommandSchemaBody(StringBuilder sb, CommandModel cmd, string entryAssemblyName, string indent)
+	private static void EmitCliCommandSchemaBody(StringBuilder sb, CommandModel cmd, string entryAssemblyName, string indent, string? environmentPrefix = null)
 	{
 		sb.AppendLine(indent + "new CliCommandSchema(");
 		EmitImmutableStringArrayInline(sb, cmd.RoutePrefix, $"{indent}\t");
@@ -156,7 +156,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(",");
 		EmitExamplesStringArray(sb, cmd.ExamplesRendered, $"{indent}\t");
 		sb.AppendLine(",");
-		EmitSchemaParametersForCommand(sb, cmd.Parameters, $"{indent}\t");
+		EmitSchemaParametersForCommand(sb, cmd.Parameters, $"{indent}\t", environmentPrefix);
 		if (!cmd.CommandAliases.IsDefaultOrEmpty)
 		{
 			sb.AppendLine(",");
@@ -219,7 +219,7 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitSchemaNamespacesExpression(StringBuilder sb,
-		List<RegistryNode.NamedCommandNamespaceChild> children, string entryAssemblyName, string indent)
+		List<RegistryNode.NamedCommandNamespaceChild> children, string entryAssemblyName, string indent, string? environmentPrefix = null)
 	{
 		if (children.Count == 0)
 		{
@@ -232,7 +232,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(indent + "{");
 		foreach (var ch in children.OrderBy(c => c.Segment, StringComparer.OrdinalIgnoreCase))
 		{
-			EmitCliNamespaceSchemaBody(sb, ch, entryAssemblyName, indent + "\t");
+			EmitCliNamespaceSchemaBody(sb, ch, entryAssemblyName, indent + "\t", environmentPrefix);
 			sb.AppendLine(",");
 		}
 
@@ -241,7 +241,7 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitCliNamespaceSchemaBody(StringBuilder sb, RegistryNode.NamedCommandNamespaceChild ch,
-		string entryAssemblyName, string indent)
+		string entryAssemblyName, string indent, string? environmentPrefix = null)
 	{
 		var node = ch.Node;
 		var notes = FlattenTypeRemarksInnerXml(node.RemarksInnerXml);
@@ -251,13 +251,13 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(",");
 		EmitNullableStringArg(sb, $"{indent}\t", notes);
 		sb.AppendLine(",");
-		EmitSchemaNamespaceOptionsExpression(sb, node, $"{indent}\t");
+		EmitSchemaNamespaceOptionsExpression(sb, node, $"{indent}\t", environmentPrefix);
 		sb.AppendLine(",");
-		EmitSchemaDefaultHandlerForNamespace(sb, node.RootCommand, entryAssemblyName, $"{indent}\t");
+		EmitSchemaDefaultHandlerForNamespace(sb, node.RootCommand, entryAssemblyName, $"{indent}\t", environmentPrefix);
 		sb.AppendLine(",");
-		EmitSchemaNamespaceCommandsExpression(sb, node, entryAssemblyName, $"{indent}\t");
+		EmitSchemaNamespaceCommandsExpression(sb, node, entryAssemblyName, $"{indent}\t", environmentPrefix);
 		sb.AppendLine(",");
-		EmitSchemaNamespacesExpression(sb, node.Children, entryAssemblyName, $"{indent}\t");
+		EmitSchemaNamespacesExpression(sb, node.Children, entryAssemblyName, $"{indent}\t", environmentPrefix);
 		sb.AppendLine();
 		sb.Append(indent);
 		sb.Append(")");
@@ -271,7 +271,7 @@ public sealed partial class CliParserGenerator
 		return Documentation.ParseMethod(wrapped, CSharpParseOptions.Default).RemarksRendered;
 	}
 
-	private static void EmitSchemaNamespaceOptionsExpression(StringBuilder sb, RegistryNode node, string indent)
+	private static void EmitSchemaNamespaceOptionsExpression(StringBuilder sb, RegistryNode node, string indent, string? environmentPrefix = null)
 	{
 		if (node.CommandNamespaceOptionsModel is not { Members.Length: > 0 } nom)
 		{
@@ -291,13 +291,13 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(indent + "new CliParameterSchema[]");
 		sb.AppendLine(indent + "{");
 		foreach (var p in flags)
-			sb.AppendLine($"{indent}\t{EmitCliParameterSchemaNewExpression(p)},");
+			sb.AppendLine($"{indent}\t{EmitCliParameterSchemaNewExpression(p, environmentPrefix)},");
 		sb.Append(indent);
 		sb.Append("}");
 	}
 
 	private static void EmitSchemaNamespaceCommandsExpression(StringBuilder sb, RegistryNode node, string entryAssemblyName,
-		string indent)
+		string indent, string? environmentPrefix = null)
 	{
 		var cmds = node.Commands.Where(static c => !c.IsRootDefault).OrderBy(c => c.CommandName, StringComparer.Ordinal)
 			.ToList();
@@ -312,7 +312,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(indent + "{");
 		foreach (var cmd in cmds)
 		{
-			EmitCliCommandSchemaBody(sb, cmd, entryAssemblyName, indent + "\t");
+			EmitCliCommandSchemaBody(sb, cmd, entryAssemblyName, indent + "\t", environmentPrefix);
 			sb.AppendLine(",");
 		}
 
@@ -321,7 +321,7 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitSchemaParametersForCommand(StringBuilder sb, ImmutableArray<ParameterModel> parameters,
-		string indent)
+		string indent, string? environmentPrefix = null)
 	{
 		var list = parameters.Where(static p => p.Kind != ParameterKind.Injected).ToList();
 		if (list.Count == 0)
@@ -334,7 +334,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(indent + "new CliParameterSchema[]");
 		sb.AppendLine(indent + "{");
 		foreach (var p in list)
-			sb.AppendLine($"{indent}\t{EmitCliParameterSchemaNewExpression(p)},");
+			sb.AppendLine($"{indent}\t{EmitCliParameterSchemaNewExpression(p, environmentPrefix)},");
 		sb.Append(indent);
 		sb.Append("}");
 	}
@@ -415,7 +415,7 @@ public sealed partial class CliParserGenerator
 		sb.Append(indent + ")");
 	}
 
-	private static string EmitCliParameterSchemaNewExpression(ParameterModel p)
+	private static string EmitCliParameterSchemaNewExpression(ParameterModel p, string? environmentPrefix = null)
 	{
 		var role = p.IsConfirmationSkip ? "confirmationSkip"
 			: p.IsDryRun ? "dryRun"
@@ -478,6 +478,10 @@ public sealed partial class CliParserGenerator
 		var validations = BuildConstraintsExpression(p.Validations, p.ExpandUserProfileBeforeBind);
 		if (validations != "null")
 			sb.Append($", Validations: {validations}");
+
+		var effectiveEnvVar = ComputeEffectiveEnvVarName(p, environmentPrefix);
+		if (!string.IsNullOrEmpty(effectiveEnvVar))
+			sb.Append($", Env: \"{Escape(effectiveEnvVar!)}\"");
 
 		sb.Append(")");
 		return sb.ToString();

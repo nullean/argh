@@ -362,6 +362,21 @@ public class SchemaTests
 	}
 
 	[Fact]
+	public void Schema_env_attribute_appears_in_parameter_schema()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var envCmd = doc.RootElement.GetProperty("commands").EnumerateArray()
+			.FirstOrDefault(c => c.GetProperty("name").GetString() == "env-cmd");
+		envCmd.ValueKind.Should().Be(JsonValueKind.Object);
+		var tokenParam = envCmd.GetProperty("parameters").EnumerateArray()
+			.FirstOrDefault(p => p.GetProperty("name").GetString() == "token");
+		tokenParam.ValueKind.Should().Be(JsonValueKind.Object);
+		tokenParam.GetProperty("env").GetString().Should().Be("MY_APP_TOKEN");
+	}
+
+	[Fact]
 	public void Version_flag_emits_full_informational_version_not_major_only()
 	{
 		var result = CliHostRunner.Run("--version");

@@ -75,6 +75,12 @@ public class RootAndNamespaceHelpTests
 			  enum-cmd                                      Enum and short options.
 			  enum-value-cmd                                Enum with custom CLI value
 			                                                strings via EnumValueAttribute.
+			  env-bool                                      Echo a boolean flag that
+			                                                supports env var fallback.
+			  env-cmd                                       Echo a token from either the
+			                                                flag or an env var fallback.
+			  env-required                                  Echo a required value that can
+			                                                come from an env var.
 			  exit-code-cmd
 			  exit-code-lambda
 			  ext-ns-as-params-echo                         Echo verbose and tag from an

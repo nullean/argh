@@ -117,6 +117,7 @@ internal sealed class CliSchemaJsonWriter
 		WriteBool("variadic", p.Variadic, omitWhenFalse: true);
 		WriteDeprecated("deprecated", p.Deprecated);
 		WriteObjectArray("validations", p.Validations, WriteConstraint);
+		WriteString("env", p.Env);
 	}
 
 	private void WriteConstraint(CliConstraintSchema c)
