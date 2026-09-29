@@ -59,6 +59,7 @@ public sealed partial class CliParserGenerator
 		bool ExpandUserProfileBeforeBind = false,
 		ImmutableArray<ValidationConstraint> Validations = default,
 		bool IsHidden = false,
+		bool IsHiddenInSchema = false,
 		bool IsVariadic = false,
 		/// <summary>
 		/// True when the property is from a cross-assembly type (DeclaringSyntaxReferences empty) and has no
@@ -151,6 +152,7 @@ public sealed partial class CliParserGenerator
 			if (isVariadic) required = false;
 			var (isOutputColl, outputFormatsColl) = TryGetCommandOutputAttribute(attributeHost);
 			var (isDeprecatedColl, deprecationMsgColl) = TryGetObsoleteAttribute(attributeHost);
+			var (_colHideHelp, _colHideSchema) = GetHiddenFlags(attributeHost);
 			return new ParameterModel(
 				symbolName,
 				localVarName,
@@ -190,7 +192,8 @@ public sealed partial class CliParserGenerator
 				AsParametersClrName: asParams?.ClrName,
 				ExpandUserProfileBeforeBind: expandProfileElem,
 				Validations: collValidations,
-				IsHidden: HasHiddenAttribute(attributeHost),
+				IsHidden: _colHideHelp,
+				IsHiddenInSchema: _colHideSchema,
 				IsVariadic: isVariadic,
 				IsConfirmationSkip: HasConfirmationSkipAttribute(attributeHost),
 				IsDryRun: HasDryRunAttribute(attributeHost),
@@ -252,6 +255,7 @@ public sealed partial class CliParserGenerator
 			var expandProf = TryReadExpandUserProfileBeforeBind(p, sk);
 			var (isOutputP, outputFormatsP) = TryGetCommandOutputAttribute(p);
 			var (isDeprecatedP, deprecationMsgP) = TryGetObsoleteAttribute(p);
+			var (_paramHideHelp, _paramHideSchema) = GetHiddenFlags(p);
 			return new ParameterModel(
 				p.Name,
 				SafeLocalName(p.Name),
@@ -273,7 +277,8 @@ public sealed partial class CliParserGenerator
 				EnumMemberDocs: enumDocs,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
-				IsHidden: HasHiddenAttribute(p),
+				IsHidden: _paramHideHelp,
+				IsHiddenInSchema: _paramHideSchema,
 				IsConfirmationSkip: HasConfirmationSkipAttribute(p),
 				IsDryRun: HasDryRunAttribute(p),
 				IsCommandOutput: isOutputP,
@@ -310,6 +315,7 @@ public sealed partial class CliParserGenerator
 			var validations = ReadValidationConstraints(prop, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
+			var (_propHideHelp, _propHideSchema) = GetHiddenFlags(prop);
 			return new ParameterModel(
 				prop.Name,
 				SafeLocalName(prop.Name),
@@ -331,7 +337,8 @@ public sealed partial class CliParserGenerator
 				EnumMemberDocs: enumDocs,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
-				IsHidden: HasHiddenAttribute(prop),
+				IsHidden: _propHideHelp,
+				IsHiddenInSchema: _propHideSchema,
 				UsesRuntimeDefault: isCrossAssemblyDefault,
 				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated
 					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
@@ -367,6 +374,7 @@ public sealed partial class CliParserGenerator
 			var validations = ReadValidationConstraints(field, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var expandProf = TryReadExpandUserProfileBeforeBind(field, sk);
+			var (_fieldHideHelp, _fieldHideSchema) = GetHiddenFlags(field);
 			return new ParameterModel(
 				field.Name,
 				SafeLocalName(field.Name),
@@ -387,7 +395,8 @@ public sealed partial class CliParserGenerator
 				EnumMemberCliNames: enumCliNames,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
-				IsHidden: HasHiddenAttribute(field),
+				IsHidden: _fieldHideHelp,
+				IsHiddenInSchema: _fieldHideSchema,
 				UsesRuntimeDefault: isCrossAssemblyDefault,
 				IsNullableAnnotated: field.Type.NullableAnnotation == NullableAnnotation.Annotated
 					|| field.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });

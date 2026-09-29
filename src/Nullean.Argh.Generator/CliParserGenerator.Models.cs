@@ -37,6 +37,8 @@ public sealed partial class CliParserGenerator
 			/// <summary>First non-empty XML summary from the first generic <c>Add</c> handler type in this namespace block.</summary>
 			public string SummaryOneLiner = "";
 			public Location Location = Location.None;
+			public bool IsHidden = false;
+			public bool IsHiddenInSchema = false;
 		}
 	}
 
@@ -254,7 +256,9 @@ public sealed partial class CliParserGenerator
 		/// Contains root commands, regular commands, and nested children from ExpandTypeRegistration.
 		/// Null when there is no entry type.
 		/// </summary>
-		RegistryNodeSnapshot? EntryTypeSnapshot)
+		RegistryNodeSnapshot? EntryTypeSnapshot,
+		bool NsIsHiddenFromHelp = false,
+		bool NsIsHiddenFromSchema = false)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>Symbol-free snapshot of a RegistryNode subtree produced during analysis.</summary>
@@ -271,7 +275,9 @@ public sealed partial class CliParserGenerator
 	private sealed record ChildNamespaceSnapshot(
 		string Segment,
 		RegistryNodeSnapshot Node,
-		string SummaryOneLiner);
+		string SummaryOneLiner,
+		bool IsHidden = false,
+		bool IsHiddenInSchema = false);
 
 	// ─────────────────────────────────────────────────────────────────────────────
 

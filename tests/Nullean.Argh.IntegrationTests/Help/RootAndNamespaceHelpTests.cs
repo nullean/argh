@@ -222,4 +222,24 @@ public class RootAndNamespaceHelpTests
 		TrimLines(text).Should().Be(TrimLines(expected));
 		text.Should().NotContain("hello");
 	}
+
+	[Fact]
+	public void RootHelp_does_not_list_hidden_namespaces()
+	{
+		var result = CliHostRunner.Run(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
+			"--help");
+		result.ExitCode.Should().Be(0);
+		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
+		text.Should().NotContain("schema-hidden-ns");
+		text.Should().NotContain("schema-hidden-schema-ns");
+	}
+
+	[Fact]
+	public void Hidden_namespace_is_still_callable()
+	{
+		var result = CliHostRunner.Run("schema-hidden-ns", "internal-cmd");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Should().Contain("internal");
+	}
 }

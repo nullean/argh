@@ -22,7 +22,7 @@ internal static class SchemaSpecificHandlers
 	/// <param name="name">Visible name flag.</param>
 	/// <param name="internalId">Internal ID (hidden).</param>
 	[NoOptionsInjection]
-	public static void SchemaHiddenParam(string name, [Hidden] string? internalId = null) =>
+	public static void SchemaHiddenParam(string name, [Hidden(Schema = true)] string? internalId = null) =>
 		Console.Out.WriteLine($"name:{name}");
 }
 
@@ -34,7 +34,7 @@ internal sealed class SchemaHiddenCommands
 	public static void VisibleCmd() => Console.Out.WriteLine("visible");
 
 	/// <summary>A command that is hidden from help and autocomplete.</summary>
-	[Hidden]
+	[Hidden(Schema = true)]
 	[NoOptionsInjection]
 	public static void HiddenCmd() => Console.Out.WriteLine("hidden");
 }
@@ -91,6 +91,24 @@ internal static class SchemaIntentHandlers
 	public static void SchemaIntentRead(
 		[DryRun] bool dryRun = false) =>
 		Console.Out.WriteLine("list");
+}
+
+/// <summary>Schema test: a namespace hidden from help only (default [Hidden]).</summary>
+[Hidden]
+internal sealed class SchemaHiddenNamespace
+{
+	/// <summary>An internal command inside the hidden namespace.</summary>
+	[NoOptionsInjection]
+	public static void InternalCmd() => Console.Out.WriteLine("internal");
+}
+
+/// <summary>Schema test: a namespace hidden from both help and schema.</summary>
+[Hidden(Schema = true)]
+internal sealed class SchemaHiddenSchemaNamespace
+{
+	/// <summary>An internal command inside the hidden-from-schema namespace.</summary>
+	[NoOptionsInjection]
+	public static void InternalCmd() => Console.Out.WriteLine("internal-schema");
 }
 
 /// <summary>Enum for output format selection.</summary>

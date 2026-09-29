@@ -163,7 +163,7 @@ public sealed partial class CliParserGenerator
 			var aliasArr = string.Join(", ", cmd.CommandAliases.Select(a => $"\"{Escape(a)}\""));
 			sb.Append($"{indent}\tAliases: new string[] {{ {aliasArr} }}");
 		}
-		if (cmd.IsHidden)
+		if (cmd.IsHiddenInSchema)
 		{
 			sb.AppendLine(",");
 			sb.Append($"{indent}\tHidden: true");
@@ -461,7 +461,7 @@ public sealed partial class CliParserGenerator
 			sb.Append($", ElementType: \"{elemType}\"");
 		}
 
-		if (p.IsHidden)
+		if (p.IsHiddenInSchema)
 			sb.Append(", Hidden: true");
 
 		if (p.IsVariadic)
