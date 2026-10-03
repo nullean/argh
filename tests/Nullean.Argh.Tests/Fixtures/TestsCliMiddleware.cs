@@ -5,10 +5,12 @@ namespace Nullean.Argh.Tests.Fixtures;
 internal sealed class TestsGlobalMiddleware : ICommandMiddleware
 {
 	public static int InvokeCount;
+	public static IReadOnlyList<CommandArgument> LastArguments = [];
 
 	public async ValueTask InvokeAsync(CommandContext context, CommandMiddlewareDelegate next)
 	{
 		InvokeCount++;
+		LastArguments = context.Arguments;
 		Console.Error.WriteLine("[tests:middleware:global]");
 		await next(context);
 	}

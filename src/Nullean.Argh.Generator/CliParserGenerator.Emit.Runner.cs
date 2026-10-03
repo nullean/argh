@@ -432,7 +432,8 @@ public sealed partial class CliParserGenerator
 		else
 		{
 			EmitCommandPathLiteral(sb, cmd);
-			sb.AppendLine("\t\t\tvar ctx = new CommandContext(commandPath, args, ct);");
+			EmitCommandArguments(sb, cmd, injectedOptions);
+			sb.AppendLine("\t\t\tvar ctx = new CommandContext(commandPath, args, ct, __arguments);");
 			sb.AppendLine("\t\t\tCommandMiddlewareDelegate next = async c =>");
 			sb.AppendLine("\t\t\t{");
 			EmitInvocation(sb, cmd, "c.CancellationToken", "c", "\t\t\t\t", injectedOptions: injectedOptions);
@@ -461,6 +462,38 @@ public sealed partial class CliParserGenerator
 
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
+	}
+
+	/// <summary>Emits <c>__arguments</c>: the [AsParameters] objects (with their member-to-flag map) and the options objects the handler receives, for <c>CommandContext.Arguments</c>.</summary>
+	private static void EmitCommandArguments(StringBuilder sb, CommandModel cmd, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions)
+	{
+		sb.AppendLine("\t\t\tvar __arguments = new global::System.Collections.Generic.List<CommandArgument>();");
+		if (!cmd.HandlerParamTypes.IsDefaultOrEmpty)
+		{
+			foreach (var mp in cmd.HandlerParamTypes)
+			{
+				if (!mp.IsAsParameters)
+					continue;
+				var group = cmd.Parameters.Where(p => p.AsParametersOwnerParamName == mp.Name && p.AsParametersClrName is not null && p.Kind != ParameterKind.Injected).ToArray();
+				if (group.Length == 0)
+					continue;
+				sb.Append($"\t\t\t__arguments.Add(new CommandArgument(\"{Escape(mp.Name)}\", {AsParametersConstructedVarName(mp.Name)}, new global::System.Collections.Generic.Dictionary<string, string> {{ ");
+				foreach (var p in group)
+					sb.Append($"[\"{Escape(p.AsParametersClrName!)}\"] = \"{Escape(p.CliLongName)}\", ");
+				sb.AppendLine("}));");
+			}
+		}
+
+		if (!injectedOptions.IsDefaultOrEmpty)
+		{
+			foreach (var o in injectedOptions)
+			{
+				sb.Append($"\t\t\t__arguments.Add(new CommandArgument(\"{Escape(o.TypeMetadataName)}\", {o.LocalVarName}, new global::System.Collections.Generic.Dictionary<string, string> {{ ");
+				foreach (var m in o.FlatMembers.Where(static m => m.Kind != ParameterKind.Injected))
+					sb.Append($"[\"{Escape(m.SymbolName)}\"] = \"{Escape(m.CliLongName)}\", ");
+				sb.AppendLine("}));");
+			}
+		}
 	}
 
 	private static void EmitCommandPathLiteral(StringBuilder sb, CommandModel cmd)

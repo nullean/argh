@@ -12,10 +12,36 @@ public sealed class CommandContext
 	/// <param name="args">Raw arguments for this invocation; the exact slice is defined by the generator.</param>
 	/// <param name="cancellationToken">Cancellation for this CLI run.</param>
 	public CommandContext(string[] commandPath, string[] args, CancellationToken cancellationToken = default)
+		: this(commandPath, args, cancellationToken, Array.Empty<CommandArgument>())
+	{
+	}
+
+	/// <param name="commandPath">Segments from the app root to the matched command (e.g. group then command).</param>
+	/// <param name="args">Raw arguments for this invocation; the exact slice is defined by the generator.</param>
+	/// <param name="cancellationToken">Cancellation for this CLI run.</param>
+	/// <param name="arguments">The bound values the handler is about to receive.</param>
+	public CommandContext(string[] commandPath, string[] args, CancellationToken cancellationToken, IReadOnlyList<CommandArgument> arguments)
 	{
 		CommandPath = commandPath ?? throw new ArgumentNullException(nameof(commandPath));
 		Args = args ?? throw new ArgumentNullException(nameof(args));
 		CancellationToken = cancellationToken;
+		Arguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
+	}
+
+	/// <summary>
+	/// The bound option objects for this invocation: every <c>[AsParameters]</c> parameter and every global or namespace options object the handler receives.
+	/// Plain flag and positional parameters are not listed. Lets middleware validate what was parsed instead of re-parsing <see cref="Args"/>.
+	/// </summary>
+	public IReadOnlyList<CommandArgument> Arguments { get; }
+
+	/// <summary>
+	/// Reports a validation failure the way the generated parser does: writes <c>Error: --flag: message</c> (or <c>Error: message</c> without a flag) to stderr and sets <see cref="ExitCode"/> to 2.
+	/// The caller should then not call the next middleware.
+	/// </summary>
+	public void ReportError(string message, string? flag = null)
+	{
+		Console.Error.WriteLine(flag is null ? $"Error: {message}" : $"Error: --{flag}: {message}");
+		ExitCode = 2;
 	}
 
 	/// <summary>Segments from the root to the matched command.</summary>
@@ -32,6 +58,26 @@ public sealed class CommandContext
 
 	/// <summary>Cancellation token for this invocation.</summary>
 	public CancellationToken CancellationToken { get; }
+}
+
+/// <summary>A bound option object handed to middleware through <see cref="CommandContext.Arguments"/>.</summary>
+public sealed class CommandArgument
+{
+	/// <param name="name">The handler parameter name, or the options type name for global and namespace options.</param>
+	/// <param name="value">The bound object.</param>
+	/// <param name="memberFlags">CLR member name to CLI flag name (without dashes) for the object's members, or null when not known.</param>
+	public CommandArgument(string name, object value, IReadOnlyDictionary<string, string>? memberFlags = null)
+	{
+		Name = name;
+		Value = value;
+		MemberFlags = memberFlags;
+	}
+
+	public string Name { get; }
+
+	public object Value { get; }
+
+	public IReadOnlyDictionary<string, string>? MemberFlags { get; }
 }
 
 /// <summary>
