@@ -36,13 +36,22 @@ public sealed class CommandContext
 
 	/// <summary>
 	/// Reports a validation failure the way the generated parser does: writes <c>Error: --flag: message</c> (or <c>Error: message</c> without a flag) to stderr and sets <see cref="ExitCode"/> to 2.
-	/// The caller should then not call the next middleware.
+	/// Call <see cref="WriteUsageFooter"/> once after the last error, then do not call the next middleware.
 	/// </summary>
 	public void ReportError(string message, string? flag = null)
 	{
 		Console.Error.WriteLine(flag is null ? $"Error: {message}" : $"Error: --{flag}: {message}");
 		ExitCode = 2;
 	}
+
+	/// <summary>
+	/// Writes what the generated parser prints after a bad value: the help rows for <paramref name="flag"/> (when the command has that flag), then <c>Run '&lt;app&gt; &lt;command&gt; --help' for usage.</c>
+	/// Set by the generated code; does nothing when the context was built by hand.
+	/// </summary>
+	public void WriteUsageFooter(string? flag = null) => UsageFooter?.Invoke(flag);
+
+	/// <summary>Writes the usage footer for an optional flag. Assigned by generated code.</summary>
+	public Action<string?>? UsageFooter { get; set; }
 
 	/// <summary>Segments from the root to the matched command.</summary>
 	public string[] CommandPath { get; }

@@ -45,6 +45,29 @@ public class MiddlewarePipelineInProcTests
 	}
 
 	[Fact]
+	public async Task WriteUsageFooter_prints_the_flag_help_rows_and_the_run_hint_like_the_parser()
+	{
+		var err = new StringWriter();
+		var previous = Console.Error;
+		Console.SetError(err);
+		try
+		{
+			TestsGlobalMiddleware.ReportAfterNext = true;
+			await ArghRuntime.RunAsync(["as-params-with-ct", "--run-env", "prod", "--run-port", "8080"]);
+		}
+		finally
+		{
+			TestsGlobalMiddleware.ReportAfterNext = false;
+			Console.SetError(previous);
+		}
+
+		var text = err.ToString();
+		text.Should().Contain("Error: --run-port: reported by middleware");
+		text.Should().Contain("--run-port");
+		text.Should().Contain("for usage.");
+	}
+
+	[Fact]
 	public async Task RunAsync_middleware_skipped_for_root_help()
 	{
 		TestsGlobalMiddleware.InvokeCount = 0;

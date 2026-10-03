@@ -434,6 +434,25 @@ public sealed partial class CliParserGenerator
 			EmitCommandPathLiteral(sb, cmd);
 			EmitCommandArguments(sb, cmd, injectedOptions);
 			sb.AppendLine("\t\t\tvar ctx = new CommandContext(commandPath, args, ct, __arguments);");
+			if (flagHelpStdErrMethodName is not null || parseFailureRunHint is not null)
+			{
+				sb.AppendLine("\t\t\tctx.UsageFooter = __flag =>");
+				sb.AppendLine("\t\t\t{");
+				if (flagHelpStdErrMethodName is not null)
+				{
+					sb.AppendLine("\t\t\t\tif (__flag is not null)");
+					sb.AppendLine("\t\t\t\t{");
+					sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
+					sb.AppendLine($"\t\t\t\t\t{flagHelpStdErrMethodName}(__flag);");
+					sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
+					sb.AppendLine("\t\t\t\t}");
+				}
+
+				if (parseFailureRunHint is not null)
+					sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{parseFailureRunHint}\");");
+				sb.AppendLine("\t\t\t};");
+			}
+
 			sb.AppendLine("\t\t\tCommandMiddlewareDelegate next = async c =>");
 			sb.AppendLine("\t\t\t{");
 			EmitInvocation(sb, cmd, "c.CancellationToken", "c", "\t\t\t\t", injectedOptions: injectedOptions);
