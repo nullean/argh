@@ -415,6 +415,7 @@ public sealed partial class CliParserGenerator
 
 		// Reconstruct options instances merging command-level flags with pre-parsed statics.
 		EmitOptionsReconstructLocals(sb, injectedOptions, environmentPrefix);
+		EmitRegisteredValidation(sb, cmd, injectedOptions, failureExit, flagHelpStdErrMethodName, parseFailureRunHint);
 
 		if (cmd.RequiresInstance)
 		{
@@ -525,10 +526,10 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine();
 	}
 
-	/// <summary>Emits <c>__arguments</c>: the [AsParameters] objects (with their member-to-flag map) and the options objects the handler receives, for <c>CommandContext.Arguments</c>.</summary>
-	private static void EmitCommandArguments(StringBuilder sb, CommandModel cmd, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions)
+	/// <summary>The bound option objects a handler receives: [AsParameters] objects and injected options, each with its local variable and member-to-flag pairs.</summary>
+	private static List<(string Name, string VarName, List<(string Member, string Flag)> Flags)> EnumerateBoundObjects(CommandModel cmd, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions)
 	{
-		sb.AppendLine("\t\t\tvar __arguments = new global::System.Collections.Generic.List<CommandArgument>();");
+		var result = new List<(string, string, List<(string, string)>)>();
 		if (!cmd.HandlerParamTypes.IsDefaultOrEmpty)
 		{
 			foreach (var mp in cmd.HandlerParamTypes)
@@ -538,23 +539,69 @@ public sealed partial class CliParserGenerator
 				var group = cmd.Parameters.Where(p => p.AsParametersOwnerParamName == mp.Name && p.AsParametersClrName is not null && p.Kind != ParameterKind.Injected).ToArray();
 				if (group.Length == 0)
 					continue;
-				sb.Append($"\t\t\t__arguments.Add(new CommandArgument(\"{Escape(mp.Name)}\", {AsParametersConstructedVarName(mp.Name)}, new global::System.Collections.Generic.Dictionary<string, string> {{ ");
-				foreach (var p in group)
-					sb.Append($"[\"{Escape(p.AsParametersClrName!)}\"] = \"{Escape(p.CliLongName)}\", ");
-				sb.AppendLine("}));");
+				result.Add((mp.Name, AsParametersConstructedVarName(mp.Name), group.Select(p => (p.AsParametersClrName!, p.CliLongName)).ToList()));
 			}
 		}
 
 		if (!injectedOptions.IsDefaultOrEmpty)
 		{
 			foreach (var o in injectedOptions)
-			{
-				sb.Append($"\t\t\t__arguments.Add(new CommandArgument(\"{Escape(o.TypeMetadataName)}\", {o.LocalVarName}, new global::System.Collections.Generic.Dictionary<string, string> {{ ");
-				foreach (var m in o.FlatMembers.Where(static m => m.Kind != ParameterKind.Injected))
-					sb.Append($"[\"{Escape(m.SymbolName)}\"] = \"{Escape(m.CliLongName)}\", ");
-				sb.AppendLine("}));");
-			}
+				result.Add((o.TypeMetadataName, o.LocalVarName, o.FlatMembers.Where(static m => m.Kind != ParameterKind.Injected).Select(static m => (m.SymbolName, m.CliLongName)).ToList()));
 		}
+
+		return result;
+	}
+
+	private static string MemberFlagsLiteral(List<(string Member, string Flag)> flags)
+	{
+		var sb = new StringBuilder("new global::System.Collections.Generic.Dictionary<string, string> { ");
+		foreach (var (member, flag) in flags)
+			sb.Append($"[\"{Escape(member)}\"] = \"{Escape(flag)}\", ");
+		return sb.Append('}').ToString();
+	}
+
+	/// <summary>Emits <c>__arguments</c>: the bound objects with their member-to-flag map, for <c>CommandContext.Arguments</c>.</summary>
+	private static void EmitCommandArguments(StringBuilder sb, CommandModel cmd, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions)
+	{
+		sb.AppendLine("\t\t\tvar __arguments = new global::System.Collections.Generic.List<CommandArgument>();");
+		foreach (var (name, varName, flags) in EnumerateBoundObjects(cmd, injectedOptions))
+			sb.AppendLine($"\t\t\t__arguments.Add(new CommandArgument(\"{Escape(name)}\", {varName}, {MemberFlagsLiteral(flags)}));");
+	}
+
+	/// <summary>Runs registered <c>ArghValidation</c> validators over each bound object; on failure prints the flag's help rows and the run hint, then exits like a built-in check.</summary>
+	private static void EmitRegisteredValidation(StringBuilder sb, CommandModel cmd, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions, string failureExit, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		var bound = EnumerateBoundObjects(cmd, injectedOptions);
+		if (bound.Count == 0)
+			return;
+		sb.AppendLine("\t\t\tif (global::Nullean.Argh.Validation.ArghValidation.HasValidators)");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine("\t\t\t\tstring? __badFlag = null;");
+		sb.AppendLine("\t\t\t\tvar __valid = true;");
+		foreach (var (_, varName, flags) in bound)
+		{
+			sb.AppendLine($"\t\t\t\t__valid &= global::Nullean.Argh.Validation.ArghValidation.Validate({varName}, {MemberFlagsLiteral(flags)}, out var __f_{varName});");
+			sb.AppendLine($"\t\t\t\t__badFlag ??= __f_{varName};");
+		}
+
+		sb.AppendLine("\t\t\t\tif (!__valid)");
+		sb.AppendLine("\t\t\t\t{");
+		if (flagHelpStdErrMethodName is not null)
+		{
+			sb.AppendLine("\t\t\t\t\tif (__badFlag is not null)");
+			sb.AppendLine("\t\t\t\t\t{");
+			sb.AppendLine("\t\t\t\t\t\tConsole.Error.WriteLine();");
+			sb.AppendLine($"\t\t\t\t\t\t{flagHelpStdErrMethodName}(__badFlag);");
+			sb.AppendLine("\t\t\t\t\t\tConsole.Error.WriteLine();");
+			sb.AppendLine("\t\t\t\t\t}");
+		}
+
+		if (parseFailureRunHint is not null)
+			sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine(\"{parseFailureRunHint}\");");
+		sb.AppendLine($"\t\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t\t}");
+		sb.AppendLine("\t\t\t}");
+		sb.AppendLine();
 	}
 
 	private static void EmitCommandPathLiteral(StringBuilder sb, CommandModel cmd)
