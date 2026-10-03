@@ -754,6 +754,18 @@ public sealed partial class CliParserGenerator
 		}
 
 		sb.AppendLine("\t\t\tvalue = __dto;");
+		EmitDtoRegisteredValidationAndReturn(sb, group.Select(static p => (p.AsParametersClrName ?? p.SymbolName, p.CliLongName)).ToList());
+	}
+
+	/// <summary>Ends a DTO try-parse: runs the registered validator over <c>value</c> (errors already printed, like the built-in checks) and returns false when it fails.</summary>
+	private static void EmitDtoRegisteredValidationAndReturn(StringBuilder sb, List<(string Member, string Flag)> flags)
+	{
+		sb.AppendLine($"\t\t\tif (global::Nullean.Argh.Validation.ArghValidation.HasValidators && !global::Nullean.Argh.Validation.ArghValidation.Validate(value, {MemberFlagsLiteral(flags)}, out _))");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine("\t\t\t\tvalue = null;");
+		sb.AppendLine("\t\t\t\treturn false;");
+		sb.AppendLine("\t\t\t}");
+		sb.AppendLine();
 		sb.AppendLine("\t\t\treturn true;");
 	}
 
@@ -772,7 +784,7 @@ public sealed partial class CliParserGenerator
 			}
 
 			sb.AppendLine(");");
-			sb.AppendLine("\t\t\treturn true;");
+			EmitDtoRegisteredValidationAndReturn(sb, members.Select(static m => (m.SymbolName, m.CliLongName)).ToList());
 			return;
 		}
 
@@ -781,7 +793,7 @@ public sealed partial class CliParserGenerator
 			sb.AppendLine($"\t\t\t__dto.{m.SymbolName} = {m.LocalVarName};");
 
 		sb.AppendLine("\t\t\tvalue = __dto;");
-		sb.AppendLine("\t\t\treturn true;");
+		EmitDtoRegisteredValidationAndReturn(sb, members.Select(static m => (m.SymbolName, m.CliLongName)).ToList());
 	}
 
 	private static string AsParametersConstructedVarName(string methodParameterName) =>

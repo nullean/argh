@@ -119,3 +119,21 @@ Run 'myapp ingest --help' for usage.
 Validations include JSON `kind` values in `__schema` output: `existing`, `nonExisting`, `rejectSymbolicLinks`, `expandUserProfile`.
 
 Validation also runs through the `TryParseArgh` static extension emitted for `[AsParameters]` DTOs, so unit tests can assert constraints without spawning a subprocess.
+
+## Custom validators
+
+For rules attributes cannot express (a port that must be free of conflicts with another flag, rules that come from a domain model), register a validator for an `[AsParameters]` or global/namespace options type. It runs right after the built-in checks, and a failure prints exactly like one of them: the error, the flag's help rows, the `Run '...' for usage.` line, and exit code 2.
+
+```csharp
+using Nullean.Argh.Validation;
+
+ArghValidation.Register<ServeOptions>(o =>
+    o.Port > 1024 ? [] : [new ArghValidationError("must be above 1024", nameof(ServeOptions.Port))]);
+```
+
+```
+$ myapp serve --port 80
+Error: --port: must be above 1024
+```
+
+The member name in `ArghValidationError` is turned into its flag (`--port`); an error without a member is printed as `Error: <message>`. Validators are found by the object's runtime type, then its base types. Register them at startup, before `RunAsync`. With none registered the generated code skips the check entirely. `TryParseArgh` runs the registered validator too and returns `false` on failure, so tests cover it without a subprocess.
