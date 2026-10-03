@@ -162,7 +162,7 @@ public sealed partial class CliParserGenerator
 			foreach (var p in rootFlags)
 			{
 				var left = HelpLayout.FormatOptionLeftCell(p).PadRight(mw);
-				var desc = BuildDescriptionSuffix(p, forPositional: false);
+				var desc = BuildDescriptionSuffix(p, forPositional: false, app.EnvironmentPrefix);
 				sb.AppendLine(
 					$"{indent}Console.Out.WriteLine($\"  {{CliHelpFormatting.Accent(\"{Escape(left)}\")}}  {EscapeForHelpInterpolation(desc)}\");");
 			}
@@ -540,13 +540,13 @@ public sealed partial class CliParserGenerator
 		p.ScalarKind == CliScalarKind.Enum
 		|| (p.IsCollection && p.ElementScalarKind == CliScalarKind.Enum && !p.ElementEnumMemberNames.IsDefaultOrEmpty);
 
-	private static void EmitHelpOptionRows(StringBuilder sb, IReadOnlyList<ParameterModel> rows, int maxOptWidth)
+	private static void EmitHelpOptionRows(StringBuilder sb, IReadOnlyList<ParameterModel> rows, int maxOptWidth, string? environmentPrefix = null)
 	{
 		var continuationIndent = new string(' ', maxOptWidth + 4);
 		foreach (var p in rows)
 		{
 			var left = HelpLayout.FormatOptionLeftCell(p).PadRight(maxOptWidth);
-			var desc = BuildDescriptionSuffix(p, forPositional: false);
+			var desc = BuildDescriptionSuffix(p, forPositional: false, environmentPrefix);
 			var validationLine = BuildValidationLine(p);
 			var validationOnNewLine = validationLine != null && HelpUsesEnumChoiceContinuationLayout(p);
 
@@ -571,11 +571,11 @@ public sealed partial class CliParserGenerator
 	}
 
 	/// <summary>Same layout as <see cref="EmitHelpOptionRows"/> but to stderr (parse errors).</summary>
-	private static void EmitHelpOptionRowsStdErr(StringBuilder sb, ParameterModel p, int maxOptWidth, string lineIndent)
+	private static void EmitHelpOptionRowsStdErr(StringBuilder sb, ParameterModel p, int maxOptWidth, string lineIndent, string? environmentPrefix = null)
 	{
 		var continuationIndent = new string(' ', maxOptWidth + 4);
 		var left = HelpLayout.FormatOptionLeftCell(p).PadRight(maxOptWidth);
-		var desc = BuildDescriptionSuffix(p, forPositional: false);
+		var desc = BuildDescriptionSuffix(p, forPositional: false, environmentPrefix);
 		var validationLine = BuildValidationLine(p);
 		var validationOnNewLine = validationLine != null && HelpUsesEnumChoiceContinuationLayout(p);
 
@@ -777,21 +777,21 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(
 			$"\t\t\tConsole.Out.WriteLine(\"  \" + CliHelpFormatting.Placeholder(\"{Escape("-h, --help".PadRight(maxOptWidth))}\") + \"  Show help.\");");
 		if (globalFlagMembers.Count > 0)
-			EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth);
+			EmitHelpOptionRows(sb, globalFlagMembers, maxOptWidth, app.EnvironmentPrefix);
 
 		sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 
 		foreach ((var segment, var gRows) in namespaceOptionSections)
 		{
 			sb.AppendLine($"\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"'{Escape(segment)}' options:\"));");
-			EmitHelpOptionRows(sb, gRows, maxOptWidth);
+			EmitHelpOptionRows(sb, gRows, maxOptWidth, app.EnvironmentPrefix);
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine();");
 		}
 
 		if (commandOnlyFlags.Count > 0)
 		{
 			sb.AppendLine("\t\t\tConsole.Out.WriteLine(CliHelpFormatting.Section(\"Options:\"));");
-			EmitHelpOptionRows(sb, commandOnlyFlags, maxOptWidth);
+			EmitHelpOptionRows(sb, commandOnlyFlags, maxOptWidth, app.EnvironmentPrefix);
 		}
 
 		var remarksXml = TransformRemarksInnerXmlForHelp(cmd.RemarksInnerXml, cmd, app.AllCommands, entryAssemblyName);
@@ -875,7 +875,7 @@ public sealed partial class CliParserGenerator
 			foreach (var p in byCanon.Values.OrderBy(static x => x.CliLongName, StringComparer.OrdinalIgnoreCase))
 			{
 				sb.AppendLine($"\t\t\t\tcase \"{Escape(p.CliLongName)}\":");
-				EmitHelpOptionRowsStdErr(sb, p, maxOptWidth, "\t\t\t\t\t");
+				EmitHelpOptionRowsStdErr(sb, p, maxOptWidth, "\t\t\t\t\t", app.EnvironmentPrefix);
 				sb.AppendLine("\t\t\t\t\tbreak;");
 			}
 
@@ -888,7 +888,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine();
 	}
 
-	private static string BuildDescriptionSuffix(ParameterModel p, bool forPositional)
+	private static string BuildDescriptionSuffix(ParameterModel p, bool forPositional, string? environmentPrefix = null)
 	{
 		var parts = new List<string>();
 
@@ -910,8 +910,13 @@ public sealed partial class CliParserGenerator
 				parts.Add($"[default: {FormatDefaultForHelp(p)}]");
 		}
 
+		var envVarName = ComputeEffectiveEnvVarName(p, environmentPrefix);
+		if (!string.IsNullOrEmpty(envVarName))
+			parts.Add($"[env: {envVarName}]");
+
 		return string.Join(" ", parts.Where(s => !string.IsNullOrWhiteSpace(s)));
 	}
+
 
 	private static string FormatDefaultForHelp(ParameterModel p)
 	{

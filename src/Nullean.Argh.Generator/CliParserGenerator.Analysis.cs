@@ -114,6 +114,14 @@ public sealed partial class CliParserGenerator
 				if (string.IsNullOrWhiteSpace(ver)) return null;
 				return new AIUseSchemaVersion(filePath, spanStart, ver!);
 			}
+			case "UseEnvironmentPrefix":
+			{
+				if (invocation.ArgumentList.Arguments.Count < 1) return null;
+				var prefixExpr = invocation.ArgumentList.Arguments[0].Expression;
+				var prefix = TryGetStringLiteral(prefixExpr);
+				if (prefix is null) return null;
+				return new AIUseEnvironmentPrefix(filePath, spanStart, prefix);
+			}
 			case "DocumentEnvironmentVariables":
 				return AnalyzeDocumentEnvironmentVariables(invocation, filePath, spanStart);
 			case "MapRoot":
@@ -426,6 +434,15 @@ public sealed partial class CliParserGenerator
 			}
 		}
 
+		foreach (var ai in rootAnalyzed)
+		{
+			if (ai is AIUseEnvironmentPrefix { Prefix: var prefix } && !string.IsNullOrWhiteSpace(prefix))
+			{
+				app.EnvironmentPrefix = prefix;
+				break;
+			}
+		}
+
 		ProcessAnalyzedInvocationsForNode(context, sorted, rootAnalyzed, app.Root, ImmutableArray<string>.Empty, app, isRoot: true);
 
 		if (!string.IsNullOrWhiteSpace(app.RootSummary) && app.Root.RootCommand is not null)
@@ -475,6 +492,7 @@ public sealed partial class CliParserGenerator
 		ValidateCommandOptionsInjection(context, app);
 		FixOptionsParamsInCommands(app);
 		ValidateDuplicateShortOptionLetters(context, app);
+		ValidateEnvOnBoolFlags(context, app);
 
 		return true;
 	}

@@ -363,7 +363,8 @@ public sealed partial class CliParserGenerator
 	/// </summary>
 	private static void EmitOptionsReconstructLocals(
 		StringBuilder sb,
-		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> chain)
+		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> chain,
+		string? environmentPrefix = null)
 	{
 		if (chain.IsDefaultOrEmpty) return;
 
@@ -396,7 +397,14 @@ public sealed partial class CliParserGenerator
 				if (!emittedTmpVars.Add(tmpName)) continue;
 				if (m.Special == BoolSpecialKind.Bool)
 				{
-					sb.AppendLine($"\t\t\tvar {tmpName} = flags.ContainsKey(\"{Escape(m.CliLongName)}\") || {fallback};");
+					var boolEnvVar = ComputeEffectiveEnvVarName(m, environmentPrefix);
+					if (boolEnvVar != null)
+					{
+						sb.AppendLine($"\t\t\tvar {tmpName}EnvRaw = global::System.Environment.GetEnvironmentVariable(\"{Escape(boolEnvVar)}\");");
+						sb.AppendLine($"\t\t\tvar {tmpName} = flags.ContainsKey(\"{Escape(m.CliLongName)}\") || ({tmpName}EnvRaw != null ? ({tmpName}EnvRaw != \"0\" && {tmpName}EnvRaw != \"false\" && {tmpName}EnvRaw.Length > 0) : {fallback});");
+					}
+					else
+						sb.AppendLine($"\t\t\tvar {tmpName} = flags.ContainsKey(\"{Escape(m.CliLongName)}\") || {fallback};");
 				}
 				else if (m.Special == BoolSpecialKind.NullableBool)
 				{
@@ -408,8 +416,20 @@ public sealed partial class CliParserGenerator
 				}
 				else
 				{
-					// For value-typed flags: if found in command flags use that; else keep static fallback value.
+					// For value-typed flags: if found in command flags use that; else check env var; else keep static fallback value.
 					sb.AppendLine($"\t\t\tflags.TryGetValue(\"{Escape(m.CliLongName)}\", out var {tmpName}Txt);");
+					var optEnvVar = ComputeEffectiveEnvVarName(m, environmentPrefix);
+					if (optEnvVar != null)
+					{
+						sb.AppendLine($"\t\t\tif ({tmpName}Txt == null)");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tvar {tmpName}EnvVal = global::System.Environment.GetEnvironmentVariable(\"{Escape(optEnvVar)}\");");
+						if (m.EnvTreatEmptyAsUnset)
+							sb.AppendLine($"\t\t\t\t{tmpName}Txt = ({tmpName}EnvVal != null && {tmpName}EnvVal.Length > 0) ? {tmpName}EnvVal : null;");
+						else
+							sb.AppendLine($"\t\t\t\t{tmpName}Txt = {tmpName}EnvVal;");
+						sb.AppendLine("\t\t\t}");
+					}
 					sb.AppendLine($"\t\t\tvar {tmpName} = {fallback};");
 					if (m.ScalarKind == CliScalarKind.Primitive)
 					{

@@ -100,6 +100,28 @@ public sealed partial class CliParserGenerator
 		return ImmutableArray<string>.Empty;
 	}
 
+	private static (string? VarName, bool TreatEmptyAsUnset) GetEnvAttribute(ISymbol symbol)
+	{
+		foreach (var ad in symbol.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name == "EnvAttribute" &&
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh" &&
+			    ad.ConstructorArguments.Length >= 1 &&
+			    ad.ConstructorArguments[0].Value is string varName &&
+			    !string.IsNullOrWhiteSpace(varName))
+			{
+				var treatEmpty = true;
+				foreach (var na in ad.NamedArguments)
+				{
+					if (na.Key == "TreatEmptyAsUnset" && na.Value.Value is bool b)
+						treatEmpty = b;
+				}
+				return (varName, treatEmpty);
+			}
+		}
+		return (null, true);
+	}
+
 	private static (bool IsDeprecated, string? Message) TryGetObsoleteAttribute(ISymbol symbol)
 	{
 		foreach (var ad in symbol.GetAttributes())

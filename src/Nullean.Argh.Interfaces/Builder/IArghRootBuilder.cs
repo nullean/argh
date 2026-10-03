@@ -24,6 +24,14 @@ public interface IArghRootBuilder : IArghBuilder
 		CliConfigFile[]? configFiles = null);
 
 	/// <summary>
+	/// Sets a prefix prepended to every flag name to derive an environment variable fallback.
+	/// For example, <c>UseEnvironmentPrefix("MY_APP_")</c> maps <c>--output-dir</c> to <c>MY_APP_OUTPUT_DIR</c>.
+	/// Individual parameters can override with <c>[Env("EXPLICIT_NAME")]</c>.
+	/// The argument MUST be a string literal — the source generator reads it at compile time.
+	/// </summary>
+	IArghRootBuilder UseEnvironmentPrefix(string prefix);
+
+	/// <summary>
 	/// Overrides the <c>version</c> string written into the <c>__schema</c> document.
 	/// The argument MUST be a string literal — the source generator reads it at compile time
 	/// and bakes it into the emitted schema factory. If unset, the schema version defaults to

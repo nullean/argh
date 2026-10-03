@@ -78,7 +78,9 @@ public sealed partial class CliParserGenerator
 		bool IsCommandOutput = false,
 		ImmutableArray<string> CommandOutputExplicitFormats = default,
 		bool IsDeprecated = false,
-		string? DeprecationMessage = null)
+		string? DeprecationMessage = null,
+		string? EnvVarName = null,
+		bool EnvTreatEmptyAsUnset = true)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
 
@@ -256,6 +258,7 @@ public sealed partial class CliParserGenerator
 			var (isOutputP, outputFormatsP) = TryGetCommandOutputAttribute(p);
 			var (isDeprecatedP, deprecationMsgP) = TryGetObsoleteAttribute(p);
 			var (_paramHideHelp, _paramHideSchema) = GetHiddenFlags(p);
+			var (_paramEnvVar, _paramEnvEmpty) = GetEnvAttribute(p);
 			return new ParameterModel(
 				p.Name,
 				SafeLocalName(p.Name),
@@ -284,7 +287,9 @@ public sealed partial class CliParserGenerator
 				IsCommandOutput: isOutputP,
 				CommandOutputExplicitFormats: outputFormatsP,
 				IsDeprecated: isDeprecatedP,
-				DeprecationMessage: deprecationMsgP);
+				DeprecationMessage: deprecationMsgP,
+				EnvVarName: _paramEnvVar,
+				EnvTreatEmptyAsUnset: _paramEnvEmpty);
 		}
 
 		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -316,6 +321,7 @@ public sealed partial class CliParserGenerator
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
 			var (_propHideHelp, _propHideSchema) = GetHiddenFlags(prop);
+			var (_propEnvVar, _propEnvEmpty) = GetEnvAttribute(prop);
 			return new ParameterModel(
 				prop.Name,
 				SafeLocalName(prop.Name),
@@ -347,7 +353,9 @@ public sealed partial class CliParserGenerator
 				IsCommandOutput: TryGetCommandOutputAttribute(prop).IsOutput,
 				CommandOutputExplicitFormats: TryGetCommandOutputAttribute(prop).ExplicitFormats,
 				IsDeprecated: TryGetObsoleteAttribute(prop).IsDeprecated,
-				DeprecationMessage: TryGetObsoleteAttribute(prop).Message);
+				DeprecationMessage: TryGetObsoleteAttribute(prop).Message,
+				EnvVarName: _propEnvVar,
+				EnvTreatEmptyAsUnset: _propEnvEmpty);
 		}
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -375,6 +383,7 @@ public sealed partial class CliParserGenerator
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var expandProf = TryReadExpandUserProfileBeforeBind(field, sk);
 			var (_fieldHideHelp, _fieldHideSchema) = GetHiddenFlags(field);
+			var (_fieldEnvVar, _fieldEnvEmpty) = GetEnvAttribute(field);
 			return new ParameterModel(
 				field.Name,
 				SafeLocalName(field.Name),
@@ -399,7 +408,9 @@ public sealed partial class CliParserGenerator
 				IsHiddenInSchema: _fieldHideSchema,
 				UsesRuntimeDefault: isCrossAssemblyDefault,
 				IsNullableAnnotated: field.Type.NullableAnnotation == NullableAnnotation.Annotated
-					|| field.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
+					|| field.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
+				EnvVarName: _fieldEnvVar,
+				EnvTreatEmptyAsUnset: _fieldEnvEmpty);
 		}
 		public static ParameterModel FromAsParametersCtorParameter(
 			string methodParamName,
@@ -487,6 +498,7 @@ public sealed partial class CliParserGenerator
 			var expandProf = TryReadExpandUserProfileBeforeBind(cp, sk);
 			var (isDeprecatedCp, deprecationMsgCp) = TryGetObsoleteAttribute(cp);
 			var (isOutputCp, outputFormatsCp) = TryGetCommandOutputAttribute(cp);
+			var (cpEnvVar, cpEnvEmpty) = GetEnvAttribute(cp);
 			return new ParameterModel(
 				cp.Name,
 				local,
@@ -517,7 +529,9 @@ public sealed partial class CliParserGenerator
 				IsCommandOutput: isOutputCp,
 				CommandOutputExplicitFormats: outputFormatsCp,
 				IsDeprecated: isDeprecatedCp,
-				DeprecationMessage: deprecationMsgCp);
+				DeprecationMessage: deprecationMsgCp,
+				EnvVarName: cpEnvVar,
+				EnvTreatEmptyAsUnset: cpEnvEmpty);
 		}
 
 		public static ParameterModel FromAsParametersInitProperty(
@@ -595,6 +609,7 @@ public sealed partial class CliParserGenerator
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
 			var (isDeprecatedProp, deprecationMsgProp) = TryGetObsoleteAttribute(prop);
 			var (isOutputProp, outputFormatsProp) = TryGetCommandOutputAttribute(prop);
+			var (initPropEnvVar, initPropEnvEmpty) = GetEnvAttribute(prop);
 			return new ParameterModel(
 				prop.Name,
 				local,
@@ -628,7 +643,9 @@ public sealed partial class CliParserGenerator
 				IsCommandOutput: isOutputProp,
 				CommandOutputExplicitFormats: outputFormatsProp,
 				IsDeprecated: isDeprecatedProp,
-				DeprecationMessage: deprecationMsgProp);
+				DeprecationMessage: deprecationMsgProp,
+				EnvVarName: initPropEnvVar,
+				EnvTreatEmptyAsUnset: initPropEnvEmpty);
 		}
 
 		private static bool ComputeRequiredForOptionsType(ITypeSymbol type, BoolSpecialKind bs)
