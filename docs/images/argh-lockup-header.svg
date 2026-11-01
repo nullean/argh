@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 174 96" width="174" height="96" role="img" aria-label="--argh">
+  <!-- The landing page's animated nav lockup (docs/argh-landing.html), self-contained: scripts/docs-pages.py inlines it
+       into the docs header. Ids are prefixed so they cannot clash with a page's. -->
+  <style>
+    @keyframes ar-sheen-slide { 0% { transform: skewX(-18deg) translateX(0); } 100% { transform: skewX(-18deg) translateX(312px); } }
+    @keyframes ar-in-reveal { 0% { opacity: 0; transform: translateX(-6px); } 100% { opacity: 1; transform: translateX(0); } }
+    @keyframes ar-cur-appear { 0%, 79% { opacity: 0; } 80%, 100% { opacity: 1; } }
+    @keyframes ar-blink-anim { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    .ar-sheen { animation: ar-sheen-slide 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite; animation-delay: 0.4s; }
+    .ar-in { animation: ar-in-reveal 0.35s ease-out both; animation-delay: 0.15s; }
+    .ar-cur-in { animation: ar-cur-appear 1.2s ease both; }
+    .ar-blink { animation: ar-blink-anim 1.1s step-end infinite; animation-delay: 1.4s; }
+    @media (prefers-reduced-motion: reduce) {
+      .ar-sheen, .ar-in, .ar-cur-in, .ar-blink { animation: none; }
+      .ar-sheen { display: none; }
+    }
+  </style>
+  <defs>
+    <linearGradient id="argh-hdr-f" x1="0" y1="0.2" x2="1" y2="0.8"><stop offset="0.44" stop-color="#B8FF3D"/><stop offset="0.56" stop-color="#4A8CFF"/></linearGradient>
+    <radialGradient id="argh-hdr-g" cx="0.18" cy="0.12" r="1.2"><stop offset="0" stop-color="#1B2126"/><stop offset="0.55" stop-color="#0D1013"/><stop offset="1" stop-color="#08090B"/></radialGradient>
+    <linearGradient id="argh-hdr-sh" x1="0" y1="0" x2="1" y2="0"><stop offset="0.35" stop-color="#FFFFFF" stop-opacity="0"/><stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.8"/><stop offset="0.65" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+    <mask id="argh-hdr-ring"><rect width="174" height="96" rx="10" fill="#FFFFFF"/><rect x="6" y="6" width="162" height="84" rx="5" fill="#000000"/></mask>
+    <clipPath id="argh-hdr-type"><rect x="60" y="24" width="72" height="48"/></clipPath>
+  </defs>
+  <rect width="174" height="96" rx="10" fill="url(#argh-hdr-f)"/>
+  <g mask="url(#argh-hdr-ring)"><rect class="ar-sheen" x="-140" y="-20" width="140" height="136" fill="url(#argh-hdr-sh)" transform="skewX(-18)"/></g>
+  <rect x="6" y="6" width="162" height="84" rx="5" fill="url(#argh-hdr-g)"/>
+  <g font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="30" font-weight="700" dominant-baseline="central">
+    <text class="ar-in" x="24" y="49.5" fill="#B8FF3D">--</text>
+    <g clip-path="url(#argh-hdr-type)"><text x="60" y="48" fill="#FFFFFF">argh</text></g>
+    <g class="ar-cur-in"><text class="ar-blink" x="132" y="48" fill="#6BA3FF">_</text></g>
+  </g>
+</svg>
