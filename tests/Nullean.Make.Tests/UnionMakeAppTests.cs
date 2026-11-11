@@ -216,6 +216,3 @@ public class UnionMakeAppTests
 		stderr.ToString().Should().Contain("Bind() was not called.");
 	}
 }
-
-[CollectionDefinition(nameof(ConsoleCollection), DisableParallelization = true)]
-public class ConsoleCollection;
