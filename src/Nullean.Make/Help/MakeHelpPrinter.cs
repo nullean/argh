@@ -225,7 +225,7 @@ internal static class MakeHelpPrinter
 		foreach (var opt in graph.GlobalOptions)
 		{
 			var flags = opt.Short is not null ? $"{opt.Short}, {opt.Long}" : $"    {opt.Long}";
-			var typeSuffix = opt.IsFlag ? "" : " <string>";
+			var typeSuffix = opt.IsFlag ? "" : $" <{(opt.Property is { } prop ? FriendlyTypeName(prop.PropertyType) : "string")}>";
 			Console.WriteLine($"    {CliHelpFormatting.Placeholder($"{flags}{typeSuffix}"),-30}  {opt.Description ?? ""}");
 		}
 		Console.WriteLine();
@@ -249,6 +249,14 @@ internal static class MakeHelpPrinter
 		if (t.IsGenericType && t.GetGenericTypeDefinition().Name == "FSharpOption`1")
 			return FriendlyTypeName(t.GetGenericArguments()[0]) + "?";
 		var u = Nullable.GetUnderlyingType(t) ?? t;
+		// C# keyword names, as Argh help prints them: "int", not "int32".
+		if (u == typeof(int)) return "int";
+		if (u == typeof(long)) return "long";
+		if (u == typeof(bool)) return "bool";
+		if (u == typeof(float)) return "float";
+		if (u == typeof(double)) return "double";
+		if (u == typeof(decimal)) return "decimal";
+		if (u == typeof(string)) return "string";
 		return u.Name.ToLowerInvariant();
 	}
 }
