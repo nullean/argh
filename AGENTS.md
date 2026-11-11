@@ -12,9 +12,11 @@ mise installs the SDK pinned in `global.json`. Run everything through it:
 mise run build    # build the solution
 mise run test     # build, then run the tests
 mise run pack     # build, pack the NuGet packages, validate them, report public API changes
-mise run ci       # exactly what CI's build job runs: test, check the schema, pack, validate, diff the public API
+mise run ci       # exactly what CI's build job runs: test, check the schema, pack, validate, diff the public API,
+                  # then curb check
 mise run docs     # build the docs as the deploy does (theme, landing page) and serve them; `-- --noserve` builds only
-mise run check    # workflow security checks (zizmor)
+mise run format   # format the C# with curb
+mise run check    # fail on formatting drift (curb) and workflow findings (zizmor)
 mise run clean    # delete build output
 mise run release  # show the release draft; `mise run release publish` releases
 ```
