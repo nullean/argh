@@ -186,103 +186,103 @@ let private runTgt (configure: MakeApp<Tgt> -> unit) (args: string list) =
         Console.SetOut oldOut
         Console.SetError oldErr
 
-[<Collection("Console")>]
+[<NotInParallel>]
 type BinderIssueTests() =
 
-    [<Fact>]
+    [<Test>]
     member _.``Argument field binds a positional``() =
         let r = runTgt ignore ["one"; "src/Foo"; "--verbose"]
         Assert.Equal(0, r.ExitCode)
         Assert.Equal<string list>(["one Some \"src/Foo\" True"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``A positional no field takes exits 2``() =
         let r = runTgt ignore ["one"; "a"; "b"]
         Assert.Equal(2, r.ExitCode)
         Assert.Contains("Unexpected argument 'b'.", r.Stderr)
         Assert.Empty(r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``A target without a record rejects extra arguments``() =
         let r = runTgt ignore ["compile"; "x"]
         Assert.Equal(2, r.ExitCode)
         Assert.Contains("Unexpected argument 'x'", r.Stderr)
 
-    [<Fact>]
+    [<Test>]
     member _.``Variadic positional takes every remaining positional``() =
         let r = runTgt ignore ["many"; "a"; "b"; "--level"; "2"; "c"]
         Assert.Equal<string list>(["many [\"a\"; \"b\"; \"c\"] Some 2"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``Arguments after double dash go to the Rest field``() =
         let r = runTgt ignore ["fwd"; "--suite"; "unit"; "--"; "--treenode-filter"; "/*/*/My/*"]
         Assert.Equal(0, r.ExitCode)
         Assert.Equal<string list>(["fwd Some \"unit\" [\"--treenode-filter\"; \"/*/*/My/*\"]"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``Double dash without a Rest field exits 2``() =
         let r = runTgt ignore ["one"; "--"; "x"]
         Assert.Equal(2, r.ExitCode)
         Assert.Contains("Unexpected argument 'x'", r.Stderr)
 
-    [<Fact>]
+    [<Test>]
     member _.``Equals syntax works for target options``() =
         let r = runTgt ignore ["fwd"; "--suite=unit"]
         Assert.Equal(0, r.ExitCode)
         Assert.Equal<string list>(["fwd Some \"unit\" []"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``Equals syntax works for global options``() =
         let r = runTgt ignore ["--token=abc"; "build"]
         Assert.Equal(0, r.ExitCode)
         Assert.Contains("build token=Some \"abc\"", r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``Parse error names the kebab-case flag``() =
         let r = runTgt ignore ["fwd"; "--parallelism"; "x"]
         Assert.Equal(2, r.ExitCode)
         Assert.Contains("for '--parallelism'", r.Stderr)
 
-    [<Fact>]
+    [<Test>]
     member _.``Version prints the entry assembly version, not a placeholder``() =
         let r = runTgt ignore ["--version"]
         Assert.Equal(0, r.ExitCode)
-        Assert.NotEqual<string>("0.0.0", r.Stdout.Trim())
-        Assert.False(String.IsNullOrWhiteSpace r.Stdout)
+        Assert.Equal(false, r.Stdout.Trim() = "0.0.0")
+        Assert.Equal(false, String.IsNullOrWhiteSpace r.Stdout)
 
-    [<Fact>]
+    [<Test>]
     member _.``Hidden step stays out of help but runs as a dependency and by name``() =
         let help = runTgt ignore ["--help"]
         // "compile" still shows as a dependency of build, but not as a listed target.
-        Assert.DoesNotContain(help.Stdout.Split('\n'), fun l -> l.TrimStart().StartsWith("compile"))
+        Assert.Equal(false, help.Stdout.Split('\n') |> Array.exists (fun l -> l.TrimStart().StartsWith("compile")))
         Assert.Contains("build", help.Stdout)
         Assert.Equal<string list>(["compile"; "build token=None"], (runTgt ignore ["build"]).Log)
         Assert.Equal<string list>(["compile"], (runTgt ignore ["compile"]).Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``Default target runs with no arguments``() =
         let r = runTgt (fun a -> a.Default Build) []
         Assert.Equal(0, r.ExitCode)
         Assert.Equal<string list>(["compile"; "build token=None"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``Default target runs when only global options are given``() =
         let r = runTgt (fun a -> a.Default Build) ["--token"; "abc"]
         Assert.Equal<string list>(["compile"; "build token=Some \"abc\""], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``Default target is shown in help``() =
         let r = runTgt (fun a -> a.Default Build) ["--help"]
         Assert.Contains("runs build when no target is named", r.Stdout)
 
-    [<Fact>]
+    [<Test>]
     member _.``Single target with no target keeps printing help``() =
         let r = runTgt (fun a -> a.Default Build) ["-s"]
         Assert.Equal(0, r.ExitCode)
         Assert.Empty(r.Log)
         Assert.Contains("Usage:", r.Stdout)
 
-    [<Fact>]
+    [<Test>]
     member _.``No default keeps printing help``() =
         let r = runTgt ignore []
         Assert.Empty(r.Log)
