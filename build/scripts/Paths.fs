@@ -4,7 +4,6 @@ open System
 open System.IO
 
 let ToolName = "Nullean.Argh"
-let Repository = "nullean/argh"
 let MainTFM = "netstandard2.0"
 let SignKey = "96c599bbe3e70f5d"
 

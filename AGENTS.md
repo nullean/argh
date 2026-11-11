@@ -6,8 +6,7 @@ site published by `.github/workflows/gh-pages.yml`.
 
 ## Commands
 
-mise installs the SDK pinned in `global.json`, plus the net10.0 runtime the `release-notes` tool runs on. Run
-everything through it:
+mise installs the SDK pinned in `global.json`. Run everything through it:
 
 ```bash
 mise run build    # build the solution
@@ -17,6 +16,7 @@ mise run ci       # exactly what CI's build job runs: test, check the schema, pa
 mise run docs     # build the docs as the deploy does (theme, landing page) and serve them; `-- --noserve` builds only
 mise run check    # workflow security checks (zizmor)
 mise run clean    # delete build output
+mise run release  # show the release draft; `mise run release publish` releases
 ```
 
 `mise tasks ls` lists them all. The tasks call the F# build in `build/scripts` (Argu + Bullseye); run a target
@@ -35,6 +35,15 @@ For a narrower loop, `dotnet test` works directly:
 dotnet test tests/Nullean.Argh.IntegrationTests/ -c Release
 dotnet test tests/Nullean.Argh.IntegrationTests/ -c Release --filter "FullyQualifiedName~HelpContent"
 ```
+
+## Releasing
+
+release-drafter keeps a draft release up to date from the labels of merged pull requests. **Publishing the draft**
+releases: it creates the tag (`0.26.0`, no `v`), and the `release` job in `ci.yml` packs at that version, pushes to
+nuget.org and appends the public API reports (`build/output/breaking-changes-*.md`) to the release notes. Pushing a
+tag on its own does nothing. `mise run release` shows the draft. The [releasing](.claude/skills/releasing/SKILL.md)
+and [breaking-changes](.claude/skills/breaking-changes/SKILL.md) skills have the details. Every pull request carries
+exactly one release label.
 
 ## Architecture
 

@@ -1,7 +1,6 @@
 # Bootstraps the toolchain and is the one entry point: `mise run <task>`, the same task names in every nullean repo.
 # The .NET SDK version lives only in global.json: the first dotnet entry reads it from there (sdk.version is the first
-# "version" key). List further runtimes after it when tests run on older target frameworks too: here net10.0 for
-# release-notes, a local tool that does not roll forward.
+# "version" key). List further runtimes after it when tests run on older target frameworks too.
 
 [env]
 DOTNET_NOLOGO = "1"
@@ -9,7 +8,7 @@ DOTNET_CLI_TELEMETRY_OPTOUT = "1"
 DOTNET_SKIP_FIRST_TIME_EXPERIENCE = "1"
 
 [tools]
-dotnet = ["""{{ read_file(path='global.json') | split(pat='"version"') | nth(n=1) | split(pat='"') | nth(n=1) }}""", "10"]
+dotnet = ["""{{ read_file(path='global.json') | split(pat='"version"') | nth(n=1) | split(pat='"') | nth(n=1) }}"""]
 gh = "latest"
 zizmor = "1"
 
@@ -48,3 +47,23 @@ run = "dotnet run --project build/scripts -- clean"
 description = "Exactly what CI's build job runs: test, check the schema, pack, validate, diff the public API"
 depends = ["setup"]
 run = "dotnet run --project build/scripts -- ci"
+
+[tasks.release]
+description = "Open the release-drafter draft; `mise run release publish` publishes it, which releases"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+tag=$(gh release list --json tagName,isDraft --jq '[.[] | select(.isDraft)][0].tagName')
+if [ -z "$tag" ]; then
+  echo "no draft release; merge a labelled pull request to main first" >&2
+  exit 1
+fi
+if [ "${1:-}" = "publish" ]; then
+  gh release edit "$tag" --draft=false
+  echo "published $tag; the release workflow is now packing and pushing it"
+else
+  gh release view "$tag"
+  echo
+  echo "publish with: mise run release publish   (or promote the draft on github.com)"
+fi
+'''
