@@ -13,7 +13,7 @@ namespace Nullean.Make;
 /// <para>
 /// Usage:
 /// <code>
-/// var app = new UnionMakeApp&lt;BuildTarget&gt;("my-build");
+/// var app = new MakeApp&lt;BuildTarget&gt;("my-build");
 /// var token = app.Option&lt;string?&gt;("--token");
 /// app.Bind(t =&gt; t switch {
 ///     Clean   =&gt; app.Target().Executes(() =&gt; ...),
@@ -25,14 +25,14 @@ namespace Nullean.Make;
 /// </para>
 /// </summary>
 /// <typeparam name="TUnion">A C# 15 union type whose case types are the build targets.</typeparam>
-public sealed class UnionMakeApp<TUnion> where TUnion : struct
+public sealed class MakeApp<TUnion> where TUnion : struct
 {
 	private readonly BuildGraph _graph = new();
 	private readonly List<UnionOptionDecl> _options = new();
 	private Func<TUnion, IUnionTargetBuilder<TUnion>>? _bind;
 	private Dictionary<string, string>? _typeNameToRoute;
 
-	public UnionMakeApp(string name, string? description = null)
+	public MakeApp(string name, string? description = null)
 	{
 		_graph.AppName        = name;
 		_graph.AppDescription = description;

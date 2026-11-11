@@ -5,7 +5,7 @@ namespace Nullean.Make.UnionGraph;
 /// <summary>
 /// Internal implementation of <see cref="IUnionTargetBuilder{TUnion}"/>.
 /// A fresh instance is returned by every call to <c>app.Target()</c> / <c>app.Command()</c>.
-/// <see cref="UnionMakeApp{TUnion}"/> calls <c>app.Bind</c> twice: at graph-build time
+/// <see cref="MakeApp{TUnion}"/> calls <c>app.Bind</c> twice: at graph-build time
 /// (reads Kind/Description/DepTypeNames) and at execution time (reads SyncBody/AsyncBody).
 /// </summary>
 internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnion>

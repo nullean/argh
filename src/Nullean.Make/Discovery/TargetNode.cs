@@ -35,7 +35,7 @@ internal sealed class TargetNode
 	/// <summary>Typed body delegate: Action&lt;T&gt; or Func&lt;T,Task&gt;. Null when no DTO.</summary>
 	public Delegate? TypedBody { get; set; }
 
-	/// <summary>Route-based dep type names used by <see cref="UnionMakeApp{TUnion}"/> before node resolution.</summary>
+	/// <summary>Route-based dep type names used by <see cref="MakeApp{TUnion}"/> before node resolution.</summary>
 	public List<string> RouteRequires { get; } = new();
 	public List<string> RouteComposes { get; } = new();
 
