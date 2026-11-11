@@ -29,6 +29,9 @@ public static class MakeApp
 			return ex.ExitCode;
 		}
 
+		if (Wrappers.MakeIntrinsics.TryRun(args, graph) is { } intrinsicExit)
+			return intrinsicExit;
+
 		var scriptName = DetectScriptName();
 
 		if (args.Length == 0)

@@ -1,8 +1,6 @@
-using Nullean.Argh;
 using Nullean.Make.Discovery;
 using Nullean.Make.Parsing;
 using Nullean.Argh.Help;
-using System.Reflection;
 
 namespace Nullean.Make.Help;
 
@@ -203,22 +201,17 @@ internal static class MakeHelpPrinter
 	private static void PrintDtoOptions(Type dtoType)
 	{
 		Console.WriteLine($"  {CliHelpFormatting.Section("Options:")}");
-		var ctor = dtoType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
-		foreach (var p in ctor.GetParameters())
+		foreach (var o in DtoOptions.Describe(dtoType))
 		{
-			var isPositional = p.GetCustomAttribute<ArgumentAttribute>() is not null;
-			// RestAttribute lives in Nullean.Make.Fs, which this project cannot reference.
-			var isRest = p.GetCustomAttributes().Any(a => a.GetType().Name == "RestAttribute");
-			var name = ToKebabCase(p.Name ?? "arg");
-			var typeName = FriendlyTypeName(p.ParameterType);
-			var defaultStr = p.HasDefaultValue ? $"  (default: {p.DefaultValue ?? "null"})" : "";
+			var typeName = DtoOptions.FriendlyTypeName(o.Type);
+			var defaultStr = o.HasDefault ? $"  (default: {o.Default ?? "null"})" : "";
 
-			if (isRest)
-				Console.WriteLine($"    {CliHelpFormatting.Placeholder($"-- <{name}...>"),-30} {typeName}  (everything after --)");
-			else if (isPositional)
-				Console.WriteLine($"    {CliHelpFormatting.Placeholder($"<{name}>"),-30} {typeName}{defaultStr}");
+			if (o.IsRest)
+				Console.WriteLine($"    {CliHelpFormatting.Placeholder($"-- <{o.Name}...>"),-30} {typeName}  (everything after --)");
+			else if (o.IsPositional)
+				Console.WriteLine($"    {CliHelpFormatting.Placeholder($"<{o.Name}>"),-30} {typeName}{defaultStr}");
 			else
-				Console.WriteLine($"    {CliHelpFormatting.Placeholder($"--{name} <{typeName}>"),-30}{defaultStr}");
+				Console.WriteLine($"    {CliHelpFormatting.Placeholder($"--{o.Name} <{typeName}>"),-30}{defaultStr}");
 		}
 	}
 
@@ -232,40 +225,9 @@ internal static class MakeHelpPrinter
 		{
 			var flags = opt.Short is not null ? $"{opt.Short}, {opt.Long}" : $"    {opt.Long}";
 			var valueType = opt.Property?.PropertyType ?? opt.ValueType;
-			var typeSuffix = opt.IsFlag ? "" : $" <{(valueType is not null ? FriendlyTypeName(valueType) : "string")}>";
+			var typeSuffix = opt.IsFlag ? "" : $" <{(valueType is not null ? DtoOptions.FriendlyTypeName(valueType) : "string")}>";
 			Console.WriteLine($"    {CliHelpFormatting.Placeholder($"{flags}{typeSuffix}"),-30}  {opt.Description ?? ""}");
 		}
 		Console.WriteLine();
-	}
-
-	private static string ToKebabCase(string name)
-	{
-		var sb = new System.Text.StringBuilder();
-		for (var i = 0; i < name.Length; i++)
-		{
-			var c = name[i];
-			if (char.IsUpper(c) && i > 0) sb.Append('-');
-			sb.Append(char.ToLowerInvariant(c));
-		}
-		return sb.ToString();
-	}
-
-	private static string FriendlyTypeName(Type t)
-	{
-		// Unwrap F# option<T> → "T?"
-		if (t.IsGenericType && t.GetGenericTypeDefinition().Name == "FSharpOption`1")
-			return FriendlyTypeName(t.GetGenericArguments()[0]) + "?";
-		if (t.IsGenericType && t.GetGenericTypeDefinition().Name == "FSharpList`1")
-			return FriendlyTypeName(t.GetGenericArguments()[0]) + "...";
-		var u = Nullable.GetUnderlyingType(t) ?? t;
-		// C# keyword names, as Argh help prints them: "int", not "int32".
-		if (u == typeof(int)) return "int";
-		if (u == typeof(long)) return "long";
-		if (u == typeof(bool)) return "bool";
-		if (u == typeof(float)) return "float";
-		if (u == typeof(double)) return "double";
-		if (u == typeof(decimal)) return "decimal";
-		if (u == typeof(string)) return "string";
-		return u.Name.ToLowerInvariant();
 	}
 }

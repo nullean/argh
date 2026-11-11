@@ -142,6 +142,27 @@ type MakeAppTests() =
         Assert.Equal(2, r.ExitCode)
         Assert.Contains("Unknown target 'deploy'.", r.Stderr)
 
+    [<Test>]
+    member _.``Wrappers sync writes the F# targets, record fields as flags``() =
+        let dir = Path.Combine(Path.GetTempPath(), "make-fs-wrappers-" + Guid.NewGuid().ToString("N"))
+        try
+            let r = runApp standard ["__wrappers"; "sync"; "--run"; "./build.fsx"; "--out-dir"; dir]
+            okExit r
+            Assert.Empty(r.Log)
+            let mise = File.ReadAllText(Path.Combine(dir, "mise-tasks.toml"))
+            Assert.Contains("[\"schema:update\"]\ndescription = \"Regenerate the schema\"", mise)
+            Assert.Contains("run = \"./build.fsx test\"", mise)
+            Assert.Contains("flag \"--filter <filter>\" help=\"string?\"", mise)
+            Assert.Contains("flag \"-n --dry-run\" help=\"Print, do not run\"", mise)
+            Assert.Contains("flag \"--workers <workers>\" help=\"Worker count\"", mise)
+            Assert.Contains("pkg/validate:\n\t@$(NULLEAN_MAKE_RUN) pkg validate $(ARGS)", File.ReadAllText(Path.Combine(dir, "make.mk")))
+            Assert.Contains("@schema-validate *args:", File.ReadAllText(Path.Combine(dir, "make.just")))
+
+            let check = runApp standard ["__wrappers"; "check"; "--out-dir"; dir]
+            okExit check
+        finally
+            if Directory.Exists dir then Directory.Delete(dir, true)
+
 // ---- positional arguments, forwarding, --name=value, default target, hidden steps, version ----
 
 type OneOptions =

@@ -66,6 +66,10 @@ union Target(Clean, Build, Test, Pkg, Release);
   `Pkg { Value: Generate }` and create it with `new Pkg(new Generate())`.
 - A non-zero exit code from `Exec` fails the target, and `RunAsync` returns `1`. A bad or missing option value
   returns `2` before anything runs.
+- `./build.cs __wrappers sync` writes `.make/mise-tasks.toml`, `.make/make.mk` and `.make/make.just`, one task per
+  target, for `mise run test`, `make test ARGS="..."` and `just test`. It prints the include line for each and mise
+  hooks that keep them fresh. `__wrappers check` exits `1` when one is stale. A project-based build passes
+  `--run "dotnet run --project build --"`. Do not hand-write wrapper tasks per target.
 
 ## Gotchas
 

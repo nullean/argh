@@ -123,6 +123,9 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 		}
 		catch (MakeException ex) { Console.Error.WriteLine(ex.Message); return ex.ExitCode; }
 
+		if (Wrappers.MakeIntrinsics.TryRun(args, _graph) is { } intrinsicExit)
+			return intrinsicExit;
+
 		var scriptName = _graph.AppName;
 
 		if (args.Length == 0) { MakeHelpPrinter.PrintRoot(_graph, scriptName); return 0; }
