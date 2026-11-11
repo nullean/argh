@@ -160,7 +160,8 @@ public class UnionMakeAppTests
 		run.Stdout.Should().Contain("clean").And.Contain("Delete artifacts");
 		run.Stdout.Should().Contain("Namespaces:").And.Contain("db");
 		run.Stdout.Should().Contain("release").And.Contain("pack, db migrate");
-		run.Stdout.Should().Contain("--config").And.Contain("--dry-run");
+		run.Stdout.Should().Contain("--config <string>").And.Contain("--dry-run");
+		run.Stdout.Should().Contain("--max-retries <int>");
 		run.Log.Should().BeEmpty();
 	}
 

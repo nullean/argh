@@ -56,7 +56,7 @@ public sealed class UnionMakeApp<TUnion> where TUnion : struct
 		var r = new UnionOptionRef<T>(longName, null, description, defaultValue,
 			raw => (T)ParseRaw(typeof(T), raw, longName));
 		_options.Add(new UnionOptionDecl(longName, null, description, IsFlag: false, Set: r.Set));
-		_graph.GlobalOptions.Add(new GlobalOptionNode { Long = longName, Description = description, IsFlag = false });
+		_graph.GlobalOptions.Add(new GlobalOptionNode { Long = longName, Description = description, IsFlag = false, ValueType = typeof(T) });
 		return r;
 	}
 
