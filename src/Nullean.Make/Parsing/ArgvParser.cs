@@ -115,16 +115,15 @@ internal static class ArgvParser
 					if (opt.IsFlag)
 					{
 						result.GlobalValues[longNorm] = "true";
-						SetProperty(opt.Property, build, "true");
+						SetProperty(opt.Property, build, "true", opt.Long);
 					}
 					else
 					{
 						i++;
-						if (i < args.Length)
-						{
-							result.GlobalValues[longNorm] = args[i];
-							SetProperty(opt.Property, build, args[i]);
-						}
+						if (i >= args.Length)
+							throw new MakeException($"Missing value for '{opt.Long}'.", 2);
+						result.GlobalValues[longNorm] = args[i];
+						SetProperty(opt.Property, build, args[i], opt.Long);
 					}
 					matched = true;
 					break;
@@ -139,19 +138,24 @@ internal static class ArgvParser
 		return remaining;
 	}
 
-	private static void SetProperty(PropertyInfo? prop, MakeBuild build, string raw)
+	private static void SetProperty(PropertyInfo? prop, MakeBuild build, string raw, string flagName)
 	{
 		if (prop is null) return;
+		var targetType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
+		object value;
 		try
 		{
-			var targetType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
-			object value;
+			var inv = System.Globalization.CultureInfo.InvariantCulture;
 			if (targetType == typeof(bool)) value = bool.Parse(raw);
-			else if (targetType == typeof(int)) value = int.Parse(raw);
+			else if (targetType == typeof(int)) value = int.Parse(raw, inv);
 			else if (targetType == typeof(string)) value = raw;
-			else value = Convert.ChangeType(raw, targetType);
-			prop.SetValue(build, value);
+			else if (targetType.IsEnum) value = Enum.Parse(targetType, raw, ignoreCase: true);
+			else value = Convert.ChangeType(raw, targetType, inv);
 		}
-		catch { /* best-effort */ }
+		catch (Exception ex) when (ex is FormatException or OverflowException or ArgumentException or InvalidCastException)
+		{
+			throw new MakeException($"Cannot parse '{raw}' for '{flagName}'.", 2);
+		}
+		prop.SetValue(build, value);
 	}
 }
