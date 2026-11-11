@@ -80,7 +80,7 @@ Any other type, such as `DateTime`, `int?` or an array, is a build error (`AGH00
 `AGH0036` (error) reports a case name or case flag that the command claims more than once:
 
 - two cases with the same CLI name, such as `Json` from two namespaces
-- a case flag that equals another flag of the command, such as `--json-pretty` next to a `bool jsonPretty` parameter
+- a case flag that equals another flag of the command, such as `--json-pretty` next to a `bool jsonPretty` parameter, or a global or namespace option in its scope
 - in argument mode, one bare flag that two cases declare with different types
 
 `AGH0037` (error) reports a case property whose type case flags cannot bind.

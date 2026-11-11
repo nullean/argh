@@ -170,4 +170,66 @@ public class UnionFlagCollisionTests
 
 		Assert.DoesNotContain(diagnostics, x => x.Id == "AGH0037");
 	}
+
+	private static string GlobalOptionsSource(string globalProps) => $$"""
+		using Nullean.Argh;
+		using Nullean.Argh.Builder;
+
+		namespace App
+		{
+			public record class Json(bool Pretty = false);
+			public record class Table(bool Pretty = false);
+
+			public struct Format
+			{
+				public object? Value { get; }
+				{{JsonTableCtors}}
+			}
+
+			public class GlobalOptions
+			{
+				{{globalProps}}
+			}
+
+			public static class Handlers
+			{
+				public static void Convert(GlobalOptions g, Format format) { }
+			}
+
+			public static class CliRegistration
+			{
+				public static void Configure(IArghRootBuilder app)
+				{
+					app.UseGlobalOptions<GlobalOptions>();
+					app.Map("convert", Handlers.Convert);
+				}
+			}
+		}
+		""";
+
+	[Fact]
+	public void Case_flag_colliding_with_a_global_option_is_reported()
+	{
+		var diagnostics = RunGenerator(GlobalOptionsSource("public bool JsonPretty { get; set; }"));
+
+		var d = Assert.Single(Agh0036(diagnostics));
+		Assert.Contains("--json-pretty (also in global options)", d.GetMessage());
+	}
+
+	[Fact]
+	public void Selector_colliding_with_a_global_option_is_reported()
+	{
+		var diagnostics = RunGenerator(GlobalOptionsSource("public string? Format { get; set; }"));
+
+		var d = Assert.Single(Agh0036(diagnostics));
+		Assert.Contains("--format (also in global options)", d.GetMessage());
+	}
+
+	[Fact]
+	public void Unrelated_global_options_are_not_reported()
+	{
+		var diagnostics = RunGenerator(GlobalOptionsSource("public bool Verbose { get; set; }"));
+
+		Assert.Empty(Agh0036(diagnostics));
+	}
 }

@@ -167,6 +167,74 @@ public sealed partial class CliParserGenerator
 		}
 	}
 
+	// ── AGH0036 against global and namespace options ─────────────────────────
+
+	/// <summary>
+	/// Reports AGH0036 when a union case flag or flag-mode selector reuses a global or namespace option flag in
+	/// the command's scope. The scoped option would consume the token, so the case flag could never bind.
+	/// The per-command check (<see cref="ReportUnionFlagCollisionsAcc"/>) cannot see these options.
+	/// </summary>
+	private static void ValidateUnionFlagsAgainstScopedOptions(SourceProductionContext context, AppEmitModel app)
+	{
+		foreach (var cmd in app.AllCommands)
+		{
+			if (cmd.Parameters.IsDefaultOrEmpty || !cmd.Parameters.Any(static p => p.ScalarKind == CliScalarKind.Union))
+				continue;
+
+			var scoped = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			void addScope(ImmutableArray<ParameterModel> members, string scope)
+			{
+				if (members.IsDefaultOrEmpty)
+					return;
+				foreach (var m in members)
+				{
+					if (!IsEmittedFlagLike(m.Kind))
+						continue;
+					foreach (var flag in ExpandFlagStrings(m))
+					{
+						var name = flag.TrimStart('-');
+						if (name.Length > 1 && !scoped.ContainsKey(name))
+							scoped[name] = scope;
+					}
+				}
+			}
+
+			if (app.GlobalOptionsModel is { FlattenedMembers: var gm })
+				addScope(gm, "global options");
+			foreach ((var segment, var nsModel) in GetCommandNamespaceOptionChain(app, cmd.RoutePrefix))
+				addScope(nsModel.FlattenedMembers, $"'{segment}' options");
+			if (scoped.Count == 0)
+				continue;
+
+			var location = cmd.HandlerSpanInfo.ToLocation();
+			foreach (var p in cmd.Parameters)
+			{
+				if (p.ScalarKind != CliScalarKind.Union || p.UnionCases.IsDefaultOrEmpty)
+					continue;
+				var names = new List<string>();
+				if (!p.UnionIsArgument)
+					names.Add(p.CliLongName);
+				foreach (var c in p.UnionCases)
+				{
+					foreach (var prop in c.Properties)
+					{
+						var name = UnionCasePropFlagName(p, prop);
+						names.Add(name);
+						if (UnionBoolDefaultsTrue(prop))
+							names.Add("no-" + name);
+					}
+				}
+
+				var reported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+				foreach (var name in names)
+				{
+					if (scoped.TryGetValue(name, out var scope) && reported.Add(name))
+						context.ReportDiagnostic(Diagnostic.Create(UnionFlagCollision, location, p.SymbolName, $"--{name} (also in {scope})"));
+				}
+			}
+		}
+	}
+
 	// ── AGH0036: union flag name collisions ──────────────────────────────────
 
 	/// <summary>
