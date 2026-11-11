@@ -10,24 +10,15 @@ type Arguments =
     | [<CliPrefix(CliPrefix.None);SubCommand>] Pack
     | [<CliPrefix(CliPrefix.None);SubCommand>] Ci
 
-    | [<CliPrefix(CliPrefix.None);Hidden;SubCommand>] PristineCheck
     | [<CliPrefix(CliPrefix.None);Hidden;SubCommand>] GeneratePackages
     | [<CliPrefix(CliPrefix.None);Hidden;SubCommand>] ValidatePackages
-    | [<CliPrefix(CliPrefix.None);Hidden;SubCommand>] GenerateReleaseNotes
     | [<CliPrefix(CliPrefix.None);Hidden;SubCommand>] GenerateApiChanges
     | [<CliPrefix(CliPrefix.None);SubCommand>] UpdateSchema
     | [<CliPrefix(CliPrefix.None);SubCommand>] ValidateSchema
 
     | [<CliPrefix(CliPrefix.None);SubCommand>] Docs
 
-    | [<CliPrefix(CliPrefix.None);SubCommand>] Release
-
-    | [<CliPrefix(CliPrefix.None);Hidden;SubCommand>] CreateReleaseOnGithub
-    | [<CliPrefix(CliPrefix.None);SubCommand>] Publish
-
     | [<Inherit;AltCommandLine("-s")>] SingleTarget of bool
-    | [<Inherit>] Token of string
-    | [<Inherit;AltCommandLine("-c")>] CleanCheckout of bool
 with
     interface IArgParserTemplate with
         member this.Usage =
@@ -37,23 +28,16 @@ with
             | Test -> "Runs build then tests"
             | Pack -> "Runs build, then creates and validates the packages and reports public API changes"
             | Ci -> "Runs tests, checks the schema is up to date, then creates and validates the packages: exactly what CI runs"
-            | Release -> "runs build, tests, and create and validates the packages shy of publishing them"
-            | Publish -> "Runs the full release"
 
             | SingleTarget _ -> "Runs the provided sub command without running their dependencies"
-            | Token _ -> "Token to be used to authenticate with github"
-            | CleanCheckout _ -> "Skip the clean checkout check that guards the release/publish targets"
 
             | UpdateSchema -> "Run the schema export tool and write schema/argh-cli-schema.json"
             | ValidateSchema -> "Fail if schema/argh-cli-schema.json is out of date"
             | Docs -> "Build the documentation site and serve it locally"
 
-            | PristineCheck
             | GeneratePackages
             | ValidatePackages
-            | GenerateReleaseNotes
             | GenerateApiChanges
-            | CreateReleaseOnGithub
                 -> "Undocumented, dependent target"
     member this.Name =
         match FSharpValue.GetUnionFields(this, typeof<Arguments>) with

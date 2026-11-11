@@ -24,7 +24,6 @@ record TestOptions(string? Filter = null);
 
 class Make : MakeBuild
 {
-	const string Repository    = "nullean/argh";
 	const string MainTfm       = "netstandard2.0";
 	const string SignKey        = "96c599bbe3e70f5d";
 	const bool   IncludeGitHash = true;
@@ -56,11 +55,8 @@ class Make : MakeBuild
 	static string PackageIdFromFile(string path) => Path.GetFileNameWithoutExtension(path).Replace("." + CurrentVersion, "");
 
 
-    [Flag("--clean-checkout", "-c", Description = "Skip the clean-checkout guard on release/publish")]
+    [Flag("--clean-checkout", "-c", Description = "Skip the clean-checkout guard on release")]
     public bool CleanCheckout { get; init; }
-
-    [GlobalOption("--token", Description = "GitHub token for generating release notes and creating releases")]
-    public string? Token { get; init; }
 
     // ── atomic targets ────────────────────────────────────────────────────────
 
@@ -98,26 +94,6 @@ class Make : MakeBuild
             Proc.Exec("dotnet", argList.ToArray());
         });
 
-    public Target GenerateReleaseNotes => _ => _
-        .Hidden()
-        .Executes(() =>
-        {
-            var ver        = CurrentVersion;
-            var outputFile = Path.Combine(OutputPath, $"release-notes-{ver}.md");
-            var tokenArgs  = Token is not null ? new[] { "--token", Token } : Array.Empty<string>();
-            Proc.Exec("dotnet", new[] { "release-notes" }
-                .Concat(Repository.Split('/'))
-                .Concat(new[]
-                {
-                    "--version", ver,
-                    "--label", "enhancement",  "New Features",
-                    "--label", "bug",          "Bug Fixes",
-                    "--label", "documentation","Docs Improvements",
-                    "--output", outputFile
-                })
-                .Concat(tokenArgs).ToArray());
-        });
-
     public Target GenerateApiChanges => _ => _
         .Hidden()
         .Executes(() =>
@@ -141,22 +117,6 @@ class Make : MakeBuild
                     "--output", Path.Combine(OutputPath, $"breaking-changes-{pkg}.md")
                 });
             }
-        });
-
-    public Target CreateReleaseOnGithub => _ => _
-        .Hidden()
-        .Executes(() =>
-        {
-            var ver         = CurrentVersion;
-            var releaseNotes = Path.Combine(OutputPath, $"release-notes-{ver}.md");
-            var tokenArgs    = Token is not null ? new[] { "--token", Token } : Array.Empty<string>();
-            var bodyArgs     = Output.GetFiles("breaking-changes-*.md")
-                .SelectMany(f => new[] { "--body", Path.GetRelativePath(Directory.GetCurrentDirectory(), f.FullName) });
-
-            Proc.Exec("dotnet", new[] { "release-notes" }
-                .Concat(Repository.Split('/'))
-                .Concat(new[] { "create-release", "--version", ver, "--body", releaseNotes })
-                .Concat(bodyArgs).Concat(tokenArgs).ToArray());
         });
 
     // ── schema namespace ──────────────────────────────────────────────────────
@@ -216,21 +176,15 @@ class Make : MakeBuild
     // ── commands ──────────────────────────────────────────────────────────────
 
     public Command Release { get; }
-    public Command Publish { get; }
 
     public Make()
     {
         var pkg = new Pkg();
 
         Release = _ => _
-            .Description("Verify gates → pack → release-notes → api-diff")
+            .Description("Verify gates → pack → api-diff")
             .Requires(PristineCheck, Test)
-            .Composes(pkg.Generate, pkg.Validate, GenerateReleaseNotes, GenerateApiChanges);
-
-        Publish = _ => _
-            .Description("Release → create GitHub release")
-            .Requires(Release)
-            .Composes(CreateReleaseOnGithub);
+            .Composes(pkg.Generate, pkg.Validate, GenerateApiChanges);
     }
 }
 
