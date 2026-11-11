@@ -40,6 +40,13 @@ flag "-s --single-target" help="Skip prerequisite deps; run only the body / Comp
   `usage` spec drops the arguments, and a task without one rejects `--help`.
 - A task has no `depends`. The script runs the dependencies.
 
+mise removes the first `--` after the task name, even with `raw_args`. To pass `--` to the script, for a target that
+takes the arguments after it, write it twice:
+
+```bash
+mise run test -- -- --blame-hang
+```
+
 :::{note}
 A task defined in `mise.toml` wins over an included task of the same name, and mise prints no warning. When
 `mise.toml` already has tasks such as `build` or `test`, pass `--prefix make` to get `make:build` and `make:test`.

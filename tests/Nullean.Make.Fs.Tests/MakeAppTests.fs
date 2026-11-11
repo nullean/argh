@@ -308,3 +308,23 @@ type BinderIssueTests() =
         let r = runTgt ignore []
         Assert.Empty(r.Log)
         Assert.Contains("Usage:", r.Stdout)
+
+    [<Test>]
+    member _.``Wrappers mark list positionals and rest arguments as variadic``() =
+        let dir = Path.Combine(Path.GetTempPath(), "make-fs-wrappers-" + Guid.NewGuid().ToString("N"))
+        try
+            let r = runTgt ignore ["__wrappers"; "sync"; "--run"; "./build.fsx"; "--only"; "mise"; "--out-dir"; dir]
+            Assert.Equal(0, r.ExitCode)
+            let mise = File.ReadAllText(Path.Combine(dir, "mise-tasks.toml"))
+            Assert.Contains("arg \"[files]\" var=#true help=\"string...\"", mise)
+            Assert.Contains("arg \"[rest]\" var=#true help=\"string... (everything after --)\"", mise)
+            Assert.Contains("arg \"[project]\" help=\"string?\"", mise)
+        finally
+            if Directory.Exists dir then Directory.Delete(dir, true)
+
+    [<Test>]
+    member _.``Help shows an Argument record field as a positional, not a flag``() =
+        let r = runTgt ignore ["one"; "--help"]
+        Assert.Equal(0, r.ExitCode)
+        Assert.Contains("<project>", r.Stdout)
+        Assert.DoesNotContain("--project", r.Stdout)

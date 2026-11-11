@@ -125,6 +125,7 @@ forward to the script, which still runs the dependencies, so a mise task has no 
 - `--only mise,just` limits the files. A bare `sync` refreshes the files already in `--out-dir` (default `.make`).
 - `--prefix make` names the tasks `make:test`, `make/test` and `make-test`. A task in `mise.toml` silently wins over
   an included task of the same name, so use a prefix when `mise.toml` already has `build` or `test` tasks.
+- mise removes the first `--` after the task name, so `mise run test -- -- --x` passes `-- --x` to the script.
 - `__wrappers check` exits `1` when a file is missing or out of date, for CI when the files are committed.
 - `make.mk` keeps your Makefile's default goal. In a justfile, the first recipe is the default, so put yours above
   the `import?`.

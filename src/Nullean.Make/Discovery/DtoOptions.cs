@@ -26,15 +26,30 @@ internal static class DtoOptions
 	{
 		var ctor = dtoType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
 		return ctor.GetParameters()
-			.Select(p => new DtoOption(
-				ToKebabCase(p.Name ?? "arg"),
-				p.ParameterType,
-				p.GetCustomAttribute<ArgumentAttribute>() is not null,
-				// RestAttribute lives in Nullean.Make.Fs, which this project cannot reference.
-				p.GetCustomAttributes().Any(a => a.GetType().Name == "RestAttribute"),
-				p.HasDefaultValue,
-				p.HasDefaultValue ? p.DefaultValue : null))
+			.Select(p =>
+			{
+				var isRest = Has(dtoType, p, a => a.GetType().Name == "RestAttribute");
+				return new DtoOption(
+					ToKebabCase(p.Name ?? "arg"),
+					p.ParameterType,
+					!isRest && Has(dtoType, p, a => a is ArgumentAttribute),
+					isRest,
+					p.HasDefaultValue,
+					p.HasDefaultValue ? p.DefaultValue : null);
+			})
 			.ToList();
+	}
+
+	/// <summary>
+	/// Whether the parameter, or the property of the same name, carries a matching attribute. F# puts a record field's
+	/// attributes on the property unless they only target parameters, so the F# binder checks both too.
+	/// <c>RestAttribute</c> lives in Nullean.Make.Fs, which this project cannot reference, so it matches by name.
+	/// </summary>
+	private static bool Has(Type dtoType, ParameterInfo p, Func<Attribute, bool> match)
+	{
+		if (p.GetCustomAttributes().Any(match)) return true;
+		var prop = dtoType.GetProperties().FirstOrDefault(x => string.Equals(x.Name, p.Name, StringComparison.OrdinalIgnoreCase));
+		return prop is not null && prop.GetCustomAttributes().Any(match);
 	}
 
 	/// <summary>The type name help prints: C# keywords (<c>int</c>, not <c>int32</c>), F# <c>option&lt;T&gt;</c> as <c>T?</c>.</summary>

@@ -63,8 +63,12 @@ internal sealed class MiseEmitter : IWrapperEmitter
 		foreach (var o in t.Options)
 		{
 			var help = Kdl.String(DtoHelp(o));
-			if (o.IsPositional)
-				yield return $"arg {Kdl.String($"[{o.Name}]")} help={help}";
+			if (o.IsRest)
+				yield return $"arg {Kdl.String($"[{o.Name}]")} var=#true help={Kdl.String($"{DtoOptions.FriendlyTypeName(o.Type)} (everything after --)")}";
+			else if (o.IsPositional)
+				yield return IsList(o.Type)
+					? $"arg {Kdl.String($"[{o.Name}]")} var=#true help={help}"
+					: $"arg {Kdl.String($"[{o.Name}]")} help={help}";
 			else if (o.IsSwitch)
 				yield return $"flag {Kdl.String($"--{o.Name}")} help={help}";
 			else
@@ -78,6 +82,8 @@ internal sealed class MiseEmitter : IWrapperEmitter
 			yield return $"flag {Kdl.String(spec)}{help}";
 		}
 	}
+
+	private static bool IsList(Type t) => t.IsGenericType && t.GetGenericTypeDefinition().Name == "FSharpList`1";
 
 	private static string DtoHelp(DtoOption o)
 	{
