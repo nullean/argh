@@ -15,6 +15,15 @@ module private MakeAppHelpers =
     type FsOptionDecl =
         { Long: string; Short: string option; Description: string option; IsFlag: bool; ValueType: Type option; Set: string -> unit }
 
+    /// The informational version of the entry assembly, as Argh's own --version prints.
+    let entryVersion () =
+        match Reflection.Assembly.GetEntryAssembly() with
+        | null -> "0.0.0"
+        | asm ->
+            match Reflection.CustomAttributeExtensions.GetCustomAttribute<Reflection.AssemblyInformationalVersionAttribute>(asm) with
+            | null -> asm.GetName().Version.ToString()
+            | attr -> attr.InformationalVersion
+
     let inline tryExec (f: unit -> 'a) =
         try Ok (f ())
         with :? MakeException as ex -> Error (ex.ExitCode, ex.Message)
@@ -25,6 +34,7 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
 
     let _options = Collections.Generic.List<FsOptionDecl>()
     let mutable _bindFn : ('TCase -> Definition<'TCase>) option = None
+    let mutable _default : 'TCase option = None
 
     let extractGlobals (argv: string[]) =
         let remaining    = Collections.Generic.List<string>()
@@ -38,17 +48,25 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
             elif arg = "--version"                       then showVersion  <- true; i <- i + 1
             elif arg = "-s"  || arg = "--single-target" then singleTarget <- true; i <- i + 1
             else
-                let norm = arg.TrimStart('-')
+                // --name=value carries the value inline.
+                let eq = if arg.StartsWith("-") then arg.IndexOf('=') else -1
+                let nameToken, inlineValue =
+                    if eq > 0 then arg.Substring(0, eq), Some (arg.Substring(eq + 1)) else arg, None
                 let matched =
-                    _options |> Seq.tryFind (fun o ->
-                        let longNorm  = o.Long.TrimStart('-')
-                        let shortNorm = o.Short |> Option.map (fun s -> s.TrimStart('-'))
-                        norm = longNorm || (shortNorm |> Option.exists (fun s -> norm = s)))
+                    if not (nameToken.StartsWith("-")) then None
+                    else
+                        let norm = nameToken.TrimStart('-')
+                        _options |> Seq.tryFind (fun o ->
+                            let longNorm  = o.Long.TrimStart('-')
+                            let shortNorm = o.Short |> Option.map (fun s -> s.TrimStart('-'))
+                            norm = longNorm || (shortNorm |> Option.exists (fun s -> norm = s)))
                 match matched with
                 | Some opt ->
-                    if opt.IsFlag then opt.Set "true"; i <- i + 1
-                    else
-                        i <- i + 1
+                    i <- i + 1
+                    match inlineValue with
+                    | Some v -> opt.Set v
+                    | None when opt.IsFlag -> opt.Set "true"
+                    | None ->
                         if i >= argv.Length then
                             raise (MakeException($"Missing value for '{opt.Long}'.", 2))
                         opt.Set argv.[i]
@@ -90,6 +108,11 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
         _options.Add({ Long = long; Short = short; Description = desc; IsFlag = false; ValueType = Some t; Set = r.Set })
         r
 
+    /// Name the target that runs when no target is given, so `./build.sh` builds. Help shows it.
+    /// A run with `-s` and no target still prints help.
+    member _.Default(case: 'TCase) =
+        _default <- Some case
+
     /// Provide the single exhaustive binding function: one match arm per DU case.
     member _.Bind(fn: 'TCase -> Definition<'TCase>) =
         _bindFn <- Some fn
@@ -108,7 +131,7 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
             |> Seq.toList
 
         task {
-            match tryExec (fun () -> FsGraphBuilder.buildGraph<'TCase> appName description bind optDecls) with
+            match tryExec (fun () -> FsGraphBuilder.buildGraph<'TCase> appName description bind _default optDecls) with
             | Error (code, msg) ->
                 eprintfn "%s" msg
                 return code
@@ -120,10 +143,15 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
                 return code
             | Ok () ->
 
-            if argv.Length = 0 then
+            if argv.Length = 0 && _default.IsNone then
                 MakeHelpPrinter.PrintRoot(graph, appName)
                 return 0
             else
+
+            // Everything after the first "--" is forwarded to the target untouched.
+            let sep = Array.IndexOf(argv, "--")
+            let argv, forwarded =
+                if sep >= 0 then argv.[.. sep - 1], argv.[sep + 1 ..] else argv, [||]
 
             match tryExec (fun () -> extractGlobals argv) with
             | Error (code, msg) ->
@@ -132,11 +160,12 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
             | Ok (remaining, singleTarget, showHelp, showVersion) ->
 
             if showVersion then
-                printfn "0.0.0"
+                printfn "%s" (entryVersion ())
                 return 0
             else
 
-            let routeKey, targetArgs = resolveRoute remaining graph.ByRoute
+            let routeKey, routeArgs = resolveRoute remaining graph.ByRoute
+            let targetArgs = if forwarded.Length > 0 then Array.append routeArgs (Array.append [| "--" |] forwarded) else routeArgs
 
             if showHelp then
                 match graph.ByRoute.TryGetValue(routeKey) with
@@ -150,8 +179,16 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
                 return 0
             else
 
+            let namedTarget = remaining |> Array.tryFind (fun t -> not (t.StartsWith("-")))
+            let routeKey, targetArgs =
+                match namedTarget, Option.ofObj graph.Default with
+                | None, Some d when not singleTarget && String.IsNullOrEmpty(routeKey) ->
+                    // No target named: run the default one. Flags left over belong to it.
+                    String.concat "/" d.Route, targetArgs
+                | _ -> routeKey, targetArgs
+
             if String.IsNullOrEmpty(routeKey) then
-                match remaining |> Array.tryFind (fun t -> not (t.StartsWith("-"))) with
+                match namedTarget with
                 | Some t ->
                     eprintfn "Unknown target '%s'." t
                     return 2
@@ -163,6 +200,10 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
             match graph.ByRoute.TryGetValue(routeKey) with
             | false, _ ->
                 eprintfn "Unknown target '%s'." routeKey
+                return 2
+            | true, node when isNull node.DtoType && targetArgs.Length > 0 ->
+                let first = if targetArgs.[0] = "--" && targetArgs.Length > 1 then targetArgs.[1] else targetArgs.[0]
+                eprintfn "Unexpected argument '%s'. Target '%s' takes no arguments." first routeKey
                 return 2
             | true, node ->
                 let parsed =

@@ -16,6 +16,9 @@ internal sealed class BuildGraph
 	/// <summary>Global CLI options declared on the Build class.</summary>
 	public List<GlobalOptionNode> GlobalOptions { get; } = new();
 
+	/// <summary>The target that runs when none is named, or null.</summary>
+	public TargetNode? Default { get; set; }
+
 	public string AppName { get; set; } = "make";
 	public string? AppDescription { get; set; }
 }

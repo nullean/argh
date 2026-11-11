@@ -144,3 +144,149 @@ type MakeAppTests() =
         let r = runApp standard ["deploy"]
         Assert.Equal(2, r.ExitCode)
         Assert.Contains("Unknown target 'deploy'.", r.Stderr)
+
+// ---- positional arguments, forwarding, --name=value, default target, hidden steps, version ----
+
+type OneOptions =
+    { [<Nullean.Argh.Argument>] Project: string option
+      Verbose: bool }
+
+type ManyOptions =
+    { [<Nullean.Argh.Argument>] Files: string list
+      Level: int option }
+
+type ForwardOptions =
+    { Suite: string option
+      Parallelism: int option
+      [<Rest>] Rest: string list }
+
+type Tgt =
+    | Build
+    | Compile
+    | One of OneOptions
+    | Many of ManyOptions
+    | Fwd of ForwardOptions
+
+let private runTgt (configure: MakeApp<Tgt> -> unit) (args: string list) =
+    let log = ResizeArray<string>()
+    let app = MakeApp<Tgt>("build", None)
+    let token = app.Option<string option>("--token", defaultValue = None)
+    app.Bind <| function
+        | Build   -> Make.target [Compile] "Build it" <| fun _ -> log.Add $"build token=%A{token.Value}"
+        | Compile -> Make.step [] <| fun _ -> log.Add "compile"
+        | One o   -> Make.target [] "One" <| fun _ -> log.Add $"one %A{o.Project} {o.Verbose}"
+        | Many o  -> Make.target [] "Many" <| fun _ -> log.Add $"many %A{o.Files} %A{o.Level}"
+        | Fwd o   -> Make.target [] "Fwd" <| fun _ -> log.Add $"fwd %A{o.Suite} %A{o.Rest}"
+    configure app
+    let stdout, stderr = new StringWriter(), new StringWriter()
+    let oldOut, oldErr = Console.Out, Console.Error
+    Console.SetOut stdout
+    Console.SetError stderr
+    try
+        let exit = app.RunAsync(List.toArray args).GetAwaiter().GetResult()
+        { ExitCode = exit; Log = List.ofSeq log; Stdout = string stdout; Stderr = string stderr }
+    finally
+        Console.SetOut oldOut
+        Console.SetError oldErr
+
+[<Collection("Console")>]
+type BinderIssueTests() =
+
+    [<Fact>]
+    member _.``Argument field binds a positional``() =
+        let r = runTgt ignore ["one"; "src/Foo"; "--verbose"]
+        Assert.Equal(0, r.ExitCode)
+        Assert.Equal<string list>(["one Some \"src/Foo\" True"], r.Log)
+
+    [<Fact>]
+    member _.``A positional no field takes exits 2``() =
+        let r = runTgt ignore ["one"; "a"; "b"]
+        Assert.Equal(2, r.ExitCode)
+        Assert.Contains("Unexpected argument 'b'.", r.Stderr)
+        Assert.Empty(r.Log)
+
+    [<Fact>]
+    member _.``A target without a record rejects extra arguments``() =
+        let r = runTgt ignore ["compile"; "x"]
+        Assert.Equal(2, r.ExitCode)
+        Assert.Contains("Unexpected argument 'x'", r.Stderr)
+
+    [<Fact>]
+    member _.``Variadic positional takes every remaining positional``() =
+        let r = runTgt ignore ["many"; "a"; "b"; "--level"; "2"; "c"]
+        Assert.Equal<string list>(["many [\"a\"; \"b\"; \"c\"] Some 2"], r.Log)
+
+    [<Fact>]
+    member _.``Arguments after double dash go to the Rest field``() =
+        let r = runTgt ignore ["fwd"; "--suite"; "unit"; "--"; "--treenode-filter"; "/*/*/My/*"]
+        Assert.Equal(0, r.ExitCode)
+        Assert.Equal<string list>(["fwd Some \"unit\" [\"--treenode-filter\"; \"/*/*/My/*\"]"], r.Log)
+
+    [<Fact>]
+    member _.``Double dash without a Rest field exits 2``() =
+        let r = runTgt ignore ["one"; "--"; "x"]
+        Assert.Equal(2, r.ExitCode)
+        Assert.Contains("Unexpected argument 'x'", r.Stderr)
+
+    [<Fact>]
+    member _.``Equals syntax works for target options``() =
+        let r = runTgt ignore ["fwd"; "--suite=unit"]
+        Assert.Equal(0, r.ExitCode)
+        Assert.Equal<string list>(["fwd Some \"unit\" []"], r.Log)
+
+    [<Fact>]
+    member _.``Equals syntax works for global options``() =
+        let r = runTgt ignore ["--token=abc"; "build"]
+        Assert.Equal(0, r.ExitCode)
+        Assert.Contains("build token=Some \"abc\"", r.Log)
+
+    [<Fact>]
+    member _.``Parse error names the kebab-case flag``() =
+        let r = runTgt ignore ["fwd"; "--parallelism"; "x"]
+        Assert.Equal(2, r.ExitCode)
+        Assert.Contains("for '--parallelism'", r.Stderr)
+
+    [<Fact>]
+    member _.``Version prints the entry assembly version, not a placeholder``() =
+        let r = runTgt ignore ["--version"]
+        Assert.Equal(0, r.ExitCode)
+        Assert.NotEqual<string>("0.0.0", r.Stdout.Trim())
+        Assert.False(String.IsNullOrWhiteSpace r.Stdout)
+
+    [<Fact>]
+    member _.``Hidden step stays out of help but runs as a dependency and by name``() =
+        let help = runTgt ignore ["--help"]
+        // "compile" still shows as a dependency of build, but not as a listed target.
+        Assert.DoesNotContain(help.Stdout.Split('\n'), fun l -> l.TrimStart().StartsWith("compile"))
+        Assert.Contains("build", help.Stdout)
+        Assert.Equal<string list>(["compile"; "build token=None"], (runTgt ignore ["build"]).Log)
+        Assert.Equal<string list>(["compile"], (runTgt ignore ["compile"]).Log)
+
+    [<Fact>]
+    member _.``Default target runs with no arguments``() =
+        let r = runTgt (fun a -> a.Default Build) []
+        Assert.Equal(0, r.ExitCode)
+        Assert.Equal<string list>(["compile"; "build token=None"], r.Log)
+
+    [<Fact>]
+    member _.``Default target runs when only global options are given``() =
+        let r = runTgt (fun a -> a.Default Build) ["--token"; "abc"]
+        Assert.Equal<string list>(["compile"; "build token=Some \"abc\""], r.Log)
+
+    [<Fact>]
+    member _.``Default target is shown in help``() =
+        let r = runTgt (fun a -> a.Default Build) ["--help"]
+        Assert.Contains("runs build when no target is named", r.Stdout)
+
+    [<Fact>]
+    member _.``Single target with no target keeps printing help``() =
+        let r = runTgt (fun a -> a.Default Build) ["-s"]
+        Assert.Equal(0, r.ExitCode)
+        Assert.Empty(r.Log)
+        Assert.Contains("Usage:", r.Stdout)
+
+    [<Fact>]
+    member _.``No default keeps printing help``() =
+        let r = runTgt ignore []
+        Assert.Empty(r.Log)
+        Assert.Contains("Usage:", r.Stdout)

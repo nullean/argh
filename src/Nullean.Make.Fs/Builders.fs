@@ -17,7 +17,7 @@ open Proc.Fs
 /// including <c>exec { }</c>, <c>if</c>, <c>match</c> and loops. The first failing command fails the target.
 /// Created by <see cref="M:Nullean.Make.Fs.MakeBuilders.target"/>.
 /// </summary>
-type TargetBuilder<'TCase>(dependsOn: 'TCase list) =
+type TargetBuilder<'TCase>(dependsOn: 'TCase list, hidden: bool) =
     // Building the block yields a deferred ShellStep; only ShellBuilder.Run executes it, so Run is
     // the one member that differs: it wraps the step in the target's body instead of running it.
     let shell = ShellBuilder(false)
@@ -35,7 +35,7 @@ type TargetBuilder<'TCase>(dependsOn: 'TCase list) =
     member _.TryWith(body: ShellStep<'T>, handler: exn -> ShellStep<'T>) = shell.TryWith(body, handler)
     member _.TryFinally(body: ShellStep<'T>, compensation: unit -> unit) = shell.TryFinally(body, compensation)
     member _.Using(resource: 'R :> IDisposable, body: 'R -> ShellStep<'T>) = shell.Using(resource, body)
-    member _.Run(step: ShellStep<unit>) : Definition<'TCase> = FsTarget("", dependsOn, fun _ -> shell.Run step)
+    member _.Run(step: ShellStep<unit>) : Definition<'TCase> = FsTarget("", dependsOn, (fun _ -> shell.Run step), hidden)
 
 /// What a <c>command { }</c> block collects: its requires, its composes and an optional body.
 [<NoComparison; NoEquality>]
@@ -77,7 +77,16 @@ module MakeBuilders =
     /// | Build -> target [Clean] { exec { run "dotnet" ["build"; "-c"; "Release"] } }
     /// </code>
     /// </summary>
-    let target (dependsOn: 'TCase list) = TargetBuilder<'TCase>(dependsOn)
+    let target (dependsOn: 'TCase list) = TargetBuilder<'TCase>(dependsOn, false)
+
+    /// <summary>
+    /// An internal step: a <c>target</c> that help leaves out. It still runs when named and when another target
+    /// depends on it, so a compile step shared by several targets need not be listed:
+    /// <code>
+    /// | Compile -> step [] { sh $"dotnet build" }
+    /// </code>
+    /// </summary>
+    let step (dependsOn: 'TCase list) = TargetBuilder<'TCase>(dependsOn, true)
 
     /// A command that sequences other targets. See CommandBuilder.
     let command = CommandBuilder()

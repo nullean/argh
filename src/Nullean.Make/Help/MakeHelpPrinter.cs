@@ -26,6 +26,8 @@ internal static class MakeHelpPrinter
 		Console.WriteLine($"    {scriptName} <command|target> [options]");
 		if (nsNames.Count > 0)
 			Console.WriteLine($"    {scriptName} <namespace> <target> [options]");
+		if (graph.Default is { } defaultTarget)
+			Console.WriteLine($"    {scriptName}   (runs {string.Join(" ", defaultTarget.Route)} when no target is named)");
 		Console.WriteLine();
 
 		if (commands.Count > 0)
@@ -205,11 +207,15 @@ internal static class MakeHelpPrinter
 		foreach (var p in ctor.GetParameters())
 		{
 			var isPositional = p.GetCustomAttribute<ArgumentAttribute>() is not null;
+			// RestAttribute lives in Nullean.Make.Fs, which this project cannot reference.
+			var isRest = p.GetCustomAttributes().Any(a => a.GetType().Name == "RestAttribute");
 			var name = ToKebabCase(p.Name ?? "arg");
 			var typeName = FriendlyTypeName(p.ParameterType);
 			var defaultStr = p.HasDefaultValue ? $"  (default: {p.DefaultValue ?? "null"})" : "";
 
-			if (isPositional)
+			if (isRest)
+				Console.WriteLine($"    {CliHelpFormatting.Placeholder($"-- <{name}...>"),-30} {typeName}  (everything after --)");
+			else if (isPositional)
 				Console.WriteLine($"    {CliHelpFormatting.Placeholder($"<{name}>"),-30} {typeName}{defaultStr}");
 			else
 				Console.WriteLine($"    {CliHelpFormatting.Placeholder($"--{name} <{typeName}>"),-30}{defaultStr}");
@@ -249,6 +255,8 @@ internal static class MakeHelpPrinter
 		// Unwrap F# option<T> → "T?"
 		if (t.IsGenericType && t.GetGenericTypeDefinition().Name == "FSharpOption`1")
 			return FriendlyTypeName(t.GetGenericArguments()[0]) + "?";
+		if (t.IsGenericType && t.GetGenericTypeDefinition().Name == "FSharpList`1")
+			return FriendlyTypeName(t.GetGenericArguments()[0]) + "...";
 		var u = Nullable.GetUnderlyingType(t) ?? t;
 		// C# keyword names, as Argh help prints them: "int", not "int32".
 		if (u == typeof(int)) return "int";
