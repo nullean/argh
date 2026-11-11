@@ -104,7 +104,9 @@ public sealed class UnionMakeApp<TUnion> where TUnion : struct
 
 		if (args.Length == 0) { MakeHelpPrinter.PrintRoot(_graph, scriptName); return 0; }
 
-		var (remaining, singleTarget, showHelp, showVersion) = ExtractGlobals(args);
+		string[] remaining; bool singleTarget, showHelp, showVersion;
+		try { (remaining, singleTarget, showHelp, showVersion) = ExtractGlobals(args); }
+		catch (MakeException ex) { Console.Error.WriteLine(ex.Message); return ex.ExitCode; }
 
 		if (showVersion) { Console.WriteLine("0.0.0"); return 0; }
 
@@ -156,7 +158,7 @@ public sealed class UnionMakeApp<TUnion> where TUnion : struct
 
 		foreach (var path in UnionReflector.GetCasePaths(typeof(TUnion)))
 		{
-			var defaultUnion = UnionReflector.ConstructDefault<TUnion>(path.CaseType, path.UnionCtor);
+			var defaultUnion = UnionReflector.ConstructDefault<TUnion>(path);
 			var builder      = (UnionTargetBuilderImpl<TUnion>)_bind!(defaultUnion);
 
 			var node = new TargetNode
@@ -182,16 +184,19 @@ public sealed class UnionMakeApp<TUnion> where TUnion : struct
 		foreach (var node in _graph.Targets)
 		{
 			foreach (var depName in node.RouteRequires)
-			{
-				if (map.TryGetValue(depName, out var r) && _graph.ByRoute.TryGetValue(r, out var dep))
-					node.RequiresResolved.Add(dep);
-			}
+				node.RequiresResolved.Add(ResolveCase(node, depName, map));
 			foreach (var compName in node.RouteComposes)
-			{
-				if (map.TryGetValue(compName, out var r) && _graph.ByRoute.TryGetValue(r, out var comp))
-					node.ComposesResolved.Add(comp);
-			}
+				node.ComposesResolved.Add(ResolveCase(node, compName, map));
 		}
+	}
+
+	private TargetNode ResolveCase(TargetNode from, string caseTypeName, Dictionary<string, string> map)
+	{
+		if (map.TryGetValue(caseTypeName, out var r) && _graph.ByRoute.TryGetValue(r, out var target))
+			return target;
+		var name = caseTypeName.Length == 0 ? "an empty union value" : $"'{caseTypeName}'";
+		throw new MakeException(
+			$"Target '{string.Join("/", from.Route)}' depends on {name}, which is not a case of {typeof(TUnion).Name}.", 1);
 	}
 
 	/// <summary>

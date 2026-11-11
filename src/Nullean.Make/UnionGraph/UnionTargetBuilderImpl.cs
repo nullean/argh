@@ -33,14 +33,13 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 		return this;
 	}
 
-	public IUnionTargetBuilder<TUnion> DependsOn<T1>() where T1 : new()
+	public IUnionTargetBuilder<TUnion> DependsOn<T1>()
 	{ _depTypeNames.Add(typeof(T1).Name); return this; }
 
-	public IUnionTargetBuilder<TUnion> DependsOn<T1, T2>() where T1 : new() where T2 : new()
+	public IUnionTargetBuilder<TUnion> DependsOn<T1, T2>()
 	{ _depTypeNames.Add(typeof(T1).Name); _depTypeNames.Add(typeof(T2).Name); return this; }
 
 	public IUnionTargetBuilder<TUnion> DependsOn<T1, T2, T3>()
-		where T1 : new() where T2 : new() where T3 : new()
 	{
 		_depTypeNames.Add(typeof(T1).Name);
 		_depTypeNames.Add(typeof(T2).Name);
@@ -49,7 +48,6 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 	}
 
 	public IUnionTargetBuilder<TUnion> DependsOn<T1, T2, T3, T4>()
-		where T1 : new() where T2 : new() where T3 : new() where T4 : new()
 	{
 		_depTypeNames.Add(typeof(T1).Name);
 		_depTypeNames.Add(typeof(T2).Name);
@@ -64,7 +62,7 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 		return this;
 	}
 
-	public IUnionTargetBuilder<TUnion> Composes<T1>() where T1 : new()
+	public IUnionTargetBuilder<TUnion> Composes<T1>()
 	{ _compTypeNames.Add(typeof(T1).Name); return this; }
 
 	// ── Internal accessors ────────────────────────────────────────────────────

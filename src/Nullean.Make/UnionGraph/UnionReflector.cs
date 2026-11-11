@@ -49,9 +49,12 @@ internal static class UnionReflector
 		}
 	}
 
-	/// <summary>Constructs a union value wrapping a default instance of <paramref name="caseType"/>.</summary>
-	internal static TUnion ConstructDefault<TUnion>(Type caseType, ConstructorInfo unionCtor)
-		=> (TUnion)unionCtor.Invoke([CreateDefaultInstance(caseType)]);
+	/// <summary>
+	/// Constructs the outermost <typeparamref name="TUnion"/> around a default instance of the path's case type,
+	/// wrapping it in each nested union on the way (e.g. <c>Build(Db(Migrate))</c>).
+	/// </summary>
+	internal static TUnion ConstructDefault<TUnion>(CasePath path)
+		=> ConstructUnion<TUnion>(typeof(TUnion), path.CaseType, CreateDefaultInstance(path.CaseType), path.Route);
 
 	/// <summary>
 	/// Constructs the outermost <typeparamref name="TUnion"/> by walking up the nested ctor chain

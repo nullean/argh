@@ -23,19 +23,17 @@ public interface IUnionTargetBuilder<TUnion>
 	/// </summary>
 	IUnionTargetBuilder<TUnion> DependsOn(params TUnion[] deps);
 
-	/// <summary>Declares a single dependency by case type. The case type must have a parameterless (or all-default) constructor.</summary>
-	IUnionTargetBuilder<TUnion> DependsOn<T1>() where T1 : new();
+	/// <summary>Declares a single dependency by case type. The type must be a case of <typeparamref name="TUnion"/>; <c>RunAsync</c> exits with an error otherwise.</summary>
+	IUnionTargetBuilder<TUnion> DependsOn<T1>();
 
 	/// <summary>Declares two dependencies by case types.</summary>
-	IUnionTargetBuilder<TUnion> DependsOn<T1, T2>() where T1 : new() where T2 : new();
+	IUnionTargetBuilder<TUnion> DependsOn<T1, T2>();
 
 	/// <summary>Declares three dependencies by case types.</summary>
-	IUnionTargetBuilder<TUnion> DependsOn<T1, T2, T3>()
-		where T1 : new() where T2 : new() where T3 : new();
+	IUnionTargetBuilder<TUnion> DependsOn<T1, T2, T3>();
 
 	/// <summary>Declares four dependencies by case types.</summary>
-	IUnionTargetBuilder<TUnion> DependsOn<T1, T2, T3, T4>()
-		where T1 : new() where T2 : new() where T3 : new() where T4 : new();
+	IUnionTargetBuilder<TUnion> DependsOn<T1, T2, T3, T4>();
 
 	/// <summary>
 	/// Marks this target as a command: it composes other targets that always run (not skippable with <c>-s</c>).
@@ -43,7 +41,7 @@ public interface IUnionTargetBuilder<TUnion>
 	IUnionTargetBuilder<TUnion> Composes(params TUnion[] targets);
 
 	/// <summary>Composes targets by case type.</summary>
-	IUnionTargetBuilder<TUnion> Composes<T1>() where T1 : new();
+	IUnionTargetBuilder<TUnion> Composes<T1>();
 
 	/// <summary>Registers a synchronous execution body. Closed-over case values are the real CLI-parsed ones at execution time.</summary>
 	IUnionTargetBuilder<TUnion> Executes(Action body);
