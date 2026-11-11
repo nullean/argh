@@ -9,6 +9,8 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
     <PackageVersion Include="Proc" Version="0.15.0" />
+    <PackageVersion Include="Proc.Fs" Version="0.15.0" />
+    <PackageVersion Include="FSharp.Core" Version="11.0.100" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageVersion Include="GitHubActionsTestLogger" Version="2.4.1" />
