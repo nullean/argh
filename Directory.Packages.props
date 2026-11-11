@@ -21,9 +21,5 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="9.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
-    <!-- build/scripts -->
-    <PackageVersion Include="Argu" Version="6.0.0" />
-    <PackageVersion Include="Bullseye" Version="6.0.0" />
-    <PackageVersion Include="Fake.Tools.Git" Version="5.15.0" />
   </ItemGroup>
 </Project>

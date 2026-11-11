@@ -12,9 +12,7 @@ open System.Net
 open System.Net.Http
 open System.Text
 open System.Threading.Tasks
-open ProcNet
-
-let private exec binary args = Proc.Exec(binary, List.toArray args) |> ignore
+open Proc.Fs
 
 let private docsSource = "docs"
 let private landingPage = Path.Combine(docsSource, "argh-landing.html")
@@ -92,7 +90,7 @@ let ensureTool () =
 let build () =
     let tool = ensureTool ()
 
-    exec tool ["build"; "--path"; docsSource]
+    shell { sh $"{tool} build --path {docsSource}" }
 
     if not (Directory.Exists htmlOutput) then
         failwithf "docs-builder reported success but %s does not exist" htmlOutput
