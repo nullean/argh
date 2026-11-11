@@ -81,23 +81,8 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 		else _syncBody?.Invoke();
 	}
 
-	/// <summary>
-	/// Extracts the leaf (innermost non-union) case type name from a union value.
-	/// Works for both flat and nested unions.
-	/// </summary>
-	private static string GetLeafCaseName(TUnion dep)
-	{
-		var valueProp = typeof(TUnion).GetProperty("Value",
-			System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-		var inner = valueProp?.GetValue(dep);
-		if (inner is null) return "";
-		var current = inner;
-		while (UnionReflector.IsUnionType(current.GetType()))
-		{
-			var vp = current.GetType().GetProperty("Value",
-				System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-			current = vp?.GetValue(current) ?? current;
-		}
-		return current.GetType().Name;
-	}
+	/// <summary>The innermost case type name of a union value, flat or nested, from the generated case table.</summary>
+	private static string GetLeafCaseName(TUnion dep) =>
+		(UnionCaseTable<TUnion>.LeafType ?? throw new MakeException(
+			$"No case table was generated for {typeof(TUnion).Name}.", 1))(dep)?.Name ?? "";
 }

@@ -67,6 +67,10 @@ union Target(Clean, Build, Test, Pack, Release);
 
 A case record's primary-constructor parameters become the target's flags: `Test(string? Filter = null)` takes `--filter`.
 
+`Bind` runs twice per case: once when the app reads the graph, with each parameter at its default (`default` when it has none, such as `Deploy(string Environment)`), and once when the target runs, with the parsed flags. Keep side effects inside the target body.
+
+The package's source generator finds each `new MakeApp<TUnion>(...)` and records the union's cases at build time, so the app reads no union by reflection. A `MakeApp<T>` created only through a type parameter has no case table and exits `1` with an error.
+
 ## Commands
 
 `app.Command(requires, composes)` sequences other targets. `requires` are gates, such as tests, and `-s` skips them. `composes` always run, in order. An optional third argument is a body that runs last.

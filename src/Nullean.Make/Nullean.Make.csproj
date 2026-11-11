@@ -26,7 +26,27 @@
   <ItemGroup>
     <ProjectReference Include="..\Nullean.Argh.Core\Nullean.Argh.Core.csproj" />
     <PackageReference Include="Proc" />
+    <ProjectReference Include="..\Nullean.Make.Generator\Nullean.Make.Generator.csproj"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
   </ItemGroup>
+
+  <!-- The generator registers MakeApp<TUnion> case tables; it ships in the package as an analyzer. -->
+  <Target Name="BuildMakeGeneratorForPack" BeforeTargets="GenerateNuspec">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\Nullean.Make.Generator\Nullean.Make.Generator.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+  </Target>
+
+  <Target Name="IncludeMakeAnalyzerInNuGetPackage" BeforeTargets="_GetPackageFiles" DependsOnTargets="BuildMakeGeneratorForPack">
+    <PropertyGroup>
+      <_MakeGenCfg>$([System.String]::Copy('$(Configuration)').ToLowerInvariant())</_MakeGenCfg>
+      <_MakeGeneratorDll>$([System.IO.Path]::Combine('$(ArtifactsPath)', 'bin', 'Nullean.Make.Generator', '$(_MakeGenCfg)', 'Nullean.Make.Generator.dll'))</_MakeGeneratorDll>
+    </PropertyGroup>
+    <ItemGroup>
+      <None Include="$(_MakeGeneratorDll)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
