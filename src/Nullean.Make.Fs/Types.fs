@@ -9,6 +9,14 @@ module MakeScriptHelpers =
     let failBuild (message: string) : 'a =
         raise (Nullean.Make.MakeException(message))
 
+/// <summary>
+/// Marks a record field of type <c>'T list</c> as the receiver of everything after a <c>--</c> on the command line,
+/// so a target can forward arguments it does not know about: <c>build test -- --treenode-filter "/*/*/MyTests/*"</c>.
+/// </summary>
+[<AttributeUsage(AttributeTargets.Property ||| AttributeTargets.Field ||| AttributeTargets.Parameter)>]
+type RestAttribute() =
+    inherit Attribute()
+
 /// Mutable handle to a global option. Populated during argv parsing; read by target bodies via FsContext.
 type OptionRef<'T>(long: string, short: string option, desc: string option, defaultValue: 'T, parser: string -> 'T) =
     let mutable _value = defaultValue
@@ -32,7 +40,7 @@ type FsContext internal () =
 [<NoComparison; NoEquality>]
 type Definition<'TCase> =
     internal
-    | FsTarget    of desc: string * deps: 'TCase list * body: (FsContext -> unit)
+    | FsTarget    of desc: string * deps: 'TCase list * body: (FsContext -> unit) * hidden: bool
     | FsCommand   of desc: string * requires: 'TCase list * composes: 'TCase list * body: (FsContext -> unit) option
     | FsNamespace of segment: string * desc: string option
 
@@ -41,7 +49,11 @@ module Make =
 
     /// Defines an atomic target. Pass "" for desc to use the kebab-case case name.
     let target (deps: 'TCase list) (desc: string) (body: FsContext -> 'r) : Definition<'TCase> =
-        FsTarget(desc, deps, fun ctx -> body ctx |> ignore)
+        FsTarget(desc, deps, (fun ctx -> body ctx |> ignore), false)
+
+    /// Like `target`, but left out of help. It still runs when named and when another target depends on it.
+    let step (deps: 'TCase list) (body: FsContext -> 'r) : Definition<'TCase> =
+        FsTarget("", deps, (fun ctx -> body ctx |> ignore), true)
 
     /// Marks a DU case as a CLI namespace segment. Not needed when using nested sub-DUs.
     let ns (segment: string) (desc: string option) : Definition<'TCase> =

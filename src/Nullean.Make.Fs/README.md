@@ -130,6 +130,29 @@ A case whose payload is another DU becomes a CLI namespace: `Pkg of PkgTarget` g
 
 A case with a record payload binds the record's fields from CLI flags at execution time: `Test of TestOptions` with `{ Filter: string option }` takes `--filter`. A dependency can name any value of the case: `Test { Filter = Some "Unit" }` resolves to the `test` target.
 
+### Positional arguments, forwarded arguments and `--name=value`
+
+Mark a record field `[<Argument>]` to take a positional token; a `'T list` field marked `[<Argument>]` takes every remaining positional. Mark a `'T list` field `[<Rest>]` to receive everything after a `--`:
+
+```fsharp
+type TestOptions =
+    { [<Argument>] Projects: string list     // build test src/A src/B
+      Suite: string option                   // --suite unit  or  --suite=unit
+      [<Rest>] Rest: string list }           // build test -- --treenode-filter "/*/*/MyTests/*"
+
+| Test o -> target [] { sh $"dotnet test {o.Rest}" }   // the list becomes separate arguments
+```
+
+A token no field takes exits `2` with `Unexpected argument 'x'.`, and so does any argument for a target without a record.
+
+## Hidden steps
+
+`step [Deps] { ... }` is `target` left out of help. It still runs when named and when another target depends on it. `Make.step [] (fun ctx -> ...)` is the function form.
+
+## The default target
+
+`app.Default Build` names the target that runs when no target is given, so `./build.sh` builds. Help shows it. `-s` without a target still prints help. `--version` prints the entry assembly's informational version.
+
 ## Global options
 
 ```fsharp
@@ -137,7 +160,7 @@ let verbose = app.Flag("--verbose", short = "-v", desc = "Enable verbose output"
 let token   = app.Option<string option>("--token", desc = "API token", defaultValue = None)
 ```
 
-Read them in target blocks through `.Value`. Help shows each option's type, such as `--config <string>`, and `--token <string?>` for an option type. A value that does not parse, or a missing value, exits `2` before any target runs. Enum options bind by name, ignoring case.
+Read them in target blocks through `.Value`. Help shows each option's type, such as `--config <string>`, and `--token <string?>` for an option type. Both `--token abc` and `--token=abc` work. A value that does not parse, or a missing value, exits `2` before any target runs. Enum options bind by name, ignoring case.
 
 ## The explicit functions
 

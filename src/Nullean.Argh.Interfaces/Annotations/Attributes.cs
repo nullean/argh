@@ -42,8 +42,11 @@ public sealed class CommandNameAttribute : Attribute
 	public string[] Aliases { get; }
 }
 
-/// <summary>Marks a parameter as a positional CLI argument (successive positions starting at 0).</summary>
-[AttributeUsage(AttributeTargets.Parameter)]
+/// <summary>
+/// Marks a parameter as a positional CLI argument (successive positions starting at 0).
+/// Also valid on a property, which is where an F# record field carries it.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
 public sealed class ArgumentAttribute : Attribute;
 
 /// <summary>Specifies an <see cref="Nullean.Argh.Parsing.IArgumentParser{T}"/> implementation used to parse this parameter or property.</summary>

@@ -43,6 +43,7 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
     (appName: string)
     (appDescription: string option)
     (bind: 'TCase -> Definition<'TCase>)
+    (defaultCase: 'TCase option)
     (optionDecls: (string * string option * string option * bool * Type option) list)
     : BuildGraph =
 
@@ -98,7 +99,7 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
     // NOTE: namespace sub-cases must be parameterless; payload sub-DUs are not supported.
     let registerNode (route: string[]) (def: Definition<'TCase>) (caseInfoForBody: UnionCaseInfo) (key: 'TCase) =
         let kind    = match def with | FsCommand _ -> TargetKind.Command | _ -> TargetKind.Target
-        let explicitDesc = match def with | FsTarget(d,_,_) | FsCommand(d,_,_,_) -> d | _ -> ""
+        let explicitDesc = match def with | FsTarget(d,_,_,_) | FsCommand(d,_,_,_) -> d | _ -> ""
         // No explicit description: use the case's /// doc comment (T:<Union>.<Case> in the XML doc file).
         let rawDesc =
             if not (String.IsNullOrEmpty explicitDesc) then explicitDesc
@@ -118,7 +119,7 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
 
         let plainBody () =
             match def with
-            | FsTarget(_, _, b)          -> b sharedCtx
+            | FsTarget(_, _, b, _)       -> b sharedCtx
             | FsCommand(_, _, _, Some b) -> b sharedCtx
             | _ -> ()
 
@@ -131,7 +132,7 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
             let payload   = FsDtoBinder.bind payloadType targetArgs
             let boundCase : 'TCase = FSharpValue.MakeUnion(caseInfoForBody, [| payload |]) :?> 'TCase
             match bind boundCase with
-            | FsTarget(_, _, b)          -> b sharedCtx
+            | FsTarget(_, _, b, _)       -> b sharedCtx
             | FsCommand(_, _, _, Some b) -> b sharedCtx
             | _ -> ()
 
@@ -143,6 +144,7 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
                 Route           = route,
                 ConfigureMethod = null,
                 Kind            = kind,
+                Hidden          = (match def with FsTarget(_, _, _, true) -> true | _ -> false),
                 Description     = desc,
                 DtoType         = dtoType,
                 SyncBody        = syncBody)
@@ -187,10 +189,17 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
     for KeyValue(_, (node, tcase)) in caseToNode do
         match bind tcase with
         | FsNamespace _ -> ()
-        | FsTarget(_, deps, _) ->
+        | FsTarget(_, deps, _, _) ->
             for dep in deps do node.RequiresResolved.Add(resolve node dep)
         | FsCommand(_, requires, composes, _) ->
             for dep in requires do node.RequiresResolved.Add(resolve node dep)
             for dep in composes do node.ComposesResolved.Add(resolve node dep)
+
+    match defaultCase with
+    | None -> ()
+    | Some d ->
+        match caseToNode.TryGetValue(caseKey d) with
+        | true, (node, _) -> graph.Default <- node
+        | _ -> raise (MakeException($"The default target '{caseKey d}' is not a target or command.", 1))
 
     graph
