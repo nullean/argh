@@ -31,6 +31,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 	private readonly List<UnionOptionDecl> _options = new();
 	private Func<TUnion, IUnionTargetBuilder<TUnion>>? _bind;
 	private Dictionary<string, string>? _typeNameToRoute;
+	private readonly Dictionary<TargetNode, UnionCase<TUnion>> _caseByNode = new();
 
 	public MakeApp(string name, string? description = null)
 	{
@@ -96,7 +97,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 	/// Provides the exhaustive mapping from union case to target definition.
 	/// <para>
 	/// The lambda is called twice per relevant case: once at graph-build time with default case
-	/// values (for metadata: deps, description, kind) and once at execution time with real
+	/// values (for metadata: deps, description, kind; a parameter without a default gets <c>default</c>) and once at execution time with real
 	/// CLI-parsed case values (for the <c>Executes</c> closure). Side effects in switch arms
 	/// before <c>Executes</c> will fire at graph-build time with default values — put side
 	/// effects inside <c>Executes</c>.
@@ -116,7 +117,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 
 		try
 		{
-			BuildGraph();
+			BuildGraph(UnionCaseTable<TUnion>.Required);
 			ResolveRouteDeps();
 			GraphValidator.Validate(_graph);
 		}
@@ -175,14 +176,13 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 
 	// ── Graph building ────────────────────────────────────────────────────────
 
-	private void BuildGraph()
+	private void BuildGraph(IReadOnlyList<UnionCase<TUnion>> cases)
 	{
 		_typeNameToRoute = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-		foreach (var path in UnionReflector.GetCasePaths(typeof(TUnion)))
+		foreach (var path in cases)
 		{
-			var defaultUnion = UnionReflector.ConstructDefault<TUnion>(path);
-			var builder      = (UnionTargetBuilderImpl<TUnion>)_bind!(defaultUnion);
+			var builder = (UnionTargetBuilderImpl<TUnion>)_bind!(path.CreateDefault());
 
 			var node = new TargetNode
 			{
@@ -196,6 +196,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 			node.RouteComposes.AddRange(builder.CompTypeNames);
 
 			_graph.Targets.Add(node);
+			_caseByNode[node] = path;
 			_graph.ByRoute[string.Join("/", path.Route)] = node;
 			_typeNameToRoute[path.CaseType.Name] = string.Join("/", path.Route);
 		}
@@ -237,7 +238,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 			{
 				if (_bind is null || n.DtoType is null) return;
 				var caseInstance = Parsing.DtoBinder.Bind(n.DtoType, args);
-				var realUnion    = UnionReflector.ConstructUnion<TUnion>(typeof(TUnion), n.DtoType, caseInstance, n.Route);
+				var realUnion    = _caseByNode[n].Wrap(caseInstance);
 				var builder2     = (UnionTargetBuilderImpl<TUnion>)_bind!(realUnion);
 				await builder2.ExecuteAsync();
 			};
