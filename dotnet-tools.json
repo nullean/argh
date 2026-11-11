@@ -16,17 +16,17 @@
       ],
       "rollForward": false
     },
-    "nupkg-validator": {
-      "version": "0.10.1",
-      "commands": [
-        "nupkg-validator"
-      ],
-      "rollForward": false
-    },
     "assembly-differ": {
       "version": "0.16.0",
       "commands": [
         "assembly-differ"
+      ],
+      "rollForward": false
+    },
+    "nupkg-validator": {
+      "version": "0.11.4",
+      "commands": [
+        "nupkg-validator"
       ],
       "rollForward": false
     }
