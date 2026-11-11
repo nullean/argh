@@ -28,6 +28,8 @@ type Step =
     | Undocumented
     | RunsDotnet
     | FailsDotnet
+    | CaptureInTarget
+    | CaptureInCommand
 
 type Result = { ExitCode: int; Log: string list; Stdout: string; Stderr: string }
 
@@ -54,6 +56,25 @@ let private runSteps (args: string list) =
         | FailsDotnet  -> target [] {
                               exec { run "dotnet" "definitely-not-a-dotnet-command" }
                               log.Add "after" }
+        | CaptureInTarget -> target [] {
+                              let helpOutput = exec {
+                                  binary "dotnet"
+                                  arguments "--help"
+                                  output
+                              }
+                              log.Add $"target-exit:{helpOutput.ExitCode}"
+                              if helpOutput.ConsoleOut |> Seq.exists (fun l -> l.Line.Contains "build") then
+                                  log.Add "target-saw-build" }
+        | CaptureInCommand -> command {
+                              requires [Clean]
+                              composes [Pkg Generate]
+                              executes (
+                                  let helpOutput = exec {
+                                      binary "dotnet"
+                                      arguments "--help"
+                                      output
+                                  }
+                                  log.Add $"command-exit:{helpOutput.ExitCode}") }
     let stdout, stderr = new StringWriter(), new StringWriter()
     let oldOut, oldErr = Console.Out, Console.Error
     Console.SetOut stdout
@@ -115,6 +136,24 @@ type BuilderTests() =
         let r = runSteps ["runs-dotnet"]
         ok r
         Assert.Equal<string list>(["ran"], r.Log)
+
+    [<Fact>]
+    member _.``exec output can be captured in a target block``() =
+        let r = runSteps ["capture-in-target"]
+        ok r
+        Assert.Equal<string list>(["target-exit:0"; "target-saw-build"], r.Log)
+
+    [<Fact>]
+    member _.``command executes body runs after its composes``() =
+        let r = runSteps ["capture-in-command"]
+        ok r
+        Assert.Equal<string list>(["clean"; "pkg-generate"; "command-exit:0"], r.Log)
+
+    [<Fact>]
+    member _.``command executes body is deferred``() =
+        let r = runSteps ["--help"]
+        ok r
+        Assert.Empty(r.Log)
 
     [<Fact>]
     member _.``a failing exec fails the target``() =

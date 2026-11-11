@@ -17,27 +17,35 @@ type TargetBuilder<'TCase>(dependsOn: 'TCase list) =
     member _.Using(resource: 'r when 'r :> IDisposable, body: 'r -> unit) = use r = resource in body r
     member _.Run(body: unit -> unit) : Definition<'TCase> = FsTarget("", dependsOn, fun _ -> body ())
 
-/// The requires and composes lists a <c>command { }</c> block collects.
+/// What a <c>command { }</c> block collects: its requires, its composes and an optional body.
 [<NoComparison; NoEquality>]
-type CommandSpec<'TCase> = internal { Requires: 'TCase list; Composes: 'TCase list }
+type CommandSpec<'TCase> = internal { Requires: 'TCase list; Composes: 'TCase list; Body: (unit -> unit) option }
 
 /// <summary>
-/// Builds a command from <c>requires</c> (gates, skipped under <c>-s</c>) and <c>composes</c> (always run):
+/// Builds a command from <c>requires</c> (gates, skipped under <c>-s</c>), <c>composes</c> (always run) and an
+/// optional <c>executes</c> body that runs last:
 /// <code>
 /// | Release -> command {
 ///       requires [PristineCheck; Test defaultTest]
-///       composes [Pkg Generate; Pkg PkgTarget.Validate] }
+///       composes [Pkg Generate; Pkg PkgTarget.Validate]
+///       executes (
+///           let notes = exec { binary "git"; arguments ["log"; "-1"]; output }
+///           printfn "%A" notes.ExitCode) }
 /// </code>
 /// </summary>
 type CommandBuilder() =
-    member _.Yield(()) : CommandSpec<'TCase> = { Requires = []; Composes = [] }
+    member _.Yield(()) : CommandSpec<'TCase> = { Requires = []; Composes = []; Body = None }
     /// Targets that must succeed first. Skipped under -s.
     [<CustomOperation("requires")>]
     member _.Requires(spec: CommandSpec<'TCase>, targets: 'TCase list) = { spec with Requires = spec.Requires @ targets }
     /// Targets the command always runs, in order.
     [<CustomOperation("composes")>]
     member _.Composes(spec: CommandSpec<'TCase>, targets: 'TCase list) = { spec with Composes = spec.Composes @ targets }
-    member _.Run(spec: CommandSpec<'TCase>) : Definition<'TCase> = FsCommand("", spec.Requires, spec.Composes, None)
+    /// A body that runs after every composed target. Deferred: nothing in it runs until the command does.
+    [<CustomOperation("executes")>]
+    member _.Executes(spec: CommandSpec<'TCase>, [<ProjectionParameter>] body: unit -> unit) = { spec with Body = Some body }
+    member _.Run(spec: CommandSpec<'TCase>) : Definition<'TCase> =
+        FsCommand("", spec.Requires, spec.Composes, spec.Body |> Option.map (fun body -> fun _ -> body ()))
 
 /// <summary>The <c>target</c> and <c>command</c> builders. Descriptions come from the DU case's <c>///</c> doc comment.</summary>
 [<AutoOpen>]
