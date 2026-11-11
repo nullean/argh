@@ -75,7 +75,18 @@ The package depends on [`Proc.Fs`](https://www.nuget.org/packages/Proc.Fs), so `
 
 `target [Clean] { ... }` declares a target that runs after `Clean`. The block is plain F#: `exec { }` calls, `if`, `match`, loops, `use`. It is deferred, so nothing in it runs until the target does. `-s` / `--single-target` skips the dependencies.
 
-A failing `exec { }` fails the target, and `RunAsync` returns `1`.
+A failing `exec { }` fails the target, and `RunAsync` returns `1`. To inspect a command's result instead, bind it:
+
+```fsharp
+| Doctor -> target [] {
+      let helpOutput = exec {
+          binary "dotnet"
+          arguments "--help"
+          output
+      }
+      if helpOutput.ConsoleOut |> Seq.exists (fun l -> l.Line.Contains "workload") then
+          printfn "workloads are available" }
+```
 
 ## Commands: `command { ... }`
 
@@ -83,6 +94,21 @@ A failing `exec { }` fails the target, and `RunAsync` returns `1`.
 | Release -> command {
       requires [PristineCheck; Test { Filter = None }]   // gates, skipped under -s
       composes [Pkg Generate; Pkg Validate] }            // the work, always runs
+```
+
+`executes (...)` adds a body that runs after every composed target. Like a target block, it is deferred:
+
+```fsharp
+| Publish -> command {
+      requires [Release]
+      composes [CreateGithubRelease]
+      executes (
+          let head = exec {
+              binary "git"
+              arguments ["rev-parse"; "HEAD"]
+              output
+          }
+          printfn "published %s" (head.ConsoleOut |> Seq.head).Line) }
 ```
 
 ## Descriptions from doc comments
@@ -113,7 +139,7 @@ Read them in target blocks through `.Value`. Help shows each option's type, such
 ```fsharp
 Make.target  (deps: 'T list) (desc: string) (body: FsContext -> unit)
 Make.command (requires: 'T list) (composes: 'T list)
-Make.composer (requires: 'T list) (composes: 'T list) (body: FsContext -> unit)   // runs body after composes
+Make.composer (requires: 'T list) (composes: 'T list) (body: FsContext -> unit)   // like command { executes (...) }
 failBuild "message"                                                               // abort with exit code 1
 ```
 
