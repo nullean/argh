@@ -16,4 +16,35 @@
     <CompilerVisibleProperty Include="ArtifactsPath" />
     <CompilerVisibleProperty Include="UseArtifactsOutput" />
   </ItemGroup>
+
+  <!-- Package metadata, shared by every package under src/; each project adds its Description and PackageTags -->
+  <PropertyGroup Condition="$(MSBuildProjectDirectory.Replace('\','/').Contains('/src/'))">
+    <Authors>Nullean and contributors</Authors>
+    <Copyright>Nullean</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>nuget-icon.png</PackageIcon>
+    <PackageProjectUrl>https://argh.nullean.net</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/nullean/argh/releases</PackageReleaseNotes>
+    <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!--
+    The org icon, the license, the project's README and its agent skills (skills/<name>/SKILL.md) go into every package.
+    https://devblogs.microsoft.com/dotnet/delivering-skills-in-nuget-packages/
+  -->
+  <ItemGroup Condition="'$(IsPackable)' != 'false' And $(MSBuildProjectDirectory.Replace('\','/').Contains('/src/'))">
+    <None Include="$(MSBuildThisFileDirectory)nuget-icon.png" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildProjectDirectory)/README.md" Pack="true" PackagePath="\"
+          Condition="Exists('$(MSBuildProjectDirectory)/README.md')" />
+    <None Include="$(MSBuildProjectDirectory)/skills/**/*" Pack="true" PackagePath="skills/" Visible="false" />
+  </ItemGroup>
+  <PropertyGroup Condition="Exists('$(MSBuildProjectDirectory)/README.md') And $(MSBuildProjectDirectory.Replace('\','/').Contains('/src/'))">
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
 </Project>
