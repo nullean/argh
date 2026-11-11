@@ -98,7 +98,16 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
     // NOTE: namespace sub-cases must be parameterless; payload sub-DUs are not supported.
     let registerNode (route: string[]) (def: Definition<'TCase>) (caseInfoForBody: UnionCaseInfo) (key: 'TCase) =
         let kind    = match def with | FsCommand _ -> TargetKind.Command | _ -> TargetKind.Target
-        let rawDesc = match def with | FsTarget(d,_,_) | FsCommand(d,_,_,_) -> d | _ -> ""
+        let explicitDesc = match def with | FsTarget(d,_,_) | FsCommand(d,_,_,_) -> d | _ -> ""
+        // No explicit description: use the case's /// doc comment (T:<Union>.<Case> in the XML doc file).
+        let rawDesc =
+            if not (String.IsNullOrEmpty explicitDesc) then explicitDesc
+            else
+                let unionType = caseInfoForBody.DeclaringType
+                let docId = "T:" + unionType.FullName.Replace('+', '.') + "." + caseInfoForBody.Name
+                match Nullean.Make.Docs.DocDescriptions.Summary(unionType.Assembly, docId) with
+                | null -> ""
+                | summary -> summary
         // Commands: leave description empty so MakeHelpPrinter can auto-generate it from the graph.
         // Targets: fall back to the kebab-case name when no description is provided.
         let desc    =

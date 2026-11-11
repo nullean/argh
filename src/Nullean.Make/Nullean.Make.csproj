@@ -20,13 +20,16 @@
     <PackageId>Nullean.Make</PackageId>
     <Title>Nullean.Make - typed namespaced build target DSL</Title>
     <Description>Property-dispatch build target DSL with Argh-quality help and per-target typed CLI arguments.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Nullean.Argh.Core\Nullean.Argh.Core.csproj" />
+    <PackageReference Include="Proc" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
     <Content Include="..\..\nuget-icon.png" CopyToOutputDirectory="PreserveNewest">
       <Link>nuget-icon.png</Link>
       <Pack>True</Pack>
