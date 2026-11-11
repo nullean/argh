@@ -8,6 +8,7 @@ Nullean.Argh supports several parameter binding modes:
 
 - **[Flags](flags.md)** - named options (`--output-dir ./bin`), derived from C# parameter names
 - **[Arguments](arguments.md)** - positional parameters (`myapp deploy production`), marked with `[Argument]`
+- **[Unions](unions.md)** - C# 15 `union` types; the caller picks a case (`--format json --json-pretty`)
 - **[DTO binding](../features/dto-binding.md)** - expand records/classes into individual flags with `[AsParameters]`
 - **[Custom parsers](custom-parsers.md)** - `IArgumentParser<T>` for types with no built-in support
 - **[Validation](../features/validation.md)** - DataAnnotations and filesystem path attributes

@@ -67,6 +67,25 @@ public class UnionBindingTests
 	{
 		var result = CliHostRunner.Run("union-format-flag", "--format", "xml");
 		result.ExitCode.Should().Be(2);
+		CliHostRunner.StderrText(result).Should().Contain("Error: invalid value for --format: 'xml'. Expected one of: table, json, csv.");
+	}
+
+	[Fact]
+	public void Flag_mode_missing_selector_reports_missing_flag()
+	{
+		var result = CliHostRunner.Run("union-format-flag", "--json-pretty");
+		result.ExitCode.Should().Be(2);
+		CliHostRunner.StderrText(result).Should().Contain("Error: missing required flag --format.");
+	}
+
+	[Fact]
+	public void Flag_mode_unparseable_case_flag_value_exits_nonzero()
+	{
+		var result = CliHostRunner.Run("union-format-flag", "--format", "json", "--json-indent", "abc");
+		result.ExitCode.Should().Be(2);
+		var stderr = CliHostRunner.StderrText(result);
+		stderr.Should().Contain("Error: invalid value for --json-indent: 'abc'.");
+		stderr.Should().Contain("--json-indent <int>");
 	}
 
 	// ── Argument mode ──────────────────────────────────────────────────────────
@@ -108,5 +127,14 @@ public class UnionBindingTests
 	{
 		var result = CliHostRunner.Run("union-format-arg", "xml");
 		result.ExitCode.Should().Be(2);
+		CliHostRunner.StderrText(result).Should().Contain("Error: invalid value for <format>: 'xml'. Expected one of: table, json, csv.");
+	}
+
+	[Fact]
+	public void Argument_mode_unparseable_case_flag_value_exits_nonzero()
+	{
+		var result = CliHostRunner.Run("union-format-arg", "json", "--indent", "x");
+		result.ExitCode.Should().Be(2);
+		CliHostRunner.StderrText(result).Should().Contain("Error: invalid value for --indent: 'x'.");
 	}
 }

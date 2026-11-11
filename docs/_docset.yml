@@ -34,6 +34,7 @@ toc:
       - file: index.md
       - file: flags.md
       - file: arguments.md
+      - file: unions.md
       - file: custom-parsers.md
   - folder: hosting
     children:

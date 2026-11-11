@@ -193,6 +193,8 @@ public sealed partial class CliParserGenerator
 					return "<values>";
 				case CliScalarKind.Enum:
 				return "<enum>";
+				case CliScalarKind.Union:
+					return "<case>";
 				case CliScalarKind.FileInfo:
 					return "<file>";
 				case CliScalarKind.DirectoryInfo:

@@ -93,6 +93,8 @@ public sealed partial class CliParserGenerator
 		/// order validator skip it so it does not trigger AGH0003.
 		/// </summary>
 		bool IsOptionsInjectionCandidate = false,
+		/// <summary>True for a help-only row describing one union case property (e.g. <c>--json-pretty</c>).</summary>
+		bool IsUnionCaseProp = false,
 		string? EnvVarName = null,
 		bool EnvTreatEmptyAsUnset = true)
 	{

@@ -441,6 +441,9 @@ public sealed partial class CliParserGenerator
 	{
 		var tokens = new List<string>();
 
+		if (p.ScalarKind == CliScalarKind.Union && !p.UnionCases.IsDefaultOrEmpty)
+			tokens.Add("One of: " + UnionCaseChoices(p));
+
 		if (p.ScalarKind == CliScalarKind.Enum && !p.EnumMemberNames.IsDefaultOrEmpty)
 		{
 			tokens.Add("One of: <" + string.Join("|", p.EnumMemberNames.Select((m, i) => ResolveEnumMemberCliName(p.EnumMemberCliNames, i, m))) + ">");
