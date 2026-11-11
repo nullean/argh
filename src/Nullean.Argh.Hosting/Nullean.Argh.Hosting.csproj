@@ -9,31 +9,15 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\..\build\keys\keypair.snk</AssemblyOriginatorKeyFile>
 
-    <PackageIcon>nuget-icon.png</PackageIcon>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/nullean/argh</PackageProjectUrl>
-    <PackageReleaseNotes>https://github.com/nullean/argh/releases</PackageReleaseNotes>
-
     <PackageId>Nullean.Argh.Hosting</PackageId>
     <Title>Nullean.Argh.Hosting - Microsoft.Extensions.* integration</Title>
     <Description>Hosting integration for Nullean.Argh CLI applications.</Description>
+    <PackageTags>cli;command-line;hosting;dependency-injection;generic-host</PackageTags>
 
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Content Include="README.md" Pack="true" PackagePath="README.md" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\LICENSE" Pack="true" PackagePath="/" />
-    <Content Include="..\..\nuget-icon.png" CopyToOutputDirectory="PreserveNewest">
-      <Link>nuget-icon.png</Link>
-      <Pack>True</Pack>
-      <PackagePath>nuget-icon.png</PackagePath>
-    </Content>
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Nullean.Argh.Core\Nullean.Argh.Core.csproj" />

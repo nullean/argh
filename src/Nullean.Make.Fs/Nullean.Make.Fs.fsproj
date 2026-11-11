@@ -13,16 +13,10 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\..\build\keys\keypair.snk</AssemblyOriginatorKeyFile>
 
-    <PackageIcon>nuget-icon.png</PackageIcon>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/nullean/argh</PackageProjectUrl>
-    <PackageReleaseNotes>https://github.com/nullean/argh/releases</PackageReleaseNotes>
-
     <PackageId>Nullean.Make.Fs</PackageId>
     <Title>Nullean.Make.Fs - F# DU-based build target DSL</Title>
     <Description>F# DU/match binding over Nullean.Make — exhaustive, typed, namespaced build targets.</Description>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>build;make;targets;build-automation;fsharp</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -37,15 +31,6 @@
     <Compile Include="FsDtoBinder.fs" />
     <Compile Include="FsGraphBuilder.fs" />
     <Compile Include="MakeApp.fs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="\" />
-    <Content Include="..\..\nuget-icon.png" CopyToOutputDirectory="PreserveNewest">
-      <Link>nuget-icon.png</Link>
-      <Pack>True</Pack>
-      <PackagePath>nuget-icon.png</PackagePath>
-    </Content>
   </ItemGroup>
 
 </Project>

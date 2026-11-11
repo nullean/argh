@@ -11,16 +11,10 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\..\build\keys\keypair.snk</AssemblyOriginatorKeyFile>
 
-    <PackageIcon>nuget-icon.png</PackageIcon>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/nullean/argh</PackageProjectUrl>
-    <PackageReleaseNotes>https://github.com/nullean/argh/releases</PackageReleaseNotes>
-
     <PackageId>Nullean.Make</PackageId>
     <Title>Nullean.Make - typed namespaced build target DSL</Title>
     <Description>Property-dispatch build target DSL with Argh-quality help and per-target typed CLI arguments.</Description>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>build;make;targets;build-automation;cli</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -47,15 +41,6 @@
       <None Include="$(_MakeGeneratorDll)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     </ItemGroup>
   </Target>
-
-  <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="\" />
-    <Content Include="..\..\nuget-icon.png" CopyToOutputDirectory="PreserveNewest">
-      <Link>nuget-icon.png</Link>
-      <Pack>True</Pack>
-      <PackagePath>nuget-icon.png</PackagePath>
-    </Content>
-  </ItemGroup>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">

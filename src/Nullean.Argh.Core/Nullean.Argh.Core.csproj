@@ -9,17 +9,11 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\..\build\keys\keypair.snk</AssemblyOriginatorKeyFile>
 
-    <PackageIcon>nuget-icon.png</PackageIcon>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/nullean/argh</PackageProjectUrl>
-    <PackageReleaseNotes>https://github.com/nullean/argh/releases</PackageReleaseNotes>
-
     <PackageId>Nullean.Argh.Core</PackageId>
     <Title>Nullean.Argh.Core - CLI runtime and source generator</Title>
     <Description>Runtime, ArghApp registration model, and embedded Roslyn analyzer for Nullean.Argh.</Description>
+    <PackageTags>cli;command-line;argument-parser;source-generator;aot</PackageTags>
 
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -31,16 +25,6 @@
 
   <ItemGroup>
     <None Include="build\Nullean.Argh.Core.props" Pack="true" PackagePath="build\" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="README.md" Pack="true" PackagePath="README.md" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\LICENSE" Pack="true" PackagePath="/" />
-    <Content Include="..\..\nuget-icon.png" CopyToOutputDirectory="PreserveNewest">
-      <Link>nuget-icon.png</Link>
-      <Pack>True</Pack>
-      <PackagePath>nuget-icon.png</PackagePath>
-    </Content>
   </ItemGroup>
 
   <ItemGroup>
