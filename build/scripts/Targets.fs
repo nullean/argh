@@ -29,7 +29,11 @@ let private currentVersionInformational =
 
 let private clean (arguments:ParseResults<Arguments>) =
     if (Paths.Output.Exists) then Paths.Output.Delete (true)
-    exec "dotnet" ["clean"] |> ignore
+    // clean every project but this build itself: `dotnet clean` on the solution would delete the assemblies the
+    // running build still loads lazily (Fake, Proc) and fail the next target
+    ["src"; "tests"; "examples"; "tools"]
+    |> Seq.collect (fun d -> Directory.EnumerateFiles(d, "*.?sproj", SearchOption.AllDirectories))
+    |> Seq.iter (fun p -> exec "dotnet" ["clean"; p; "-c"; "Release"; "-v"; "q"] |> ignore)
 
 let private build (arguments:ParseResults<Arguments>) = exec "dotnet" ["build"; "-c"; "Release"] |> ignore
 
@@ -64,7 +68,7 @@ let private validatePackages (arguments:ParseResults<Arguments>) =
         if Fake.Core.Environment.hasEnvironVar "JENKINS_URL" && Fake.Core.Environment.isWindows then ["-r"; "true"] else []
 
     let args = ["-v"; currentVersionInformational.Value; "-k"; Paths.SignKey; "-t"; output] @ jenkinsOnWindowsArgs
-    nugetPackages |> Seq.iter (fun p -> exec "dotnet" (["nupkg-validator"; p] @ args) |> ignore)
+    nugetPackages |> Seq.iter (fun p -> exec "dotnet" (["nupkg-validator"; "validate"; p] @ args) |> ignore)
 
 
 let private generateApiChanges (arguments:ParseResults<Arguments>) =
@@ -159,7 +163,7 @@ let private validateSchema (arguments:ParseResults<Arguments>) =
         let generated = File.ReadAllText(tempPath).TrimEnd()
         let existing = File.ReadAllText(schemaPath).TrimEnd()
         if generated <> existing then
-            failwith "schema/argh-cli-schema.json is out of date. Run: ./build.sh updateschema"
+            failwith "schema/argh-cli-schema.json is out of date. Run: dotnet run --project build/scripts -- updateschema"
     finally
         if File.Exists tempPath then File.Delete tempPath
 
@@ -193,6 +197,15 @@ let Setup (parsed:ParseResults<Arguments>) (subCommand:Arguments) =
     step Docs.Name docs
 
     cmd Test.Name (Some [Build.Name;]) None <| fun _ -> test parsed
+
+    cmd Pack.Name
+        (Some [Build.Name;])
+        (Some [GeneratePackages.Name; ValidatePackages.Name; GenerateApiChanges.Name])
+        ignore
+    cmd Ci.Name
+        (Some [Test.Name;])
+        (Some [ValidateSchema.Name; GeneratePackages.Name; ValidatePackages.Name; GenerateApiChanges.Name])
+        ignore
 
     step PristineCheck.Name pristineCheck
     step GeneratePackages.Name generatePackages

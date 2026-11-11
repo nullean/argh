@@ -15,7 +15,7 @@ using ProcNet;
 // ReSharper disable ArrangeTypeMemberModifiers
 // ReSharper disable ArrangeTypeModifiers
 
-await MakeApp.Execute<Make>(args);
+return await MakeApp.Execute<Make>(args);
 
 // ── per-target DTOs ───────────────────────────────────────────────────────────
 record TestOptions(string? Filter = null);
@@ -50,7 +50,7 @@ class Make : MakeBuild
 	static string CurrentVersion = _version.Value;
 
 	static string CurrentVersionInformational = IncludeGitHash
-		? $"{CurrentVersion}+{Proc.Start("git", "rev-parse", "--short", "HEAD").ConsoleOut.First().Line.Trim()}"
+		? $"{CurrentVersion}+{Proc.Start("git", "rev-parse", "HEAD").ConsoleOut.First().Line.Trim()}"
 		: CurrentVersion;
 
 	static string PackageIdFromFile(string path) => Path.GetFileNameWithoutExtension(path).Replace("." + CurrentVersion, "");
@@ -209,7 +209,7 @@ class Make : MakeBuild
                     .OrderByDescending(f => f.CreationTimeUtc)
                     .Select(f => Path.GetRelativePath(Directory.GetCurrentDirectory(), f.FullName))
                     .Where(p => PackageIdFromFile(p) != "Nullean.Argh"))
-                    Proc.Exec("dotnet", new[] { "nupkg-validator", pkg }.Concat(baseArgs).ToArray());
+                    Proc.Exec("dotnet", new[] { "nupkg-validator", "validate", pkg }.Concat(baseArgs).ToArray());
             });
     }
 
