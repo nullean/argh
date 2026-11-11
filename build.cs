@@ -15,16 +15,6 @@ using ProcNet;
 // ReSharper disable ArrangeTypeMemberModifiers
 // ReSharper disable ArrangeTypeModifiers
 
-// ── constants ─────────────────────────────────────────────────────────────────
-
-Target Clean = _ => _
-	.Description("Delete build output")
-	.Executes(() =>
-	{
-		if (Output.Exists) Output.Delete(true);
-		Proc.Exec("dotnet", new[] { "clean" });
-	});
-
 await MakeApp.Execute<Make>(args);
 
 // ── per-target DTOs ───────────────────────────────────────────────────────────

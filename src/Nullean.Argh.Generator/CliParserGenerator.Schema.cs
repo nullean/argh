@@ -334,7 +334,17 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine(indent + "new CliParameterSchema[]");
 		sb.AppendLine(indent + "{");
 		foreach (var p in list)
+		{
 			sb.AppendLine($"{indent}\t{EmitCliParameterSchemaNewExpression(p, environmentPrefix)},");
+			// A union's case flags follow its selector, one parameter each.
+			if (p.ScalarKind == CliScalarKind.Union)
+			{
+				var caseRows = new List<ParameterModel>();
+				AddUnionCasePropRows(caseRows, p);
+				foreach (var row in caseRows)
+					sb.AppendLine($"{indent}\t{EmitCliParameterSchemaNewExpression(row, environmentPrefix)},");
+			}
+		}
 		sb.Append(indent);
 		sb.Append("}");
 	}
@@ -422,7 +432,8 @@ public sealed partial class CliParserGenerator
 			: p.Kind == ParameterKind.Positional ? "positional"
 			: "flag";
 		var shortName = p.ShortOpt is char c ? $"\"{Escape(c.ToString())}\"" : "null";
-		var type = MapToJsonSchemaType(p.ScalarKind, p.TypeName);
+		// A union selector takes one of its case names, like an enum.
+		var type = p.ScalarKind == CliScalarKind.Union ? "enum" : MapToJsonSchemaType(p.ScalarKind, p.TypeName);
 		var req = p.IsRequired ? "true" : "false";
 		var summary = string.IsNullOrEmpty(p.Description) ? "null" : $"\"{Escape(p.Description)}\"";
 
@@ -447,7 +458,12 @@ public sealed partial class CliParserGenerator
 			sb.Append($", Aliases: new string[] {{ {aliasArr} }}");
 		}
 
-		if (type == "enum" && !p.EnumMemberNames.IsDefaultOrEmpty)
+		if (p.ScalarKind == CliScalarKind.Union && !p.UnionCases.IsDefaultOrEmpty)
+		{
+			var caseArr = string.Join(", ", p.UnionCases.Select(c => $"\"{Escape(c.CliName)}\""));
+			sb.Append($", EnumValues: new string[] {{ {caseArr} }}");
+		}
+		else if (type == "enum" && !p.EnumMemberNames.IsDefaultOrEmpty)
 		{
 			var enumArr = string.Join(", ", p.EnumMemberNames.Select((m, i) => $"\"{Escape(ResolveEnumMemberCliName(p.EnumMemberCliNames, i, m))}\""));
 			sb.Append($", EnumValues: new string[] {{ {enumArr} }}");

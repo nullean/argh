@@ -35,6 +35,10 @@ internal sealed class TargetNode
 	/// <summary>Typed body delegate: Action&lt;T&gt; or Func&lt;T,Task&gt;. Null when no DTO.</summary>
 	public Delegate? TypedBody { get; set; }
 
+	/// <summary>Route-based dep type names used by <see cref="UnionMakeApp{TUnion}"/> before node resolution.</summary>
+	public List<string> RouteRequires { get; } = new();
+	public List<string> RouteComposes { get; } = new();
+
 	/// <summary>Resolved dep nodes after the graph is built.</summary>
 	public List<TargetNode> RequiresResolved { get; } = new();
 	public List<TargetNode> ComposesResolved { get; } = new();

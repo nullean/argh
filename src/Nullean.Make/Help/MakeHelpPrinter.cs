@@ -225,7 +225,8 @@ internal static class MakeHelpPrinter
 		foreach (var opt in graph.GlobalOptions)
 		{
 			var flags = opt.Short is not null ? $"{opt.Short}, {opt.Long}" : $"    {opt.Long}";
-			var typeSuffix = opt.IsFlag ? "" : $" <{(opt.Property is { } prop ? FriendlyTypeName(prop.PropertyType) : "string")}>";
+			var valueType = opt.Property?.PropertyType ?? opt.ValueType;
+			var typeSuffix = opt.IsFlag ? "" : $" <{(valueType is not null ? FriendlyTypeName(valueType) : "string")}>";
 			Console.WriteLine($"    {CliHelpFormatting.Placeholder($"{flags}{typeSuffix}"),-30}  {opt.Description ?? ""}");
 		}
 		Console.WriteLine();

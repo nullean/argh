@@ -493,6 +493,7 @@ public sealed partial class CliParserGenerator
 		FixOptionsParamsInCommands(app);
 		ValidateDuplicateShortOptionLetters(context, app);
 		ValidateEnvOnBoolFlags(context, app);
+		ValidateUnionFlagsAgainstScopedOptions(context, app);
 
 		return true;
 	}

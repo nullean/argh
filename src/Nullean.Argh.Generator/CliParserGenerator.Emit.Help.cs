@@ -538,6 +538,7 @@ public sealed partial class CliParserGenerator
 
 	private static bool HelpUsesEnumChoiceContinuationLayout(ParameterModel p) =>
 		p.ScalarKind == CliScalarKind.Enum
+		|| (p.ScalarKind == CliScalarKind.Union && p.Kind == ParameterKind.Flag)
 		|| (p.IsCollection && p.ElementScalarKind == CliScalarKind.Enum && !p.ElementEnumMemberNames.IsDefaultOrEmpty);
 
 	private static void EmitHelpOptionRows(StringBuilder sb, IReadOnlyList<ParameterModel> rows, int maxOptWidth, string? environmentPrefix = null)
@@ -700,9 +701,9 @@ public sealed partial class CliParserGenerator
 		foreach ((_, var gom) in namespaceOptionChain)
 			AddCliKeys(EnumerateFlagMembers(gom), scopedKeys);
 
-		var commandOnlyFlags = cmd.Parameters
-			.Where(p => p.Kind == ParameterKind.Flag && !CommandFlagMatchesScopedKeys(p, scopedKeys))
-			.ToList();
+		var commandOnlyFlags = ExpandUnionHelpRows(
+			cmd.Parameters.Where(p => p.Kind == ParameterKind.Flag && !CommandFlagMatchesScopedKeys(p, scopedKeys)),
+			cmd.Parameters);
 
 		var widthCandidates = new List<int> { "-h, --help".Length };
 		widthCandidates.AddRange(globalFlagMembers.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
@@ -844,9 +845,9 @@ public sealed partial class CliParserGenerator
 		foreach ((_, var gom) in namespaceOptionChain)
 			AddCliKeys(EnumerateFlagMembers(gom), scopedKeys);
 
-		var commandOnlyFlags = cmd.Parameters
-			.Where(p => p.Kind == ParameterKind.Flag && !CommandFlagMatchesScopedKeys(p, scopedKeys))
-			.ToList();
+		var commandOnlyFlags = ExpandUnionHelpRows(
+			cmd.Parameters.Where(p => p.Kind == ParameterKind.Flag && !CommandFlagMatchesScopedKeys(p, scopedKeys)),
+			cmd.Parameters);
 
 		var widthCandidates = new List<int> { "-h, --help".Length };
 		widthCandidates.AddRange(globalFlagMembers.Select(p => HelpLayout.FormatOptionLeftCell(p).Length));
@@ -904,7 +905,7 @@ public sealed partial class CliParserGenerator
 		if (!string.IsNullOrWhiteSpace(p.Description))
 			parts.Add(p.Description.Trim());
 
-		if (p.Special == BoolSpecialKind.None)
+		if (p.Special == BoolSpecialKind.None || (p.IsUnionCaseProp && p.DefaultValueLiteral == "true"))
 		{
 			if (p.DefaultValueLiteral is not null)
 				parts.Add($"[default: {FormatDefaultForHelp(p)}]");

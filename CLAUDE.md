@@ -77,7 +77,7 @@ The generator itself has minimal direct unit tests — coverage is primarily thr
 
 ## Important Constraints
 
-- Generated code targets `netstandard2.0` (no `System.Linq`, no pattern features beyond what that TFM allows) except the static extension methods in `ArghTypeBindingExtensions.g.cs` which require **C# 14 preview** (`static extension` members).
+- Generated code targets `netstandard2.0` (no `System.Linq`, no pattern features beyond what that TFM allows) except the static extension methods in `ArghTypeBindingExtensions.g.cs` which require **C# 14** (`static extension` members).
 - The project is **AOT-safe**: no reflection in generated code, no dynamic dispatch. Lambda handlers (`UseMiddleware` inline delegates) are the one exception and emit a warning (`AGH0006`).
 - `SymbolEqualityComparer.Default` must be used for all `ISymbol` comparisons — never `==`.
 - The build uses `<UseArtifactsOutput>true</UseArtifactsOutput>` (in `Directory.Build.props`): all outputs go to `.artifacts/bin/<Project>/` and `.artifacts/obj/`. Do not reference `bin/` or `obj/` paths.

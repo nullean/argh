@@ -13,7 +13,6 @@
     <Project Path="build/scripts/scripts.fsproj" />
 
 	  <File Path="build.cs" />
-	  <File Path="build.fsx" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Nullean.Argh.Interfaces/Nullean.Argh.Interfaces.csproj" />
@@ -22,7 +21,6 @@
     <Project Path="src/Nullean.Argh.Generator/Nullean.Argh.Generator.csproj" />
     <Project Path="src/Nullean.Argh.Hosting/Nullean.Argh.Hosting.csproj" />
     <Project Path="src/Nullean.Make/Nullean.Make.csproj" />
-    <Project Path="src/Nullean.Make.Fs/Nullean.Make.Fs.fsproj" />
   </Folder>
   <Folder Name="/examples/">
     <Project Path="examples/ArghAotSmoketest/ArghAotSmoketest.csproj" />

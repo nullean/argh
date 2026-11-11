@@ -67,4 +67,4 @@ The project includes an `aot-validate` CI job that publishes with Native AOT on 
 
 ## Generated code target
 
-Generated code targets `netstandard2.0` (no `System.Linq`, no pattern features beyond what that TFM allows). The static extension methods in `ArghTypeBindingExtensions.g.cs` require C# 14 preview (`static extension` members).
+Generated code targets `netstandard2.0` (no `System.Linq`, no pattern features beyond what that TFM allows). The static extension methods in `ArghTypeBindingExtensions.g.cs` require C# 14 (`static extension` members).

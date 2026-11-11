@@ -288,6 +288,22 @@ public sealed partial class CliParserGenerator
 		DiagnosticSeverity.Warning,
 		isEnabledByDefault: true);
 
+	private static readonly DiagnosticDescriptor UnionFlagCollision = new(
+		"AGH0036",
+		"Union case flag name collision",
+		"Union parameter '{0}': {1} is claimed more than once. Rename the case type or property, or the other flag, so every case name and case flag of the command is unique.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	private static readonly DiagnosticDescriptor UnionCasePropTypeNotSupported = new(
+		"AGH0037",
+		"Union case property type not supported",
+		"Union parameter '{0}': case property {1} cannot bind from the command line. Union case properties support bool, string, int, long, float, double, decimal and enums.",
+		"Argh",
+		DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
 	private sealed class DiagnosticAccumulator
 	{
 		private List<PendingDiagnostic>? _diagnostics;
@@ -337,6 +353,8 @@ public sealed partial class CliParserGenerator
 		"AGH0032" => FilesystemPathAttributeTypeMismatch,
 		"AGH0033" => DuplicateShortOption,
 		"AGH0035" => EnvOnNonNullableBool,
+		"AGH0036" => UnionFlagCollision,
+		"AGH0037" => UnionCasePropTypeNotSupported,
 		_ => throw new ArgumentException($"Unknown diagnostic id: {id}")
 	};
 

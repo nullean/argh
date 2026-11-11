@@ -18,6 +18,9 @@ public sealed partial class CliParserGenerator
 {
 	private static string? ComputeEffectiveEnvVarName(ParameterModel p, string? environmentPrefix)
 	{
+		// Union selectors and their case flags are bound from the command line only.
+		if (p.ScalarKind == CliScalarKind.Union || p.IsUnionCaseProp)
+			return null;
 		if (!string.IsNullOrEmpty(p.EnvVarName))
 			return p.EnvVarName;
 		if (!string.IsNullOrEmpty(environmentPrefix) && p.Kind == ParameterKind.Flag && p.Special != BoolSpecialKind.NullableBool)
@@ -312,6 +315,12 @@ public sealed partial class CliParserGenerator
 				continue;
 			}
 
+			if (p.ScalarKind == CliScalarKind.Union && !p.UnionIsArgument)
+			{
+				EmitUnionFlagAssembly(sb, p, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+				continue;
+			}
+
 			if (p.IsCollection && p.Kind == ParameterKind.Flag)
 			{
 				EmitBindCollectionParameter(sb, p, anyRepeatedCollection, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
@@ -364,6 +373,14 @@ public sealed partial class CliParserGenerator
 			if (p.IsVariadic)
 			{
 				EmitVariadicPositionalParse(sb, p, posIndex, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+				posIndex++;
+				continue;
+			}
+
+			// Union [Argument] mode: case name is the positional; case props come from flags
+			if (p.ScalarKind == CliScalarKind.Union && p.UnionIsArgument)
+			{
+				EmitUnionArgumentAssembly(sb, p, posIndex, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 				posIndex++;
 				continue;
 			}
@@ -650,6 +667,10 @@ public sealed partial class CliParserGenerator
 			if (p.Special == BoolSpecialKind.Bool || p.Special == BoolSpecialKind.NullableBool)
 				continue;
 
+			// Union params are declared and assembled post-loop; skip here
+			if (p.ScalarKind == CliScalarKind.Union)
+				continue;
+
 			if (p.IsCollection && p.Kind == ParameterKind.Flag)
 			{
 				var elemFq = GetElementCSharpFq(p);
@@ -877,7 +898,7 @@ public sealed partial class CliParserGenerator
 		var noNames = new List<string>();
 		foreach (var p in cmd.Parameters)
 		{
-			if (!IsEmittedFlagLike(p.Kind))
+			if (!IsEmittedFlagLike(p.Kind) && p.Kind != ParameterKind.Positional)
 				continue;
 			if (p.Special == BoolSpecialKind.Bool)
 				names.Add(p.CliLongName);
@@ -885,6 +906,20 @@ public sealed partial class CliParserGenerator
 			{
 				names.Add(p.CliLongName);
 				noNames.Add("no-" + p.CliLongName);
+			}
+			// Union case bool props: flag mode → --{case}-{prop}; argument mode → --{prop}
+			if (p.ScalarKind == CliScalarKind.Union && !p.UnionCases.IsDefaultOrEmpty)
+			{
+				foreach (var c in p.UnionCases)
+					foreach (var prop in c.Properties)
+					{
+						if (prop.Special != BoolSpecialKind.Bool)
+							continue;
+						var name = UnionCasePropFlagName(p, prop);
+						names.Add(name);
+						if (UnionBoolDefaultsTrue(prop))
+							noNames.Add("no-" + name);
+					}
 			}
 		}
 
@@ -935,10 +970,31 @@ public sealed partial class CliParserGenerator
 		var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		foreach (var p in cmd.Parameters)
 		{
-			if (!IsEmittedFlagLike(p.Kind))
+			if (!IsEmittedFlagLike(p.Kind) && p.Kind != ParameterKind.Positional)
 				continue;
 			if (p.Special == BoolSpecialKind.Bool || p.Special == BoolSpecialKind.NullableBool)
 				continue;
+			// Union flag mode: the selector flag + non-bool case props
+			if (p.ScalarKind == CliScalarKind.Union && !p.UnionIsArgument)
+			{
+				names.Add(p.CliLongName); // e.g. "format"
+				if (!p.UnionCases.IsDefaultOrEmpty)
+					foreach (var c in p.UnionCases)
+						foreach (var prop in c.Properties)
+							if (prop.Special != BoolSpecialKind.Bool)
+								names.Add(prop.FlagModeName); // e.g. "json-indent"
+				continue;
+			}
+			if (p.ScalarKind == CliScalarKind.Union && p.UnionIsArgument)
+			{
+				// Argument mode: case props are still flags
+				if (!p.UnionCases.IsDefaultOrEmpty)
+					foreach (var c in p.UnionCases)
+						foreach (var prop in c.Properties)
+							if (prop.Special != BoolSpecialKind.Bool)
+								names.Add(prop.CliName); // no prefix in argument mode
+				continue;
+			}
 			names.Add(p.CliLongName);
 			foreach (var al in p.Aliases)
 				names.Add(al);
@@ -1469,6 +1525,192 @@ switch (p.Special)
 			sb.AppendLine($"{ind}{targetVar} = {rawExpr}; // fallback");
 		break;
 }
+	}
+
+	// ── Union assembly ────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// Emits post-loop code for union flag mode: reads <c>flags["format"]</c> (the param's CLI long name) as the
+	/// selected case, reads every case's <c>--{case}-{prop}</c> flags, then switches on the case name to
+	/// construct the union value. Case flags of an unselected case are silently unused.
+	/// </summary>
+	private static void EmitUnionFlagAssembly(StringBuilder sb, ParameterModel p, string failureExit,
+		string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		if (p.UnionTypeFq is null || p.UnionCases.IsDefaultOrEmpty) return;
+		var flagKey = Escape(p.CliLongName);
+		var caseVar = "__union_case_" + p.LocalVarName;
+
+		sb.AppendLine($"\t\t\tflags.TryGetValue(\"{flagKey}\", out var {caseVar});");
+		if (p.IsRequired)
+		{
+			sb.AppendLine($"\t\t\tif ({caseVar} is null)");
+			sb.AppendLine("\t\t\t{");
+			sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: missing required flag --{flagKey}.\");");
+			EmitAfterCliParseErrorHelp(sb, p, "\t\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+			sb.AppendLine($"\t\t\t\t{failureExit};");
+			sb.AppendLine("\t\t\t}");
+		}
+
+		EmitUnionCasePropReads(sb, p, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		EmitUnionCaseSwitch(sb, p, caseVar, $"--{flagKey}", failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+	}
+
+	/// <summary>
+	/// Emits post-loop code for union [Argument] mode: reads <c>positionals[posIndex]</c> as the selected case,
+	/// reads every case's bare <c>--{prop}</c> flags, then switches on the case name to construct the union value.
+	/// </summary>
+	private static void EmitUnionArgumentAssembly(StringBuilder sb, ParameterModel p, int posIndex,
+		string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		if (p.UnionTypeFq is null || p.UnionCases.IsDefaultOrEmpty) return;
+		var caseVar = "__union_case_" + p.LocalVarName;
+
+		if (p.IsRequired)
+		{
+			sb.AppendLine($"\t\t\tif (positionals.Count <= {posIndex})");
+			sb.AppendLine("\t\t\t{");
+			sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: missing required argument <{Escape(p.CliLongName)}>.\");");
+			if (helpMethodName is not null)
+				sb.AppendLine($"\t\t\t\t{helpMethodName}();");
+			sb.AppendLine($"\t\t\t\t{failureExit};");
+			sb.AppendLine("\t\t\t}");
+			sb.AppendLine($"\t\t\tvar {caseVar} = positionals[{posIndex}];");
+		}
+		else
+		{
+			sb.AppendLine($"\t\t\tvar {caseVar} = positionals.Count > {posIndex} ? positionals[{posIndex}] : null;");
+		}
+
+		EmitUnionCasePropReads(sb, p, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		EmitUnionCaseSwitch(sb, p, caseVar, $"<{Escape(p.CliLongName)}>", failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+	}
+
+	private static string UnionCasePropFlagName(ParameterModel union, UnionCasePropInfo prop) =>
+		union.UnionIsArgument ? prop.CliName : prop.FlagModeName;
+
+	private static string UnionCasePropVar(ParameterModel union, UnionCaseInfo c, UnionCasePropInfo prop) =>
+		"__up_" + union.LocalVarName + "_" + Naming.SanitizeIdentifier(c.CliName) + "_" + Naming.SanitizeIdentifier(prop.CliName);
+
+	/// <summary>Reads and parses every case property flag, whichever case is selected.</summary>
+	private static void EmitUnionCasePropReads(StringBuilder sb, ParameterModel p, string failureExit,
+		string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		foreach (var c in p.UnionCases)
+		{
+			foreach (var prop in c.Properties)
+			{
+				var flagName = UnionCasePropFlagName(p, prop);
+				var propVar = UnionCasePropVar(p, c, prop);
+				if (prop.Special == BoolSpecialKind.Bool)
+				{
+					// A bool that defaults to true is switched off with --no-{flag}.
+					sb.AppendLine(UnionBoolDefaultsTrue(prop)
+						? $"\t\t\tvar {propVar} = !flags.ContainsKey(\"no-{Escape(flagName)}\");"
+						: $"\t\t\tvar {propVar} = flags.ContainsKey(\"{Escape(flagName)}\");");
+					continue;
+				}
+				sb.AppendLine($"\t\t\tflags.TryGetValue(\"{Escape(flagName)}\", out var {propVar}Raw);");
+				EmitUnionPropParse(sb, prop, flagName, propVar + "Raw", propVar + "_parsed", "\t\t\t", failureExit,
+					helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+			}
+		}
+	}
+
+	/// <summary>Switches on the selected case name and constructs the union value from that case's properties.</summary>
+	private static void EmitUnionCaseSwitch(StringBuilder sb, ParameterModel p, string caseVar, string displayName, string failureExit,
+		string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		sb.AppendLine($"\t\t\t{p.UnionTypeFq} {p.LocalVarName} = default;");
+		var ind = "\t\t\t";
+		if (!p.IsRequired)
+		{
+			// Optional and not given: the union keeps its default value.
+			sb.AppendLine($"\t\t\tif ({caseVar} is not null)");
+			sb.AppendLine("\t\t\t{");
+			ind = "\t\t\t\t";
+		}
+
+		sb.AppendLine($"{ind}switch ({caseVar}.ToLowerInvariant())");
+		sb.AppendLine($"{ind}{{");
+		foreach (var c in p.UnionCases)
+		{
+			sb.AppendLine($"{ind}\tcase \"{Escape(c.CliName)}\":");
+			var propArgs = new StringBuilder();
+			foreach (var prop in c.Properties)
+			{
+				if (propArgs.Length > 0) propArgs.Append(", ");
+				var propVar = UnionCasePropVar(p, c, prop);
+				propArgs.Append(prop.Special == BoolSpecialKind.Bool ? propVar : propVar + "_parsed");
+			}
+			sb.AppendLine($"{ind}\t\t{p.LocalVarName} = new {p.UnionTypeFq}(new {c.TypeFq}({propArgs}));");
+			sb.AppendLine($"{ind}\t\tbreak;");
+		}
+		sb.AppendLine($"{ind}\tdefault:");
+		sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid value for {displayName}: '{{{caseVar}}}'. Expected one of: {Escape(string.Join(", ", p.UnionCases.Select(static c => c.CliName)))}.\");");
+		EmitAfterCliParseErrorHelp(sb, p, ind + "\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t\t{failureExit};");
+		sb.AppendLine($"{ind}\t\tbreak;");
+		sb.AppendLine($"{ind}}}");
+		if (!p.IsRequired)
+			sb.AppendLine("\t\t\t}");
+	}
+
+	/// <summary>
+	/// Emits parse code for a single union case property from a raw string variable into a parsed variable.
+	/// An absent flag keeps the case property's default; a value that does not parse is a parse error.
+	/// </summary>
+	private static void EmitUnionPropParse(StringBuilder sb, UnionCasePropInfo prop, string flagName, string rawVar, string parsedVar,
+		string ind, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		if (prop.ScalarKind == CliScalarKind.Enum && prop.EnumTypeFq is not null && !prop.EnumMemberNames.IsDefaultOrEmpty)
+		{
+			sb.AppendLine($"{ind}{prop.EnumTypeFq} {parsedVar} = {prop.DefaultValueLiteral ?? "default"};");
+			sb.AppendLine($"{ind}if ({rawVar} is not null)");
+			sb.AppendLine($"{ind}{{");
+			sb.AppendLine($"{ind}\tswitch ({rawVar}.ToLowerInvariant())");
+			sb.AppendLine($"{ind}\t{{");
+			for (var i = 0; i < prop.EnumMemberNames.Length; i++)
+			{
+				var member = prop.EnumMemberNames[i];
+				var cli = ResolveEnumMemberCliName(prop.EnumMemberCliNames, i, member);
+				sb.AppendLine($"{ind}\t\tcase \"{Escape(cli.ToLowerInvariant())}\": {parsedVar} = {prop.EnumTypeFq}.{member}; break;");
+			}
+			sb.AppendLine($"{ind}\t\tdefault:");
+			sb.AppendLine($"{ind}\t\t\tConsole.Error.WriteLine($\"Error: invalid value for --{Escape(flagName)}: '{{{rawVar}}}'.\");");
+			EmitAfterCliParseErrorHelp(sb, UnionCasePropHelpRow(flagName, prop, ""), ind + "\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+			sb.AppendLine($"{ind}\t\t\t{failureExit};");
+			sb.AppendLine($"{ind}\t\t\tbreak;");
+			sb.AppendLine($"{ind}\t}}");
+			sb.AppendLine($"{ind}}}");
+			return;
+		}
+
+		var tryParse = prop.ScalarKind != CliScalarKind.Primitive ? null : prop.TypeName switch
+		{
+			"int" => $"int.TryParse({rawVar}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+			"long" => $"long.TryParse({rawVar}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+			"float" => $"float.TryParse({rawVar}, global::System.Globalization.NumberStyles.Float | global::System.Globalization.NumberStyles.AllowThousands, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+			"double" => $"double.TryParse({rawVar}, global::System.Globalization.NumberStyles.Float | global::System.Globalization.NumberStyles.AllowThousands, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+			"decimal" => $"decimal.TryParse({rawVar}, global::System.Globalization.NumberStyles.Number, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+			_ => null
+		};
+
+		if (tryParse is null)
+		{
+			// String or unrecognized: use the raw value, falling back to the property's default.
+			var fallback = prop.DefaultValueLiteral is { } d && d != "null" ? " ?? " + d : "";
+			sb.AppendLine($"{ind}var {parsedVar} = {rawVar}{fallback};");
+			return;
+		}
+
+		sb.AppendLine($"{ind}{prop.TypeName} {parsedVar} = {prop.DefaultValueLiteral ?? "default"};");
+		sb.AppendLine($"{ind}if ({rawVar} is not null && !{tryParse})");
+		sb.AppendLine($"{ind}{{");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{Escape(flagName)}: '{{{rawVar}}}'.\");");
+		EmitAfterCliParseErrorHelp(sb, UnionCasePropHelpRow(flagName, prop, ""), ind + "\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t{failureExit};");
+		sb.AppendLine($"{ind}}}");
 	}
 
 	private static void EmitNullableNumericParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar,
