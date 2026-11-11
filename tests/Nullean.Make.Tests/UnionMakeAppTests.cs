@@ -165,6 +165,16 @@ public class UnionMakeAppTests
 	}
 
 	[Fact]
+	public async Task Namespace_help_lists_nested_union_cases()
+	{
+		var run = await RunAsync("db", "--help");
+		run.ExitCode.Should().Be(0, run.Stderr);
+		run.Stdout.Should().Contain("migrate").And.Contain("seed");
+		run.Stdout.Should().NotContain("Delete artifacts");
+		run.Log.Should().BeEmpty();
+	}
+
+	[Fact]
 	public async Task Target_help_lists_its_flags()
 	{
 		var run = await RunAsync("test", "--help");

@@ -119,7 +119,8 @@ public sealed class UnionMakeApp<TUnion> where TUnion : struct
 				if (helpNode.Kind == TargetKind.Command) MakeHelpPrinter.PrintCommand(helpNode, _graph, scriptName);
 				else                                      MakeHelpPrinter.PrintTarget(helpNode, _graph, scriptName);
 			}
-			else MakeHelpPrinter.PrintRoot(_graph, scriptName);
+			else if (string.IsNullOrEmpty(routeKey) || !MakeHelpPrinter.PrintNamespace(routeKey, _graph, scriptName))
+				MakeHelpPrinter.PrintRoot(_graph, scriptName);
 			return 0;
 		}
 
