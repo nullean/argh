@@ -6,7 +6,8 @@ site published by `.github/workflows/gh-pages.yml`.
 
 ## Commands
 
-mise installs the SDK pinned in `global.json`. Run everything through it:
+mise installs the SDK pinned in `global.json`, plus the net10.0 runtime the `release-notes` tool runs on. Run
+everything through it:
 
 ```bash
 mise run build    # build the solution
@@ -22,6 +23,9 @@ mise run clean    # delete build output
 directly with `dotnet run --project build/scripts -- <target>`, and `-s true` to skip its dependencies. Packages and
 API reports go to `build/output`. `dotnet run --project build/scripts -- updateschema` regenerates
 `schema/argh-cli-schema.json`, which `mise run ci` fails on when it is out of date.
+
+`nupkg-validator` stays last in `dotnet-tools.json`: SDK 11's `dotnet tool restore` fails on a clean machine when
+that RID-specific tool package comes before `assembly-differ`.
 
 `build.cs` is the same pipeline written with `Nullean.Make` (C#), kept as its complete example.
 
