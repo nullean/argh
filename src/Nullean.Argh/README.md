@@ -1,45 +1,54 @@
-<p align="center"><img src="https://cdn.jsdelivr.net/gh/nullean/argh@main/docs/images/png/argh-lockup-348x192.png" alt="--argh_" width="174" height="96"/></p>
-
 # Nullean.Argh
 
-[![NuGet](https://img.shields.io/nuget/v/Nullean.Argh.svg)](https://www.nuget.org/packages/Nullean.Argh)
+![Nullean.Argh](https://raw.githubusercontent.com/nullean/argh/main/docs/images/png/argh-lockup-348x192.png)
 
-A source-generated CLI framework for .NET — no reflection, AOT-safe, with automatic help text from XML docs.
+Build full-featured .NET CLIs without writing a parser: methods become commands, XML docs become help text.
+Source-generated, no reflection, AOT-safe.
+
+[![NuGet](https://img.shields.io/nuget/v/Nullean.Argh?style=flat-square)](https://www.nuget.org/packages/Nullean.Argh)
+
+![Sample CLI help output (XmlDocShowcase)](https://raw.githubusercontent.com/nullean/argh/main/docs/assets/xml-doc-showcase-help.gif)
 
 ## Install
 
-```bash
+```sh
 dotnet add package Nullean.Argh
 ```
 
-## Quick Start
+## Quick start
 
 ```csharp
 using Nullean.Argh;
 
 var app = new ArghApp();
-app.Map("hello", MyHandlers.SayHello);
+app.Map("hello", Handlers.Hello);
+
 return await app.RunAsync(args);
+
+static class Handlers
+{
+	/// <summary>Greets someone by name.</summary>
+	/// <param name="name">-n,--name, Name to greet.</param>
+	public static void Hello(string name) => Console.WriteLine($"Hello, {name}!");
+}
 ```
+
+`dotnet run -- hello --name Argh` prints `Hello, Argh!`, and `dotnet run -- hello --help` prints the XML docs as help.
 
 ## Features
 
-- **XML docs become help text** — document your parameters once, get `--help` for free
-- **Source-generated** — no reflection, fully AOT-safe
-- **Shell completions** — bash, zsh, and fish out of the box
-- **Agent-ready** — JSON schema via `__schema` for LLM/agent integration
-- **DataAnnotations validation** — standard .NET validation attributes just work
-- **Fuzzy matching** — typo-tolerant command and option matching
+- **XML docs become help text**: document your parameters once, get `--help` for free.
+- **Source-generated**: no reflection, fully AOT-safe.
+- **Shell completions**: bash, zsh and fish out of the box.
+- **Agent-ready**: a JSON schema via `__schema` for LLM and agent integration.
+- **DataAnnotations validation**: standard .NET validation attributes just work.
+- **Fuzzy matching**: typo-tolerant command and option matching.
 
-## Documentation
+This package is a metapackage: it brings in [Nullean.Argh.Core](https://www.nuget.org/packages/Nullean.Argh.Core) and
+[Nullean.Argh.Interfaces](https://www.nuget.org/packages/Nullean.Argh.Interfaces), and no `Microsoft.Extensions.*`
+dependency. For `Microsoft.Extensions.Hosting` and DI, use [Nullean.Argh.Hosting](https://www.nuget.org/packages/Nullean.Argh.Hosting).
 
-Full documentation is available at [nullean.github.io/argh](https://nullean.github.io/argh/).
+## Learn more
 
-## License
-
-MIT — see [LICENSE](https://github.com/nullean/argh/blob/main/LICENSE) for details.
-
-## Links
-
-- [GitHub](https://github.com/nullean/argh)
-- [Documentation](https://nullean.github.io/argh/)
+- Documentation: https://argh.nullean.net
+- Source and issues: https://github.com/nullean/argh
