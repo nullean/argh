@@ -3,8 +3,8 @@
   <PropertyGroup>
     <UseArtifactsOutput>true</UseArtifactsOutput>
     <ArtifactsPath>$(MSBuildThisFileDirectory).artifacts</ArtifactsPath>
-    <!-- C# 14 extension members (static extensions on types) for generated ArghTypeBindingExtensions. -->
-    <LangVersion>preview</LangVersion>
+    <!-- C# 14 extension members for generated ArghTypeBindingExtensions; C# 15 unions for union-typed parameters. -->
+    <LangVersion>latest</LangVersion>
     <MinVerDefaultPreReleaseIdentifiers>canary.0</MinVerDefaultPreReleaseIdentifiers>
     <MinVerMinimumMajorMinor>0.1</MinVerMinimumMajorMinor>
   </PropertyGroup>
