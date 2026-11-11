@@ -19,8 +19,9 @@ mise run clean    # delete build output
 mise run release  # show the release draft; `mise run release publish` releases
 ```
 
-`mise tasks ls` lists them all. The tasks call the F# build in `build/scripts` (Argu + Bullseye); run a target
-directly with `dotnet run --project build/scripts -- <target>`, and `-s true` to skip its dependencies. Packages and
+`mise tasks ls` lists them all. The tasks call the F# build in `build/scripts`, written with this repository's own
+`Nullean.Make.Fs` (a `ProjectReference`, so a change to it is exercised by the build too). Run a target directly with
+`dotnet run --project build/scripts -- <target>`, and `-s` to skip what it requires. Packages and
 API reports go to `build/output`. `dotnet run --project build/scripts -- updateschema` regenerates
 `schema/argh-cli-schema.json`, which `mise run ci` fails on when it is out of date.
 
@@ -28,6 +29,9 @@ API reports go to `build/output`. `dotnet run --project build/scripts -- updates
 that RID-specific tool package comes before `assembly-differ`.
 
 `build.cs` is the same pipeline written with `Nullean.Make` (C#), kept as its complete example.
+
+In `build/scripts`, commands are Proc.Fs: a target's body is `target [deps] { sh $"…" }`, captures are `text`/`lines`,
+and helpers that compute a value are `shell { }` blocks. No `ProcNet` calls, no `exec "dotnet" [list]` wrappers.
 
 For a narrower loop, `dotnet test` works directly:
 

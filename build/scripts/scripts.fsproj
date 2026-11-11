@@ -3,20 +3,19 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
     <IsPackable>false</IsPackable>
+    <!-- Nullean.Make.Fs reads the target descriptions from the /// comments in Program.fs -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
     <!-- explicit: under central package management the SDK adds no FSharp.Core -->
     <PackageReference Include="FSharp.Core" />
-    <PackageReference Include="Argu" />
-    <PackageReference Include="Bullseye" />
-    <PackageReference Include="Proc" />
-    <PackageReference Include="Fake.Tools.Git" />
+    <!-- argh builds itself with the Nullean.Make.Fs in this repository; Proc.Fs comes with it -->
+    <ProjectReference Include="..\..\src\Nullean.Make.Fs\Nullean.Make.Fs.fsproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Paths.fs" />
-    <Compile Include="CommandLine.fs" />
+    <Compile Include="Versions.fs" />
     <Compile Include="Documentation.fs" />
-    <Compile Include="Targets.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
