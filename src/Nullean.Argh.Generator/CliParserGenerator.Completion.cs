@@ -56,6 +56,14 @@ public sealed partial class CliParserGenerator
 			foreach (var (_, _, _, _, _, flat, _) in chain)
 				list.AddRange(CollectCompletionFlagStrings(flat));
 			list.AddRange(CollectCompletionFlagStrings(cmd.Parameters));
+			foreach (var p in cmd.Parameters)
+			{
+				if (p.ScalarKind != CliScalarKind.Union)
+					continue;
+				var caseRows = new List<ParameterModel>();
+				AddUnionCasePropRows(caseRows, p);
+				list.AddRange(CollectCompletionFlagStrings(caseRows.ToImmutableArray()));
+			}
 			var distinct = list.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s => s, StringComparer.Ordinal).ToList();
 			EmitCompletionStringArray(sb, $"__c_flags_cmd_{cmd.RunMethodName}", distinct);
 		}

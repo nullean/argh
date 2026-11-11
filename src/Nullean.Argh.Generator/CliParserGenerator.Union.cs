@@ -98,8 +98,9 @@ public sealed partial class CliParserGenerator
 			ParserTypeFq: null,
 			CustomValueTypeFq: null,
 			IsRequired: false,
-			DefaultValueLiteral: UnionCasePropHelpDefault(prop),
-			Description: UnionBoolDefaultsTrue(prop) && description.Length > 0 ? description + " [default: true]" : description,
+			// A plain switch defaults to off, which goes without saying.
+			DefaultValueLiteral: prop.Special == BoolSpecialKind.Bool && !UnionBoolDefaultsTrue(prop) ? null : UnionCasePropHelpDefault(prop),
+			Description: description,
 			ShortOpt: null,
 			Aliases: ImmutableArray<string>.Empty,
 			EnumMemberCliNames: prop.EnumMemberCliNames,

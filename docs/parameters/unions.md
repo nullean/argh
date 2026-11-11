@@ -56,6 +56,10 @@ Options:
 
 In argument mode a shared flag appears once: `--pretty  Applies when <format> is table or json.`
 
+## Schema and completions
+
+`__schema` describes the selector as an `enum` whose values are the case names, followed by one parameter for each case flag. Shell completion offers the case flags of every case.
+
 ## Errors
 
 An unknown case name, a missing selector, or a case-flag value that does not parse exits with code `2`:

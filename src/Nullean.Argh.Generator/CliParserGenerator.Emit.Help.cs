@@ -905,7 +905,7 @@ public sealed partial class CliParserGenerator
 		if (!string.IsNullOrWhiteSpace(p.Description))
 			parts.Add(p.Description.Trim());
 
-		if (p.Special == BoolSpecialKind.None)
+		if (p.Special == BoolSpecialKind.None || (p.IsUnionCaseProp && p.DefaultValueLiteral == "true"))
 		{
 			if (p.DefaultValueLiteral is not null)
 				parts.Add($"[default: {FormatDefaultForHelp(p)}]");
