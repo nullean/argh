@@ -4,13 +4,7 @@ name: ci
 # release-drafter draft (web UI or phone) fires `release: published`, and the release job below runs on it.
 on:
   pull_request:
-    paths-ignore:
-      - 'README.md'
-      - '.editorconfig'
   push:
-    paths-ignore:
-      - 'README.md'
-      - '.editorconfig'
     branches: [main]
   release:
     types: [published]
