@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>Nullean.Make.Fs</AssemblyName>
+    <TargetFramework>net11.0</TargetFramework>
+    <RootNamespace>Nullean.Make.Fs</RootNamespace>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- FSharp.Core comes from Directory.Packages.props like every other package. -->
+    <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+
+    <!-- Nullean.Make grants InternalsVisibleTo to this assembly by public key. -->
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\build\keys\keypair.snk</AssemblyOriginatorKeyFile>
+
+    <PackageIcon>nuget-icon.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/nullean/argh</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/nullean/argh</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/nullean/argh/releases</PackageReleaseNotes>
+
+    <PackageId>Nullean.Make.Fs</PackageId>
+    <Title>Nullean.Make.Fs - F# DU-based build target DSL</Title>
+    <Description>F# DU/match binding over Nullean.Make — exhaustive, typed, namespaced build targets.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nullean.Make\Nullean.Make.csproj" />
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Proc.Fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Types.fs" />
+    <Compile Include="FsDtoBinder.fs" />
+    <Compile Include="FsGraphBuilder.fs" />
+    <Compile Include="MakeApp.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <Content Include="..\..\nuget-icon.png" CopyToOutputDirectory="PreserveNewest">
+      <Link>nuget-icon.png</Link>
+      <Pack>True</Pack>
+      <PackagePath>nuget-icon.png</PackagePath>
+    </Content>
+  </ItemGroup>
+
+</Project>
