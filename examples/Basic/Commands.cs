@@ -21,23 +21,19 @@ internal static class CommandHandlers
 	/// <summary>Greets someone by name.</summary>
 	/// <param name="name">-n,--name, Name to greet.</param>
 	[MiddlewareAttribute<PerCommandExampleMiddleware>]
-	public static void Hello(GlobalCliOptions g, string name) =>
-		Console.WriteLine($"basic:hello:{name}");
+	public static void Hello(GlobalCliOptions g, string name) => Console.WriteLine($"basic:hello:{name}");
 
 	/// <summary>Prints a colored status line.</summary>
 	/// <param name="color">-c,--color, Accent color.</param>
 	/// <param name="label">-l,--label, Short label.</param>
-	public static void Status(GlobalCliOptions g, ExampleColor color, string label) =>
-		Console.WriteLine($"basic:status:{color}:{label}");
+	public static void Status(GlobalCliOptions g, ExampleColor color, string label) => Console.WriteLine($"basic:status:{color}:{label}");
 
 	/// <summary>Deploy using a prefixed <c>app</c> parameter object.</summary>
-	public static void Deploy(GlobalCliOptions g, [AsParameters("app")] DeployAppArgs app) =>
-		Console.WriteLine($"basic:deploy:{app.Env}:{app.Port}");
+	public static void Deploy(GlobalCliOptions g, [AsParameters("app")] DeployAppArgs app) => Console.WriteLine($"basic:deploy:{app.Env}:{app.Port}");
 
 	/// <summary>Repeated <c>--label</c> flags build a list.</summary>
 	/// <param name="labels">--label, Labels to print.</param>
-	public static void Labels(GlobalCliOptions g, List<string> labels) =>
-		Console.WriteLine("basic:labels:" + string.Join(",", labels));
+	public static void Labels(GlobalCliOptions g, List<string> labels) => Console.WriteLine("basic:labels:" + string.Join(",", labels));
 }
 
 /// <summary>Command group <c>storage</c> with a nested <c>blob</c> subgroup.</summary>
@@ -54,8 +50,7 @@ internal sealed class StorageCommands(StorageCommandNamespaceOptions o)
 		private readonly StorageCommandNamespaceOptions _options = o;
 
 		/// <summary>Upload placeholder.</summary>
-		public void Upload() =>
-			Console.WriteLine("basic:storage:blob:upload");
+		public void Upload() => Console.WriteLine("basic:storage:blob:upload");
 	}
 }
 
@@ -69,6 +64,5 @@ internal sealed class ApiCommands(ApiNamespaceOptions o)
 
 	/// <summary>Health check with optional path.</summary>
 	/// <param name="segment">-s,--segment, Path segment.</param>
-	public void Health(string segment) =>
-		Console.WriteLine($"basic:api:health:{segment}");
+	public void Health(string segment) => Console.WriteLine($"basic:api:health:{segment}");
 }

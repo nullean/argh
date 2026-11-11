@@ -12,7 +12,8 @@ internal static class MakeIntrinsics
 	/// <returns>The exit code, or <c>null</c> when <paramref name="args"/> is an ordinary target invocation.</returns>
 	public static int? TryRun(string[] args, BuildGraph graph)
 	{
-		if (args.Length == 0 || args[0] != WrapperFiles.Command) return null;
+		if (args.Length == 0 || args[0] != WrapperFiles.Command)
+			return null;
 		return WrapperFiles.Run(args.AsSpan(1).ToArray(), graph, Console.Out, Console.Error);
 	}
 }
@@ -23,7 +24,8 @@ internal static class WrapperFiles
 	public const string Command = "__wrappers";
 	private const string DefaultOutDir = ".make";
 
-	private const string Usage = """
+	private const string Usage =
+		"""
 		Usage: __wrappers <sync|check> [options]
 
 		  sync     Write the wrapper include files that changed
@@ -49,7 +51,10 @@ internal static class WrapperFiles
 		}
 
 		Options options;
-		try { options = Parse(args); }
+		try
+		{
+			options = Parse(args);
+		}
 		catch (MakeException ex)
 		{
 			stderr.WriteLine(ex.Message);
@@ -82,18 +87,15 @@ internal static class WrapperFiles
 		var model = WrapperModel.From(graph, run, string.IsNullOrEmpty(prefix) ? null : prefix);
 		foreach (var e in emitters)
 		{
-			var clash = model.Targets
-				.GroupBy(t => model.NameOf(t, e.Separator), StringComparer.OrdinalIgnoreCase)
-				.FirstOrDefault(g => g.Count() > 1);
-			if (clash is null) continue;
+			var clash = model.Targets.GroupBy(t => model.NameOf(t, e.Separator), StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1);
+			if (clash is null)
+				continue;
 			var routes = string.Join(" and ", clash.Select(t => $"'{string.Join(" ", t.Route)}'"));
 			stderr.WriteLine($"{routes} would both be the {e.Key} task '{clash.Key}'. Rename one of them.");
 			return 2;
 		}
 
-		return options.Verb == "check"
-			? Check(model, emitters, outDir, stdout, stderr, options.Quiet)
-			: Sync(model, emitters, outDir, stdout, options);
+		return options.Verb == "check" ? Check(model, emitters, outDir, stdout, stderr, options.Quiet) : Sync(model, emitters, outDir, stdout, options);
 	}
 
 	private static int Sync(WrapperModel model, IReadOnlyList<IWrapperEmitter> emitters, string outDir, TextWriter stdout, Options options)
@@ -107,12 +109,14 @@ internal static class WrapperFiles
 			var exists = File.Exists(path);
 			if (exists && File.ReadAllText(path) == content)
 			{
-				if (!options.Quiet) stdout.WriteLine($"unchanged {Display(path)}");
+				if (!options.Quiet)
+					stdout.WriteLine($"unchanged {Display(path)}");
 				continue;
 			}
 			File.WriteAllText(path, content);
 			stdout.WriteLine($"wrote {Display(path)} ({model.Targets.Count} targets)");
-			if (!exists) created.Add(e);
+			if (!exists)
+				created.Add(e);
 		}
 
 		if (created.Count > 0 && !options.Quiet)
@@ -126,16 +130,20 @@ internal static class WrapperFiles
 		foreach (var e in emitters)
 		{
 			var path = Path.Combine(outDir, e.FileName);
-			if (!File.Exists(path)) stale.Add($"{Display(path)} is missing");
-			else if (File.ReadAllText(path) != e.Emit(model)) stale.Add($"{Display(path)} is out of date");
+			if (!File.Exists(path))
+				stale.Add($"{Display(path)} is missing");
+			else if (File.ReadAllText(path) != e.Emit(model))
+				stale.Add($"{Display(path)} is out of date");
 		}
 
 		if (stale.Count == 0)
 		{
-			if (!quiet) stdout.WriteLine($"{emitters.Count} wrapper file(s) up to date");
+			if (!quiet)
+				stdout.WriteLine($"{emitters.Count} wrapper file(s) up to date");
 			return 0;
 		}
-		foreach (var s in stale) stderr.WriteLine(s);
+		foreach (var s in stale)
+			stderr.WriteLine(s);
 		stderr.WriteLine($"Run: {model.Run} {Command} sync");
 		return 1;
 	}
@@ -146,18 +154,28 @@ internal static class WrapperFiles
 		foreach (var e in created)
 		{
 			var rel = Display(Path.Combine(outDir, e.FileName));
-			var target = e.Key switch { "mise" => "mise.toml", "make" => "Makefile", _ => "justfile" };
+			var target = e.Key switch
+			{
+				"mise" => "mise.toml",
+				"make" => "Makefile",
+				_ => "justfile"
+			};
 			stdout.WriteLine($"Add to {target}:");
-			foreach (var line in e.IncludeHint(rel).Split('\n')) stdout.WriteLine($"  {line}");
+			foreach (var line in e.IncludeHint(rel).Split('\n'))
+				stdout.WriteLine($"  {line}");
 			stdout.WriteLine();
 		}
 
 		// mise hooks keep every wrapper file fresh, so the output directory can be gitignored.
 		var syncArgs = new List<string> { Command, "sync", "--quiet" };
-		if (options.Run is not null && options.Run != DetectRun()) syncArgs.AddRange(["--run", ShellQuote(options.Run)]);
-		if (options.OutDir != DefaultOutDir) syncArgs.AddRange(["--out-dir", ShellQuote(options.OutDir)]);
-		if (options.Only is not null) syncArgs.AddRange(["--only", string.Join(",", options.Only)]);
-		if (model.Prefix is not null) syncArgs.AddRange(["--prefix", ShellQuote(model.Prefix)]);
+		if (options.Run is not null && options.Run != DetectRun())
+			syncArgs.AddRange(["--run", ShellQuote(options.Run)]);
+		if (options.OutDir != DefaultOutDir)
+			syncArgs.AddRange(["--out-dir", ShellQuote(options.OutDir)]);
+		if (options.Only is not null)
+			syncArgs.AddRange(["--only", string.Join(",", options.Only)]);
+		if (model.Prefix is not null)
+			syncArgs.AddRange(["--prefix", ShellQuote(model.Prefix)]);
 		var hook = $"{model.Run} {string.Join(" ", syncArgs)}";
 
 		stdout.WriteLine("To regenerate them from mise (then the directory can be gitignored), add to mise.toml:");
@@ -187,14 +205,23 @@ internal static class WrapperFiles
 		{
 			switch (args[i])
 			{
-				case "--run": run = Value(args, ref i); break;
-				case "--out-dir": outDir = Value(args, ref i); break;
-				case "--prefix": prefix = Value(args, ref i); break;
+				case "--run":
+					run = Value(args, ref i);
+					break;
+				case "--out-dir":
+					outDir = Value(args, ref i);
+					break;
+				case "--prefix":
+					prefix = Value(args, ref i);
+					break;
 				case "--only":
 					only = Value(args, ref i).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 					break;
-				case "--quiet": quiet = true; break;
-				default: throw new MakeException($"Unknown option '{args[i]}' for {Command} {verb}.", 2);
+				case "--quiet":
+					quiet = true;
+					break;
+				default:
+					throw new MakeException($"Unknown option '{args[i]}' for {Command} {verb}.", 2);
 			}
 		}
 		return new Options(verb, run, outDir, only, prefix, quiet);
@@ -202,7 +229,8 @@ internal static class WrapperFiles
 
 	private static string Value(string[] args, ref int i)
 	{
-		if (i + 1 >= args.Length) throw new MakeException($"Missing value for '{args[i]}'.", 2);
+		if (i + 1 >= args.Length)
+			throw new MakeException($"Missing value for '{args[i]}'.", 2);
 		return args[++i];
 	}
 
@@ -215,8 +243,13 @@ internal static class WrapperFiles
 			foreach (var key in only)
 			{
 				var e = WrapperEmitters.All.FirstOrDefault(x => string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase));
-				if (e is null) { unknown = key; return []; }
-				if (!selected.Contains(e)) selected.Add(e);
+				if (e is null)
+				{
+					unknown = key;
+					return [];
+				}
+				if (!selected.Contains(e))
+					selected.Add(e);
 			}
 			return selected;
 		}
@@ -231,29 +264,31 @@ internal static class WrapperFiles
 		foreach (var e in WrapperEmitters.All)
 		{
 			var path = Path.Combine(outDir, e.FileName);
-			if (!File.Exists(path)) continue;
+			if (!File.Exists(path))
+				continue;
 			string? run = null, prefix = null;
 			foreach (var line in File.ReadLines(path))
 			{
-				if (!line.StartsWith('#')) break;
-				if (line.StartsWith("# run: ", StringComparison.Ordinal)) run = line["# run: ".Length..];
-				else if (line.StartsWith("# prefix: ", StringComparison.Ordinal)) prefix = line["# prefix: ".Length..];
+				if (!line.StartsWith('#'))
+					break;
+				if (line.StartsWith("# run: ", StringComparison.Ordinal))
+					run = line["# run: ".Length..];
+				else if (line.StartsWith("# prefix: ", StringComparison.Ordinal))
+					prefix = line["# prefix: ".Length..];
 			}
-			if (run is not null) return (run, prefix);
+			if (run is not null)
+				return (run, prefix);
 		}
 		return (null, null);
 	}
 
 	/// <summary><c>dotnet run &lt;script&gt; --</c> for a file-based app (<c>dotnet run build.cs</c>), else null.</summary>
-	private static string? DetectRun() =>
-		EntryPointFile() is { } script ? $"dotnet run {ShellQuote(script)} --" : null;
+	private static string? DetectRun() => EntryPointFile() is { } script ? $"dotnet run {ShellQuote(script)} --" : null;
 
 	/// <summary>The file-based app's entry file, relative to the working directory, with forward slashes.</summary>
-	private static string? EntryPointFile() =>
-		AppContext.GetData("EntryPointFilePath") is string { Length: > 0 } path ? Display(path) : null;
+	private static string? EntryPointFile() => AppContext.GetData("EntryPointFilePath") is string { Length: > 0 } path ? Display(path) : null;
 
-	private static string Display(string path) =>
-		Path.GetRelativePath(Directory.GetCurrentDirectory(), Path.GetFullPath(path)).Replace('\\', '/');
+	private static string Display(string path) => Path.GetRelativePath(Directory.GetCurrentDirectory(), Path.GetFullPath(path)).Replace('\\', '/');
 
 	private static string ShellQuote(string value) =>
 		value.Length > 0 && value.All(c => char.IsLetterOrDigit(c) || c is '.' or '/' or '-' or '_' or ':' or ',')

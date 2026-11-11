@@ -22,7 +22,6 @@
                       PrivateAssets="all" />
   </ItemGroup>
 
-
   <ItemGroup>
     <PackageReference Include="TUnit" />
     <PackageReference Include="AwesomeAssertions" />

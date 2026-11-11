@@ -15,20 +15,17 @@ public static class CompletionProtocol
 	/// <summary>
 	/// Returns <see langword="true"/> when <paramref name="args"/> begins with <c>__complete</c> (candidate completion).
 	/// </summary>
-	public static bool IsCompleteInvocation(string[] args) =>
-		args is { Length: > 0 } && args[0] == "__complete";
+	public static bool IsCompleteInvocation(string[] args) => args is { Length: > 0 } && args[0] == "__complete";
 
 	/// <summary>
 	/// Returns <see langword="true"/> when <paramref name="args"/> begins with <c>__completion</c> (shell install script emission).
 	/// </summary>
-	public static bool IsCompletionScriptInvocation(string[] args) =>
-		args is { Length: > 0 } && args[0] == "__completion";
+	public static bool IsCompletionScriptInvocation(string[] args) => args is { Length: > 0 } && args[0] == "__completion";
 
 	/// <summary>
 	/// Returns <see langword="true"/> when <paramref name="args"/> is exactly <c>__schema</c> (JSON schema export).
 	/// </summary>
-	public static bool IsSchemaInvocation(string[] args) =>
-		args is { Length: 1 } && args[0] == "__schema";
+	public static bool IsSchemaInvocation(string[] args) => args is { Length: 1 } && args[0] == "__schema";
 
 	/// <summary>
 	/// Returns <see langword="true"/> when <paramref name="args"/> starts a meta-invocation (<c>__complete</c>, <c>__completion</c>, or <c>__schema</c>).

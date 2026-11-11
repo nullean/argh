@@ -45,15 +45,10 @@ public enum DynamicallyAccessedMemberTypes
 /// <summary>
 /// Indicates members accessed dynamically (reflection, DI registration, etc.).
 /// </summary>
-[AttributeUsage(
-	AttributeTargets.Field | AttributeTargets.ReturnValue | AttributeTargets.GenericParameter |
-	AttributeTargets.Parameter | AttributeTargets.Property | AttributeTargets.Method |
-	AttributeTargets.Class | AttributeTargets.Interface | AttributeTargets.Struct,
-	Inherited = false)]
+[AttributeUsage(AttributeTargets.Field | AttributeTargets.ReturnValue | AttributeTargets.GenericParameter | AttributeTargets.Parameter | AttributeTargets.Property | AttributeTargets.Method | AttributeTargets.Class | AttributeTargets.Interface | AttributeTargets.Struct, Inherited = false)]
 public sealed class DynamicallyAccessedMembersAttribute : Attribute
 {
-	public DynamicallyAccessedMembersAttribute(DynamicallyAccessedMemberTypes memberTypes) =>
-		MemberTypes = memberTypes;
+	public DynamicallyAccessedMembersAttribute(DynamicallyAccessedMemberTypes memberTypes) => MemberTypes = memberTypes;
 
 	public DynamicallyAccessedMemberTypes MemberTypes { get; }
 }

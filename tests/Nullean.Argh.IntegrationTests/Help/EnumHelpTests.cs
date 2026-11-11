@@ -5,16 +5,12 @@ namespace Nullean.Argh.IntegrationTests.Help;
 
 public class EnumHelpTests
 {
-	private static string TrimLines(string s) =>
-		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
+	private static string TrimLines(string s) => string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
 
 	[Test]
 	public void Enum_cmd_help_matches_expected_text()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"enum-cmd",
-			"--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "enum-cmd", "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		var expected = ($"""
@@ -40,10 +36,7 @@ public class EnumHelpTests
 	[Test]
 	public void ReadOnlySet_of_enum_lists_allowed_members_in_help()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"color-set",
-			"--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "color-set", "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		text.Should().Contain("Combination of: <red|blue>");

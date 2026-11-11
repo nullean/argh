@@ -56,28 +56,38 @@ public sealed class ArghNamespaceBuilder : IArghNamespaceBuilder
 	}
 
 	/// <inheritdoc />
-	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name) where TNs : class
+	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(
+		string name
+	) where TNs : class
 	{
 		_ = _inner.App.MapNamespace<TNs>(name);
 		return this;
 	}
 
 	/// <inheritdoc />
-	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name, Action<IArghBuilder> configure) where TNs : class
+	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(
+		string name,
+		Action<IArghBuilder> configure
+	) where TNs : class
 	{
 		_ = _inner.MapNamespace<TNs>(name, configure);
 		return this;
 	}
 
 	/// <inheritdoc />
-	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name, Action<IArghNamespaceBuilder> configure) where TNs : class
+	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(
+		string name,
+		Action<IArghNamespaceBuilder> configure
+	) where TNs : class
 	{
 		_ = _inner.App.MapNamespace<TNs>(name, configure);
 		return this;
 	}
 
 	/// <inheritdoc />
-	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(Action<IArghNamespaceBuilder> configure) where TNs : class
+	public IArghNamespaceBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(
+		Action<IArghNamespaceBuilder> configure
+	) where TNs : class
 	{
 		_ = _inner.App.MapNamespace<TNs>(configure);
 		return this;
@@ -132,32 +142,36 @@ public sealed class ArghNamespaceBuilder : IArghNamespaceBuilder
 		MapAndRootAlias<T>();
 
 	/// <inheritdoc />
-	IArghBuilder IArghBuilder.MapNamespace(string name, string description, Action<IArghBuilder> configure) =>
-		MapNamespace(name, description, configure);
+	IArghBuilder IArghBuilder.MapNamespace(string name, string description, Action<IArghBuilder> configure) => MapNamespace(name, description, configure);
 
 	/// <inheritdoc />
-	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name) where TNs : class =>
-		MapNamespace<TNs>(name);
+	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(
+		string name
+	) where TNs : class => MapNamespace<TNs>(name);
 
 	/// <inheritdoc />
-	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name, Action<IArghBuilder> configure) where TNs : class =>
-		MapNamespace<TNs>(name, configure);
+	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(
+		string name,
+		Action<IArghBuilder> configure
+	) where TNs : class => MapNamespace<TNs>(name, configure);
 
 	/// <inheritdoc />
-	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(string name, Action<IArghNamespaceBuilder> configure) where TNs : class =>
-		MapNamespace<TNs>(name, configure);
+	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(
+		string name,
+		Action<IArghNamespaceBuilder> configure
+	) where TNs : class => MapNamespace<TNs>(name, configure);
 
 	/// <inheritdoc />
-	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(Action<IArghNamespaceBuilder> configure) where TNs : class =>
-		MapNamespace<TNs>(configure);
+	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TNs>(
+		Action<IArghNamespaceBuilder> configure
+	) where TNs : class => MapNamespace<TNs>(configure);
 
 	/// <inheritdoc />
 	IArghBuilder IArghBuilder.UseNamespaceOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class =>
 		UseNamespaceOptions<T>();
 
 	/// <inheritdoc />
-	IArghBuilder IArghBuilder.UseMiddleware(Func<CommandContext, CommandMiddlewareDelegate, ValueTask> middleware) =>
-		UseMiddleware(middleware);
+	IArghBuilder IArghBuilder.UseMiddleware(Func<CommandContext, CommandMiddlewareDelegate, ValueTask> middleware) => UseMiddleware(middleware);
 
 	/// <inheritdoc />
 	IArghBuilder IArghBuilder.UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>() =>

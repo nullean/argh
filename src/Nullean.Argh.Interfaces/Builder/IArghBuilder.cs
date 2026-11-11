@@ -38,20 +38,28 @@ public interface IArghBuilder
 	/// Registers a nested namespace named <paramref name="name"/> sourced from <typeparamref name="T"/>, with additional configuration.
 	/// Every public method on <typeparamref name="T"/> becomes a command inside the namespace.
 	/// </summary>
-	IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghBuilder> configure) where T : class;
+	IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		string name,
+		Action<IArghBuilder> configure
+	) where T : class;
 
 	/// <summary>
 	/// Registers a nested namespace named <paramref name="name"/> sourced from <typeparamref name="T"/>, with namespace-builder configuration.
 	/// Every public method on <typeparamref name="T"/> becomes a command inside the namespace.
 	/// </summary>
-	IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghNamespaceBuilder> configure) where T : class;
+	IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		string name,
+		Action<IArghNamespaceBuilder> configure
+	) where T : class;
 
 	/// <summary>
 	/// Registers a nested namespace sourced from <typeparamref name="T"/>; the segment name is read from
 	/// <see cref="NamespaceSegmentAttribute"/> on <typeparamref name="T"/>.
 	/// Every public method on <typeparamref name="T"/> becomes a command inside the namespace.
 	/// </summary>
-	IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(Action<IArghNamespaceBuilder> configure) where T : class;
+	IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		Action<IArghNamespaceBuilder> configure
+	) where T : class;
 
 	/// <summary>
 	/// Hoists every public method on <typeparamref name="T"/> as a named command into the current scope, and designates

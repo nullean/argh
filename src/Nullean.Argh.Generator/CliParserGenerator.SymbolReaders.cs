@@ -20,8 +20,7 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var ad in method.GetAttributes())
 		{
-			if (ad.AttributeClass?.Name == "DefaultCommandAttribute" &&
-			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
+			if (ad.AttributeClass?.Name == "DefaultCommandAttribute" && ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
 				return true;
 		}
 
@@ -32,8 +31,7 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var ad in method.GetAttributes())
 		{
-			if (ad.AttributeClass?.Name == "CommandIntrinsicAttribute" &&
-			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
+			if (ad.AttributeClass?.Name == "CommandIntrinsicAttribute" && ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
 				return true;
 		}
 
@@ -44,14 +42,15 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var ad in symbol.GetAttributes())
 		{
-			if (ad.AttributeClass?.Name == "HiddenAttribute" &&
-			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
+			if (ad.AttributeClass?.Name == "HiddenAttribute" && ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
 			{
 				bool help = true, schema = false;
 				foreach (var na in ad.NamedArguments)
 				{
-					if (na.Key == "Help" && na.Value.Value is bool h) help = h;
-					if (na.Key == "Schema" && na.Value.Value is bool s) schema = s;
+					if (na.Key == "Help" && na.Value.Value is bool h)
+						help = h;
+					if (na.Key == "Schema" && na.Value.Value is bool s)
+						schema = s;
 				}
 				return (help, schema);
 			}
@@ -64,11 +63,10 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var ad in method.GetAttributes())
 		{
-			if (ad.AttributeClass?.Name == "CommandNameAttribute" &&
-			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh" &&
-			    ad.ConstructorArguments.Length >= 1 &&
-			    ad.ConstructorArguments[0].Value is string name &&
-			    !string.IsNullOrWhiteSpace(name))
+			if (
+				ad.AttributeClass?.Name == "CommandNameAttribute" && ad.AttributeClass.ContainingNamespace?.ToDisplayString() ==
+					"Nullean.Argh" && ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Value is string name && !string.IsNullOrWhiteSpace(name)
+			)
 				return name;
 		}
 
@@ -79,9 +77,10 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var ad in method.GetAttributes())
 		{
-			if (ad.AttributeClass?.Name == "CommandNameAttribute" &&
-			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh" &&
-			    ad.ConstructorArguments.Length >= 2)
+			if (
+				ad.AttributeClass?.Name == "CommandNameAttribute" && ad.AttributeClass.ContainingNamespace?.ToDisplayString() ==
+					"Nullean.Argh" && ad.ConstructorArguments.Length >= 2
+			)
 			{
 				var aliasArg = ad.ConstructorArguments[1];
 				if (aliasArg.Kind == TypedConstantKind.Array)
@@ -104,11 +103,11 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var ad in symbol.GetAttributes())
 		{
-			if (ad.AttributeClass?.Name == "EnvAttribute" &&
-			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh" &&
-			    ad.ConstructorArguments.Length >= 1 &&
-			    ad.ConstructorArguments[0].Value is string varName &&
-			    !string.IsNullOrWhiteSpace(varName))
+			if (
+				ad.AttributeClass?.Name == "EnvAttribute" && ad.AttributeClass.ContainingNamespace?.ToDisplayString() ==
+					"Nullean.Argh" && ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Value is string varName &&
+				!string.IsNullOrWhiteSpace(varName)
+			)
 			{
 				var treatEmpty = true;
 				foreach (var na in ad.NamedArguments)
@@ -126,12 +125,9 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var ad in symbol.GetAttributes())
 		{
-			if (ad.AttributeClass?.Name is "ObsoleteAttribute" or "Obsolete" &&
-			    (ad.AttributeClass.ContainingNamespace?.ToDisplayString() is "System" or ""))
+			if (ad.AttributeClass?.Name is "ObsoleteAttribute" or "Obsolete" && (ad.AttributeClass.ContainingNamespace?.ToDisplayString() is "System" or ""))
 			{
-				var msg = ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Value is string s && !string.IsNullOrWhiteSpace(s)
-					? s
-					: null;
+				var msg = ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Value is string s && !string.IsNullOrWhiteSpace(s) ? s : null;
 				return (true, msg);
 			}
 		}
@@ -148,29 +144,39 @@ public sealed partial class CliParserGenerator
 
 		foreach (var ad in method.GetAttributes())
 		{
-			if (ad.AttributeClass?.ContainingNamespace?.ToDisplayString() != DocNs) continue;
+			if (ad.AttributeClass?.ContainingNamespace?.ToDisplayString() != DocNs)
+				continue;
 
 			switch (ad.AttributeClass.Name)
 			{
 				case "CommandIntentAttribute":
-				{
-					// Constructor arg 0 is the Intent flags enum (underlying int)
-					// Destructive=1, Idempotent=2, RequiresConfirmation=4
-					var flagsInt = 0;
-					if (ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Value is int f)
-						flagsInt = f;
-					if ((flagsInt & 1) != 0) destructive = true;
-					if ((flagsInt & 2) != 0) idempotent = true;
-					if ((flagsInt & 4) != 0) requiresConfirmation = true;
-					break;
-				}
+					{
+						// Constructor arg 0 is the Intent flags enum (underlying int)
+						// Destructive=1, Idempotent=2, RequiresConfirmation=4
+						var flagsInt = 0;
+						if (ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Value is int f)
+							flagsInt = f;
+						if ((flagsInt & 1) != 0)
+							destructive = true;
+						if ((flagsInt & 2) != 0)
+							idempotent = true;
+						if ((flagsInt & 4) != 0)
+							requiresConfirmation = true;
+						break;
+					}
 				case "MutationScopeAttribute":
-				{
-					// Constructor arg 0 is MutationScope enum: 0=File, 1=Directory, 2=Global
-					if (ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Value is int s)
-						scope = s switch { 0 => "file", 1 => "directory", 2 => "global", _ => null };
-					break;
-				}
+					{
+						// Constructor arg 0 is MutationScope enum: 0=File, 1=Directory, 2=Global
+						if (ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Value is int s)
+							scope = s switch
+							{
+								0 => "file",
+								1 => "directory",
+								2 => "global",
+								_ => null
+							};
+						break;
+					}
 				case "RequiresAuthAttribute":
 					requiresAuth = true;
 					break;
@@ -186,8 +192,7 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var ad in symbol.GetAttributes())
 		{
-			if (ad.AttributeClass?.Name == "CommandOutputAttribute" &&
-			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == DocNs)
+			if (ad.AttributeClass?.Name == "CommandOutputAttribute" && ad.AttributeClass.ContainingNamespace?.ToDisplayString() == DocNs)
 			{
 				var formats = ImmutableArray<string>.Empty;
 				if (ad.ConstructorArguments.Length >= 1 && ad.ConstructorArguments[0].Kind == TypedConstantKind.Array)
@@ -210,8 +215,7 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var ad in symbol.GetAttributes())
 		{
-			if (ad.AttributeClass?.Name == "ConfirmationSkipAttribute" &&
-			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == DocNs)
+			if (ad.AttributeClass?.Name == "ConfirmationSkipAttribute" && ad.AttributeClass.ContainingNamespace?.ToDisplayString() == DocNs)
 				return true;
 		}
 		return false;
@@ -221,8 +225,7 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var ad in symbol.GetAttributes())
 		{
-			if (ad.AttributeClass?.Name == "DryRunAttribute" &&
-			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == DocNs)
+			if (ad.AttributeClass?.Name == "DryRunAttribute" && ad.AttributeClass.ContainingNamespace?.ToDisplayString() == DocNs)
 				return true;
 		}
 		return false;
@@ -232,7 +235,8 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var p in parameters)
 		{
-			if (!p.IsCommandOutput) continue;
+			if (!p.IsCommandOutput)
+				continue;
 			var flagName = "--" + p.CliLongName;
 			ImmutableArray<string> formats;
 			if (!p.CommandOutputExplicitFormats.IsDefaultOrEmpty)
@@ -252,8 +256,7 @@ public sealed partial class CliParserGenerator
 		return null;
 	}
 
-	private static AIDocumentEnvironmentVariables? AnalyzeDocumentEnvironmentVariables(
-		InvocationExpressionSyntax invocation, string filePath, int spanStart)
+	private static AIDocumentEnvironmentVariables? AnalyzeDocumentEnvironmentVariables(InvocationExpressionSyntax invocation, string filePath, int spanStart)
 	{
 		var varsBuilder = ImmutableArray.CreateBuilder<EnvVarDocEntry>();
 		var cfgBuilder = ImmutableArray.CreateBuilder<ConfigFileDocEntry>();
@@ -271,61 +274,63 @@ public sealed partial class CliParserGenerator
 				ImplicitObjectCreationExpressionSyntax i => i.ArgumentList,
 				_ => null
 			};
-			if (ctorArgs is null) continue;
+			if (ctorArgs is null)
+				continue;
 
 			// Determine type from name colon or array element pattern
-			var typeName = arg.Expression is ObjectCreationExpressionSyntax oce
-				? oce.Type.ToString()
-				: null;
+			var typeName = arg.Expression is ObjectCreationExpressionSyntax oce ? oce.Type.ToString() : null;
 			bool isConfigFile = typeName?.Contains("ConfigFile") == true || nameColon == "configFiles";
 
 			if (isConfigFile)
 			{
-				var path = ctorArgs.Arguments.Count >= 1
-					? TryGetStringLiteral(ctorArgs.Arguments[0].Expression)
-					: null;
-				if (path is null) continue;
+				var path = ctorArgs.Arguments.Count >= 1 ? TryGetStringLiteral(ctorArgs.Arguments[0].Expression) : null;
+				if (path is null)
+					continue;
 				string? desc = null;
 				bool req = false;
 				foreach (var ca in ctorArgs.Arguments)
 				{
 					var n = ca.NameColon?.Name.Identifier.Text;
-					if (n == "Description") desc = TryGetStringLiteral(ca.Expression);
-					if (n == "Required") req = TryGetBoolLiteral(ca.Expression) ?? false;
+					if (n == "Description")
+						desc = TryGetStringLiteral(ca.Expression);
+					if (n == "Required")
+						req = TryGetBoolLiteral(ca.Expression) ?? false;
 				}
 				cfgBuilder.Add(new ConfigFileDocEntry(path, desc, req));
 			}
 			else
 			{
-				var name = ctorArgs.Arguments.Count >= 1
-					? TryGetStringLiteral(ctorArgs.Arguments[0].Expression)
-					: null;
-				if (name is null) continue;
+				var name = ctorArgs.Arguments.Count >= 1 ? TryGetStringLiteral(ctorArgs.Arguments[0].Expression) : null;
+				if (name is null)
+					continue;
 				string? desc = null;
 				bool req = false;
 				string? defVal = null;
 				foreach (var ca in ctorArgs.Arguments)
 				{
 					var n = ca.NameColon?.Name.Identifier.Text;
-					if (n == "Description") desc = TryGetStringLiteral(ca.Expression);
-					if (n == "Required") req = TryGetBoolLiteral(ca.Expression) ?? false;
-					if (n == "DefaultValue") defVal = TryGetStringLiteral(ca.Expression);
+					if (n == "Description")
+						desc = TryGetStringLiteral(ca.Expression);
+					if (n == "Required")
+						req = TryGetBoolLiteral(ca.Expression) ?? false;
+					if (n == "DefaultValue")
+						defVal = TryGetStringLiteral(ca.Expression);
 				}
 				varsBuilder.Add(new EnvVarDocEntry(name, desc, req, defVal));
 			}
 		}
 
-		if (varsBuilder.Count == 0 && cfgBuilder.Count == 0) return null;
+		if (varsBuilder.Count == 0 && cfgBuilder.Count == 0)
+			return null;
 		return new AIDocumentEnvironmentVariables(filePath, spanStart, varsBuilder.ToImmutable(), cfgBuilder.ToImmutable());
 	}
 
-	private static bool? TryGetBoolLiteral(ExpressionSyntax expr) =>
-		expr.Kind() switch
-		{
-			Microsoft.CodeAnalysis.CSharp.SyntaxKind.TrueLiteralExpression => true,
-			Microsoft.CodeAnalysis.CSharp.SyntaxKind.FalseLiteralExpression => false,
-			_ => null
-		};
+	private static bool? TryGetBoolLiteral(ExpressionSyntax expr) => expr.Kind() switch
+	{
+		Microsoft.CodeAnalysis.CSharp.SyntaxKind.TrueLiteralExpression => true,
+		Microsoft.CodeAnalysis.CSharp.SyntaxKind.FalseLiteralExpression => false,
+		_ => null
+	};
 
 	private static ExpressionSyntax? TryGetPropertyInitializerValueSyntax(IPropertySymbol prop)
 	{
@@ -352,11 +357,7 @@ public sealed partial class CliParserGenerator
 	/// <summary>
 	/// Some initializer shapes yield a bare enum member name (e.g. <c>Information</c>). Emit must use a type-qualified form.
 	/// </summary>
-	private static string? QualifyOptionsEnumDefaultLiteral(
-		string? literal,
-		CliScalarKind sk,
-		string? enumFq,
-		ImmutableArray<string> enumMembers)
+	private static string? QualifyOptionsEnumDefaultLiteral(string? literal, CliScalarKind sk, string? enumFq, ImmutableArray<string> enumMembers)
 	{
 		if (literal is null || sk != CliScalarKind.Enum || string.IsNullOrEmpty(enumFq))
 			return literal;
@@ -380,8 +381,7 @@ public sealed partial class CliParserGenerator
 			return true;
 		try
 		{
-			return Convert.ToDecimal(fieldConst, CultureInfo.InvariantCulture) ==
-			       Convert.ToDecimal(literalConst, CultureInfo.InvariantCulture);
+			return Convert.ToDecimal(fieldConst, CultureInfo.InvariantCulture) == Convert.ToDecimal(literalConst, CultureInfo.InvariantCulture);
 		}
 		catch
 		{
@@ -401,34 +401,32 @@ public sealed partial class CliParserGenerator
 			case IFieldReferenceOperation { Field: var ef } when ef.IsStatic && (ef.HasConstantValue || ef.ContainingType?.TypeKind == TypeKind.Enum):
 				return ef.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			case ILiteralOperation lit when lit.ConstantValue.HasValue && lit.ConstantValue.Value is { } v:
-			{
-				var enm = lit.Type is INamedTypeSymbol litEnum && litEnum.TypeKind == TypeKind.Enum
-					? litEnum
-					: enumTypeHint is { TypeKind: TypeKind.Enum } hintEnum
-						? hintEnum
-						: null;
-				if (enm is not null)
 				{
-					foreach (var m in enm.GetMembers())
+					var enm = lit.Type is INamedTypeSymbol litEnum && litEnum.TypeKind == TypeKind.Enum
+						? litEnum
+						: enumTypeHint is { TypeKind: TypeKind.Enum } hintEnum ? hintEnum : null;
+					if (enm is not null)
 					{
-						if (m is not IFieldSymbol fld || !fld.HasConstantValue)
-							continue;
-						if (EnumConstantValuesEqual(fld.ConstantValue, lit.ConstantValue.Value))
-							return fld.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+						foreach (var m in enm.GetMembers())
+						{
+							if (m is not IFieldSymbol fld || !fld.HasConstantValue)
+								continue;
+							if (EnumConstantValuesEqual(fld.ConstantValue, lit.ConstantValue.Value))
+								return fld.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+						}
+
+						return null;
 					}
 
-					return null;
+					return v switch
+					{
+						string s => SymbolDisplay.FormatPrimitive(s, quoteStrings: true, useHexadecimalNumbers: false),
+						char ch => SymbolDisplay.FormatPrimitive(ch, quoteStrings: true, useHexadecimalNumbers: false),
+						bool b => b ? "true" : "false",
+						IFormattable => Convert.ToString(v, CultureInfo.InvariantCulture) ?? "default",
+						_ => "default"
+					};
 				}
-
-				return v switch
-				{
-					string s => SymbolDisplay.FormatPrimitive(s, quoteStrings: true, useHexadecimalNumbers: false),
-					char ch => SymbolDisplay.FormatPrimitive(ch, quoteStrings: true, useHexadecimalNumbers: false),
-					bool b => b ? "true" : "false",
-					IFormattable => Convert.ToString(v, CultureInfo.InvariantCulture) ?? "default",
-					_ => "default"
-				};
-			}
 			default:
 				return null;
 		}
@@ -493,14 +491,14 @@ public sealed partial class CliParserGenerator
 			switch (member)
 			{
 				case IPropertySymbol prop when prop.DeclaredAccessibility == Accessibility.Public && !prop.IsStatic:
-				{
-					if (prop.IsIndexer)
-						continue;
-					if (prop.GetMethod is null || prop.SetMethod is null)
-						continue;
-					members.Add(ParameterModel.FromOptionsProperty(prop, compilation, TryGetOptionsPropertyDefaultLiteral(prop, compilation)));
-					break;
-				}
+					{
+						if (prop.IsIndexer)
+							continue;
+						if (prop.GetMethod is null || prop.SetMethod is null)
+							continue;
+						members.Add(ParameterModel.FromOptionsProperty(prop, compilation, TryGetOptionsPropertyDefaultLiteral(prop, compilation)));
+						break;
+					}
 				case IFieldSymbol field when field.DeclaredAccessibility == Accessibility.Public && !field.IsStatic:
 					members.Add(ParameterModel.FromOptionsField(field, compilation, TryGetOptionsFieldDefaultLiteral(field, compilation)));
 					break;
@@ -516,7 +514,16 @@ public sealed partial class CliParserGenerator
 		var isGeneric = type.TypeParameters.Length > 0;
 
 		if (members.Count == 0)
-			return new OptionsTypeModel(typeFq, typeMetaName, baseNames, ImmutableArray<ParameterModel>.Empty, flattenedMembers, bestCtorParamOrder, isPublic, isGeneric);
+			return new OptionsTypeModel(
+				typeFq,
+				typeMetaName,
+				baseNames,
+				ImmutableArray<ParameterModel>.Empty,
+				flattenedMembers,
+				bestCtorParamOrder,
+				isPublic,
+				isGeneric
+			);
 
 		return new OptionsTypeModel(typeFq, typeMetaName, baseNames, members.ToImmutable(), flattenedMembers, bestCtorParamOrder, isPublic, isGeneric);
 	}
@@ -537,25 +544,25 @@ public sealed partial class CliParserGenerator
 				switch (member)
 				{
 					case IPropertySymbol prop when prop.DeclaredAccessibility == Accessibility.Public && !prop.IsStatic:
-					{
-						if (prop.IsIndexer)
-							continue;
-						if (prop.GetMethod is null || prop.SetMethod is null)
-							continue;
-						if (!seen.Add(prop.Name))
-							continue;
+						{
+							if (prop.IsIndexer)
+								continue;
+							if (prop.GetMethod is null || prop.SetMethod is null)
+								continue;
+							if (!seen.Add(prop.Name))
+								continue;
 
-						members.Add(ParameterModel.FromOptionsProperty(prop, compilation, TryGetOptionsPropertyDefaultLiteral(prop, compilation)));
-						break;
-					}
+							members.Add(ParameterModel.FromOptionsProperty(prop, compilation, TryGetOptionsPropertyDefaultLiteral(prop, compilation)));
+							break;
+						}
 					case IFieldSymbol field when field.DeclaredAccessibility == Accessibility.Public && !field.IsStatic:
-					{
-						if (!seen.Add(field.Name))
-							continue;
+						{
+							if (!seen.Add(field.Name))
+								continue;
 
-						members.Add(ParameterModel.FromOptionsField(field, compilation, TryGetOptionsFieldDefaultLiteral(field, compilation)));
-						break;
-					}
+							members.Add(ParameterModel.FromOptionsField(field, compilation, TryGetOptionsFieldDefaultLiteral(field, compilation)));
+							break;
+						}
 				}
 			}
 		}
@@ -572,9 +579,12 @@ public sealed partial class CliParserGenerator
 		IMethodSymbol? bestCtor = null;
 		foreach (var ctor in type.InstanceConstructors)
 		{
-			if (ctor.DeclaredAccessibility != Accessibility.Public) continue;
-			if (ctor.Parameters.Length == 0) continue;
-			if (!ctor.Parameters.All(p => byName.Contains(p.Name))) continue;
+			if (ctor.DeclaredAccessibility != Accessibility.Public)
+				continue;
+			if (ctor.Parameters.Length == 0)
+				continue;
+			if (!ctor.Parameters.All(p => byName.Contains(p.Name)))
+				continue;
 			if (bestCtor is null || ctor.Parameters.Length > bestCtor.Parameters.Length)
 				bestCtor = ctor;
 		}
@@ -586,8 +596,7 @@ public sealed partial class CliParserGenerator
 		return b.MoveToImmutable();
 	}
 
-	private static string GetMetadataNameStatic(ITypeSymbol t) =>
-		t.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+	private static string GetMetadataNameStatic(ITypeSymbol t) => t.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
 
 	private static ImmutableArray<string> CollectBaseTypeMetadataNames(INamedTypeSymbol type)
 	{
@@ -602,8 +611,6 @@ public sealed partial class CliParserGenerator
 			b.Add(GetMetadataNameStatic(iface));
 		return b.ToImmutable();
 	}
-
-
 
 	private static bool IsInjectedType(ITypeSymbol type)
 	{
@@ -673,23 +680,22 @@ public sealed partial class CliParserGenerator
 				elementType = arr.ElementType;
 				return true;
 			case INamedTypeSymbol named:
-			{
-				var def = named.OriginalDefinition;
-				var fq = def.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-				if (fq is "global::System.Collections.Generic.IEnumerable<T>"
-				    or "global::System.Collections.Generic.IReadOnlyList<T>"
-				    or "global::System.Collections.Generic.IReadOnlySet<T>"
-				    or "global::System.Collections.Generic.List<T>")
 				{
-					if (named.TypeArguments.Length == 1)
+					var def = named.OriginalDefinition;
+					var fq = def.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+					if (
+						fq is "global::System.Collections.Generic.IEnumerable<T>" or "global::System.Collections.Generic.IReadOnlyList<T>" or "global::System.Collections.Generic.IReadOnlySet<T>" or "global::System.Collections.Generic.List<T>"
+					)
 					{
-						elementType = named.TypeArguments[0];
-						return true;
+						if (named.TypeArguments.Length == 1)
+						{
+							elementType = named.TypeArguments[0];
+							return true;
+						}
 					}
-				}
 
-				return false;
-			}
+					return false;
+				}
 			default:
 				return false;
 		}
@@ -782,6 +788,4 @@ public sealed partial class CliParserGenerator
 			return false;
 		return prop.SetMethod is not null;
 	}
-
-
 }

@@ -154,12 +154,10 @@ public class UnionCasePropertyTypeTests
 
 	[Test]
 	public void Float_and_enum_case_flags_bind() =>
-		Out("union-shape", "--shape", "circle", "--circle-radius", "2.25", "--circle-fill", "dash")
-			.Should().Be("circle:radius=2.25:fill=Dashed");
+		Out("union-shape", "--shape", "circle", "--circle-radius", "2.25", "--circle-fill", "dash").Should().Be("circle:radius=2.25:fill=Dashed");
 
 	[Test]
-	public void Decimal_case_flag_binds() =>
-		Out("union-shape", "--shape", "rect", "--rect-width", "3.75").Should().Be("rect:width=3.75:rounded=True");
+	public void Decimal_case_flag_binds() => Out("union-shape", "--shape", "rect", "--rect-width", "3.75").Should().Be("rect:width=3.75:rounded=True");
 
 	[Test]
 	public void Bool_that_defaults_to_true_switches_off_with_no_prefix() =>

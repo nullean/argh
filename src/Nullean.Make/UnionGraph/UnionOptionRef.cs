@@ -12,12 +12,12 @@ public sealed class UnionOptionRef<T>
 
 	internal UnionOptionRef(string longName, string? shortName, string? description, T defaultValue, Func<string, T> parser)
 	{
-		Long        = longName;
-		Short       = shortName;
+		Long = longName;
+		Short = shortName;
 		Description = description;
 		DefaultValue = defaultValue;
-		_value      = defaultValue;
-		_parser     = parser;
+		_value = defaultValue;
+		_parser = parser;
 	}
 
 	/// <summary>Long flag name, e.g. <c>--token</c>.</summary>
@@ -36,12 +36,7 @@ public sealed class UnionOptionRef<T>
 	public T Value => _value;
 
 	internal void Set(string raw) => _value = _parser(raw);
-	internal void Reset()         => _value = DefaultValue;
+	internal void Reset() => _value = DefaultValue;
 }
 
-internal sealed record UnionOptionDecl(
-	string Long,
-	string? Short,
-	string? Description,
-	bool IsFlag,
-	Action<string> Set);
+internal sealed record UnionOptionDecl(string Long, string? Short, string? Description, bool IsFlag, Action<string> Set);

@@ -4,13 +4,21 @@ namespace Nullean.Make.Tests;
 
 public class NamespaceHelpBuild : MakeBuild
 {
-	public Target Clean => _ => _.Description("Delete artifacts").Executes(() => { });
+	public Target Clean =>
+		_ => _.Description("Delete artifacts").Executes(() =>
+		{ });
 
 	public class Schema : Namespace
 	{
-		public Target Update => _ => _.Description("Regenerate the schema").Executes(() => { });
-		public Target Validate => _ => _.Description("Fail if the schema is out of date").Executes(() => { });
-		public Target Internal => _ => _.Hidden().Executes(() => { });
+		public Target Update =>
+			_ => _.Description("Regenerate the schema").Executes(() =>
+			{ });
+		public Target Validate =>
+			_ => _.Description("Fail if the schema is out of date").Executes(() =>
+			{ });
+		public Target Internal =>
+			_ => _.Hidden().Executes(() =>
+			{ });
 	}
 }
 

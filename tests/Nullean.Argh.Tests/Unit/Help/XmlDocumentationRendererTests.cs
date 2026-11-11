@@ -9,7 +9,8 @@ public class XmlDocumentationRendererTests
 	[Test]
 	public void Summary_collapses_comment_line_breaks_to_one_output_line()
 	{
-		const string inner = """
+		const string inner =
+			"""
 			Demonstrates <c>x</c>, <see cref="System.Environment"/>,
 			<see langword="null"/>, <paramref name="n"/>.
 			""";

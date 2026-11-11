@@ -24,7 +24,8 @@ public sealed partial class CliParserGenerator
 		string? storeFieldName = null,
 		ImmutableArray<string>? storeBestCtorParamOrder = null,
 		string? entryAssemblyName = null,
-		ImmutableArray<ParameterModel>? deferLeadingRootAliasFlags = null)
+		ImmutableArray<ParameterModel>? deferLeadingRootAliasFlags = null
+	)
 	{
 		var defer = deferLeadingRootAliasFlags ?? ImmutableArray<ParameterModel>.Empty;
 
@@ -32,21 +33,15 @@ public sealed partial class CliParserGenerator
 		var flagMembers = members.Where(static p => p.Kind == ParameterKind.Flag).ToList();
 		var widthCandidates = new List<int> { "-h, --help".Length };
 		widthCandidates.AddRange(flagMembers.Select(static p => HelpLayout.FormatOptionLeftCell(p).Length));
-		var maxOptWidth = flagMembers.Count == 0
-			? "-h, --help".Length
-			: Math.Max(Math.Min(widthCandidates.Max(), 40), "-h, --help".Length);
+		var maxOptWidth = flagMembers.Count == 0 ? "-h, --help".Length : Math.Max(Math.Min(widthCandidates.Max(), 40), "-h, --help".Length);
 
 		if (flagMembers.Count > 0)
 			EmitOptionsTryParseFlagHelpPrinter(sb, methodName, flagMembers, maxOptWidth);
 
 		var flagHelpMethodName = methodName + "_FlagHelp_ToStdErr";
 		var emitRunHint = !string.IsNullOrEmpty(entryAssemblyName);
-		var runHintFailUnknown = emitRunHint
-			? $"\t\t\t\t\tConsole.Error.WriteLine(\"Run '{Escape(entryAssemblyName!)} --help' for usage.\");"
-			: null;
-		var runHintMissingLong = emitRunHint
-			? $"\t\t\t\t\t\t\tConsole.Error.WriteLine(\"Run '{Escape(entryAssemblyName!)} --help' for usage.\");"
-			: null;
+		var runHintFailUnknown = emitRunHint ? $"\t\t\t\t\tConsole.Error.WriteLine(\"Run '{Escape(entryAssemblyName!)} --help' for usage.\");" : null;
+		var runHintMissingLong = emitRunHint ? $"\t\t\t\t\t\t\tConsole.Error.WriteLine(\"Run '{Escape(entryAssemblyName!)} --help' for usage.\");" : null;
 
 		sb.AppendLine($"\t\tprivate static bool {methodName}(string[] args, int[] idx)");
 		sb.AppendLine("\t\t{");
@@ -258,7 +253,8 @@ public sealed partial class CliParserGenerator
 		string typeFq,
 		ImmutableArray<ParameterModel> members,
 		string storeFieldName,
-		ImmutableArray<string>? bestCtorParamOrder)
+		ImmutableArray<string>? bestCtorParamOrder
+	)
 	{
 		var byName = members.ToDictionary(static m => m.SymbolName, StringComparer.OrdinalIgnoreCase);
 
@@ -287,14 +283,14 @@ public sealed partial class CliParserGenerator
 			{
 				// Declare the local variable first (EmitParseAndAssign only assigns, does not declare).
 				// For cross-assembly runtime-default properties, seed from the pre-created instance.
-				var initializer = m.UsesRuntimeDefault && hasRtDefaults
-					? $"__rt_default.{m.SymbolName}"
-					: GetCliInitializer(m);
+				var initializer = m.UsesRuntimeDefault && hasRtDefaults ? $"__rt_default.{m.SymbolName}" : GetCliInitializer(m);
 				sb.AppendLine($"\t\t\t{GetCSharpCliType(m)} {m.LocalVarName} = {initializer};");
 				var canOmitFlag = !m.IsRequired || m.DefaultValueLiteral is not null;
 				if (canOmitFlag)
 				{
-					sb.AppendLine($"\t\t\tif (flags.TryGetValue(\"{Escape(m.CliLongName)}\", out var {m.LocalVarName}Text) && {m.LocalVarName}Text is not null)");
+					sb.AppendLine(
+						$"\t\t\tif (flags.TryGetValue(\"{Escape(m.CliLongName)}\", out var {m.LocalVarName}Text) && {m.LocalVarName}Text is not null)"
+					);
 					sb.AppendLine("\t\t\t{");
 					EmitParseAndAssign(sb, m, m.LocalVarName + "Text", m.LocalVarName, "return false", null);
 					sb.AppendLine("\t\t\t}");
@@ -317,7 +313,8 @@ public sealed partial class CliParserGenerator
 			sb.Append($"\t\t\t{storeFieldName} = new {typeFq}(");
 			for (var i = 0; i < ctorOrder.Length; i++)
 			{
-				if (i > 0) sb.Append(", ");
+				if (i > 0)
+					sb.Append(", ");
 				sb.Append(byName[ctorOrder[i]].LocalVarName);
 			}
 
@@ -364,9 +361,11 @@ public sealed partial class CliParserGenerator
 	private static void EmitOptionsReconstructLocals(
 		StringBuilder sb,
 		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> chain,
-		string? environmentPrefix = null)
+		string? environmentPrefix = null
+	)
 	{
-		if (chain.IsDefaultOrEmpty) return;
+		if (chain.IsDefaultOrEmpty)
+			return;
 
 		// Track which static provides the fallback for each CLI name (first in chain that declares it).
 		// Key = CliLongName, Value = "{staticFieldName}.{SymbolName}"
@@ -385,7 +384,8 @@ public sealed partial class CliParserGenerator
 
 		foreach (var (typeFq, _, _, _, localVar, flatMembers, bestCtorParamOrder) in chain)
 		{
-			if (flatMembers.IsEmpty) continue;
+			if (flatMembers.IsEmpty)
+				continue;
 			var byName = flatMembers.ToDictionary(static m => m.SymbolName, StringComparer.OrdinalIgnoreCase);
 
 			// Extract each member: command-level flags take precedence over pre-parsed static value.
@@ -394,14 +394,17 @@ public sealed partial class CliParserGenerator
 				var fallback = fallbackMap.TryGetValue(m.CliLongName, out var fb) ? fb : "default";
 				var tmpName = "__ropt_" + m.LocalVarName;
 				// Skip if already emitted by a parent type in the chain (inherited members appear in multiple flat lists).
-				if (!emittedTmpVars.Add(tmpName)) continue;
+				if (!emittedTmpVars.Add(tmpName))
+					continue;
 				if (m.Special == BoolSpecialKind.Bool)
 				{
 					var boolEnvVar = ComputeEffectiveEnvVarName(m, environmentPrefix);
 					if (boolEnvVar != null)
 					{
 						sb.AppendLine($"\t\t\tvar {tmpName}EnvRaw = global::System.Environment.GetEnvironmentVariable(\"{Escape(boolEnvVar)}\");");
-						sb.AppendLine($"\t\t\tvar {tmpName} = flags.ContainsKey(\"{Escape(m.CliLongName)}\") || ({tmpName}EnvRaw != null ? ({tmpName}EnvRaw != \"0\" && {tmpName}EnvRaw != \"false\" && {tmpName}EnvRaw.Length > 0) : {fallback});");
+						sb.AppendLine(
+							$"\t\t\tvar {tmpName} = flags.ContainsKey(\"{Escape(m.CliLongName)}\") || ({tmpName}EnvRaw != null ? ({tmpName}EnvRaw != \"0\" && {tmpName}EnvRaw != \"false\" && {tmpName}EnvRaw.Length > 0) : {fallback});"
+						);
 					}
 					else
 						sb.AppendLine($"\t\t\tvar {tmpName} = flags.ContainsKey(\"{Escape(m.CliLongName)}\") || {fallback};");
@@ -462,8 +465,7 @@ public sealed partial class CliParserGenerator
 								$"global::System.DateTimeOffset.TryParse({tmpName}Txt, System.Globalization.CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmpName}P) ? {tmpName}P : {tmpName}",
 							"DateTimeOffset?" =>
 								$"global::System.DateTimeOffset.TryParse({tmpName}Txt, System.Globalization.CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmpName}P) ? (global::System.DateTimeOffset?){tmpName}P : {tmpName}",
-							"TimeSpan" =>
-								$"global::Nullean.Argh.ArghTimeSpan.TryParse({tmpName}Txt, out var {tmpName}P) ? {tmpName}P : {tmpName}",
+							"TimeSpan" => $"global::Nullean.Argh.ArghTimeSpan.TryParse({tmpName}Txt, out var {tmpName}P) ? {tmpName}P : {tmpName}",
 							"TimeSpan?" =>
 								$"global::Nullean.Argh.ArghTimeSpan.TryParse({tmpName}Txt, out var {tmpName}P) ? (global::System.TimeSpan?){tmpName}P : {tmpName}",
 							"DateOnly" =>
@@ -485,7 +487,9 @@ public sealed partial class CliParserGenerator
 						var evVar = "__ev_ropt_" + m.LocalVarName;
 						sb.AppendLine($"\t\t\tif ({tmpName}Txt is not null)");
 						sb.AppendLine("\t\t\t{");
-						sb.AppendLine($"\t\t\t\tif (global::System.Enum.TryParse<{m.EnumTypeFq}>({tmpName}Txt, true, out var {evVar}) && global::System.Enum.IsDefined(typeof({m.EnumTypeFq}), {evVar}))");
+						sb.AppendLine(
+							$"\t\t\t\tif (global::System.Enum.TryParse<{m.EnumTypeFq}>({tmpName}Txt, true, out var {evVar}) && global::System.Enum.IsDefined(typeof({m.EnumTypeFq}), {evVar}))"
+						);
 						sb.AppendLine($"\t\t\t\t\t{tmpName} = {evVar};");
 						sb.AppendLine("\t\t\t}");
 					}
@@ -520,7 +524,9 @@ public sealed partial class CliParserGenerator
 					else if (m.ScalarKind == CliScalarKind.Uri)
 					{
 						var uriVar = "__uri_ropt_" + m.LocalVarName;
-						sb.AppendLine($"\t\t\tif ({tmpName}Txt is not null && global::System.Uri.TryCreate({tmpName}Txt, global::System.UriKind.RelativeOrAbsolute, out var {uriVar}))");
+						sb.AppendLine(
+							$"\t\t\tif ({tmpName}Txt is not null && global::System.Uri.TryCreate({tmpName}Txt, global::System.UriKind.RelativeOrAbsolute, out var {uriVar}))"
+						);
 						sb.AppendLine($"\t\t\t\t{tmpName} = {uriVar};");
 					}
 					else if (m.ScalarKind == CliScalarKind.CustomParser && m.ParserTypeFq is not null)
@@ -543,7 +549,8 @@ public sealed partial class CliParserGenerator
 				sb.Append($"\t\t\tvar {localVar} = new {typeFq}(");
 				for (var i = 0; i < ctorOrder.Length; i++)
 				{
-					if (i > 0) sb.Append(", ");
+					if (i > 0)
+						sb.Append(", ");
 					sb.Append("__ropt_" + byName[ctorOrder[i]].LocalVarName);
 				}
 				sb.AppendLine(");");
@@ -557,8 +564,15 @@ public sealed partial class CliParserGenerator
 		}
 	}
 
-	private static void EmitBindCollectionParameter(StringBuilder sb, ParameterModel p, bool multiFlagsAvailable, string failureExit = "return 2", string? helpMethodName = null,
-		string? flagHelpStdErrMethodName = null, string? parseFailureRunHint = null)
+	private static void EmitBindCollectionParameter(
+		StringBuilder sb,
+		ParameterModel p,
+		bool multiFlagsAvailable,
+		string failureExit = "return 2",
+		string? helpMethodName = null,
+		string? flagHelpStdErrMethodName = null,
+		string? parseFailureRunHint = null
+	)
 	{
 		var flagKey = Escape(p.CliLongName);
 		var acc = p.LocalVarName + "_acc";
@@ -585,7 +599,18 @@ public sealed partial class CliParserGenerator
 			sb.AppendLine($"\t\t\t\tforeach (var __part in {p.LocalVarName}Joined.Split(__sep_{p.LocalVarName}, StringSplitOptions.None))");
 			sb.AppendLine("\t\t\t\t{");
 			sb.AppendLine("\t\t\t\t\tif (string.IsNullOrEmpty(__part)) continue;");
-			EmitParseFromString(sb, elemModel, "__part", "__ce_" + p.LocalVarName, indentExtra: "\t\t", outVarKeyword: true, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
+			EmitParseFromString(
+				sb,
+				elemModel,
+				"__part",
+				"__ce_" + p.LocalVarName,
+				indentExtra: "\t\t",
+				outVarKeyword: true,
+				failureExit: failureExit,
+				helpMethodName: helpMethodName,
+				flagHelpStdErrMethodName: flagHelpStdErrMethodName,
+				parseFailureRunHint: parseFailureRunHint
+			);
 			if (p.CollectionTargetIsReadOnlySet)
 			{
 				sb.AppendLine($"\t\t\t\t\tif (!{acc}.Add(__ce_{p.LocalVarName}))");
@@ -610,7 +635,18 @@ public sealed partial class CliParserGenerator
 			sb.AppendLine($"\t\t\t\t__rawList_{p.LocalVarName} = new List<string>();");
 			sb.AppendLine($"\t\t\tforeach (var __raw in __rawList_{p.LocalVarName})");
 			sb.AppendLine("\t\t\t{");
-			EmitParseFromString(sb, elemModel, "__raw", "__ce_" + p.LocalVarName, indentExtra: "\t", outVarKeyword: true, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
+			EmitParseFromString(
+				sb,
+				elemModel,
+				"__raw",
+				"__ce_" + p.LocalVarName,
+				indentExtra: "\t",
+				outVarKeyword: true,
+				failureExit: failureExit,
+				helpMethodName: helpMethodName,
+				flagHelpStdErrMethodName: flagHelpStdErrMethodName,
+				parseFailureRunHint: parseFailureRunHint
+			);
 			if (p.CollectionTargetIsReadOnlySet)
 			{
 				sb.AppendLine($"\t\t\t\tif (!{acc}.Add(__ce_{p.LocalVarName}))");
@@ -660,10 +696,7 @@ public sealed partial class CliParserGenerator
 			if (!mp.IsAsParameters)
 				continue;
 
-			var group = cmd.Parameters
-				.Where(p => p.AsParametersOwnerParamName == mp.Name)
-				.OrderBy(p => p.AsParametersMemberOrder)
-				.ToArray();
+			var group = cmd.Parameters.Where(p => p.AsParametersOwnerParamName == mp.Name).OrderBy(p => p.AsParametersMemberOrder).ToArray();
 			if (group.Length == 0)
 				continue;
 
@@ -704,10 +737,7 @@ public sealed partial class CliParserGenerator
 
 	private static void EmitAsParametersConstructionForDto(StringBuilder sb, CommandModel cmd)
 	{
-		var group = cmd.Parameters
-			.Where(static p => p.AsParametersOwnerParamName is not null)
-			.OrderBy(static p => p.AsParametersMemberOrder)
-			.ToArray();
+		var group = cmd.Parameters.Where(static p => p.AsParametersOwnerParamName is not null).OrderBy(static p => p.AsParametersMemberOrder).ToArray();
 		if (group.Length == 0)
 		{
 			sb.AppendLine("\t\t\treturn false;");
@@ -728,9 +758,7 @@ public sealed partial class CliParserGenerator
 		{
 			if (i > 0)
 				sb.Append(", ");
-			sb.Append(ctor[i].Kind == ParameterKind.Injected
-				? "default(global::System.Threading.CancellationToken)"
-				: ctor[i].LocalVarName);
+			sb.Append(ctor[i].Kind == ParameterKind.Injected ? "default(global::System.Threading.CancellationToken)" : ctor[i].LocalVarName);
 		}
 
 		sb.Append(")");
@@ -740,9 +768,7 @@ public sealed partial class CliParserGenerator
 			sb.AppendLine("\t\t\t{");
 			foreach (var ip in init)
 			{
-				var rhs = ip.Kind == ParameterKind.Injected
-					? "default(global::System.Threading.CancellationToken)"
-					: ip.LocalVarName;
+				var rhs = ip.Kind == ParameterKind.Injected ? "default(global::System.Threading.CancellationToken)" : ip.LocalVarName;
 				sb.AppendLine($"\t\t\t\t{ip.AsParametersClrName} = {rhs},");
 			}
 
@@ -760,7 +786,9 @@ public sealed partial class CliParserGenerator
 	/// <summary>Ends a DTO try-parse: runs the registered validator over <c>value</c> (errors already printed, like the built-in checks) and returns false when it fails.</summary>
 	private static void EmitDtoRegisteredValidationAndReturn(StringBuilder sb, List<(string Member, string Flag)> flags)
 	{
-		sb.AppendLine($"\t\t\tif (global::Nullean.Argh.Validation.ArghValidation.HasValidators && !global::Nullean.Argh.Validation.ArghValidation.Validate(value, {MemberFlagsLiteral(flags)}, out _))");
+		sb.AppendLine(
+			$"\t\t\tif (global::Nullean.Argh.Validation.ArghValidation.HasValidators && !global::Nullean.Argh.Validation.ArghValidation.Validate(value, {MemberFlagsLiteral(flags)}, out _))"
+		);
 		sb.AppendLine("\t\t\t{");
 		sb.AppendLine("\t\t\t\tvalue = null;");
 		sb.AppendLine("\t\t\t\treturn false;");
@@ -769,7 +797,12 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\treturn true;");
 	}
 
-	private static void EmitOptionsDtoConstructionAndReturn(StringBuilder sb, string typeFq, ImmutableArray<ParameterModel> members, ImmutableArray<string>? bestCtorParamOrder)
+	private static void EmitOptionsDtoConstructionAndReturn(
+		StringBuilder sb,
+		string typeFq,
+		ImmutableArray<ParameterModel> members,
+		ImmutableArray<string>? bestCtorParamOrder
+	)
 	{
 		var byName = members.ToDictionary(static m => m.SymbolName, StringComparer.OrdinalIgnoreCase);
 
@@ -796,15 +829,15 @@ public sealed partial class CliParserGenerator
 		EmitDtoRegisteredValidationAndReturn(sb, members.Select(static m => (m.SymbolName, m.CliLongName)).ToList());
 	}
 
-	private static string AsParametersConstructedVarName(string methodParameterName) =>
-		"__as_" + Naming.SanitizeIdentifier(methodParameterName);
+	private static string AsParametersConstructedVarName(string methodParameterName) => "__as_" + Naming.SanitizeIdentifier(methodParameterName);
 
 	private static void EmitValidationChecks(
 		StringBuilder sb,
 		CommandModel cmd,
 		string failureExit,
 		string? entryAssemblyName,
-		string? flagHelpStdErrMethodName = null)
+		string? flagHelpStdErrMethodName = null
+	)
 	{
 		foreach (var p in cmd.Parameters)
 		{
@@ -820,9 +853,7 @@ public sealed partial class CliParserGenerator
 			string? runHint = null;
 			if (entryAssemblyName is not null && !string.IsNullOrEmpty(cmd.CommandName))
 			{
-				var route = cmd.RoutePrefix.IsDefaultOrEmpty
-					? ""
-					: string.Join(" ", cmd.RoutePrefix) + " ";
+				var route = cmd.RoutePrefix.IsDefaultOrEmpty ? "" : string.Join(" ", cmd.RoutePrefix) + " ";
 				runHint = $"Run '{Escape(entryAssemblyName)} {Escape(route)}{Escape(cmd.CommandName)} --help' for usage.";
 			}
 
@@ -838,56 +869,99 @@ public sealed partial class CliParserGenerator
 
 				switch (constraint)
 				{
-					case RangeConstraint r:                         EmitRangeConstraintCheck(sb, r, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case TimeSpanRangeConstraint tsr:               EmitTimeSpanRangeConstraintCheck(sb, tsr, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case CollectionCountConstraint cc:              EmitCollectionCountConstraintCheck(sb, cc, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case StringLengthConstraint s:                  EmitStringLengthConstraintCheck(sb, s, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case RegexConstraint rx:                        EmitRegexConstraintCheck(sb, rx, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case AllowedValuesConstraint av:                EmitAllowedValuesConstraintCheck(sb, av, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case DeniedValuesConstraint dv:                 EmitDeniedValuesConstraintCheck(sb, dv, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case EmailConstraint:                           EmitEmailConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case UrlConstraint:                             EmitUrlConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case UriSchemeConstraint us:                    EmitUriSchemeConstraintCheck(sb, us, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case RejectSymbolicLinksConstraint:             EmitRejectSymbolicLinksConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case ExistingPathConstraint:                    EmitExistingPathConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case NonExistingPathConstraint:                 EmitNonExistingPathConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
-					case FileExtensionsConstraint fe:               EmitFileExtensionsConstraintCheck(sb, fe, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint); break;
+					case RangeConstraint r:
+						EmitRangeConstraintCheck(sb, r, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case TimeSpanRangeConstraint tsr:
+						EmitTimeSpanRangeConstraintCheck(sb, tsr, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case CollectionCountConstraint cc:
+						EmitCollectionCountConstraintCheck(sb, cc, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case StringLengthConstraint s:
+						EmitStringLengthConstraintCheck(sb, s, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case RegexConstraint rx:
+						EmitRegexConstraintCheck(sb, rx, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case AllowedValuesConstraint av:
+						EmitAllowedValuesConstraintCheck(sb, av, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case DeniedValuesConstraint dv:
+						EmitDeniedValuesConstraintCheck(sb, dv, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case EmailConstraint:
+						EmitEmailConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case UrlConstraint:
+						EmitUrlConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case UriSchemeConstraint us:
+						EmitUriSchemeConstraintCheck(sb, us, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case RejectSymbolicLinksConstraint:
+						EmitRejectSymbolicLinksConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case ExistingPathConstraint:
+						EmitExistingPathConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case NonExistingPathConstraint:
+						EmitNonExistingPathConstraintCheck(sb, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
+					case FileExtensionsConstraint fe:
+						EmitFileExtensionsConstraintCheck(sb, fe, p, cliName, varName, failureExit, flagHelpStdErrMethodName, runHint);
+						break;
 				}
 			}
 		}
 	}
 
-
 	private static void EmitRangeConstraintCheck(
-		StringBuilder sb, RangeConstraint r, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		RangeConstraint r,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
-		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None
-			&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string"
-			&& p.TypeName.EndsWith("?", StringComparison.Ordinal);
+		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None && p.ScalarKind == CliScalarKind.Primitive && p.TypeName !=
+			"string" && p.TypeName.EndsWith("?", StringComparison.Ordinal);
 		var guard = isNullableValueType ? $"{varName}.HasValue && (" : "";
 		var closeGuard = isNullableValueType ? ")" : "";
 		var access = isNullableValueType ? $"{varName}.Value" : varName;
 		sb.AppendLine($"\t\t\tif ({guard}{access} < {r.MinLiteral} || {access} > {r.MaxLiteral}{closeGuard})");
 		sb.AppendLine("\t\t\t{");
-		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(r.MinLiteral.Trim('"'))} and {Escape(r.MaxLiteral.Trim('"'))}.\");");
+		sb.AppendLine(
+			$"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(r.MinLiteral.Trim('"'))} and {Escape(r.MaxLiteral.Trim('"'))}.\");"
+		);
 		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 		sb.AppendLine($"\t\t\t\t{failureExit};");
 		sb.AppendLine("\t\t\t}");
 	}
 
 	private static void EmitTimeSpanRangeConstraintCheck(
-		StringBuilder sb, TimeSpanRangeConstraint tsr, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		TimeSpanRangeConstraint tsr,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
-		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None
-			&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string"
-			&& p.TypeName.EndsWith("?", StringComparison.Ordinal);
+		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None && p.ScalarKind == CliScalarKind.Primitive && p.TypeName !=
+			"string" && p.TypeName.EndsWith("?", StringComparison.Ordinal);
 		var tsMin = "__tsRangeMin_" + varName;
 		var tsMax = "__tsRangeMax_" + varName;
-		sb.AppendLine($"\t\t\tif (!global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MinLiteral}, out var {tsMin}) || !global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MaxLiteral}, out var {tsMax}))");
+		sb.AppendLine(
+			$"\t\t\tif (!global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MinLiteral}, out var {tsMin}) || !global::Nullean.Argh.ArghTimeSpan.TryParse({tsr.MaxLiteral}, out var {tsMax}))"
+		);
 		sb.AppendLine("\t\t\t{");
 		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: invalid TimeSpanRange bounds.\");");
 		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
@@ -898,15 +972,24 @@ public sealed partial class CliParserGenerator
 		var access = isNullableValueType ? $"{varName}.Value" : varName;
 		sb.AppendLine($"\t\t\tif ({guard}{access} < {tsMin} || {access} > {tsMax}{closeGuard})");
 		sb.AppendLine("\t\t\t{");
-		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(tsr.MinLiteral.Trim('"'))} and {Escape(tsr.MaxLiteral.Trim('"'))}.\");");
+		sb.AppendLine(
+			$"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value must be between {Escape(tsr.MinLiteral.Trim('"'))} and {Escape(tsr.MaxLiteral.Trim('"'))}.\");"
+		);
 		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
 		sb.AppendLine($"\t\t\t\t{failureExit};");
 		sb.AppendLine("\t\t\t}");
 	}
 
 	private static void EmitCollectionCountConstraintCheck(
-		StringBuilder sb, CollectionCountConstraint cc, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		CollectionCountConstraint cc,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var lenExpr = p.CollectionTargetIsArray ? $"{varName}.Length" : $"{varName}.Count";
 		var nullGuard = !p.IsRequired && p.DeclaredNullableAnnotated ? $"{varName} != null && " : "";
@@ -937,8 +1020,15 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitStringLengthConstraintCheck(
-		StringBuilder sb, StringLengthConstraint s, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		StringLengthConstraint s,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
 		// For required non-nullable strings: access with ! to avoid introducing a null-path
@@ -972,8 +1062,15 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitRegexConstraintCheck(
-		StringBuilder sb, RegexConstraint rx, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		RegexConstraint rx,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
 		var rv = isNullable ? varName : varName + "!";
@@ -989,21 +1086,25 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitAllowedValuesConstraintCheck(
-		StringBuilder sb, AllowedValuesConstraint av, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		AllowedValuesConstraint av,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
-		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None
-			&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string"
-			&& p.TypeName.EndsWith("?", StringComparison.Ordinal);
+		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None && p.ScalarKind == CliScalarKind.Primitive && p.TypeName !=
+			"string" && p.TypeName.EndsWith("?", StringComparison.Ordinal);
 		var isStringType = p.TypeName == "string";
 		string cond;
 		if (isStringType)
 		{
 			var avv = isNullable ? varName : varName + "!";
-			var checks = av.Values
-				.Select(v => $"!string.Equals({avv}, {v}, global::System.StringComparison.Ordinal)")
-				.ToList();
+			var checks = av.Values.Select(v => $"!string.Equals({avv}, {v}, global::System.StringComparison.Ordinal)").ToList();
 			var nullGuard = isNullable ? $"{varName} != null && " : "";
 			cond = $"{nullGuard}({string.Join(" && ", checks)})";
 		}
@@ -1024,21 +1125,25 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitDeniedValuesConstraintCheck(
-		StringBuilder sb, DeniedValuesConstraint dv, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		DeniedValuesConstraint dv,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
-		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None
-			&& p.ScalarKind == CliScalarKind.Primitive && p.TypeName != "string"
-			&& p.TypeName.EndsWith("?", StringComparison.Ordinal);
+		var isNullableValueType = isNullable && p.Special == BoolSpecialKind.None && p.ScalarKind == CliScalarKind.Primitive && p.TypeName !=
+			"string" && p.TypeName.EndsWith("?", StringComparison.Ordinal);
 		var isStringType = p.TypeName == "string";
 		string cond;
 		if (isStringType)
 		{
 			var dvv = isNullable ? varName : varName + "!";
-			var checks = dv.Values
-				.Select(v => $"string.Equals({dvv}, {v}, global::System.StringComparison.Ordinal)")
-				.ToList();
+			var checks = dv.Values.Select(v => $"string.Equals({dvv}, {v}, global::System.StringComparison.Ordinal)").ToList();
 			var nullGuard = isNullable ? $"{varName} != null && " : "";
 			cond = $"{nullGuard}({string.Join(" || ", checks)})";
 		}
@@ -1059,8 +1164,14 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitEmailConstraintCheck(
-		StringBuilder sb, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
 		// Simple email check: at least one char, @, at least one char (DataAnnotations-compatible)
@@ -1077,14 +1188,22 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitUrlConstraintCheck(
-		StringBuilder sb, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
 		// Validates absolute URL with http, https, or ftp scheme
 		sb.AppendLine($"\t\t\tif ({(isNullable ? $"{varName} != null && " : "")}!");
 		sb.AppendLine($"\t\t\t\t(global::System.Uri.TryCreate({varName}, global::System.UriKind.Absolute, out var __urlCheck_{varName}) &&");
-		sb.AppendLine($"\t\t\t\t (__urlCheck_{varName}.Scheme == \"http\" || __urlCheck_{varName}.Scheme == \"https\" || __urlCheck_{varName}.Scheme == \"ftp\")))");
+		sb.AppendLine(
+			$"\t\t\t\t (__urlCheck_{varName}.Scheme == \"http\" || __urlCheck_{varName}.Scheme == \"https\" || __urlCheck_{varName}.Scheme == \"ftp\")))"
+		);
 		sb.AppendLine("\t\t\t{");
 		sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"Error: --{Escape(cliName)}: value is not a valid URL.\");");
 		EmitValidationErrorFooter(sb, p, cliName, "\t\t\t\t", flagHelpStdErrMethodName, runHint);
@@ -1093,15 +1212,20 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitUriSchemeConstraintCheck(
-		StringBuilder sb, UriSchemeConstraint us, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		UriSchemeConstraint us,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
 		// varName is a Uri? or Uri instance (already parsed)
 		var access = isNullable ? $"{varName}!" : varName;
-		var schemeChecks = us.Schemes
-			.Select(s => $"{access}.Scheme == \"{Escape(s)}\"")
-			.ToList();
+		var schemeChecks = us.Schemes.Select(s => $"{access}.Scheme == \"{Escape(s)}\"").ToList();
 		var nullGuard = isNullable ? $"{varName} != null && " : "";
 		var displaySchemes = string.Join(", ", us.Schemes);
 		sb.AppendLine($"\t\t\tif ({nullGuard}(!{access}.IsAbsoluteUri || !({string.Join(" || ", schemeChecks)})))");
@@ -1113,8 +1237,14 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitRejectSymbolicLinksConstraintCheck(
-		StringBuilder sb, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
 		var access = isNullable ? $"{varName}!" : varName;
@@ -1128,8 +1258,14 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitExistingPathConstraintCheck(
-		StringBuilder sb, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
 		var access = isNullable ? $"{varName}!" : varName;
@@ -1155,8 +1291,14 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitNonExistingPathConstraintCheck(
-		StringBuilder sb, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
 		var access = isNullable ? $"{varName}!" : varName;
@@ -1173,14 +1315,25 @@ public sealed partial class CliParserGenerator
 	}
 
 	private static void EmitFileExtensionsConstraintCheck(
-		StringBuilder sb, FileExtensionsConstraint fe, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		FileExtensionsConstraint fe,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		var isNullable = !p.IsRequired;
 		// varName is a FileInfo? or FileInfo instance
 		var access = isNullable ? $"{varName}!" : varName;
-		var extChecks = fe.Extensions
-			.Select(ext => $"!string.Equals(global::System.IO.Path.GetExtension({access}.Name).TrimStart('.'), \"{Escape(ext)}\", global::System.StringComparison.OrdinalIgnoreCase)")
+		var extChecks = fe
+			.Extensions
+			.Select(
+				ext =>
+					$"!string.Equals(global::System.IO.Path.GetExtension({access}.Name).TrimStart('.'), \"{Escape(ext)}\", global::System.StringComparison.OrdinalIgnoreCase)"
+			)
 			.ToList();
 		var nullGuard = isNullable ? $"{varName} != null && " : "";
 		var displayExts = string.Join(", ", fe.Extensions);
@@ -1204,8 +1357,14 @@ public sealed partial class CliParserGenerator
 	/// passing e.g. five files with two missing sees both, not just the first.
 	/// </summary>
 	private static void EmitCollectionFilesystemValidation(
-		StringBuilder sb, ParameterModel p, string cliName, string varName,
-		string failureExit, string? flagHelpStdErrMethodName, string? runHint)
+		StringBuilder sb,
+		ParameterModel p,
+		string cliName,
+		string varName,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? runHint
+	)
 	{
 		if (p.Validations.IsDefaultOrEmpty)
 			return;
@@ -1258,19 +1417,25 @@ public sealed partial class CliParserGenerator
 					}
 					break;
 				case NonExistingPathConstraint:
-					sb.AppendLine($"{bodyIndent}if (global::System.IO.File.Exists({itemVar}.FullName) || global::System.IO.Directory.Exists({itemVar}.FullName))");
+					sb.AppendLine(
+						$"{bodyIndent}if (global::System.IO.File.Exists({itemVar}.FullName) || global::System.IO.Directory.Exists({itemVar}.FullName))"
+					);
 					sb.AppendLine($"{bodyIndent}\t{failuresVar}.Add({itemVar}.FullName + \": path already exists.\");");
 					break;
 				case FileExtensionsConstraint fe:
-				{
-					var extChecks = fe.Extensions
-						.Select(ext => $"!string.Equals(global::System.IO.Path.GetExtension({itemVar}.Name).TrimStart('.'), \"{Escape(ext)}\", global::System.StringComparison.OrdinalIgnoreCase)")
-						.ToList();
-					var displayExts = string.Join(", ", fe.Extensions);
-					sb.AppendLine($"{bodyIndent}if ({string.Join(" && ", extChecks)})");
-					sb.AppendLine($"{bodyIndent}\t{failuresVar}.Add({itemVar}.FullName + \": extension must be one of: {Escape(displayExts)}.\");");
-					break;
-				}
+					{
+						var extChecks = fe
+							.Extensions
+							.Select(
+								ext =>
+									$"!string.Equals(global::System.IO.Path.GetExtension({itemVar}.Name).TrimStart('.'), \"{Escape(ext)}\", global::System.StringComparison.OrdinalIgnoreCase)"
+							)
+							.ToList();
+						var displayExts = string.Join(", ", fe.Extensions);
+						sb.AppendLine($"{bodyIndent}if ({string.Join(" && ", extChecks)})");
+						sb.AppendLine($"{bodyIndent}\t{failuresVar}.Add({itemVar}.FullName + \": extension must be one of: {Escape(displayExts)}.\");");
+						break;
+					}
 			}
 		}
 
@@ -1289,15 +1454,9 @@ public sealed partial class CliParserGenerator
 
 	private static string EscapeVerbatimString(string s) => s.Replace("\"", "\"\"");
 
-	private static void EmitCommandRunnerFuzzyFailHelper(
-		StringBuilder sb,
-		CommandModel cmd,
-		string? flagHelpStdErrMethodName,
-		string? parseFailureRunHint)
+	private static void EmitCommandRunnerFuzzyFailHelper(StringBuilder sb, CommandModel cmd, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
 	{
-		var flagParams = cmd.Parameters
-			.Where(static p => IsEmittedFlagLike(p.Kind))
-			.ToList();
+		var flagParams = cmd.Parameters.Where(static p => IsEmittedFlagLike(p.Kind)).ToList();
 
 		if (flagParams.Count > 0)
 		{
@@ -1367,5 +1526,4 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\t}");
 		sb.AppendLine();
 	}
-
 }

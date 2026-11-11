@@ -1,5 +1,5 @@
-using AwesomeAssertions;
 using System.Collections.Immutable;
+using AwesomeAssertions;
 using Microsoft.CodeAnalysis;
 
 namespace Nullean.Argh.Generator.Tests;
@@ -28,7 +28,8 @@ public class ReferenceMetadataCapabilitiesTests
 			File.Copy(coreLib, hostPath);
 			ImmutableArray<MetadataReference> refs = ImmutableArray.Create<MetadataReference>(
 				MetadataReference.CreateFromFile(diPath),
-				MetadataReference.CreateFromFile(hostPath));
+				MetadataReference.CreateFromFile(hostPath)
+			);
 			var c = ReferenceMetadataCapabilities.Compute(refs);
 			c.HasMicrosoftExtensionsDependencyInjection.Should().BeTrue();
 			c.HasMicrosoftExtensionsHosting.Should().BeTrue();
@@ -56,8 +57,7 @@ public class ReferenceMetadataCapabilitiesTests
 			var coreLib = typeof(object).Assembly.Location;
 			var otherPath = Path.Combine(baseDir, "Unrelated.Assembly.dll");
 			File.Copy(coreLib, otherPath);
-			ImmutableArray<MetadataReference> refs = ImmutableArray.Create<MetadataReference>(
-				MetadataReference.CreateFromFile(otherPath));
+			ImmutableArray<MetadataReference> refs = ImmutableArray.Create<MetadataReference>(MetadataReference.CreateFromFile(otherPath));
 			var c = ReferenceMetadataCapabilities.Compute(refs);
 			c.HasMicrosoftExtensionsDependencyInjection.Should().BeFalse();
 			c.HasMicrosoftExtensionsHosting.Should().BeFalse();
@@ -68,9 +68,7 @@ public class ReferenceMetadataCapabilitiesTests
 			{
 				Directory.Delete(baseDir, recursive: true);
 			}
-			catch
-			{
-			}
+			catch { }
 		}
 	}
 }

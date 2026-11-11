@@ -16,10 +16,7 @@ namespace Nullean.Argh;
 
 public sealed partial class CliParserGenerator
 {
-	private static AnalyzedInvocation? AnalyzeInvocation(
-		InvocationExpressionSyntax invocation,
-		SemanticModel semanticModel,
-		CancellationToken ct)
+	private static AnalyzedInvocation? AnalyzeInvocation(InvocationExpressionSyntax invocation, SemanticModel semanticModel, CancellationToken ct)
 	{
 		if (semanticModel.GetSymbolInfo(invocation, ct).Symbol is not IMethodSymbol method)
 			return null;
@@ -31,105 +28,147 @@ public sealed partial class CliParserGenerator
 		switch (method.Name)
 		{
 			case "UseGlobalOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
-			{
-				if (method.TypeArguments[0] is not INamedTypeSymbol go || go.TypeKind == TypeKind.Error)
-					return null;
-				var model = BuildOptionsTypeModel(go, semanticModel.Compilation);
-				if (model is null) return null;
-				return new AIUseGlobalOptions(filePath, spanStart, model);
-			}
+				{
+					if (method.TypeArguments[0] is not INamedTypeSymbol go || go.TypeKind == TypeKind.Error)
+						return null;
+					var model = BuildOptionsTypeModel(go, semanticModel.Compilation);
+					if (model is null)
+						return null;
+					return new AIUseGlobalOptions(filePath, spanStart, model);
+				}
 			case "UseNamespaceOptions" when method.IsGenericMethod && method.TypeArguments.Length > 0:
-			{
-				if (method.TypeArguments[0] is not INamedTypeSymbol gt || gt.TypeKind == TypeKind.Error)
-					return null;
-				var model = BuildOptionsTypeModel(gt, semanticModel.Compilation);
-				if (model is null) return null;
-				return new AIUseNamespaceOptions(filePath, spanStart, model);
-			}
+				{
+					if (method.TypeArguments[0] is not INamedTypeSymbol gt || gt.TypeKind == TypeKind.Error)
+						return null;
+					var model = BuildOptionsTypeModel(gt, semanticModel.Compilation);
+					if (model is null)
+						return null;
+					return new AIUseNamespaceOptions(filePath, spanStart, model);
+				}
 			case "UseMiddleware" when method.IsGenericMethod && method.TypeArguments.Length == 1:
-			{
-				if (method.TypeArguments[0] is not INamedTypeSymbol mwType || mwType.TypeKind == TypeKind.Error)
-					return null;
-				var reg = new GlobalMiddlewareRegistration(
-					mwType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-					HasPublicParameterlessCtor(mwType));
-				return new AIUseMiddleware(filePath, spanStart, reg);
-			}
+				{
+					if (method.TypeArguments[0] is not INamedTypeSymbol mwType || mwType.TypeKind == TypeKind.Error)
+						return null;
+					var reg = new GlobalMiddlewareRegistration(
+						mwType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+						HasPublicParameterlessCtor(mwType)
+					);
+					return new AIUseMiddleware(filePath, spanStart, reg);
+				}
 			case "UseMiddleware":
 				// Inline delegate — diagnostic will be reported by TryBuildAppEmitModel (option 2 from plan).
 				return new AIUseMiddleware(filePath, spanStart, new GlobalMiddlewareRegistration("", false));
 			case "Map" when method.IsGenericMethod && method.TypeArguments.Length > 0:
-			{
-				if (method.TypeArguments[0] is not INamedTypeSymbol named || named.TypeKind == TypeKind.Error)
-					return null;
-				// Always hoist: merge the type's methods directly into the current scope (root or namespace).
-				var acc = new DiagnosticAccumulator();
-				var wrapper = new RegistryNode();
-				ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, mergeOuterTypeSegment: true, wrapper, parseOpts, semanticModel.Compilation);
-				var snap = BuildRegistryNodeSnapshot(wrapper);
-				return new AIMapCommand(filePath, spanStart, ImmutableArray<CommandModel>.Empty, TypeSnapshot: snap, EmbeddedDiagnostics: acc.ToImmutable());
-			}
-			case "MapAndRootAlias" when method.IsGenericMethod && method.TypeArguments.Length > 0:
-			{
-				if (method.TypeArguments[0] is not INamedTypeSymbol named || named.TypeKind == TypeKind.Error)
-					return null;
-				var acc = new DiagnosticAccumulator();
-				var wrapper = new RegistryNode();
-				AddMethodsFromTypeAccForAlias(acc, invocation.GetLocation(), named, ImmutableArray<string>.Empty, wrapper, parseOpts, semanticModel.Compilation);
-				var snap = BuildRegistryNodeSnapshot(wrapper);
-				return new AIMapAndRootAlias(filePath, spanStart, snap, acc.ToImmutable());
-			}
-			case "Map" when invocation.ArgumentList.Arguments.Count >= 2:
-			{
-				var nameExpr = invocation.ArgumentList.Arguments[0].Expression;
-				var commandName = TryGetStringLiteral(nameExpr);
-				if (commandName is null || string.IsNullOrWhiteSpace(commandName))
-					return null;
-				var handlerExpr = invocation.ArgumentList.Arguments[1].Expression;
-				if (handlerExpr is LambdaExpressionSyntax)
 				{
-					var node = new RegistryNode();
-					TryExpandLambdaDelegateAcc(semanticModel, invocation, handlerExpr, commandName, ImmutableArray<string>.Empty, node);
-					if (node.Commands.Count == 0) return null;
-					return new AIMapCommand(filePath, spanStart, node.Commands.ToImmutableArray());
+					if (method.TypeArguments[0] is not INamedTypeSymbol named || named.TypeKind == TypeKind.Error)
+						return null;
+					// Always hoist: merge the type's methods directly into the current scope (root or namespace).
+					var acc = new DiagnosticAccumulator();
+					var wrapper = new RegistryNode();
+					ExpandTypeRegistrationAcc(
+						acc,
+						invocation.GetLocation(),
+						named,
+						ImmutableArray<string>.Empty,
+						mergeOuterTypeSegment: true,
+						wrapper,
+						parseOpts,
+						semanticModel.Compilation
+					);
+					var snap = BuildRegistryNodeSnapshot(wrapper);
+					return new AIMapCommand(
+						filePath,
+						spanStart,
+						ImmutableArray<CommandModel>.Empty,
+						TypeSnapshot: snap,
+						EmbeddedDiagnostics: acc.ToImmutable()
+					);
 				}
-				var handler = ResolveHandlerMethodForAnalyze(semanticModel, handlerExpr);
-				if (handler is null) return null;
-				var acc2 = new DiagnosticAccumulator();
-				var cmd = CommandModel.FromMethod(commandName, handler, parseOpts, ImmutableArray<string>.Empty, acc2, invocation.GetLocation(), semanticModel.Compilation);
-				return new AIMapCommand(filePath, spanStart, ImmutableArray.Create(cmd), EmbeddedDiagnostics: acc2.ToImmutable());
-			}
+			case "MapAndRootAlias" when method.IsGenericMethod && method.TypeArguments.Length > 0:
+				{
+					if (method.TypeArguments[0] is not INamedTypeSymbol named || named.TypeKind == TypeKind.Error)
+						return null;
+					var acc = new DiagnosticAccumulator();
+					var wrapper = new RegistryNode();
+					AddMethodsFromTypeAccForAlias(
+						acc,
+						invocation.GetLocation(),
+						named,
+						ImmutableArray<string>.Empty,
+						wrapper,
+						parseOpts,
+						semanticModel.Compilation
+					);
+					var snap = BuildRegistryNodeSnapshot(wrapper);
+					return new AIMapAndRootAlias(filePath, spanStart, snap, acc.ToImmutable());
+				}
+			case "Map" when invocation.ArgumentList.Arguments.Count >= 2:
+				{
+					var nameExpr = invocation.ArgumentList.Arguments[0].Expression;
+					var commandName = TryGetStringLiteral(nameExpr);
+					if (commandName is null || string.IsNullOrWhiteSpace(commandName))
+						return null;
+					var handlerExpr = invocation.ArgumentList.Arguments[1].Expression;
+					if (handlerExpr is LambdaExpressionSyntax)
+					{
+						var node = new RegistryNode();
+						TryExpandLambdaDelegateAcc(semanticModel, invocation, handlerExpr, commandName, ImmutableArray<string>.Empty, node);
+						if (node.Commands.Count == 0)
+							return null;
+						return new AIMapCommand(filePath, spanStart, node.Commands.ToImmutableArray());
+					}
+					var handler = ResolveHandlerMethodForAnalyze(semanticModel, handlerExpr);
+					if (handler is null)
+						return null;
+					var acc2 = new DiagnosticAccumulator();
+					var cmd = CommandModel.FromMethod(
+						commandName,
+						handler,
+						parseOpts,
+						ImmutableArray<string>.Empty,
+						acc2,
+						invocation.GetLocation(),
+						semanticModel.Compilation
+					);
+					return new AIMapCommand(filePath, spanStart, ImmutableArray.Create(cmd), EmbeddedDiagnostics: acc2.ToImmutable());
+				}
 			case "UseCliDescription":
-			{
-				if (invocation.ArgumentList.Arguments.Count < 1) return null;
-				var descExpr = invocation.ArgumentList.Arguments[0].Expression;
-				var desc = TryGetStringLiteral(descExpr) ?? "";
-				return new AIUseCliDescription(filePath, spanStart, desc);
-			}
+				{
+					if (invocation.ArgumentList.Arguments.Count < 1)
+						return null;
+					var descExpr = invocation.ArgumentList.Arguments[0].Expression;
+					var desc = TryGetStringLiteral(descExpr) ?? "";
+					return new AIUseCliDescription(filePath, spanStart, desc);
+				}
 			case "UseSchemaVersion":
-			{
-				if (invocation.ArgumentList.Arguments.Count < 1) return null;
-				var verExpr = invocation.ArgumentList.Arguments[0].Expression;
-				var ver = TryGetStringLiteral(verExpr);
-				if (string.IsNullOrWhiteSpace(ver)) return null;
-				return new AIUseSchemaVersion(filePath, spanStart, ver!);
-			}
+				{
+					if (invocation.ArgumentList.Arguments.Count < 1)
+						return null;
+					var verExpr = invocation.ArgumentList.Arguments[0].Expression;
+					var ver = TryGetStringLiteral(verExpr);
+					if (string.IsNullOrWhiteSpace(ver))
+						return null;
+					return new AIUseSchemaVersion(filePath, spanStart, ver!);
+				}
 			case "UseEnvironmentPrefix":
-			{
-				if (invocation.ArgumentList.Arguments.Count < 1) return null;
-				var prefixExpr = invocation.ArgumentList.Arguments[0].Expression;
-				var prefix = TryGetStringLiteral(prefixExpr);
-				if (prefix is null) return null;
-				return new AIUseEnvironmentPrefix(filePath, spanStart, prefix);
-			}
+				{
+					if (invocation.ArgumentList.Arguments.Count < 1)
+						return null;
+					var prefixExpr = invocation.ArgumentList.Arguments[0].Expression;
+					var prefix = TryGetStringLiteral(prefixExpr);
+					if (prefix is null)
+						return null;
+					return new AIUseEnvironmentPrefix(filePath, spanStart, prefix);
+				}
 			case "DocumentEnvironmentVariables":
 				return AnalyzeDocumentEnvironmentVariables(invocation, filePath, spanStart);
 			case "MapRoot":
-			{
-				if (invocation.ArgumentList.Arguments.Count < 1) return null;
-				var isNs = IsInvocationInsideMapNamespaceConfigure(invocation);
-				return AnalyzeMapRootInvocation(invocation, semanticModel, filePath, spanStart, parseOpts, isNamespaceRoot: isNs);
-			}
+				{
+					if (invocation.ArgumentList.Arguments.Count < 1)
+						return null;
+					var isNs = IsInvocationInsideMapNamespaceConfigure(invocation);
+					return AnalyzeMapRootInvocation(invocation, semanticModel, filePath, spanStart, parseOpts, isNamespaceRoot: isNs);
+				}
 			case "MapNamespace":
 				return AnalyzeMapNamespaceInvocation(invocation, semanticModel, filePath, spanStart, parseOpts, ct);
 			default:
@@ -154,19 +193,23 @@ public sealed partial class CliParserGenerator
 		string filePath,
 		int spanStart,
 		CSharpParseOptions parseOpts,
-		bool isNamespaceRoot)
+		bool isNamespaceRoot
+	)
 	{
-		if (invocation.ArgumentList.Arguments.Count < 1) return null;
+		if (invocation.ArgumentList.Arguments.Count < 1)
+			return null;
 		var handlerExpr = invocation.ArgumentList.Arguments[0].Expression;
 		if (handlerExpr is LambdaExpressionSyntax)
 		{
 			var node = new RegistryNode();
 			TryExpandLambdaRootCommandAcc(semanticModel, invocation, handlerExpr, ImmutableArray<string>.Empty, node);
-			if (node.RootCommand is null) return null;
+			if (node.RootCommand is null)
+				return null;
 			return new AIMapRootCommand(filePath, spanStart, node.RootCommand, isNamespaceRoot);
 		}
 		var handler = ResolveHandlerMethodForAnalyze(semanticModel, handlerExpr);
-		if (handler is null) return null;
+		if (handler is null)
+			return null;
 		var acc = new DiagnosticAccumulator();
 		var cmd = CommandModel.FromRootMethod(handler, parseOpts, ImmutableArray<string>.Empty, acc, invocation.GetLocation(), semanticModel.Compilation);
 		return new AIMapRootCommand(filePath, spanStart, cmd, isNamespaceRoot);
@@ -176,14 +219,17 @@ public sealed partial class CliParserGenerator
 	private static IMethodSymbol? ResolveHandlerMethodForAnalyze(SemanticModel model, ExpressionSyntax handlerExpr)
 	{
 		var symbol = model.GetSymbolInfo(handlerExpr).Symbol;
-		if (symbol is IMethodSymbol m) return m;
+		if (symbol is IMethodSymbol m)
+			return m;
 
 		var op = model.GetOperation(handlerExpr);
 		while (op is IConversionOperation conv)
 			op = conv.Operand;
 
-		if (op is IMethodReferenceOperation directRef) return directRef.Method;
-		if (op is IDelegateCreationOperation del && del.Target is IMethodReferenceOperation reference) return reference.Method;
+		if (op is IMethodReferenceOperation directRef)
+			return directRef.Method;
+		if (op is IDelegateCreationOperation del && del.Target is IMethodReferenceOperation reference)
+			return reference.Method;
 
 		return null; // handler not a method — diagnostic will be reported by old path / TryBuildAppEmitModel
 	}
@@ -194,7 +240,8 @@ public sealed partial class CliParserGenerator
 		string filePath,
 		int spanStart,
 		CSharpParseOptions parseOpts,
-		CancellationToken ct)
+		CancellationToken ct
+	)
 	{
 		if (invocation.ArgumentList.Arguments.Count < 1)
 			return null;
@@ -203,9 +250,7 @@ public sealed partial class CliParserGenerator
 			return null;
 
 		var genericEntry = addNsMethod.IsGenericMethod && addNsMethod.TypeArguments.Length == 1;
-		var namespaceEntryType = genericEntry && addNsMethod.TypeArguments[0] is INamedTypeSymbol nt && nt.TypeKind != TypeKind.Error
-			? nt
-			: null;
+		var namespaceEntryType = genericEntry && addNsMethod.TypeArguments[0] is INamedTypeSymbol nt && nt.TypeKind != TypeKind.Error ? nt : null;
 
 		var argCount = invocation.ArgumentList.Arguments.Count;
 		string? segmentName = null;
@@ -227,8 +272,7 @@ public sealed partial class CliParserGenerator
 			else
 			{
 				// AddNamespace<T>(Action<IArghNamespaceBuilder>) — segment from attribute/XML
-				if (!TryGetNamespaceSegmentAttribute(namespaceEntryType, out var attrSeg) &&
-				    !TryGetFirstCodeInTypeSummary(namespaceEntryType, out attrSeg))
+				if (!TryGetNamespaceSegmentAttribute(namespaceEntryType, out var attrSeg) && !TryGetFirstCodeInTypeSummary(namespaceEntryType, out attrSeg))
 					return null; // can't determine segment — will be caught as AGH0017 in old path
 				segmentName = attrSeg;
 				nsSummary = GetTypeListingSummaryOneLiner(namespaceEntryType);
@@ -284,13 +328,20 @@ public sealed partial class CliParserGenerator
 			var acc = new DiagnosticAccumulator();
 			var entryNode = new RegistryNode();
 			// Use mergeOuterTypeSegment=true — expand the type's own methods + nested classes
-			ExpandTypeRegistrationAcc(acc, invocation.GetLocation(), namespaceEntryType, ImmutableArray<string>.Empty, mergeOuterTypeSegment: true, entryNode, parseOpts, semanticModel.Compilation);
+			ExpandTypeRegistrationAcc(
+				acc,
+				invocation.GetLocation(),
+				namespaceEntryType,
+				ImmutableArray<string>.Empty,
+				mergeOuterTypeSegment: true,
+				entryNode,
+				parseOpts,
+				semanticModel.Compilation
+			);
 			entryTypeSnapshot = BuildRegistryNodeSnapshot(entryNode);
 		}
 
-		var (_nsHideHelp, _nsHideSchema) = namespaceEntryType is not null
-			? GetHiddenFlags(namespaceEntryType)
-			: (false, false);
+		var (_nsHideHelp, _nsHideSchema) = namespaceEntryType is not null ? GetHiddenFlags(namespaceEntryType) : (false, false);
 		return new AIMapNamespace(
 			filePath,
 			spanStart,
@@ -307,7 +358,8 @@ public sealed partial class CliParserGenerator
 			ImmutableArray<PendingDiagnostic>.Empty,
 			entryTypeSnapshot,
 			NsIsHiddenFromHelp: _nsHideHelp,
-			NsIsHiddenFromSchema: _nsHideSchema);
+			NsIsHiddenFromSchema: _nsHideSchema
+		);
 	}
 
 	/// <summary>Recursively expands type registration using DiagnosticAccumulator (for Select-step analysis).</summary>
@@ -319,7 +371,8 @@ public sealed partial class CliParserGenerator
 		bool mergeOuterTypeSegment,
 		RegistryNode attachTo,
 		CSharpParseOptions parseOpts,
-		Compilation? compilation)
+		Compilation? compilation
+	)
 	{
 		if (mergeOuterTypeSegment)
 		{
@@ -356,19 +409,16 @@ public sealed partial class CliParserGenerator
 			children.ToImmutable(),
 			node.SummaryInnerXml,
 			node.RemarksInnerXml,
-			AliasCommand: node.RootAlias);
+			AliasCommand: node.RootAlias
+		);
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────────
 
-
 	/// <summary>
 	/// Overload that builds the emit model from pre-analyzed (symbol-free) invocations — used by the truly incremental pipeline.
 	/// </summary>
-	private static bool TryBuildAppEmitModel(
-		SourceProductionContext context,
-		ImmutableArray<AnalyzedInvocation> allAnalyzed,
-		out AppEmitModel? model)
+	private static bool TryBuildAppEmitModel(SourceProductionContext context, ImmutableArray<AnalyzedInvocation> allAnalyzed, out AppEmitModel? model)
 	{
 		model = null;
 
@@ -380,10 +430,7 @@ public sealed partial class CliParserGenerator
 					context.ReportDiagnostic(Diagnostic.Create(GetDescriptorById(pd.DescriptorId), pd.Span.ToLocation(), pd.Arg0, pd.Arg1));
 		}
 
-		var sorted = allAnalyzed
-			.OrderBy(a => a.FilePath, StringComparer.Ordinal)
-			.ThenBy(a => a.SpanStart)
-			.ToList();
+		var sorted = allAnalyzed.OrderBy(a => a.FilePath, StringComparer.Ordinal).ThenBy(a => a.SpanStart).ToList();
 
 		// Identify root-level invocations: those NOT contained inside any AIMapNamespace lambda body.
 		var rootAnalyzed = new List<AnalyzedInvocation>();
@@ -402,7 +449,9 @@ public sealed partial class CliParserGenerator
 			if (ai is AIUseMiddleware { Registration: { TypeFq: { Length: > 0 } } reg })
 				mwBuilder.Add(reg);
 			else if (ai is AIUseMiddleware { Registration: { TypeFq: "" } })
-				context.ReportDiagnostic(Diagnostic.Create(UseMiddlewareDelegateNotSupported, ai.GetType() == typeof(AIUseMiddleware) ? Location.None : Location.None));
+				context.ReportDiagnostic(
+					Diagnostic.Create(UseMiddlewareDelegateNotSupported, ai.GetType() == typeof(AIUseMiddleware) ? Location.None : Location.None)
+				);
 		}
 		app.GlobalMiddleware = mwBuilder.ToImmutable();
 
@@ -419,8 +468,10 @@ public sealed partial class CliParserGenerator
 		{
 			if (ai is AIDocumentEnvironmentVariables { Variables: var vars, ConfigFiles: var cfgs })
 			{
-				if (!vars.IsDefaultOrEmpty) app.EnvironmentVars = vars;
-				if (!cfgs.IsDefaultOrEmpty) app.ConfigFiles = cfgs;
+				if (!vars.IsDefaultOrEmpty)
+					app.EnvironmentVars = vars;
+				if (!cfgs.IsDefaultOrEmpty)
+					app.ConfigFiles = cfgs;
 				break;
 			}
 		}
@@ -487,7 +538,8 @@ public sealed partial class CliParserGenerator
 		app.InjectionChains = app.AllCommands.ToImmutableDictionary(
 			cmd => cmd.RunMethodName,
 			cmd => BuildOptionsInjectionChain(app, cmd),
-			StringComparer.Ordinal);
+			StringComparer.Ordinal
+		);
 
 		ValidateCommandOptionsInjection(context, app);
 		FixOptionsParamsInCommands(app);
@@ -503,9 +555,12 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var other in all)
 		{
-			if (other is not AIMapNamespace ns) continue;
-			if (ns.LambdaBodyStart < 0 || ns.LambdaBodyEnd < 0) continue;
-			if (!string.Equals(ns.FilePath, ai.FilePath, StringComparison.Ordinal)) continue;
+			if (other is not AIMapNamespace ns)
+				continue;
+			if (ns.LambdaBodyStart < 0 || ns.LambdaBodyEnd < 0)
+				continue;
+			if (!string.Equals(ns.FilePath, ai.FilePath, StringComparison.Ordinal))
+				continue;
 			// Inclusive lower bound: for expression-bodied lambdas (e.g. g => g.MapNamespace(...)),
 			// the nested invocation's SpanStart equals the lambda body's SpanStart and must count as inside.
 			if (ai.SpanStart >= ns.LambdaBodyStart && ai.SpanStart < ns.LambdaBodyEnd)
@@ -522,7 +577,8 @@ public sealed partial class CliParserGenerator
 		RegistryNode node,
 		ImmutableArray<string> currentPath,
 		AppEmitModel app,
-		bool isRoot)
+		bool isRoot
+	)
 	{
 		foreach (var ai in nodeInvocations)
 		{
@@ -532,43 +588,37 @@ public sealed partial class CliParserGenerator
 					app.GlobalOptionsModel = g.Model;
 					break;
 				case AIUseGlobalOptions when !isRoot:
-					context.ReportDiagnostic(Diagnostic.Create(
-						CommandNamespaceOptionsRequiresParent,
-						Location.None,
-						"T"));
+					context.ReportDiagnostic(Diagnostic.Create(CommandNamespaceOptionsRequiresParent, Location.None, "T"));
 					break;
 				case AIUseNamespaceOptions ns when !isRoot:
 					node.CommandNamespaceOptionsModel = ns.Model;
 					node.CommandNamespaceOptionsLocation = Location.None;
 					break;
 				case AIUseNamespaceOptions when isRoot:
-					context.ReportDiagnostic(Diagnostic.Create(
-						CommandNamespaceOptionsRequiresParent,
-						Location.None,
-						"T"));
+					context.ReportDiagnostic(Diagnostic.Create(CommandNamespaceOptionsRequiresParent, Location.None, "T"));
 					break;
 				case AIMapCommand { TypeSnapshot: { } typeSnap } mapCmd:
-				{
-					foreach (var pd in mapCmd.EmbeddedDiagnosticsOrEmpty)
-						context.ReportDiagnostic(Diagnostic.Create(GetDescriptorById(pd.DescriptorId), pd.Span.ToLocation(), pd.Arg0, pd.Arg1));
-					// Map<T> always hoists: merge the snapshot's commands directly into the current node.
-					if (typeSnap.RootCommand is { } snapRc && node.RootCommand is not null)
-						context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, snapRc.HandlerSpanInfo.ToLocation()));
-					ApplyRegistryNodeSnapshot(typeSnap, node, currentPath);
-					break;
-				}
-				case AIMapAndRootAlias alias:
-				{
-					foreach (var pd in alias.EmbeddedDiagnostics)
-						context.ReportDiagnostic(Diagnostic.Create(GetDescriptorById(pd.DescriptorId), pd.Span.ToLocation(), pd.Arg0, pd.Arg1));
-					if (node.RootAlias is not null || node.RootCommand is not null)
 					{
-						context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, Location.None));
+						foreach (var pd in mapCmd.EmbeddedDiagnosticsOrEmpty)
+							context.ReportDiagnostic(Diagnostic.Create(GetDescriptorById(pd.DescriptorId), pd.Span.ToLocation(), pd.Arg0, pd.Arg1));
+						// Map<T> always hoists: merge the snapshot's commands directly into the current node.
+						if (typeSnap.RootCommand is { } snapRc && node.RootCommand is not null)
+							context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, snapRc.HandlerSpanInfo.ToLocation()));
+						ApplyRegistryNodeSnapshot(typeSnap, node, currentPath);
 						break;
 					}
-					ApplyRegistryNodeSnapshot(alias.TypeSnapshot, node, currentPath);
-					break;
-				}
+				case AIMapAndRootAlias alias:
+					{
+						foreach (var pd in alias.EmbeddedDiagnostics)
+							context.ReportDiagnostic(Diagnostic.Create(GetDescriptorById(pd.DescriptorId), pd.Span.ToLocation(), pd.Arg0, pd.Arg1));
+						if (node.RootAlias is not null || node.RootCommand is not null)
+						{
+							context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, Location.None));
+							break;
+						}
+						ApplyRegistryNodeSnapshot(alias.TypeSnapshot, node, currentPath);
+						break;
+					}
 				case AIMapCommand ac:
 					foreach (var pd in ac.EmbeddedDiagnosticsOrEmpty)
 						context.ReportDiagnostic(Diagnostic.Create(GetDescriptorById(pd.DescriptorId), pd.Span.ToLocation(), pd.Arg0, pd.Arg1));
@@ -596,21 +646,17 @@ public sealed partial class CliParserGenerator
 					context.ReportDiagnostic(Diagnostic.Create(AddRootCommandOnlyAtAppRoot, Location.None));
 					break;
 				case AIMapRootCommand rc:
-				{
-					if (node.RootCommand is not null)
 					{
-						context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, Location.None));
+						if (node.RootCommand is not null)
+						{
+							context.ReportDiagnostic(Diagnostic.Create(DuplicateRootCommand, Location.None));
+							break;
+						}
+						// Re-prefix with current path.
+						var prefixedRoot = rc.Cmd with { RoutePrefix = currentPath, RunMethodName = CommandModel.BuildRootDefaultRunMethodName(currentPath), };
+						node.RootCommand = prefixedRoot;
 						break;
 					}
-					// Re-prefix with current path.
-					var prefixedRoot = rc.Cmd with
-					{
-						RoutePrefix = currentPath,
-						RunMethodName = CommandModel.BuildRootDefaultRunMethodName(currentPath),
-					};
-					node.RootCommand = prefixedRoot;
-					break;
-				}
 				case AIUseMiddleware:
 					// Handled at root level for global middleware (done before this method is called).
 					break;
@@ -628,7 +674,8 @@ public sealed partial class CliParserGenerator
 		RegistryNode parentNode,
 		ImmutableArray<string> parentPath,
 		AppEmitModel app,
-		bool isRoot)
+		bool isRoot
+	)
 	{
 		var childNode = new RegistryNode();
 		var childPath = AppendSegment(parentPath, ns.SegmentName);
@@ -639,10 +686,13 @@ public sealed partial class CliParserGenerator
 		{
 			foreach (var other in allAnalyzed)
 			{
-				if (!string.Equals(other.FilePath, ns.FilePath, StringComparison.Ordinal)) continue;
-				if (other.SpanStart < ns.LambdaBodyStart || other.SpanStart >= ns.LambdaBodyEnd) continue;
+				if (!string.Equals(other.FilePath, ns.FilePath, StringComparison.Ordinal))
+					continue;
+				if (other.SpanStart < ns.LambdaBodyStart || other.SpanStart >= ns.LambdaBodyEnd)
+					continue;
 				// Skip invocations that are nested inside a deeper lambda (not direct children).
-				if (IsInsideAnyNestedMapNamespaceLambda(other, allAnalyzed, ns)) continue;
+				if (IsInsideAnyNestedMapNamespaceLambda(other, allAnalyzed, ns))
+					continue;
 				childInvocations.Add(other);
 			}
 			childInvocations.Sort((a, b) =>
@@ -669,7 +719,8 @@ public sealed partial class CliParserGenerator
 					goto skipArglessAdd;
 			}
 			app.ArglessNamespaceCodegen.Add(new ArglessNamespaceCodegenEntry(arglessFq, ns.SegmentName));
-			skipArglessAdd:;
+		skipArglessAdd:
+			;
 		}
 
 		ProcessAnalyzedInvocationsForNode(context, allAnalyzed, childInvocations, childNode, childPath, app, isRoot: false);
@@ -693,12 +744,17 @@ public sealed partial class CliParserGenerator
 	{
 		foreach (var other in all)
 		{
-			if (other is not AIMapNamespace nested) continue;
-			if (ReferenceEquals(nested, parent)) continue;
-			if (nested.LambdaBodyStart < 0 || nested.LambdaBodyEnd < 0) continue;
-			if (!string.Equals(nested.FilePath, ai.FilePath, StringComparison.Ordinal)) continue;
+			if (other is not AIMapNamespace nested)
+				continue;
+			if (ReferenceEquals(nested, parent))
+				continue;
+			if (nested.LambdaBodyStart < 0 || nested.LambdaBodyEnd < 0)
+				continue;
+			if (!string.Equals(nested.FilePath, ai.FilePath, StringComparison.Ordinal))
+				continue;
 			// nested must itself be inside parent (inclusive lower bound for expression-bodied lambdas).
-			if (nested.SpanStart < parent.LambdaBodyStart || nested.SpanStart >= parent.LambdaBodyEnd) continue;
+			if (nested.SpanStart < parent.LambdaBodyStart || nested.SpanStart >= parent.LambdaBodyEnd)
+				continue;
 			// ai must be inside nested
 			if (ai.SpanStart >= nested.LambdaBodyStart && ai.SpanStart < nested.LambdaBodyEnd)
 				return true;
@@ -711,22 +767,14 @@ public sealed partial class CliParserGenerator
 	{
 		if (snap.RootCommand is { } rc)
 		{
-			var prefixed = rc with
-			{
-				RoutePrefix = path,
-				RunMethodName = CommandModel.BuildRootDefaultRunMethodName(path)
-			};
+			var prefixed = rc with { RoutePrefix = path, RunMethodName = CommandModel.BuildRootDefaultRunMethodName(path) };
 			// Only set if not already set by an explicit AddNamespaceRootCommand in the lambda body.
 			target.RootCommand ??= prefixed;
 		}
 		CommandModel? prefixedAlias = null;
 		foreach (var cmd in snap.Commands)
 		{
-			var prefixed = cmd with
-			{
-				RoutePrefix = path,
-				RunMethodName = CommandModel.BuildRunMethodNameStatic(path, cmd.CommandName)
-			};
+			var prefixed = cmd with { RoutePrefix = path, RunMethodName = CommandModel.BuildRunMethodNameStatic(path, cmd.CommandName) };
 			target.Commands.Add(prefixed);
 			// Track the re-prefixed alias if this command was designated as the alias target.
 			if (snap.AliasCommand is not null && cmd.CommandName == snap.AliasCommand.CommandName)
@@ -755,29 +803,33 @@ public sealed partial class CliParserGenerator
 		target.RemarksInnerXml = snap.RemarksInnerXml;
 	}
 
-	private static void ValidateCommandNamespaceOptionsChain(
-		SourceProductionContext context,
-		RegistryNode node,
-		string? parentEffectiveOptionsMetadataName)
+	private static void ValidateCommandNamespaceOptionsChain(SourceProductionContext context, RegistryNode node, string? parentEffectiveOptionsMetadataName)
 	{
 		var nsModel = node.CommandNamespaceOptionsModel;
 		if (nsModel is not null)
 		{
 			if (parentEffectiveOptionsMetadataName is null)
 			{
-				context.ReportDiagnostic(Diagnostic.Create(
-					CommandNamespaceOptionsRequiresParent,
-					node.CommandNamespaceOptionsLocation ?? Location.None,
-					GetShortTypeName(nsModel.TypeMetadataName)));
+				context.ReportDiagnostic(
+					Diagnostic.Create(
+						CommandNamespaceOptionsRequiresParent,
+						node.CommandNamespaceOptionsLocation ?? Location.None,
+						GetShortTypeName(nsModel.TypeMetadataName)
+					)
+				);
 			}
-			else if (nsModel.TypeMetadataName != parentEffectiveOptionsMetadataName
-			         && !nsModel.AllBaseTypeMetadataNames.Contains(parentEffectiveOptionsMetadataName))
+			else if (
+				nsModel.TypeMetadataName != parentEffectiveOptionsMetadataName && !nsModel.AllBaseTypeMetadataNames.Contains(parentEffectiveOptionsMetadataName)
+			)
 			{
-				context.ReportDiagnostic(Diagnostic.Create(
-					CommandNamespaceOptionsMustExtendParent,
-					node.CommandNamespaceOptionsLocation ?? Location.None,
-					GetShortTypeName(nsModel.TypeMetadataName),
-					GetShortTypeName(parentEffectiveOptionsMetadataName)));
+				context.ReportDiagnostic(
+					Diagnostic.Create(
+						CommandNamespaceOptionsMustExtendParent,
+						node.CommandNamespaceOptionsLocation ?? Location.None,
+						GetShortTypeName(nsModel.TypeMetadataName),
+						GetShortTypeName(parentEffectiveOptionsMetadataName)
+					)
+				);
 			}
 		}
 
@@ -801,12 +853,7 @@ public sealed partial class CliParserGenerator
 			var sanitized = Naming.SanitizeIdentifier(child.Segment);
 			if (seen.TryGetValue(sanitized, out var first))
 			{
-				context.ReportDiagnostic(Diagnostic.Create(
-					NamespaceSegmentSanitizationCollision,
-					child.Location,
-					first,
-					child.Segment,
-					sanitized));
+				context.ReportDiagnostic(Diagnostic.Create(NamespaceSegmentSanitizationCollision, child.Location, first, child.Segment, sanitized));
 				ok = false;
 			}
 			else
@@ -836,9 +883,7 @@ public sealed partial class CliParserGenerator
 				continue;
 
 			// Most specific required options type = last entry in the injection chain.
-			var chain = app.InjectionChains.TryGetValue(cmd.RunMethodName, out var precomputed)
-				? precomputed
-				: BuildOptionsInjectionChain(app, cmd);
+			var chain = app.InjectionChains.TryGetValue(cmd.RunMethodName, out var precomputed) ? precomputed : BuildOptionsInjectionChain(app, cmd);
 			if (chain.IsEmpty)
 				continue;
 			var (requiredTypeFq, requiredMetaName, requiredBaseNames, _, _, _, _) = chain[chain.Length - 1];
@@ -849,8 +894,7 @@ public sealed partial class CliParserGenerator
 			{
 				// mp.TypeMetadataName == requiredMetaName: exact match
 				// mp.TypeAllBaseTypeMetadataNames.Contains(requiredMetaName): mp's type is a subclass of the required type
-				if (mp.TypeMetadataName == requiredMetaName ||
-				    mp.TypeAllBaseTypeMetadataNames.Contains(requiredMetaName))
+				if (mp.TypeMetadataName == requiredMetaName || mp.TypeAllBaseTypeMetadataNames.Contains(requiredMetaName))
 				{
 					injected = true;
 					break;
@@ -862,8 +906,7 @@ public sealed partial class CliParserGenerator
 			{
 				foreach (var cp in cmd.ContainingTypeCtorParams)
 				{
-					if (cp.TypeMetadataName == requiredMetaName ||
-					    requiredBaseNames.Contains(cp.TypeMetadataName))
+					if (cp.TypeMetadataName == requiredMetaName || requiredBaseNames.Contains(cp.TypeMetadataName))
 					{
 						injected = true;
 						break;
@@ -873,11 +916,9 @@ public sealed partial class CliParserGenerator
 
 			if (!injected)
 			{
-				context.ReportDiagnostic(Diagnostic.Create(
-					CommandMustInjectOptions,
-					cmd.HandlerSpanInfo.ToLocation(),
-					cmd.MethodName,
-					requiredMetaName));  // use pre-computed metadata name instead of ToDisplayString
+				context.ReportDiagnostic(
+					Diagnostic.Create(CommandMustInjectOptions, cmd.HandlerSpanInfo.ToLocation(), cmd.MethodName, requiredMetaName)
+				); // use pre-computed metadata name instead of ToDisplayString
 			}
 		}
 	}
@@ -888,19 +929,18 @@ public sealed partial class CliParserGenerator
 	/// Each entry carries the static field name (pre-parsed fallback) and a local var name (command-runner reconstruction).
 	/// All fields are symbol-free (strings / pre-computed ParameterModel arrays).
 	/// </summary>
-	private static ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)>
-		BuildOptionsInjectionChain(AppEmitModel app, CommandModel cmd)
+	private static ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> BuildOptionsInjectionChain(
+		AppEmitModel app,
+		CommandModel cmd
+	)
 	{
 		var result = ImmutableArray.CreateBuilder<(string, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>, ImmutableArray<string>?)>();
 		if (app.GlobalOptionsModel is { } gom)
-			result.Add((
-				gom.TypeFq,
-				gom.TypeMetadataName,
-				gom.AllBaseTypeMetadataNames,
-				OptionsStaticFieldNameFq(gom.TypeFq),
-				OptionsLocalVarNameFq(gom.TypeFq),
-				gom.FlattenedMembers,
-				gom.BestCtorParamOrder));
+			result.Add(
+				(gom.TypeFq, gom.TypeMetadataName, gom.AllBaseTypeMetadataNames, OptionsStaticFieldNameFq(gom.TypeFq), OptionsLocalVarNameFq(
+					gom.TypeFq
+				), gom.FlattenedMembers, gom.BestCtorParamOrder)
+			);
 
 		var current = app.Root;
 		foreach (var seg in cmd.RoutePrefix)
@@ -914,17 +954,15 @@ public sealed partial class CliParserGenerator
 					break;
 				}
 			}
-			if (found is null) break;
+			if (found is null)
+				break;
 			current = found.Node;
 			if (current.CommandNamespaceOptionsModel is { } nsModel)
-				result.Add((
-					nsModel.TypeFq,
-					nsModel.TypeMetadataName,
-					nsModel.AllBaseTypeMetadataNames,
-					OptionsStaticFieldNameFq(nsModel.TypeFq),
-					OptionsLocalVarNameFq(nsModel.TypeFq),
-					nsModel.FlattenedMembers,
-					nsModel.BestCtorParamOrder));
+				result.Add(
+					(nsModel.TypeFq, nsModel.TypeMetadataName, nsModel.AllBaseTypeMetadataNames, OptionsStaticFieldNameFq(
+						nsModel.TypeFq
+					), OptionsLocalVarNameFq(nsModel.TypeFq), nsModel.FlattenedMembers, nsModel.BestCtorParamOrder)
+				);
 		}
 
 		return result.ToImmutable();
@@ -946,9 +984,7 @@ public sealed partial class CliParserGenerator
 				continue;
 			}
 
-			var injChain = app.InjectionChains.TryGetValue(cmd.RunMethodName, out var precomputed2)
-				? precomputed2
-				: BuildOptionsInjectionChain(app, cmd);
+			var injChain = app.InjectionChains.TryGetValue(cmd.RunMethodName, out var precomputed2) ? precomputed2 : BuildOptionsInjectionChain(app, cmd);
 			if (injChain.IsEmpty)
 			{
 				updated.Add(cmd);
@@ -957,31 +993,39 @@ public sealed partial class CliParserGenerator
 
 			// Remove original options-type params; replace with OptionsInjected entries for each flattened
 			// member so bool-switch / short-opt / canon-name machinery still recognises those flags.
-			var filtered = cmd.Parameters.Where(p =>
-			{
-				if (p.AsParametersOwnerParamName is not null) return true;
-				var handlerParam = cmd.HandlerParamTypes.FirstOrDefault(mp => mp.Name == p.SymbolName);
-				if (handlerParam is null) return true;
-				// Keep the param only if its type is NOT the options type and NOT a subclass of it.
-				// handlerParam.TypeAllBaseTypeMetadataNames.Contains(o.TypeMetadataName) = param's type inherits from the options type.
-				return !injChain.Any(o =>
-					o.TypeMetadataName == handlerParam.TypeMetadataName ||
-					handlerParam.TypeAllBaseTypeMetadataNames.Contains(o.TypeMetadataName));
-			}).ToList();
+			var filtered = cmd
+				.Parameters
+				.Where(p =>
+				{
+					if (p.AsParametersOwnerParamName is not null)
+						return true;
+					var handlerParam = cmd.HandlerParamTypes.FirstOrDefault(mp => mp.Name == p.SymbolName);
+					if (handlerParam is null)
+						return true;
+					// Keep the param only if its type is NOT the options type and NOT a subclass of it.
+					// handlerParam.TypeAllBaseTypeMetadataNames.Contains(o.TypeMetadataName) = param's type inherits from the options type.
+					return !injChain.Any(
+						o => o.TypeMetadataName == handlerParam.TypeMetadataName || handlerParam.TypeAllBaseTypeMetadataNames.Contains(o.TypeMetadataName)
+					);
+				})
+				.ToList();
 
 			// Add flattened options members as OptionsInjected so the flag parser handles them correctly.
 			// Pre-seed with CLI names already present (e.g. from [AsParameters] expansion) to avoid duplicates.
 			var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			foreach (var p in filtered)
-				if (p.Kind == ParameterKind.Flag) seen.Add(p.CliLongName);
+				if (p.Kind == ParameterKind.Flag)
+					seen.Add(p.CliLongName);
 
 			foreach (var (_, _, _, _, _, flatMembers, _) in injChain)
 			{
 				foreach (var m in flatMembers)
 				{
-					if (m.Kind != ParameterKind.Flag) continue;
-					if (!seen.Add(m.CliLongName)) continue; // dedup inherited members
-					// Create an OptionsInjected entry — only flag-recognition fields matter here.
+					if (m.Kind != ParameterKind.Flag)
+						continue;
+					if (!seen.Add(m.CliLongName))
+						continue; // dedup inherited members
+								  // Create an OptionsInjected entry — only flag-recognition fields matter here.
 					filtered.Add(m with { Kind = ParameterKind.OptionsInjected });
 				}
 			}
@@ -1020,7 +1064,6 @@ public sealed partial class CliParserGenerator
 			UpdateRegistryNodeRootCommands(child.Node, fixedById);
 	}
 
-
 	private static void CollectCommands(RegistryNode node, List<CommandModel> sink)
 	{
 		if (node.RootCommand is { } rc)
@@ -1030,15 +1073,12 @@ public sealed partial class CliParserGenerator
 			CollectCommands(child.Node, sink);
 	}
 
-
-
 	private static bool TryGetNamespaceSegmentAttribute(INamedTypeSymbol type, out string segment)
 	{
 		segment = "";
 		foreach (var ad in type.GetAttributes())
 		{
-			if (ad.AttributeClass?.Name != "NamespaceSegmentAttribute" ||
-			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() != "Nullean.Argh")
+			if (ad.AttributeClass?.Name != "NamespaceSegmentAttribute" || ad.AttributeClass.ContainingNamespace?.ToDisplayString() != "Nullean.Argh")
 				continue;
 			if (ad.ConstructorArguments.Length > 0 && ad.ConstructorArguments[0].Value is string s && !string.IsNullOrWhiteSpace(s))
 			{
@@ -1073,11 +1113,7 @@ public sealed partial class CliParserGenerator
 		}
 	}
 
-	private static bool TryResolveNamespaceSegmentForArgless(
-		SourceProductionContext context,
-		INamedTypeSymbol type,
-		Location errorLocation,
-		out string segment)
+	private static bool TryResolveNamespaceSegmentForArgless(SourceProductionContext context, INamedTypeSymbol type, Location errorLocation, out string segment)
 	{
 		segment = "";
 		var hasAttr = TryGetNamespaceSegmentAttribute(type, out var attrSeg);
@@ -1102,7 +1138,8 @@ public sealed partial class CliParserGenerator
 		SourceProductionContext context,
 		INamedTypeSymbol type,
 		string literalSegment,
-		Location location)
+		Location location
+	)
 	{
 		var hasAttr = TryGetNamespaceSegmentAttribute(type, out var attrSeg);
 		var hasXml = TryGetFirstCodeInTypeSummary(type, out var xmlSeg);
@@ -1119,7 +1156,8 @@ public sealed partial class CliParserGenerator
 		AppEmitModel app,
 		INamedTypeSymbol type,
 		string segment,
-		Location location)
+		Location location
+	)
 	{
 		var typeFq = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 		foreach (var existing in app.ArglessNamespaceCodegen)
@@ -1134,10 +1172,7 @@ public sealed partial class CliParserGenerator
 		app.ArglessNamespaceCodegen.Add(new ArglessNamespaceCodegenEntry(typeFq, segment));
 	}
 
-	private static bool IsRegistryNodeVacuous(RegistryNode node) =>
-		node.RootCommand is null && node.Commands.Count == 0 && node.Children.Count == 0;
-
-
+	private static bool IsRegistryNodeVacuous(RegistryNode node) => node.RootCommand is null && node.Commands.Count == 0 && node.Children.Count == 0;
 
 	private static bool IsMapNamespaceConfigureLambda(LambdaExpressionSyntax lambda, out InvocationExpressionSyntax addNamespaceInv)
 	{
@@ -1146,8 +1181,7 @@ public sealed partial class CliParserGenerator
 			return false;
 		if (al.Parent is not InvocationExpressionSyntax inv)
 			return false;
-		if (inv.Expression is not MemberAccessExpressionSyntax ma || ma.Name is not SimpleNameSyntax sns ||
-		    sns.Identifier.Text != "MapNamespace")
+		if (inv.Expression is not MemberAccessExpressionSyntax ma || ma.Name is not SimpleNameSyntax sns || sns.Identifier.Text != "MapNamespace")
 			return false;
 		var last = al.Arguments.Count - 1;
 		if (last < 0 || !ReferenceEquals(al.Arguments[last].Expression, lambda))
@@ -1155,7 +1189,6 @@ public sealed partial class CliParserGenerator
 		addNamespaceInv = inv;
 		return true;
 	}
-
 
 	/// <summary>
 	/// Synthesizes the fully-qualified BCL delegate type (<c>System.Func&lt;...&gt;</c> / <c>System.Action&lt;...&gt;</c>)
@@ -1179,9 +1212,7 @@ public sealed partial class CliParserGenerator
 
 		if (invokeMethod.ReturnsVoid)
 		{
-			return paramFqs.Length == 0
-				? "global::System.Action"
-				: $"global::System.Action<{string.Join(", ", paramFqs)}>";
+			return paramFqs.Length == 0 ? "global::System.Action" : $"global::System.Action<{string.Join(", ", paramFqs)}>";
 		}
 
 		var retFq = invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -1196,8 +1227,8 @@ public sealed partial class CliParserGenerator
 		ExpressionSyntax handlerExpr,
 		string commandName,
 		ImmutableArray<string> routePrefix,
-		RegistryNode targetNode) =>
-		TryExpandLambdaDelegate(null, model, invocation, handlerExpr, commandName, routePrefix, targetNode);
+		RegistryNode targetNode
+	) => TryExpandLambdaDelegate(null, model, invocation, handlerExpr, commandName, routePrefix, targetNode);
 
 	private static void TryExpandLambdaDelegate(
 		SourceProductionContext? context,
@@ -1206,7 +1237,8 @@ public sealed partial class CliParserGenerator
 		ExpressionSyntax handlerExpr,
 		string commandName,
 		ImmutableArray<string> routePrefix,
-		RegistryNode targetNode)
+		RegistryNode targetNode
+	)
 	{
 		// Get the converted delegate type via type info (the lambda is implicitly converted to Delegate)
 		var op = model.GetOperation(handlerExpr);
@@ -1223,9 +1255,7 @@ public sealed partial class CliParserGenerator
 			return;
 
 		// Build the storage key: "namespace/name" for nested, "name" for root
-		var storageKey = routePrefix.IsDefaultOrEmpty
-			? commandName
-			: string.Join("/", routePrefix) + "/" + commandName;
+		var storageKey = routePrefix.IsDefaultOrEmpty ? commandName : string.Join("/", routePrefix) + "/" + commandName;
 
 		// Get the FQ delegate type string for casting at runtime. Synthesized from the lambda's own signature
 		// rather than the enclosing conversion's Type, which — since the target parameter is `Delegate` — would
@@ -1251,20 +1281,22 @@ public sealed partial class CliParserGenerator
 		{
 			var rnSb = new StringBuilder();
 			rnSb.Append("Run");
-			foreach (var seg in routePrefix) { rnSb.Append('_'); rnSb.Append(Naming.SanitizeIdentifier(seg)); }
-			rnSb.Append('_'); rnSb.Append(Naming.SanitizeIdentifier(commandName));
+			foreach (var seg in routePrefix)
+			{
+				rnSb.Append('_');
+				rnSb.Append(Naming.SanitizeIdentifier(seg));
+			}
+			rnSb.Append('_');
+			rnSb.Append(Naming.SanitizeIdentifier(commandName));
 			runName = rnSb.ToString();
 		}
 		var retFq = invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 		// FullyQualifiedFormat renders special types via their C# keyword ("void"), not "global::System.Void".
-		var retIsVoid = retFq is "void"
-			or "global::System.Threading.Tasks.Task"
-			or "global::System.Threading.Tasks.ValueTask";
-		var retIsAsync = retFq is "global::System.Threading.Tasks.Task"
-			or "global::System.Threading.Tasks.ValueTask"
-			|| (invokeMethod.ReturnType is INamedTypeSymbol rNamed && rNamed.IsGenericType &&
-			    (rNamed.ConstructedFrom.Name is "Task" or "ValueTask") &&
-			    rNamed.ConstructedFrom.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks");
+		var retIsVoid = retFq is "void" or "global::System.Threading.Tasks.Task" or "global::System.Threading.Tasks.ValueTask";
+		var retIsAsync = retFq is "global::System.Threading.Tasks.Task" or "global::System.Threading.Tasks.ValueTask" ||
+			(invokeMethod.ReturnType is INamedTypeSymbol rNamed && rNamed.IsGenericType &&
+				(rNamed.ConstructedFrom.Name is "Task" or "ValueTask") && rNamed.ConstructedFrom.ContainingNamespace?.ToDisplayString() ==
+				"System.Threading.Tasks");
 
 		var cmd = new CommandModel(
 			routePrefix,
@@ -1282,7 +1314,7 @@ public sealed partial class CliParserGenerator
 			ImmutableArray<HandlerParam>.Empty,
 			SourceSpanInfo.None,
 			ImmutableArray<(string, string)>.Empty,
-			"",   // HandlerDocCommentId
+			"", // HandlerDocCommentId
 			"",
 			"",
 			"",
@@ -1292,13 +1324,13 @@ public sealed partial class CliParserGenerator
 			ImmutableArray<(string, bool)>.Empty,
 			IsLambda: true,
 			LambdaStorageKey: storageKey,
-			LambdaDelegateFq: delegateFq);
+			LambdaDelegateFq: delegateFq
+		);
 
 		targetNode.Commands.Add(cmd);
 	}
 
 	private const string RootDefaultInternalCommandName = "__argh_root";
-
 
 	/// <summary>Select-step (no SourceProductionContext) variant of <see cref="TryExpandLambdaRootCommand"/>.</summary>
 	private static void TryExpandLambdaRootCommandAcc(
@@ -1306,8 +1338,8 @@ public sealed partial class CliParserGenerator
 		InvocationExpressionSyntax invocation,
 		ExpressionSyntax handlerExpr,
 		ImmutableArray<string> routePrefix,
-		RegistryNode targetNode) =>
-		TryExpandLambdaRootCommand(null, model, invocation, handlerExpr, routePrefix, targetNode);
+		RegistryNode targetNode
+	) => TryExpandLambdaRootCommand(null, model, invocation, handlerExpr, routePrefix, targetNode);
 
 	private static void TryExpandLambdaRootCommand(
 		SourceProductionContext? context,
@@ -1315,7 +1347,8 @@ public sealed partial class CliParserGenerator
 		InvocationExpressionSyntax invocation,
 		ExpressionSyntax handlerExpr,
 		ImmutableArray<string> routePrefix,
-		RegistryNode targetNode)
+		RegistryNode targetNode
+	)
 	{
 		var op = model.GetOperation(handlerExpr);
 		while (op is IConversionOperation conv)
@@ -1329,9 +1362,7 @@ public sealed partial class CliParserGenerator
 		if (invokeMethod is null)
 			return;
 
-		var storageKey = routePrefix.IsDefaultOrEmpty
-			? "__argh_root"
-			: string.Join("/", routePrefix) + "/__argh_root";
+		var storageKey = routePrefix.IsDefaultOrEmpty ? "__argh_root" : string.Join("/", routePrefix) + "/__argh_root";
 		// Synthesized from the lambda's own signature — see BuildNaturalDelegateTypeFq for why the enclosing
 		// conversion's Type (System.Delegate) can't be used here.
 		var delegateFq = BuildNaturalDelegateTypeFq(invokeMethod) ?? "global::System.Delegate";
@@ -1344,14 +1375,11 @@ public sealed partial class CliParserGenerator
 		var runName = CommandModel.BuildRootDefaultRunMethodName(routePrefix);
 		var lambdaRetFq = invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 		// FullyQualifiedFormat renders special types via their C# keyword ("void"), not "global::System.Void".
-		var lambdaRetIsVoid = lambdaRetFq is "void"
-			or "global::System.Threading.Tasks.Task"
-			or "global::System.Threading.Tasks.ValueTask";
-		var lambdaRetIsAsync = lambdaRetFq is "global::System.Threading.Tasks.Task"
-			or "global::System.Threading.Tasks.ValueTask"
-			|| (invokeMethod.ReturnType is INamedTypeSymbol lrNamed && lrNamed.IsGenericType &&
-			    (lrNamed.ConstructedFrom.Name is "Task" or "ValueTask") &&
-			    lrNamed.ConstructedFrom.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks");
+		var lambdaRetIsVoid = lambdaRetFq is "void" or "global::System.Threading.Tasks.Task" or "global::System.Threading.Tasks.ValueTask";
+		var lambdaRetIsAsync = lambdaRetFq is "global::System.Threading.Tasks.Task" or "global::System.Threading.Tasks.ValueTask" ||
+			(invokeMethod.ReturnType is INamedTypeSymbol lrNamed && lrNamed.IsGenericType &&
+				(lrNamed.ConstructedFrom.Name is "Task" or "ValueTask") && lrNamed.ConstructedFrom.ContainingNamespace?.ToDisplayString() ==
+				"System.Threading.Tasks");
 		var cmd = new CommandModel(
 			routePrefix,
 			RootDefaultInternalCommandName,
@@ -1368,7 +1396,7 @@ public sealed partial class CliParserGenerator
 			ImmutableArray<HandlerParam>.Empty,
 			SourceSpanInfo.None,
 			ImmutableArray<(string, string)>.Empty,
-			"",   // HandlerDocCommentId
+			"", // HandlerDocCommentId
 			"",
 			"",
 			"",
@@ -1379,10 +1407,10 @@ public sealed partial class CliParserGenerator
 			IsRootDefault: true,
 			IsLambda: true,
 			LambdaStorageKey: storageKey,
-			LambdaDelegateFq: delegateFq);
+			LambdaDelegateFq: delegateFq
+		);
 		targetNode.RootCommand = cmd;
 	}
-
 
 	private static ImmutableArray<string> AppendSegment(ImmutableArray<string> prefix, string segment)
 	{
@@ -1393,7 +1421,6 @@ public sealed partial class CliParserGenerator
 		return b.MoveToImmutable();
 	}
 
-
 	/// <summary>DiagnosticAccumulator-based variant of <see cref="AddMethodsFromType"/> for use in the Select-step analysis.</summary>
 	private static void AddMethodsFromTypeAcc(
 		DiagnosticAccumulator acc,
@@ -1402,15 +1429,20 @@ public sealed partial class CliParserGenerator
 		ImmutableArray<string> routePrefix,
 		RegistryNode targetNode,
 		CSharpParseOptions parseOpts,
-		Compilation? compilation)
+		Compilation? compilation
+	)
 	{
 		IMethodSymbol? defaultCommand = null;
 		foreach (var member in type.GetMembers())
 		{
-			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary) continue;
-			if (method.AssociatedSymbol is not null) continue;
-			if (method.DeclaredAccessibility != Accessibility.Public) continue;
-			if (!HasDefaultCommandAttribute(method)) continue;
+			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary)
+				continue;
+			if (method.AssociatedSymbol is not null)
+				continue;
+			if (method.DeclaredAccessibility != Accessibility.Public)
+				continue;
+			if (!HasDefaultCommandAttribute(method))
+				continue;
 			if (defaultCommand is not null)
 			{
 				acc.Add(MultipleDefaultCommandAttributes, method.Locations.FirstOrDefault() ?? location, type.Name);
@@ -1427,10 +1459,14 @@ public sealed partial class CliParserGenerator
 		}
 		foreach (var member in type.GetMembers())
 		{
-			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary) continue;
-			if (method.AssociatedSymbol is not null) continue;
-			if (method.DeclaredAccessibility != Accessibility.Public) continue;
-			if (defaultCommand is not null && SymbolEqualityComparer.Default.Equals(method, defaultCommand)) continue;
+			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary)
+				continue;
+			if (method.AssociatedSymbol is not null)
+				continue;
+			if (method.DeclaredAccessibility != Accessibility.Public)
+				continue;
+			if (defaultCommand is not null && SymbolEqualityComparer.Default.Equals(method, defaultCommand))
+				continue;
 			var cmdName = TryGetCommandNameAttribute(method) ?? Naming.ToCommandName(method.Name);
 			targetNode.Commands.Add(CommandModel.FromMethod(cmdName, method, parseOpts, routePrefix, acc, location, compilation));
 		}
@@ -1449,18 +1485,23 @@ public sealed partial class CliParserGenerator
 		ImmutableArray<string> routePrefix,
 		RegistryNode targetNode,
 		CSharpParseOptions parseOpts,
-		Compilation? compilation)
+		Compilation? compilation
+	)
 	{
 		IMethodSymbol? defaultCommandMethod = null;
 		var publicOrdinaryMethods = new List<IMethodSymbol>();
 
 		foreach (var member in type.GetMembers())
 		{
-			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary) continue;
-			if (method.AssociatedSymbol is not null) continue;
-			if (method.DeclaredAccessibility != Accessibility.Public) continue;
+			if (member is not IMethodSymbol method || method.MethodKind != MethodKind.Ordinary)
+				continue;
+			if (method.AssociatedSymbol is not null)
+				continue;
+			if (method.DeclaredAccessibility != Accessibility.Public)
+				continue;
 			publicOrdinaryMethods.Add(method);
-			if (!HasDefaultCommandAttribute(method)) continue;
+			if (!HasDefaultCommandAttribute(method))
+				continue;
 			if (defaultCommandMethod is not null)
 			{
 				acc.Add(MultipleDefaultCommandAttributes, method.Locations.FirstOrDefault() ?? location, type.Name);
@@ -1487,5 +1528,4 @@ public sealed partial class CliParserGenerator
 				targetNode.RootAlias = cmd;
 		}
 	}
-
 }

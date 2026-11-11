@@ -16,14 +16,12 @@ public static class ArghRuntime
 	/// <summary>
 	/// Registers the generated CLI runner. Called from emitted module initialization; not intended for app code.
 	/// </summary>
-	public static void RegisterRunner(Func<string[], Task<int>> runAsync) =>
-		_runAsyncFunc = runAsync ?? throw new ArgumentNullException(nameof(runAsync));
+	public static void RegisterRunner(Func<string[], Task<int>> runAsync) => _runAsyncFunc = runAsync ?? throw new ArgumentNullException(nameof(runAsync));
 
 	/// <summary>
 	/// Registers the generated route helper. Called from emitted module initialization; not intended for app code.
 	/// </summary>
-	public static void RegisterRoute(Func<string[], RouteMatch?> route) =>
-		_routeFunc = route ?? throw new ArgumentNullException(nameof(route));
+	public static void RegisterRoute(Func<string[], RouteMatch?> route) => _routeFunc = route ?? throw new ArgumentNullException(nameof(route));
 
 	/// <summary>
 	/// Registers the generated CLI schema document factory. Called from emitted module initialization; not intended for app code.
@@ -34,15 +32,13 @@ public static class ArghRuntime
 	/// <summary>
 	/// Registers the generated intrinsic command detector. Called from emitted module initialization; not intended for app code.
 	/// </summary>
-	public static void RegisterIntrinsic(Func<string[], bool> detector) =>
-		_intrinsicFunc = detector ?? throw new ArgumentNullException(nameof(detector));
+	public static void RegisterIntrinsic(Func<string[], bool> detector) => _intrinsicFunc = detector ?? throw new ArgumentNullException(nameof(detector));
 
 	/// <summary>
 	/// Returns <see langword="true"/> if <paramref name="args"/> route to a user-defined <c>[CommandIntrinsic]</c> command.
 	/// Does not check built-in intrinsic commands; use <see cref="ArghApp.IsIntrinsicCommand"/> for the full check.
 	/// </summary>
-	internal static bool IsUserIntrinsicCommand(string[] args) =>
-		_intrinsicFunc?.Invoke(args) ?? false;
+	internal static bool IsUserIntrinsicCommand(string[] args) => _intrinsicFunc?.Invoke(args) ?? false;
 
 	/// <summary>
 	/// Serializes the registered <see cref="ArghCliSchemaDocument"/> to indented JSON (camelCase), for <c>__schema</c> and programmatic use.
@@ -51,7 +47,8 @@ public static class ArghRuntime
 	{
 		if (_cliSchemaFactory is null)
 			throw new InvalidOperationException(
-				"CLI schema factory is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so generated entry types are emitted in this assembly.");
+				"CLI schema factory is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so generated entry types are emitted in this assembly."
+			);
 
 		return CliSchemaJsonWriter.Write(_cliSchemaFactory());
 	}
@@ -63,7 +60,8 @@ public static class ArghRuntime
 	{
 		if (_runAsyncFunc is null)
 			throw new InvalidOperationException(
-				"CLI runner is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so generated entry types are emitted in this assembly.");
+				"CLI runner is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so generated entry types are emitted in this assembly."
+			);
 
 		return _runAsyncFunc(args);
 	}
@@ -75,7 +73,8 @@ public static class ArghRuntime
 	{
 		if (_routeFunc is null)
 			throw new InvalidOperationException(
-				"CLI route delegate is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so generated entry types are emitted in this assembly.");
+				"CLI route delegate is not registered. Reference Nullean.Argh, register commands with ArghApp, and ensure the source generator runs so generated entry types are emitted in this assembly."
+			);
 
 		if (args is null)
 			throw new ArgumentNullException(nameof(args));

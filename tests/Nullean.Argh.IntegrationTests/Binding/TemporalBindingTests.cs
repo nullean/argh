@@ -34,7 +34,6 @@ public class TemporalBindingTests
 	{
 		var result = CliHostRunner.Run("validate-timespan-range", "--window", "3h");
 		result.ExitCode.Should().Be(2);
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(result))
-			.Should().Contain("value must be between");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(result)).Should().Contain("value must be between");
 	}
 }

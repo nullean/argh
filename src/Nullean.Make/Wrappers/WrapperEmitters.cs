@@ -44,7 +44,8 @@ internal sealed class MiseEmitter : IWrapperEmitter
 		{
 			sb.Append('\n');
 			sb.Append('[').Append(Toml.Basic(model.NameOf(t, Separator))).Append("]\n");
-			if (t.Description is not null) sb.Append("description = ").Append(Toml.Basic(t.Description)).Append('\n');
+			if (t.Description is not null)
+				sb.Append("description = ").Append(Toml.Basic(t.Description)).Append('\n');
 			sb.Append("raw_args = true\n");
 			sb.Append("run = ").Append(Toml.Basic(model.CommandFor(t))).Append('\n');
 			sb.Append("usage = '''\n");
@@ -55,8 +56,7 @@ internal sealed class MiseEmitter : IWrapperEmitter
 		return sb.ToString();
 	}
 
-	public string IncludeHint(string relativePath) =>
-		$"[task_config]\nincludes = [{Toml.Basic(relativePath)}]";
+	public string IncludeHint(string relativePath) => $"[task_config]\nincludes = [{Toml.Basic(relativePath)}]";
 
 	private static IEnumerable<string> UsageLines(WrapperTarget t, IReadOnlyList<WrapperOption> shared)
 	{
@@ -66,9 +66,7 @@ internal sealed class MiseEmitter : IWrapperEmitter
 			if (o.IsRest)
 				yield return $"arg {Kdl.String($"[{o.Name}]")} var=#true help={Kdl.String($"{DtoOptions.FriendlyTypeName(o.Type)} (everything after --)")}";
 			else if (o.IsPositional)
-				yield return IsList(o.Type)
-					? $"arg {Kdl.String($"[{o.Name}]")} var=#true help={help}"
-					: $"arg {Kdl.String($"[{o.Name}]")} help={help}";
+				yield return IsList(o.Type) ? $"arg {Kdl.String($"[{o.Name}]")} var=#true help={help}" : $"arg {Kdl.String($"[{o.Name}]")} help={help}";
 			else if (o.IsSwitch)
 				yield return $"flag {Kdl.String($"--{o.Name}")} help={help}";
 			else
@@ -110,12 +108,14 @@ internal sealed class MakefileEmitter : IWrapperEmitter
 		sb.Append("NULLEAN_MAKE_RUN ?= ").Append(model.Run.Replace("$", "$$").Replace("#", "\\#")).Append('\n');
 		sb.Append("_nullean_make_default_goal := $(.DEFAULT_GOAL)\n\n");
 		sb.Append(".PHONY:");
-		foreach (var t in model.Targets) sb.Append(' ').Append(model.NameOf(t, Separator));
+		foreach (var t in model.Targets)
+			sb.Append(' ').Append(model.NameOf(t, Separator));
 		sb.Append('\n');
 		foreach (var t in model.Targets)
 		{
 			sb.Append('\n');
-			if (t.Description is not null) sb.Append("# ").Append(t.Description).Append('\n');
+			if (t.Description is not null)
+				sb.Append("# ").Append(t.Description).Append('\n');
 			sb.Append(model.NameOf(t, Separator)).Append(":\n");
 			sb.Append("\t@$(NULLEAN_MAKE_RUN) ").Append(string.Join(" ", t.Route)).Append(" $(ARGS)\n");
 		}
@@ -141,7 +141,8 @@ internal sealed class JustEmitter : IWrapperEmitter
 		foreach (var t in model.Targets)
 		{
 			sb.Append('\n');
-			if (t.Description is not null) sb.Append("# ").Append(t.Description).Append('\n');
+			if (t.Description is not null)
+				sb.Append("# ").Append(t.Description).Append('\n');
 			sb.Append("[positional-arguments]\n");
 			sb.Append('@').Append(model.NameOf(t, Separator)).Append(" *args:\n");
 			// just interpolates {{ }}; {{{{ is a literal {{.
@@ -163,14 +164,26 @@ internal static class Toml
 		{
 			switch (c)
 			{
-				case '\\': sb.Append("\\\\"); break;
-				case '"': sb.Append("\\\""); break;
-				case '\n': sb.Append("\\n"); break;
-				case '\r': sb.Append("\\r"); break;
-				case '\t': sb.Append("\\t"); break;
+				case '\\':
+					sb.Append("\\\\");
+					break;
+				case '"':
+					sb.Append("\\\"");
+					break;
+				case '\n':
+					sb.Append("\\n");
+					break;
+				case '\r':
+					sb.Append("\\r");
+					break;
+				case '\t':
+					sb.Append("\\t");
+					break;
 				default:
-					if (char.IsControl(c)) sb.Append($"\\u{(int)c:X4}");
-					else sb.Append(c);
+					if (char.IsControl(c))
+						sb.Append($"\\u{(int)c:X4}");
+					else
+						sb.Append(c);
 					break;
 			}
 		}
@@ -180,7 +193,8 @@ internal static class Toml
 	/// <summary>Makes a line safe inside a <c>'''</c> literal string, which has no escapes and ends at <c>'''</c>.</summary>
 	public static string InLiteralMultiline(string line)
 	{
-		while (line.Contains("'''")) line = line.Replace("'''", "''");
+		while (line.Contains("'''"))
+			line = line.Replace("'''", "''");
 		return line;
 	}
 }
@@ -188,6 +202,5 @@ internal static class Toml
 internal static class Kdl
 {
 	/// <summary>A KDL string, quoted and escaped.</summary>
-	public static string String(string value) =>
-		"\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+	public static string String(string value) => "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
 }

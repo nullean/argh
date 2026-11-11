@@ -42,12 +42,13 @@ public sealed partial class CliParserGenerator
 		string? dtoResultTypeFq = null,
 		string? dtoOptionsTypeFq = null,
 		ImmutableArray<string>? dtoOptionsBestCtorParamOrder = null,
-		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions = default,
+		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions =
+			default,
 		string? entryAssemblyName = null,
-		string? environmentPrefix = null)
+		string? environmentPrefix = null
+	)
 	{
-		var anyRepeatedCollection = cmd.Parameters.Any(static p =>
-			p is { IsCollection: true, Kind: ParameterKind.Flag } && p.CollectionSeparator is null);
+		var anyRepeatedCollection = cmd.Parameters.Any(static p => p is { IsCollection: true, Kind: ParameterKind.Flag } && p.CollectionSeparator is null);
 
 		var failureExit = emitDtoTryParse ? "return false" : "return 2";
 		var helpMethodName = emitDtoTryParse ? null : HelpPrinterMethodForCommand(cmd);
@@ -106,8 +107,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\tvar positionals = new List<string>();");
 		EmitBoolSwitchNames(sb, cmd);
 		EmitCanonFlagNameMethod(sb, cmd);
-		EmitShortFlagMethods(sb, cmd, multiFlagsAvailable: anyRepeatedCollection,
-			parseFailureRunHint: emitDtoTryParse ? null : parseFailureRunHint);
+		EmitShortFlagMethods(sb, cmd, multiFlagsAvailable: anyRepeatedCollection, parseFailureRunHint: emitDtoTryParse ? null : parseFailureRunHint);
 		EmitKnownNonBoolFlagNames(sb, cmd);
 		if (!emitDtoTryParse)
 			EmitCommandRunnerFuzzyFailHelper(sb, cmd, flagHelpStdErrMethodName, parseFailureRunHint);
@@ -298,7 +298,9 @@ public sealed partial class CliParserGenerator
 				if (boolEnvVar != null)
 				{
 					sb.AppendLine($"\t\t\tvar {p.LocalVarName}EnvRaw = global::System.Environment.GetEnvironmentVariable(\"{Escape(boolEnvVar)}\");");
-					sb.AppendLine($"\t\t\tvar {p.LocalVarName} = flags.ContainsKey(\"{Escape(p.CliLongName)}\") || ({p.LocalVarName}EnvRaw != null && {p.LocalVarName}EnvRaw != \"0\" && {p.LocalVarName}EnvRaw != \"false\" && {p.LocalVarName}EnvRaw.Length > 0);");
+					sb.AppendLine(
+						$"\t\t\tvar {p.LocalVarName} = flags.ContainsKey(\"{Escape(p.CliLongName)}\") || ({p.LocalVarName}EnvRaw != null && {p.LocalVarName}EnvRaw != \"0\" && {p.LocalVarName}EnvRaw != \"false\" && {p.LocalVarName}EnvRaw.Length > 0);"
+					);
 				}
 				else
 					sb.AppendLine($"\t\t\tvar {p.LocalVarName} = flags.ContainsKey(\"{Escape(p.CliLongName)}\");");
@@ -335,7 +337,9 @@ public sealed partial class CliParserGenerator
 			{
 				sb.AppendLine($"\t\t\t\tvar {p.LocalVarName}EnvVal = global::System.Environment.GetEnvironmentVariable(\"{Escape(effectiveEnvVar)}\");");
 				if (p.EnvTreatEmptyAsUnset)
-					sb.AppendLine($"\t\t\t\t{p.LocalVarName}Text = ({p.LocalVarName}EnvVal != null && {p.LocalVarName}EnvVal.Length > 0) ? {p.LocalVarName}EnvVal : null;");
+					sb.AppendLine(
+						$"\t\t\t\t{p.LocalVarName}Text = ({p.LocalVarName}EnvVal != null && {p.LocalVarName}EnvVal.Length > 0) ? {p.LocalVarName}EnvVal : null;"
+					);
 				else
 					sb.AppendLine($"\t\t\t\t{p.LocalVarName}Text = {p.LocalVarName}EnvVal;");
 			}
@@ -396,7 +400,17 @@ public sealed partial class CliParserGenerator
 				sb.AppendLine("\t\t\t}");
 				sb.AppendLine("\t\t\telse");
 				sb.AppendLine("\t\t\t{");
-				EmitParseFromString(sb, p, $"positionals[{posIndex}]", p.LocalVarName, indentExtra: "\t", failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
+				EmitParseFromString(
+					sb,
+					p,
+					$"positionals[{posIndex}]",
+					p.LocalVarName,
+					indentExtra: "\t",
+					failureExit: failureExit,
+					helpMethodName: helpMethodName,
+					flagHelpStdErrMethodName: flagHelpStdErrMethodName,
+					parseFailureRunHint: parseFailureRunHint
+				);
 				sb.AppendLine("\t\t\t}");
 			}
 			else
@@ -406,7 +420,17 @@ public sealed partial class CliParserGenerator
 				sb.AppendLine($"\t\t\t\t{p.LocalVarName} = {fallback};");
 				sb.AppendLine("\t\t\telse");
 				sb.AppendLine("\t\t\t{");
-				EmitParseFromString(sb, p, $"positionals[{posIndex}]", p.LocalVarName, indentExtra: "\t", failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
+				EmitParseFromString(
+					sb,
+					p,
+					$"positionals[{posIndex}]",
+					p.LocalVarName,
+					indentExtra: "\t",
+					failureExit: failureExit,
+					helpMethodName: helpMethodName,
+					flagHelpStdErrMethodName: flagHelpStdErrMethodName,
+					parseFailureRunHint: parseFailureRunHint
+				);
 				sb.AppendLine("\t\t\t}");
 			}
 
@@ -450,11 +474,23 @@ public sealed partial class CliParserGenerator
 						// Exact match first, then most-derived (from end of chain); use LocalVarName (reconstructed)
 						string? bestLocal = null;
 						foreach (var o in injectedOptions)
-							if (o.TypeMetadataName == cpMetaName) { bestLocal = o.LocalVarName; break; }
+							if (o.TypeMetadataName == cpMetaName)
+							{
+								bestLocal = o.LocalVarName;
+								break;
+							}
 						if (bestLocal is null)
 							for (var _i = injectedOptions.Length - 1; _i >= 0; _i--)
-								if (injectedOptions[_i].AllBaseTypeMetadataNames.Contains(cpMetaName)) { bestLocal = injectedOptions[_i].LocalVarName; break; }
-						if (bestLocal is null) { allResolved = false; break; }
+								if (injectedOptions[_i].AllBaseTypeMetadataNames.Contains(cpMetaName))
+								{
+									bestLocal = injectedOptions[_i].LocalVarName;
+									break;
+								}
+						if (bestLocal is null)
+						{
+							allResolved = false;
+							break;
+						}
 						ctorArgs.Add(bestLocal);
 					}
 					if (allResolved)
@@ -465,17 +501,20 @@ public sealed partial class CliParserGenerator
 			if (optionsCtorArgs is not null)
 			{
 				sb.AppendLine(
-					$"\t\t\tvar __cmdHandler = (ArghServices.ServiceProvider?.GetService(typeof({cmd.ContainingTypeFq})) as {cmd.ContainingTypeFq}) ?? new {cmd.ContainingTypeFq}({optionsCtorArgs});");
+					$"\t\t\tvar __cmdHandler = (ArghServices.ServiceProvider?.GetService(typeof({cmd.ContainingTypeFq})) as {cmd.ContainingTypeFq}) ?? new {cmd.ContainingTypeFq}({optionsCtorArgs});"
+				);
 			}
 			else if (cmd.ContainingTypeHasParameterlessCtor)
 			{
 				sb.AppendLine(
-					$"\t\t\tvar __cmdHandler = (ArghServices.ServiceProvider?.GetService(typeof({cmd.ContainingTypeFq})) as {cmd.ContainingTypeFq}) ?? new {cmd.ContainingTypeFq}();");
+					$"\t\t\tvar __cmdHandler = (ArghServices.ServiceProvider?.GetService(typeof({cmd.ContainingTypeFq})) as {cmd.ContainingTypeFq}) ?? new {cmd.ContainingTypeFq}();"
+				);
 			}
 			else
 			{
 				sb.AppendLine(
-					$"\t\t\tvar __cmdHandler = (ArghServices.ServiceProvider?.GetService(typeof({cmd.ContainingTypeFq})) as {cmd.ContainingTypeFq}) ?? throw new global::System.InvalidOperationException(\"Register the command type in DI for hosted execution, or add a public parameterless constructor for standalone CLI.\");");
+					$"\t\t\tvar __cmdHandler = (ArghServices.ServiceProvider?.GetService(typeof({cmd.ContainingTypeFq})) as {cmd.ContainingTypeFq}) ?? throw new global::System.InvalidOperationException(\"Register the command type in DI for hosted execution, or add a public parameterless constructor for standalone CLI.\");"
+				);
 			}
 
 			sb.AppendLine();
@@ -544,7 +583,10 @@ public sealed partial class CliParserGenerator
 	}
 
 	/// <summary>The bound option objects a handler receives: [AsParameters] objects and injected options, each with its local variable and member-to-flag pairs.</summary>
-	private static List<(string Name, string VarName, List<(string Member, string Flag)> Flags)> EnumerateBoundObjects(CommandModel cmd, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions)
+	private static List<(string Name, string VarName, List<(string Member, string Flag)> Flags)> EnumerateBoundObjects(
+		CommandModel cmd,
+		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions
+	)
 	{
 		var result = new List<(string, string, List<(string, string)>)>();
 		if (!cmd.HandlerParamTypes.IsDefaultOrEmpty)
@@ -553,7 +595,10 @@ public sealed partial class CliParserGenerator
 			{
 				if (!mp.IsAsParameters)
 					continue;
-				var group = cmd.Parameters.Where(p => p.AsParametersOwnerParamName == mp.Name && p.AsParametersClrName is not null && p.Kind != ParameterKind.Injected).ToArray();
+				var group = cmd
+					.Parameters
+					.Where(p => p.AsParametersOwnerParamName == mp.Name && p.AsParametersClrName is not null && p.Kind != ParameterKind.Injected)
+					.ToArray();
 				if (group.Length == 0)
 					continue;
 				result.Add((mp.Name, AsParametersConstructedVarName(mp.Name), group.Select(p => (p.AsParametersClrName!, p.CliLongName)).ToList()));
@@ -563,7 +608,13 @@ public sealed partial class CliParserGenerator
 		if (!injectedOptions.IsDefaultOrEmpty)
 		{
 			foreach (var o in injectedOptions)
-				result.Add((o.TypeMetadataName, o.LocalVarName, o.FlatMembers.Where(static m => m.Kind != ParameterKind.Injected).Select(static m => (m.SymbolName, m.CliLongName)).ToList()));
+				result.Add(
+					(o.TypeMetadataName, o.LocalVarName, o
+						.FlatMembers
+						.Where(static m => m.Kind != ParameterKind.Injected)
+						.Select(static m => (m.SymbolName, m.CliLongName))
+						.ToList())
+				);
 		}
 
 		return result;
@@ -578,7 +629,11 @@ public sealed partial class CliParserGenerator
 	}
 
 	/// <summary>Emits <c>__arguments</c>: the bound objects with their member-to-flag map, for <c>CommandContext.Arguments</c>.</summary>
-	private static void EmitCommandArguments(StringBuilder sb, CommandModel cmd, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions)
+	private static void EmitCommandArguments(
+		StringBuilder sb,
+		CommandModel cmd,
+		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions
+	)
 	{
 		sb.AppendLine("\t\t\tvar __arguments = new global::System.Collections.Generic.List<CommandArgument>();");
 		foreach (var (name, varName, flags) in EnumerateBoundObjects(cmd, injectedOptions))
@@ -586,7 +641,14 @@ public sealed partial class CliParserGenerator
 	}
 
 	/// <summary>Runs registered <c>ArghValidation</c> validators over each bound object; on failure prints the flag's help rows and the run hint, then exits like a built-in check.</summary>
-	private static void EmitRegisteredValidation(StringBuilder sb, CommandModel cmd, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions, string failureExit, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	private static void EmitRegisteredValidation(
+		StringBuilder sb,
+		CommandModel cmd,
+		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions,
+		string failureExit,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
 	{
 		var bound = EnumerateBoundObjects(cmd, injectedOptions);
 		if (bound.Count == 0)
@@ -597,7 +659,9 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\t\tvar __valid = true;");
 		foreach (var (_, varName, flags) in bound)
 		{
-			sb.AppendLine($"\t\t\t\t__valid &= global::Nullean.Argh.Validation.ArghValidation.Validate({varName}, {MemberFlagsLiteral(flags)}, out var __f_{varName});");
+			sb.AppendLine(
+				$"\t\t\t\t__valid &= global::Nullean.Argh.Validation.ArghValidation.Validate({varName}, {MemberFlagsLiteral(flags)}, out var __f_{varName});"
+			);
 			sb.AppendLine($"\t\t\t\t__badFlag ??= __f_{varName};");
 		}
 
@@ -674,11 +738,8 @@ public sealed partial class CliParserGenerator
 			if (p.IsCollection && p.Kind == ParameterKind.Flag)
 			{
 				var elemFq = GetElementCSharpFq(p);
-				var accType = p.CollectionTargetIsReadOnlySet
-					? "global::System.Collections.Generic.HashSet"
-					: "global::System.Collections.Generic.List";
-				sb.AppendLine(
-					$"\t\t\tvar {p.LocalVarName}_acc = new {accType}<{elemFq}>();");
+				var accType = p.CollectionTargetIsReadOnlySet ? "global::System.Collections.Generic.HashSet" : "global::System.Collections.Generic.List";
+				sb.AppendLine($"\t\t\tvar {p.LocalVarName}_acc = new {accType}<{elemFq}>();");
 				continue;
 			}
 
@@ -760,7 +821,8 @@ public sealed partial class CliParserGenerator
 		string failureExit,
 		string? helpMethodName,
 		string? flagHelpStdErrMethodName,
-		string? parseFailureRunHint)
+		string? parseFailureRunHint
+	)
 	{
 		var argName = Escape(p.CliLongName);
 		var countVar = "__varCount_" + p.LocalVarName;
@@ -793,7 +855,9 @@ public sealed partial class CliParserGenerator
 		}
 		else
 		{
-			EmitParseFromString(sb, elemModel,
+			EmitParseFromString(
+				sb,
+				elemModel,
 				$"positionals[{startIndex} + __vi_{p.LocalVarName}]",
 				$"{arrVar}[__vi_{p.LocalVarName}]",
 				indentExtra: "\t",
@@ -801,7 +865,8 @@ public sealed partial class CliParserGenerator
 				failureExit: failureExit,
 				helpMethodName: helpMethodName,
 				flagHelpStdErrMethodName: flagHelpStdErrMethodName,
-				parseFailureRunHint: parseFailureRunHint);
+				parseFailureRunHint: parseFailureRunHint
+			);
 		}
 
 		sb.AppendLine("\t\t\t}");
@@ -825,7 +890,9 @@ public sealed partial class CliParserGenerator
 			case CliScalarKind.FileInfo:
 				return (p.IsRequired || p.UsesRuntimeDefault) && !p.IsNullableAnnotated ? "global::System.IO.FileInfo" : "global::System.IO.FileInfo?";
 			case CliScalarKind.DirectoryInfo:
-				return (p.IsRequired || p.UsesRuntimeDefault) && !p.IsNullableAnnotated ? "global::System.IO.DirectoryInfo" : "global::System.IO.DirectoryInfo?";
+				return (p.IsRequired || p.UsesRuntimeDefault) && !p.IsNullableAnnotated
+					? "global::System.IO.DirectoryInfo"
+					: "global::System.IO.DirectoryInfo?";
 			case CliScalarKind.Uri:
 				return (p.IsRequired || p.UsesRuntimeDefault) && !p.IsNullableAnnotated ? "global::System.Uri" : "global::System.Uri?";
 			case CliScalarKind.CustomParser when p.CustomValueTypeFq is not null:
@@ -871,8 +938,10 @@ public sealed partial class CliParserGenerator
 		if (p.ScalarKind == CliScalarKind.Collection)
 			return "null!";
 
-		if (!p.IsRequired && p.ScalarKind is CliScalarKind.Enum or CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo
-		    or CliScalarKind.Uri or CliScalarKind.CustomParser)
+		if (
+			!p.IsRequired &&
+			p.ScalarKind is CliScalarKind.Enum or CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo or CliScalarKind.Uri or CliScalarKind.CustomParser
+		)
 			return "null";
 
 		if (!p.IsRequired && p.TypeName.EndsWith("?", StringComparison.Ordinal))
@@ -889,8 +958,7 @@ public sealed partial class CliParserGenerator
 	/// <see cref="ParameterKind.OptionsInjected"/> but must still participate in long-name aliases, short-option
 	/// binding, and bare bool switch recognition the same as <see cref="ParameterKind.Flag"/>.
 	/// </summary>
-	private static bool IsEmittedFlagLike(ParameterKind kind) =>
-		kind is ParameterKind.Flag or ParameterKind.OptionsInjected;
+	private static bool IsEmittedFlagLike(ParameterKind kind) => kind is ParameterKind.Flag or ParameterKind.OptionsInjected;
 
 	private static void EmitBoolSwitchNames(StringBuilder sb, CommandModel cmd, bool suppressNoNameHelper = false)
 	{
@@ -1095,7 +1163,9 @@ public sealed partial class CliParserGenerator
 			if (isRepeatableCol)
 			{
 				// Repeatable flag: append to multiFlags so short opt and long opt collect into the same list.
-				sb.AppendLine($"\t\t\t\t\t\tif (!multiFlags.TryGetValue(\"{esc}\", out var __scList_{esc.Replace("-", "_")})) {{ __scList_{esc.Replace("-", "_")} = new List<string>(); multiFlags[\"{esc}\"] = __scList_{esc.Replace("-", "_")}; }}");
+				sb.AppendLine(
+					$"\t\t\t\t\t\tif (!multiFlags.TryGetValue(\"{esc}\", out var __scList_{esc.Replace("-", "_")})) {{ __scList_{esc.Replace("-", "_")} = new List<string>(); multiFlags[\"{esc}\"] = __scList_{esc.Replace("-", "_")}; }}"
+				);
 				sb.AppendLine($"\t\t\t\t\t\t__scList_{esc.Replace("-", "_")}.Add(val);");
 			}
 			else
@@ -1135,8 +1205,16 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\t};");
 	}
 
-	private static void EmitParseAndAssign(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string failureExit = "return 2", string? helpMethodName = null,
-		string? flagHelpStdErrMethodName = null, string? parseFailureRunHint = null)
+	private static void EmitParseAndAssign(
+		StringBuilder sb,
+		ParameterModel p,
+		string rawExpr,
+		string targetVar,
+		string failureExit = "return 2",
+		string? helpMethodName = null,
+		string? flagHelpStdErrMethodName = null,
+		string? parseFailureRunHint = null
+	)
 	{
 		if (!p.IsRequired && p.DefaultValueLiteral is not null)
 		{
@@ -1144,7 +1222,18 @@ public sealed partial class CliParserGenerator
 			sb.AppendLine($"\t\t\t\t{targetVar} = {p.DefaultValueLiteral};");
 			sb.AppendLine("\t\t\telse");
 			sb.AppendLine("\t\t\t{");
-			EmitParseFromString(sb, p, rawExpr, targetVar, indentExtra: "\t", outVarKeyword: false, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
+			EmitParseFromString(
+				sb,
+				p,
+				rawExpr,
+				targetVar,
+				indentExtra: "\t",
+				outVarKeyword: false,
+				failureExit: failureExit,
+				helpMethodName: helpMethodName,
+				flagHelpStdErrMethodName: flagHelpStdErrMethodName,
+				parseFailureRunHint: parseFailureRunHint
+			);
 			sb.AppendLine("\t\t\t}");
 		}
 		else if (!p.IsRequired && p.DefaultValueLiteral is null)
@@ -1153,15 +1242,45 @@ public sealed partial class CliParserGenerator
 			// Guards against passing null into type-specific parsers (e.g. Enum.TryParse) when the flag is absent.
 			sb.AppendLine($"\t\t\tif ({rawExpr} is not null)");
 			sb.AppendLine("\t\t\t{");
-			EmitParseFromString(sb, p, rawExpr, targetVar, indentExtra: "\t", outVarKeyword: false, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
+			EmitParseFromString(
+				sb,
+				p,
+				rawExpr,
+				targetVar,
+				indentExtra: "\t",
+				outVarKeyword: false,
+				failureExit: failureExit,
+				helpMethodName: helpMethodName,
+				flagHelpStdErrMethodName: flagHelpStdErrMethodName,
+				parseFailureRunHint: parseFailureRunHint
+			);
 			sb.AppendLine("\t\t\t}");
 		}
 		else
-			EmitParseFromString(sb, p, rawExpr, targetVar, failureExit: failureExit, helpMethodName: helpMethodName, flagHelpStdErrMethodName: flagHelpStdErrMethodName, parseFailureRunHint: parseFailureRunHint);
+			EmitParseFromString(
+				sb,
+				p,
+				rawExpr,
+				targetVar,
+				failureExit: failureExit,
+				helpMethodName: helpMethodName,
+				flagHelpStdErrMethodName: flagHelpStdErrMethodName,
+				parseFailureRunHint: parseFailureRunHint
+			);
 	}
 
-	private static void EmitParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string indentExtra = "",
-		bool outVarKeyword = false, string failureExit = "return 2", string? helpMethodName = null, string? flagHelpStdErrMethodName = null, string? parseFailureRunHint = null)
+	private static void EmitParseFromString(
+		StringBuilder sb,
+		ParameterModel p,
+		string rawExpr,
+		string targetVar,
+		string indentExtra = "",
+		bool outVarKeyword = false,
+		string failureExit = "return 2",
+		string? helpMethodName = null,
+		string? flagHelpStdErrMethodName = null,
+		string? parseFailureRunHint = null
+	)
 	{
 		var ind = "\t\t\t" + indentExtra;
 
@@ -1173,13 +1292,35 @@ public sealed partial class CliParserGenerator
 
 		if (p.ScalarKind == CliScalarKind.FileInfo)
 		{
-			EmitFileInfoParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+			EmitFileInfoParseFromString(
+				sb,
+				p,
+				rawExpr,
+				targetVar,
+				ind,
+				outVarKeyword,
+				failureExit,
+				helpMethodName,
+				flagHelpStdErrMethodName,
+				parseFailureRunHint
+			);
 			return;
 		}
 
 		if (p.ScalarKind == CliScalarKind.DirectoryInfo)
 		{
-			EmitDirectoryInfoParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+			EmitDirectoryInfoParseFromString(
+				sb,
+				p,
+				rawExpr,
+				targetVar,
+				ind,
+				outVarKeyword,
+				failureExit,
+				helpMethodName,
+				flagHelpStdErrMethodName,
+				parseFailureRunHint
+			);
 			return;
 		}
 
@@ -1191,340 +1332,452 @@ public sealed partial class CliParserGenerator
 
 		if (p.ScalarKind == CliScalarKind.CustomParser && p.ParserTypeFq is not null && p.CustomValueTypeFq is not null)
 		{
-			EmitCustomParserFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+			EmitCustomParserFromString(
+				sb,
+				p,
+				rawExpr,
+				targetVar,
+				ind,
+				outVarKeyword,
+				failureExit,
+				helpMethodName,
+				flagHelpStdErrMethodName,
+				parseFailureRunHint
+			);
 			return;
 		}
 
 		if (p.Special == BoolSpecialKind.None && p.TypeName is "int?" or "long?" or "float?" or "double?" or "decimal?")
 		{
-			EmitNullableNumericParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+			EmitNullableNumericParseFromString(
+				sb,
+				p,
+				rawExpr,
+				targetVar,
+				ind,
+				outVarKeyword,
+				failureExit,
+				helpMethodName,
+				flagHelpStdErrMethodName,
+				parseFailureRunHint
+			);
 			return;
 		}
 
 		if (p.Special == BoolSpecialKind.None && p.TypeName is "DateTime?" or "DateTimeOffset?" or "TimeSpan?" or "DateOnly?")
 		{
-			EmitNullableTemporalParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+			EmitNullableTemporalParseFromString(
+				sb,
+				p,
+				rawExpr,
+				targetVar,
+				ind,
+				outVarKeyword,
+				failureExit,
+				helpMethodName,
+				flagHelpStdErrMethodName,
+				parseFailureRunHint
+			);
 			return;
 		}
 
-		EmitPrimitiveScalarParseFromString(sb, p, rawExpr, targetVar, ind, outVarKeyword, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		EmitPrimitiveScalarParseFromString(
+			sb,
+			p,
+			rawExpr,
+			targetVar,
+			ind,
+			outVarKeyword,
+			failureExit,
+			helpMethodName,
+			flagHelpStdErrMethodName,
+			parseFailureRunHint
+		);
 	}
 
-
-
-	private static void EmitEnumParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	private static void EmitEnumParseFromString(
+		StringBuilder sb,
+		ParameterModel p,
+		string rawExpr,
+		string targetVar,
+		string ind,
+		bool outVarKeyword,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
 	{
 		var e = Escape(p.CliLongName);
+
 		string Out(string name) => outVarKeyword ? "out var " + name : "out " + name;
-var evVar = "__ev_" + p.LocalVarName;
-var evParsed = "__evp_" + p.LocalVarName;
-sb.AppendLine($"{ind}var {evParsed} = false;");
-sb.AppendLine($"{ind}{p.EnumTypeFq} {evVar} = default;");
-sb.AppendLine($"{ind}switch (({rawExpr} ?? \"\").ToLowerInvariant())");
-sb.AppendLine($"{ind}{{");
-for (var i = 0; i < p.EnumMemberNames.Length; i++)
-{
-	var memberName = p.EnumMemberNames[i];
-	var cliName = ResolveEnumMemberCliName(p.EnumMemberCliNames, i, memberName);
-	sb.AppendLine($"{ind}\tcase \"{Escape(cliName.ToLowerInvariant())}\": {evVar} = {p.EnumTypeFq}.{memberName}; {evParsed} = true; break;");
-}
-sb.AppendLine($"{ind}}}");
-sb.AppendLine($"{ind}if (!{evParsed})");
-sb.AppendLine($"{ind}{{");
-sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}: '{{{rawExpr}}}'.\");");
-EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-sb.AppendLine($"{ind}\t{failureExit};");
-sb.AppendLine($"{ind}}}");
-if (outVarKeyword)
-	sb.AppendLine($"{ind}var {targetVar} = {evVar};");
-else
-	sb.AppendLine($"{ind}{targetVar} = {evVar};");
-return;
-	}
 
-	private static void EmitFileInfoParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
-	{
-// Optional FileInfo? must omit new FileInfo when the flag was not provided (null), not pass null into the ctor (ArgumentNullException).
-if (!p.IsRequired)
-{
-	var csharpNullableFi = GetCSharpCliType(p);
-	var tmpFi = "__nullableFileInfo_" + Naming.SanitizeIdentifier(p.LocalVarName);
-	sb.AppendLine($"{ind}{csharpNullableFi} {tmpFi} = null;");
-	sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
-	sb.AppendLine($"{ind}{{");
-	var innerFi = ind + "\t";
-	string pathSrcOpt = $"{rawExpr}!";
-	if (p.ExpandUserProfileBeforeBind)
-	{
-		var expandedOpt = "__path_" + Naming.SanitizeIdentifier(p.LocalVarName);
-		sb.AppendLine($"{innerFi}var {expandedOpt} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
-		pathSrcOpt = expandedOpt;
-	}
-
-	sb.AppendLine($"{innerFi}{tmpFi} = new global::System.IO.FileInfo({pathSrcOpt});");
-	sb.AppendLine($"{ind}}}");
-	if (outVarKeyword)
-		sb.AppendLine($"{ind}var {targetVar} = {tmpFi};");
-	else
-		sb.AppendLine($"{ind}{targetVar} = {tmpFi};");
-	return;
-}
-
-string pathSrc = $"{rawExpr}!";
-if (p.ExpandUserProfileBeforeBind)
-{
-	var expandedName = "__path_" + Naming.SanitizeIdentifier(p.LocalVarName);
-	sb.AppendLine($"{ind}var {expandedName} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
-	pathSrc = expandedName;
-}
-
-if (outVarKeyword)
-	sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.FileInfo({pathSrc});");
-else
-	sb.AppendLine($"{ind}{targetVar} = new global::System.IO.FileInfo({pathSrc});");
-return;
-	}
-
-	private static void EmitDirectoryInfoParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
-	{
-// Optional DirectoryInfo? must omit new DirectoryInfo when the flag was not provided (null), not pass null into the ctor (ArgumentNullException).
-if (!p.IsRequired)
-{
-	var csharpNullableDi = GetCSharpCliType(p);
-	var tmpDi = "__nullableDirectoryInfo_" + Naming.SanitizeIdentifier(p.LocalVarName);
-	sb.AppendLine($"{ind}{csharpNullableDi} {tmpDi} = null;");
-	sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
-	sb.AppendLine($"{ind}{{");
-	var innerDi = ind + "\t";
-	string pathSrcDirOpt = $"{rawExpr}!";
-	if (p.ExpandUserProfileBeforeBind)
-	{
-		var expandedOptDir = "__dir_" + Naming.SanitizeIdentifier(p.LocalVarName);
-		sb.AppendLine($"{innerDi}var {expandedOptDir} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
-		pathSrcDirOpt = expandedOptDir;
-	}
-
-	sb.AppendLine($"{innerDi}{tmpDi} = new global::System.IO.DirectoryInfo({pathSrcDirOpt});");
-	sb.AppendLine($"{ind}}}");
-	if (outVarKeyword)
-		sb.AppendLine($"{ind}var {targetVar} = {tmpDi};");
-	else
-		sb.AppendLine($"{ind}{targetVar} = {tmpDi};");
-	return;
-}
-
-string pathSrcDir = $"{rawExpr}!";
-if (p.ExpandUserProfileBeforeBind)
-{
-	var expandedDir = "__dir_" + Naming.SanitizeIdentifier(p.LocalVarName);
-	sb.AppendLine($"{ind}var {expandedDir} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
-	pathSrcDir = expandedDir;
-}
-
-if (outVarKeyword)
-	sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.DirectoryInfo({pathSrcDir});");
-else
-	sb.AppendLine($"{ind}{targetVar} = new global::System.IO.DirectoryInfo({pathSrcDir});");
-return;
-	}
-
-	private static void EmitUriParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
-	{
-		var e = Escape(p.CliLongName);
-// Optional Uri? must treat omitted flags as null (raw text is null), not run Uri.TryCreate on null/whitespace.
-if (!p.IsRequired)
-{
-	var csharpNullableUri = GetCSharpCliType(p);
-	var tmpUri = "__nullableUriParsed_" + Naming.SanitizeIdentifier(p.LocalVarName);
-	sb.AppendLine($"{ind}{csharpNullableUri} {tmpUri} = null;");
-	sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
-	sb.AppendLine($"{ind}{{");
-	sb.AppendLine(
-		$"{ind}\tif (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
-	sb.AppendLine($"{ind}\t{{");
-	sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
-	EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-	sb.AppendLine($"{ind}\t\t{failureExit};");
-	sb.AppendLine($"{ind}\t}}");
-	sb.AppendLine($"{ind}\t{tmpUri} = __uri;");
-	sb.AppendLine($"{ind}}}");
-	if (outVarKeyword)
-		sb.AppendLine($"{ind}var {targetVar} = {tmpUri};");
-	else
-		sb.AppendLine($"{ind}{targetVar} = {tmpUri};");
-	return;
-}
-
-sb.AppendLine($"{ind}if (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
-sb.AppendLine($"{ind}{{");
-sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
-EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-sb.AppendLine($"{ind}\t{failureExit};");
-sb.AppendLine($"{ind}}}");
-if (outVarKeyword)
-	sb.AppendLine($"{ind}var {targetVar} = __uri;");
-else
-	sb.AppendLine($"{ind}{targetVar} = __uri;");
-return;
-	}
-
-	private static void EmitCustomParserFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
-	{
-		var e = Escape(p.CliLongName);
-sb.AppendLine($"{ind}var __parser = new {p.ParserTypeFq}();");
-sb.AppendLine($"{ind}if (!__parser.TryParse({rawExpr}!, out var __pv))");
-sb.AppendLine($"{ind}{{");
-sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}.\");");
-EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-sb.AppendLine($"{ind}\t{failureExit};");
-sb.AppendLine($"{ind}}}");
-if (outVarKeyword)
-	sb.AppendLine($"{ind}var {targetVar} = __pv;");
-else
-	sb.AppendLine($"{ind}{targetVar} = __pv;");
-return;
-	}
-
-	private static void EmitPrimitiveScalarParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar, string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
-	{
-		var e = Escape(p.CliLongName);
-		string Out(string name) => outVarKeyword ? "out var " + name : "out " + name;
-switch (p.Special)
-{
-	case BoolSpecialKind.None when p.TypeName == "string":
-	{
-		if (outVarKeyword)
-			sb.AppendLine($"{ind}var {targetVar} = {rawExpr};");
-		else
+		var evVar = "__ev_" + p.LocalVarName;
+		var evParsed = "__evp_" + p.LocalVarName;
+		sb.AppendLine($"{ind}var {evParsed} = false;");
+		sb.AppendLine($"{ind}{p.EnumTypeFq} {evVar} = default;");
+		sb.AppendLine($"{ind}switch (({rawExpr} ?? \"\").ToLowerInvariant())");
+		sb.AppendLine($"{ind}{{");
+		for (var i = 0; i < p.EnumMemberNames.Length; i++)
 		{
-			var nonNull = p.IsRequired ? "!" : "";
-			sb.AppendLine($"{ind}{targetVar} = {rawExpr}{nonNull};");
+			var memberName = p.EnumMemberNames[i];
+			var cliName = ResolveEnumMemberCliName(p.EnumMemberCliNames, i, memberName);
+			sb.AppendLine($"{ind}\tcase \"{Escape(cliName.ToLowerInvariant())}\": {evVar} = {p.EnumTypeFq}.{memberName}; {evParsed} = true; break;");
+		}
+		sb.AppendLine($"{ind}}}");
+		sb.AppendLine($"{ind}if (!{evParsed})");
+		sb.AppendLine($"{ind}{{");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}: '{{{rawExpr}}}'.\");");
+		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+		sb.AppendLine($"{ind}\t{failureExit};");
+		sb.AppendLine($"{ind}}}");
+		if (outVarKeyword)
+			sb.AppendLine($"{ind}var {targetVar} = {evVar};");
+		else
+			sb.AppendLine($"{ind}{targetVar} = {evVar};");
+		return;
+	}
+
+	private static void EmitFileInfoParseFromString(
+		StringBuilder sb,
+		ParameterModel p,
+		string rawExpr,
+		string targetVar,
+		string ind,
+		bool outVarKeyword,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
+	{
+		// Optional FileInfo? must omit new FileInfo when the flag was not provided (null), not pass null into the ctor (ArgumentNullException).
+		if (!p.IsRequired)
+		{
+			var csharpNullableFi = GetCSharpCliType(p);
+			var tmpFi = "__nullableFileInfo_" + Naming.SanitizeIdentifier(p.LocalVarName);
+			sb.AppendLine($"{ind}{csharpNullableFi} {tmpFi} = null;");
+			sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
+			sb.AppendLine($"{ind}{{");
+			var innerFi = ind + "\t";
+			string pathSrcOpt = $"{rawExpr}!";
+			if (p.ExpandUserProfileBeforeBind)
+			{
+				var expandedOpt = "__path_" + Naming.SanitizeIdentifier(p.LocalVarName);
+				sb.AppendLine($"{innerFi}var {expandedOpt} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+				pathSrcOpt = expandedOpt;
+			}
+
+			sb.AppendLine($"{innerFi}{tmpFi} = new global::System.IO.FileInfo({pathSrcOpt});");
+			sb.AppendLine($"{ind}}}");
+			if (outVarKeyword)
+				sb.AppendLine($"{ind}var {targetVar} = {tmpFi};");
+			else
+				sb.AppendLine($"{ind}{targetVar} = {tmpFi};");
+			return;
 		}
 
-		break;
+		string pathSrc = $"{rawExpr}!";
+		if (p.ExpandUserProfileBeforeBind)
+		{
+			var expandedName = "__path_" + Naming.SanitizeIdentifier(p.LocalVarName);
+			sb.AppendLine($"{ind}var {expandedName} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+			pathSrc = expandedName;
+		}
+
+		if (outVarKeyword)
+			sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.FileInfo({pathSrc});");
+		else
+			sb.AppendLine($"{ind}{targetVar} = new global::System.IO.FileInfo({pathSrc});");
+		return;
 	}
-	case BoolSpecialKind.None when p.TypeName == "int":
-		sb.AppendLine(
-			$"{ind}if (!int.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
-		sb.AppendLine($"{ind}{{");
-		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid int for --{e}: '{{{rawExpr}}}'.\");");
-		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-		sb.AppendLine($"{ind}\t{failureExit};");
-		sb.AppendLine($"{ind}}}");
-		break;
-	case BoolSpecialKind.None when p.TypeName == "long":
-		sb.AppendLine(
-			$"{ind}if (!long.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
-		sb.AppendLine($"{ind}{{");
-		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid long for --{e}: '{{{rawExpr}}}'.\");");
-		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-		sb.AppendLine($"{ind}\t{failureExit};");
-		sb.AppendLine($"{ind}}}");
-		break;
-	case BoolSpecialKind.None when p.TypeName == "float":
-		sb.AppendLine(
-			$"{ind}if (!float.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))");
-		sb.AppendLine($"{ind}{{");
-		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid float for --{e}: '{{{rawExpr}}}'.\");");
-		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-		sb.AppendLine($"{ind}\t{failureExit};");
-		sb.AppendLine($"{ind}}}");
-		break;
-	case BoolSpecialKind.None when p.TypeName == "double":
-		sb.AppendLine(
-			$"{ind}if (!double.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))");
-		sb.AppendLine($"{ind}{{");
-		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid double for --{e}: '{{{rawExpr}}}'.\");");
-		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-		sb.AppendLine($"{ind}\t{failureExit};");
-		sb.AppendLine($"{ind}}}");
-		break;
-	case BoolSpecialKind.None when p.TypeName == "decimal":
-		sb.AppendLine(
-			$"{ind}if (!decimal.TryParse({rawExpr}, NumberStyles.Number, CultureInfo.InvariantCulture, {Out(targetVar)}))");
-		sb.AppendLine($"{ind}{{");
-		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid decimal for --{e}: '{{{rawExpr}}}'.\");");
-		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-		sb.AppendLine($"{ind}\t{failureExit};");
-		sb.AppendLine($"{ind}}}");
-		break;
-	case BoolSpecialKind.None when p.TypeName == "DateTime":
+
+	private static void EmitDirectoryInfoParseFromString(
+		StringBuilder sb,
+		ParameterModel p,
+		string rawExpr,
+		string targetVar,
+		string ind,
+		bool outVarKeyword,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
 	{
-		var tmp = "__dt_" + p.LocalVarName;
-		sb.AppendLine(
-			$"{ind}if (!global::System.DateTime.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))");
-		sb.AppendLine($"{ind}{{");
-		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTime for --{e}: '{{{rawExpr}}}'.\");");
-		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-		sb.AppendLine($"{ind}\t{failureExit};");
-		sb.AppendLine($"{ind}}}");
+		// Optional DirectoryInfo? must omit new DirectoryInfo when the flag was not provided (null), not pass null into the ctor (ArgumentNullException).
+		if (!p.IsRequired)
+		{
+			var csharpNullableDi = GetCSharpCliType(p);
+			var tmpDi = "__nullableDirectoryInfo_" + Naming.SanitizeIdentifier(p.LocalVarName);
+			sb.AppendLine($"{ind}{csharpNullableDi} {tmpDi} = null;");
+			sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
+			sb.AppendLine($"{ind}{{");
+			var innerDi = ind + "\t";
+			string pathSrcDirOpt = $"{rawExpr}!";
+			if (p.ExpandUserProfileBeforeBind)
+			{
+				var expandedOptDir = "__dir_" + Naming.SanitizeIdentifier(p.LocalVarName);
+				sb.AppendLine($"{innerDi}var {expandedOptDir} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+				pathSrcDirOpt = expandedOptDir;
+			}
+
+			sb.AppendLine($"{innerDi}{tmpDi} = new global::System.IO.DirectoryInfo({pathSrcDirOpt});");
+			sb.AppendLine($"{ind}}}");
+			if (outVarKeyword)
+				sb.AppendLine($"{ind}var {targetVar} = {tmpDi};");
+			else
+				sb.AppendLine($"{ind}{targetVar} = {tmpDi};");
+			return;
+		}
+
+		string pathSrcDir = $"{rawExpr}!";
+		if (p.ExpandUserProfileBeforeBind)
+		{
+			var expandedDir = "__dir_" + Naming.SanitizeIdentifier(p.LocalVarName);
+			sb.AppendLine($"{ind}var {expandedDir} = global::Nullean.Argh.ArghPath.ExpandUserProfilePath({rawExpr}!);");
+			pathSrcDir = expandedDir;
+		}
+
 		if (outVarKeyword)
-			sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+			sb.AppendLine($"{ind}var {targetVar} = new global::System.IO.DirectoryInfo({pathSrcDir});");
 		else
-			sb.AppendLine($"{ind}{targetVar} = {tmp};");
-		break;
+			sb.AppendLine($"{ind}{targetVar} = new global::System.IO.DirectoryInfo({pathSrcDir});");
+		return;
 	}
-	case BoolSpecialKind.None when p.TypeName == "DateTimeOffset":
+
+	private static void EmitUriParseFromString(
+		StringBuilder sb,
+		ParameterModel p,
+		string rawExpr,
+		string targetVar,
+		string ind,
+		bool outVarKeyword,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
 	{
-		var tmp = "__dto_" + p.LocalVarName;
-		sb.AppendLine(
-			$"{ind}if (!global::System.DateTimeOffset.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))");
+		var e = Escape(p.CliLongName);
+		// Optional Uri? must treat omitted flags as null (raw text is null), not run Uri.TryCreate on null/whitespace.
+		if (!p.IsRequired)
+		{
+			var csharpNullableUri = GetCSharpCliType(p);
+			var tmpUri = "__nullableUriParsed_" + Naming.SanitizeIdentifier(p.LocalVarName);
+			sb.AppendLine($"{ind}{csharpNullableUri} {tmpUri} = null;");
+			sb.AppendLine($"{ind}if (!string.IsNullOrWhiteSpace({rawExpr}))");
+			sb.AppendLine($"{ind}{{");
+			sb.AppendLine($"{ind}\tif (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
+			sb.AppendLine($"{ind}\t{{");
+			sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
+			EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+			sb.AppendLine($"{ind}\t\t{failureExit};");
+			sb.AppendLine($"{ind}\t}}");
+			sb.AppendLine($"{ind}\t{tmpUri} = __uri;");
+			sb.AppendLine($"{ind}}}");
+			if (outVarKeyword)
+				sb.AppendLine($"{ind}var {targetVar} = {tmpUri};");
+			else
+				sb.AppendLine($"{ind}{targetVar} = {tmpUri};");
+			return;
+		}
+
+		sb.AppendLine($"{ind}if (!global::System.Uri.TryCreate({rawExpr}, global::System.UriKind.RelativeOrAbsolute, out var __uri))");
 		sb.AppendLine($"{ind}{{");
-		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTimeOffset for --{e}: '{{{rawExpr}}}'.\");");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid URI for --{e}: '{{{rawExpr}}}'.\");");
 		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 		sb.AppendLine($"{ind}\t{failureExit};");
 		sb.AppendLine($"{ind}}}");
 		if (outVarKeyword)
-			sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+			sb.AppendLine($"{ind}var {targetVar} = __uri;");
 		else
-			sb.AppendLine($"{ind}{targetVar} = {tmp};");
-		break;
+			sb.AppendLine($"{ind}{targetVar} = __uri;");
+		return;
 	}
-	case BoolSpecialKind.None when p.TypeName == "TimeSpan":
+
+	private static void EmitCustomParserFromString(
+		StringBuilder sb,
+		ParameterModel p,
+		string rawExpr,
+		string targetVar,
+		string ind,
+		bool outVarKeyword,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
 	{
-		var tmp = "__ts_" + p.LocalVarName;
-		sb.AppendLine($"{ind}if (!global::Nullean.Argh.ArghTimeSpan.TryParse({rawExpr}, out var {tmp}))");
+		var e = Escape(p.CliLongName);
+		sb.AppendLine($"{ind}var __parser = new {p.ParserTypeFq}();");
+		sb.AppendLine($"{ind}if (!__parser.TryParse({rawExpr}!, out var __pv))");
 		sb.AppendLine($"{ind}{{");
-		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid TimeSpan for --{e}: '{{{rawExpr}}}'.\");");
+		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid value for --{e}.\");");
 		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 		sb.AppendLine($"{ind}\t{failureExit};");
 		sb.AppendLine($"{ind}}}");
 		if (outVarKeyword)
-			sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+			sb.AppendLine($"{ind}var {targetVar} = __pv;");
 		else
-			sb.AppendLine($"{ind}{targetVar} = {tmp};");
-		break;
+			sb.AppendLine($"{ind}{targetVar} = __pv;");
+		return;
 	}
-	case BoolSpecialKind.None when p.TypeName == "DateOnly":
+
+	private static void EmitPrimitiveScalarParseFromString(
+		StringBuilder sb,
+		ParameterModel p,
+		string rawExpr,
+		string targetVar,
+		string ind,
+		bool outVarKeyword,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
 	{
-		var tmp = "__do_" + p.LocalVarName;
-		sb.AppendLine(
-			$"{ind}if (!global::System.DateOnly.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.None, out var {tmp}))");
-		sb.AppendLine($"{ind}{{");
-		sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateOnly for --{e}: '{{{rawExpr}}}'.\");");
-		EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-		sb.AppendLine($"{ind}\t{failureExit};");
-		sb.AppendLine($"{ind}}}");
-		if (outVarKeyword)
-			sb.AppendLine($"{ind}var {targetVar} = {tmp};");
-		else
-			sb.AppendLine($"{ind}{targetVar} = {tmp};");
-		break;
-	}
-	case BoolSpecialKind.None when p.TypeName == "bool":
-		if (outVarKeyword)
-			sb.AppendLine(
-				$"{ind}var {targetVar} = bool.TryParse({rawExpr}, out var tmpBool) ? tmpBool : true;");
-		else
-			sb.AppendLine($"{ind}{targetVar} = bool.TryParse({rawExpr}, out var tmpBool) ? tmpBool : true;");
-		break;
-	default:
-		if (outVarKeyword)
-			sb.AppendLine($"{ind}var {targetVar} = {rawExpr};");
-		else
-			sb.AppendLine($"{ind}{targetVar} = {rawExpr}; // fallback");
-		break;
-}
+		var e = Escape(p.CliLongName);
+
+		string Out(string name) => outVarKeyword ? "out var " + name : "out " + name;
+
+		switch (p.Special)
+		{
+			case BoolSpecialKind.None when p.TypeName == "string":
+				{
+					if (outVarKeyword)
+						sb.AppendLine($"{ind}var {targetVar} = {rawExpr};");
+					else
+					{
+						var nonNull = p.IsRequired ? "!" : "";
+						sb.AppendLine($"{ind}{targetVar} = {rawExpr}{nonNull};");
+					}
+
+					break;
+				}
+			case BoolSpecialKind.None when p.TypeName == "int":
+				sb.AppendLine($"{ind}if (!int.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
+				sb.AppendLine($"{ind}{{");
+				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid int for --{e}: '{{{rawExpr}}}'.\");");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+				sb.AppendLine($"{ind}\t{failureExit};");
+				sb.AppendLine($"{ind}}}");
+				break;
+			case BoolSpecialKind.None when p.TypeName == "long":
+				sb.AppendLine($"{ind}if (!long.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, {Out(targetVar)}))");
+				sb.AppendLine($"{ind}{{");
+				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid long for --{e}: '{{{rawExpr}}}'.\");");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+				sb.AppendLine($"{ind}\t{failureExit};");
+				sb.AppendLine($"{ind}}}");
+				break;
+			case BoolSpecialKind.None when p.TypeName == "float":
+				sb.AppendLine(
+					$"{ind}if (!float.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))"
+				);
+				sb.AppendLine($"{ind}{{");
+				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid float for --{e}: '{{{rawExpr}}}'.\");");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+				sb.AppendLine($"{ind}\t{failureExit};");
+				sb.AppendLine($"{ind}}}");
+				break;
+			case BoolSpecialKind.None when p.TypeName == "double":
+				sb.AppendLine(
+					$"{ind}if (!double.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, {Out(targetVar)}))"
+				);
+				sb.AppendLine($"{ind}{{");
+				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid double for --{e}: '{{{rawExpr}}}'.\");");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+				sb.AppendLine($"{ind}\t{failureExit};");
+				sb.AppendLine($"{ind}}}");
+				break;
+			case BoolSpecialKind.None when p.TypeName == "decimal":
+				sb.AppendLine($"{ind}if (!decimal.TryParse({rawExpr}, NumberStyles.Number, CultureInfo.InvariantCulture, {Out(targetVar)}))");
+				sb.AppendLine($"{ind}{{");
+				sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid decimal for --{e}: '{{{rawExpr}}}'.\");");
+				EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+				sb.AppendLine($"{ind}\t{failureExit};");
+				sb.AppendLine($"{ind}}}");
+				break;
+			case BoolSpecialKind.None when p.TypeName == "DateTime":
+				{
+					var tmp = "__dt_" + p.LocalVarName;
+					sb.AppendLine(
+						$"{ind}if (!global::System.DateTime.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))"
+					);
+					sb.AppendLine($"{ind}{{");
+					sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTime for --{e}: '{{{rawExpr}}}'.\");");
+					EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+					sb.AppendLine($"{ind}\t{failureExit};");
+					sb.AppendLine($"{ind}}}");
+					if (outVarKeyword)
+						sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+					else
+						sb.AppendLine($"{ind}{targetVar} = {tmp};");
+					break;
+				}
+			case BoolSpecialKind.None when p.TypeName == "DateTimeOffset":
+				{
+					var tmp = "__dto_" + p.LocalVarName;
+					sb.AppendLine(
+						$"{ind}if (!global::System.DateTimeOffset.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {tmp}))"
+					);
+					sb.AppendLine($"{ind}{{");
+					sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateTimeOffset for --{e}: '{{{rawExpr}}}'.\");");
+					EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+					sb.AppendLine($"{ind}\t{failureExit};");
+					sb.AppendLine($"{ind}}}");
+					if (outVarKeyword)
+						sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+					else
+						sb.AppendLine($"{ind}{targetVar} = {tmp};");
+					break;
+				}
+			case BoolSpecialKind.None when p.TypeName == "TimeSpan":
+				{
+					var tmp = "__ts_" + p.LocalVarName;
+					sb.AppendLine($"{ind}if (!global::Nullean.Argh.ArghTimeSpan.TryParse({rawExpr}, out var {tmp}))");
+					sb.AppendLine($"{ind}{{");
+					sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid TimeSpan for --{e}: '{{{rawExpr}}}'.\");");
+					EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+					sb.AppendLine($"{ind}\t{failureExit};");
+					sb.AppendLine($"{ind}}}");
+					if (outVarKeyword)
+						sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+					else
+						sb.AppendLine($"{ind}{targetVar} = {tmp};");
+					break;
+				}
+			case BoolSpecialKind.None when p.TypeName == "DateOnly":
+				{
+					var tmp = "__do_" + p.LocalVarName;
+					sb.AppendLine(
+						$"{ind}if (!global::System.DateOnly.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.None, out var {tmp}))"
+					);
+					sb.AppendLine($"{ind}{{");
+					sb.AppendLine($"{ind}\tConsole.Error.WriteLine($\"Error: invalid DateOnly for --{e}: '{{{rawExpr}}}'.\");");
+					EmitAfterCliParseErrorHelp(sb, p, $"{ind}\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+					sb.AppendLine($"{ind}\t{failureExit};");
+					sb.AppendLine($"{ind}}}");
+					if (outVarKeyword)
+						sb.AppendLine($"{ind}var {targetVar} = {tmp};");
+					else
+						sb.AppendLine($"{ind}{targetVar} = {tmp};");
+					break;
+				}
+			case BoolSpecialKind.None when p.TypeName == "bool":
+				if (outVarKeyword)
+					sb.AppendLine($"{ind}var {targetVar} = bool.TryParse({rawExpr}, out var tmpBool) ? tmpBool : true;");
+				else
+					sb.AppendLine($"{ind}{targetVar} = bool.TryParse({rawExpr}, out var tmpBool) ? tmpBool : true;");
+				break;
+			default:
+				if (outVarKeyword)
+					sb.AppendLine($"{ind}var {targetVar} = {rawExpr};");
+				else
+					sb.AppendLine($"{ind}{targetVar} = {rawExpr}; // fallback");
+				break;
+		}
 	}
 
 	// ── Union assembly ────────────────────────────────────────────────────────
@@ -1534,10 +1787,17 @@ switch (p.Special)
 	/// selected case, reads every case's <c>--{case}-{prop}</c> flags, then switches on the case name to
 	/// construct the union value. Case flags of an unselected case are silently unused.
 	/// </summary>
-	private static void EmitUnionFlagAssembly(StringBuilder sb, ParameterModel p, string failureExit,
-		string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	private static void EmitUnionFlagAssembly(
+		StringBuilder sb,
+		ParameterModel p,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
 	{
-		if (p.UnionTypeFq is null || p.UnionCases.IsDefaultOrEmpty) return;
+		if (p.UnionTypeFq is null || p.UnionCases.IsDefaultOrEmpty)
+			return;
 		var flagKey = Escape(p.CliLongName);
 		var caseVar = "__union_case_" + p.LocalVarName;
 
@@ -1560,10 +1820,18 @@ switch (p.Special)
 	/// Emits post-loop code for union [Argument] mode: reads <c>positionals[posIndex]</c> as the selected case,
 	/// reads every case's bare <c>--{prop}</c> flags, then switches on the case name to construct the union value.
 	/// </summary>
-	private static void EmitUnionArgumentAssembly(StringBuilder sb, ParameterModel p, int posIndex,
-		string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	private static void EmitUnionArgumentAssembly(
+		StringBuilder sb,
+		ParameterModel p,
+		int posIndex,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
 	{
-		if (p.UnionTypeFq is null || p.UnionCases.IsDefaultOrEmpty) return;
+		if (p.UnionTypeFq is null || p.UnionCases.IsDefaultOrEmpty)
+			return;
 		var caseVar = "__union_case_" + p.LocalVarName;
 
 		if (p.IsRequired)
@@ -1586,15 +1854,20 @@ switch (p.Special)
 		EmitUnionCaseSwitch(sb, p, caseVar, $"<{Escape(p.CliLongName)}>", failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 	}
 
-	private static string UnionCasePropFlagName(ParameterModel union, UnionCasePropInfo prop) =>
-		union.UnionIsArgument ? prop.CliName : prop.FlagModeName;
+	private static string UnionCasePropFlagName(ParameterModel union, UnionCasePropInfo prop) => union.UnionIsArgument ? prop.CliName : prop.FlagModeName;
 
 	private static string UnionCasePropVar(ParameterModel union, UnionCaseInfo c, UnionCasePropInfo prop) =>
 		"__up_" + union.LocalVarName + "_" + Naming.SanitizeIdentifier(c.CliName) + "_" + Naming.SanitizeIdentifier(prop.CliName);
 
 	/// <summary>Reads and parses every case property flag, whichever case is selected.</summary>
-	private static void EmitUnionCasePropReads(StringBuilder sb, ParameterModel p, string failureExit,
-		string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	private static void EmitUnionCasePropReads(
+		StringBuilder sb,
+		ParameterModel p,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
 	{
 		foreach (var c in p.UnionCases)
 		{
@@ -1605,21 +1878,41 @@ switch (p.Special)
 				if (prop.Special == BoolSpecialKind.Bool)
 				{
 					// A bool that defaults to true is switched off with --no-{flag}.
-					sb.AppendLine(UnionBoolDefaultsTrue(prop)
-						? $"\t\t\tvar {propVar} = !flags.ContainsKey(\"no-{Escape(flagName)}\");"
-						: $"\t\t\tvar {propVar} = flags.ContainsKey(\"{Escape(flagName)}\");");
+					sb.AppendLine(
+						UnionBoolDefaultsTrue(prop)
+							? $"\t\t\tvar {propVar} = !flags.ContainsKey(\"no-{Escape(flagName)}\");"
+							: $"\t\t\tvar {propVar} = flags.ContainsKey(\"{Escape(flagName)}\");"
+					);
 					continue;
 				}
 				sb.AppendLine($"\t\t\tflags.TryGetValue(\"{Escape(flagName)}\", out var {propVar}Raw);");
-				EmitUnionPropParse(sb, prop, flagName, propVar + "Raw", propVar + "_parsed", "\t\t\t", failureExit,
-					helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+				EmitUnionPropParse(
+					sb,
+					prop,
+					flagName,
+					propVar + "Raw",
+					propVar + "_parsed",
+					"\t\t\t",
+					failureExit,
+					helpMethodName,
+					flagHelpStdErrMethodName,
+					parseFailureRunHint
+				);
 			}
 		}
 	}
 
 	/// <summary>Switches on the selected case name and constructs the union value from that case's properties.</summary>
-	private static void EmitUnionCaseSwitch(StringBuilder sb, ParameterModel p, string caseVar, string displayName, string failureExit,
-		string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	private static void EmitUnionCaseSwitch(
+		StringBuilder sb,
+		ParameterModel p,
+		string caseVar,
+		string displayName,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
 	{
 		sb.AppendLine($"\t\t\t{p.UnionTypeFq} {p.LocalVarName} = default;");
 		var ind = "\t\t\t";
@@ -1639,7 +1932,8 @@ switch (p.Special)
 			var propArgs = new StringBuilder();
 			foreach (var prop in c.Properties)
 			{
-				if (propArgs.Length > 0) propArgs.Append(", ");
+				if (propArgs.Length > 0)
+					propArgs.Append(", ");
 				var propVar = UnionCasePropVar(p, c, prop);
 				propArgs.Append(prop.Special == BoolSpecialKind.Bool ? propVar : propVar + "_parsed");
 			}
@@ -1647,7 +1941,9 @@ switch (p.Special)
 			sb.AppendLine($"{ind}\t\tbreak;");
 		}
 		sb.AppendLine($"{ind}\tdefault:");
-		sb.AppendLine($"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid value for {displayName}: '{{{caseVar}}}'. Expected one of: {Escape(string.Join(", ", p.UnionCases.Select(static c => c.CliName)))}.\");");
+		sb.AppendLine(
+			$"{ind}\t\tConsole.Error.WriteLine($\"Error: invalid value for {displayName}: '{{{caseVar}}}'. Expected one of: {Escape(string.Join(", ", p.UnionCases.Select(static c => c.CliName)))}.\");"
+		);
 		EmitAfterCliParseErrorHelp(sb, p, ind + "\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 		sb.AppendLine($"{ind}\t\t{failureExit};");
 		sb.AppendLine($"{ind}\t\tbreak;");
@@ -1660,8 +1956,18 @@ switch (p.Special)
 	/// Emits parse code for a single union case property from a raw string variable into a parsed variable.
 	/// An absent flag keeps the case property's default; a value that does not parse is a parse error.
 	/// </summary>
-	private static void EmitUnionPropParse(StringBuilder sb, UnionCasePropInfo prop, string flagName, string rawVar, string parsedVar,
-		string ind, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	private static void EmitUnionPropParse(
+		StringBuilder sb,
+		UnionCasePropInfo prop,
+		string flagName,
+		string rawVar,
+		string parsedVar,
+		string ind,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName,
+		string? parseFailureRunHint
+	)
 	{
 		if (prop.ScalarKind == CliScalarKind.Enum && prop.EnumTypeFq is not null && !prop.EnumMemberNames.IsDefaultOrEmpty)
 		{
@@ -1678,7 +1984,14 @@ switch (p.Special)
 			}
 			sb.AppendLine($"{ind}\t\tdefault:");
 			sb.AppendLine($"{ind}\t\t\tConsole.Error.WriteLine($\"Error: invalid value for --{Escape(flagName)}: '{{{rawVar}}}'.\");");
-			EmitAfterCliParseErrorHelp(sb, UnionCasePropHelpRow(flagName, prop, ""), ind + "\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+			EmitAfterCliParseErrorHelp(
+				sb,
+				UnionCasePropHelpRow(flagName, prop, ""),
+				ind + "\t\t\t",
+				helpMethodName,
+				flagHelpStdErrMethodName,
+				parseFailureRunHint
+			);
 			sb.AppendLine($"{ind}\t\t\t{failureExit};");
 			sb.AppendLine($"{ind}\t\t\tbreak;");
 			sb.AppendLine($"{ind}\t}}");
@@ -1686,15 +1999,22 @@ switch (p.Special)
 			return;
 		}
 
-		var tryParse = prop.ScalarKind != CliScalarKind.Primitive ? null : prop.TypeName switch
-		{
-			"int" => $"int.TryParse({rawVar}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
-			"long" => $"long.TryParse({rawVar}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
-			"float" => $"float.TryParse({rawVar}, global::System.Globalization.NumberStyles.Float | global::System.Globalization.NumberStyles.AllowThousands, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
-			"double" => $"double.TryParse({rawVar}, global::System.Globalization.NumberStyles.Float | global::System.Globalization.NumberStyles.AllowThousands, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
-			"decimal" => $"decimal.TryParse({rawVar}, global::System.Globalization.NumberStyles.Number, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
-			_ => null
-		};
+		var tryParse = prop.ScalarKind != CliScalarKind.Primitive
+			? null
+			: prop.TypeName switch
+			{
+				"int" =>
+					$"int.TryParse({rawVar}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+				"long" =>
+					$"long.TryParse({rawVar}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+				"float" =>
+					$"float.TryParse({rawVar}, global::System.Globalization.NumberStyles.Float | global::System.Globalization.NumberStyles.AllowThousands, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+				"double" =>
+					$"double.TryParse({rawVar}, global::System.Globalization.NumberStyles.Float | global::System.Globalization.NumberStyles.AllowThousands, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+				"decimal" =>
+					$"decimal.TryParse({rawVar}, global::System.Globalization.NumberStyles.Number, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+				_ => null
+			};
 
 		if (tryParse is null)
 		{
@@ -1713,8 +2033,18 @@ switch (p.Special)
 		sb.AppendLine($"{ind}}}");
 	}
 
-	private static void EmitNullableNumericParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar,
-		string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName = null, string? parseFailureRunHint = null)
+	private static void EmitNullableNumericParseFromString(
+		StringBuilder sb,
+		ParameterModel p,
+		string rawExpr,
+		string targetVar,
+		string ind,
+		bool outVarKeyword,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName = null,
+		string? parseFailureRunHint = null
+	)
 	{
 		var e = Escape(p.CliLongName);
 		var tmpVar = "__nullableNumericParsed_" + p.LocalVarName;
@@ -1728,24 +2058,23 @@ switch (p.Special)
 		switch (p.TypeName)
 		{
 			case "int?":
-				sb.AppendLine(
-					$"{ind}\tif (!int.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, out var {parsedOut}))");
+				sb.AppendLine($"{ind}\tif (!int.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, out var {parsedOut}))");
 				break;
 			case "long?":
-				sb.AppendLine(
-					$"{ind}\tif (!long.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, out var {parsedOut}))");
+				sb.AppendLine($"{ind}\tif (!long.TryParse({rawExpr}, NumberStyles.Integer, CultureInfo.InvariantCulture, out var {parsedOut}))");
 				break;
 			case "float?":
 				sb.AppendLine(
-					$"{ind}\tif (!float.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var {parsedOut}))");
+					$"{ind}\tif (!float.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var {parsedOut}))"
+				);
 				break;
 			case "double?":
 				sb.AppendLine(
-					$"{ind}\tif (!double.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var {parsedOut}))");
+					$"{ind}\tif (!double.TryParse({rawExpr}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var {parsedOut}))"
+				);
 				break;
 			case "decimal?":
-				sb.AppendLine(
-					$"{ind}\tif (!decimal.TryParse({rawExpr}, NumberStyles.Number, CultureInfo.InvariantCulture, out var {parsedOut}))");
+				sb.AppendLine($"{ind}\tif (!decimal.TryParse({rawExpr}, NumberStyles.Number, CultureInfo.InvariantCulture, out var {parsedOut}))");
 				break;
 			default:
 				throw new InvalidOperationException($"Unexpected nullable numeric type '{p.TypeName}'.");
@@ -1765,8 +2094,18 @@ switch (p.Special)
 			sb.AppendLine($"{ind}{targetVar} = {tmpVar};");
 	}
 
-	private static void EmitNullableTemporalParseFromString(StringBuilder sb, ParameterModel p, string rawExpr, string targetVar,
-		string ind, bool outVarKeyword, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName = null, string? parseFailureRunHint = null)
+	private static void EmitNullableTemporalParseFromString(
+		StringBuilder sb,
+		ParameterModel p,
+		string rawExpr,
+		string targetVar,
+		string ind,
+		bool outVarKeyword,
+		string failureExit,
+		string? helpMethodName,
+		string? flagHelpStdErrMethodName = null,
+		string? parseFailureRunHint = null
+	)
 	{
 		var e = Escape(p.CliLongName);
 		var tmpVar = "__nullableTemporalParsed_" + p.LocalVarName;
@@ -1781,18 +2120,21 @@ switch (p.Special)
 		{
 			case "DateTime?":
 				sb.AppendLine(
-					$"{ind}\tif (!global::System.DateTime.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {parsedOut}))");
+					$"{ind}\tif (!global::System.DateTime.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {parsedOut}))"
+				);
 				break;
 			case "DateTimeOffset?":
 				sb.AppendLine(
-					$"{ind}\tif (!global::System.DateTimeOffset.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {parsedOut}))");
+					$"{ind}\tif (!global::System.DateTimeOffset.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.RoundtripKind | global::System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var {parsedOut}))"
+				);
 				break;
 			case "TimeSpan?":
 				sb.AppendLine($"{ind}\tif (!global::Nullean.Argh.ArghTimeSpan.TryParse({rawExpr}, out var {parsedOut}))");
 				break;
 			case "DateOnly?":
 				sb.AppendLine(
-					$"{ind}\tif (!global::System.DateOnly.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.None, out var {parsedOut}))");
+					$"{ind}\tif (!global::System.DateOnly.TryParse({rawExpr}, CultureInfo.InvariantCulture, global::System.Globalization.DateTimeStyles.None, out var {parsedOut}))"
+				);
 				break;
 			default:
 				throw new InvalidOperationException($"Unexpected nullable temporal type '{p.TypeName}'.");
@@ -1818,7 +2160,9 @@ switch (p.Special)
 		string ctExpr = "ct",
 		string? commandContextVar = null,
 		string lineIndent = "\t\t\t",
-		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions = default)
+		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions =
+			default
+	)
 	{
 		// Lambda commands: invoke through ArghApp.GetRegisteredLambda with a cast
 		if (cmd.IsLambda && !string.IsNullOrEmpty(cmd.LambdaStorageKey))
@@ -1862,10 +2206,18 @@ switch (p.Special)
 				{
 					string? localVar = null;
 					foreach (var o in injectedOptions)
-						if (o.TypeMetadataName == mp.TypeMetadataName) { localVar = o.LocalVarName; break; }
+						if (o.TypeMetadataName == mp.TypeMetadataName)
+						{
+							localVar = o.LocalVarName;
+							break;
+						}
 					if (localVar is null)
 						for (var _i = injectedOptions.Length - 1; _i >= 0; _i--)
-							if (injectedOptions[_i].AllBaseTypeMetadataNames.Contains(mp.TypeMetadataName)) { localVar = injectedOptions[_i].LocalVarName; break; }
+							if (injectedOptions[_i].AllBaseTypeMetadataNames.Contains(mp.TypeMetadataName))
+							{
+								localVar = injectedOptions[_i].LocalVarName;
+								break;
+							}
 
 					if (localVar is not null)
 					{
@@ -1887,13 +2239,9 @@ switch (p.Special)
 		}
 
 		var argList = string.Join(", ", args);
-		var call = cmd.RequiresInstance
-			? $"__cmdHandler.{cmd.MethodName}({argList})"
-			: $"{cmd.ContainingTypeFq}.{cmd.MethodName}({argList})";
+		var call = cmd.RequiresInstance ? $"__cmdHandler.{cmd.MethodName}({argList})" : $"{cmd.ContainingTypeFq}.{cmd.MethodName}({argList})";
 
-		var ret0 = commandContextVar is null
-			? $"{lineIndent}return 0;"
-			: $"{lineIndent}{commandContextVar}.ExitCode = 0;\n{lineIndent}return;";
+		var ret0 = commandContextVar is null ? $"{lineIndent}return 0;" : $"{lineIndent}{commandContextVar}.ExitCode = 0;\n{lineIndent}return;";
 
 		var retFq = cmd.ReturnTypeFq;
 		// Empty string means no return type info (shouldn't happen for method handlers).
@@ -1976,12 +2324,7 @@ switch (p.Special)
 		sb.AppendLine(ret0);
 	}
 
-	private static void EmitLambdaInvocation(
-		StringBuilder sb,
-		CommandModel cmd,
-		string ctExpr,
-		string? commandContextVar,
-		string lineIndent)
+	private static void EmitLambdaInvocation(StringBuilder sb, CommandModel cmd, string ctExpr, string? commandContextVar, string lineIndent)
 	{
 		var lambdaArgs = new List<string>();
 		foreach (var p in cmd.Parameters)
@@ -1996,13 +2339,10 @@ switch (p.Special)
 			? "global::System.Delegate"
 			: cmd.LambdaDelegateFq;
 
-		var lambdaRet0 = commandContextVar is null
-			? $"{lineIndent}return 0;"
-			: $"{lineIndent}{commandContextVar}.ExitCode = 0;\n{lineIndent}return;";
+		var lambdaRet0 = commandContextVar is null ? $"{lineIndent}return 0;" : $"{lineIndent}{commandContextVar}.ExitCode = 0;\n{lineIndent}return;";
 
 		var lambdaRetFq = cmd.ReturnTypeFq;
-		var lambdaIsTaskOfInt = lambdaRetFq == "global::System.Threading.Tasks.Task<int>"
-			|| lambdaRetFq == "global::System.Threading.Tasks.ValueTask<int>";
+		var lambdaIsTaskOfInt = lambdaRetFq == "global::System.Threading.Tasks.Task<int>" || lambdaRetFq == "global::System.Threading.Tasks.ValueTask<int>";
 
 		if (castType == "global::System.Delegate")
 		{
@@ -2014,8 +2354,10 @@ switch (p.Special)
 		else
 		{
 			sb.AppendLine($"{lineIndent}var __lambdaDelegate = (({castType})ArghApp.GetRegisteredLambda(\"{Escape(cmd.LambdaStorageKey)}\")!);");
-			if (lambdaRetFq == "global::System.Threading.Tasks.Task" ||
-			    (lambdaRetFq.StartsWith("global::System.Threading.Tasks.Task<", System.StringComparison.Ordinal) && !lambdaIsTaskOfInt))
+			if (
+				lambdaRetFq == "global::System.Threading.Tasks.Task" ||
+				(lambdaRetFq.StartsWith("global::System.Threading.Tasks.Task<", System.StringComparison.Ordinal) && !lambdaIsTaskOfInt)
+			)
 			{
 				sb.AppendLine($"{lineIndent}await __lambdaDelegate({lambdaArgList}).ConfigureAwait(false);");
 				sb.AppendLine(lambdaRet0);
@@ -2114,7 +2456,6 @@ switch (p.Special)
 		return false;
 	}
 
-
 	/// <summary>
 	/// Diagnoses misuse of the filesystem-path attribute family. <paramref name="filesystemScalarKind"/> lets
 	/// collection call sites pass the *element* kind (e.g. <c>FileInfo</c> for <c>List&lt;FileInfo&gt;</c>) so these
@@ -2126,7 +2467,8 @@ switch (p.Special)
 		string declaredName,
 		DiagnosticAccumulator? acc,
 		Location? fallbackLocation,
-		CliScalarKind? filesystemScalarKind = null)
+		CliScalarKind? filesystemScalarKind = null
+	)
 	{
 		Location loc = host.Locations.FirstOrDefault() ?? fallbackLocation ?? Location.None;
 		var fsKind = filesystemScalarKind ?? scalarKind;
@@ -2168,32 +2510,51 @@ switch (p.Special)
 		var isFileOrDir = isFileInfo || isDirInfo;
 
 		if (hasExisting && !isFileOrDir)
-			acc?.Add(FilesystemPathAttributeTypeMismatch, loc, declaredName,
-				"[Existing] only applies to FileInfo, FileInfo?, DirectoryInfo, DirectoryInfo?, or a collection of FileInfo/DirectoryInfo parameters and properties.");
+			acc?.Add(
+				FilesystemPathAttributeTypeMismatch,
+				loc,
+				declaredName,
+				"[Existing] only applies to FileInfo, FileInfo?, DirectoryInfo, DirectoryInfo?, or a collection of FileInfo/DirectoryInfo parameters and properties."
+			);
 
 		if (hasNonExisting && !isFileOrDir)
-			acc?.Add(FilesystemPathAttributeTypeMismatch, loc, declaredName,
-				"[NonExisting] only applies to FileInfo, FileInfo?, DirectoryInfo, DirectoryInfo?, or a collection of FileInfo/DirectoryInfo parameters and properties.");
+			acc?.Add(
+				FilesystemPathAttributeTypeMismatch,
+				loc,
+				declaredName,
+				"[NonExisting] only applies to FileInfo, FileInfo?, DirectoryInfo, DirectoryInfo?, or a collection of FileInfo/DirectoryInfo parameters and properties."
+			);
 
 		if (hasExpandProfile && !isFileOrDir)
-			acc?.Add(FilesystemPathAttributeTypeMismatch, loc, declaredName,
-				"[ExpandUserProfile] only applies to FileInfo, DirectoryInfo, or a collection of FileInfo/DirectoryInfo parameters and properties.");
+			acc?.Add(
+				FilesystemPathAttributeTypeMismatch,
+				loc,
+				declaredName,
+				"[ExpandUserProfile] only applies to FileInfo, DirectoryInfo, or a collection of FileInfo/DirectoryInfo parameters and properties."
+			);
 
 		if (hasRejectSymlinks && !isFileOrDir)
-			acc?.Add(FilesystemPathAttributeTypeMismatch, loc, declaredName,
-				"[RejectSymbolicLinks] only applies to FileInfo, DirectoryInfo, or a collection of FileInfo/DirectoryInfo parameters and properties.");
+			acc?.Add(
+				FilesystemPathAttributeTypeMismatch,
+				loc,
+				declaredName,
+				"[RejectSymbolicLinks] only applies to FileInfo, DirectoryInfo, or a collection of FileInfo/DirectoryInfo parameters and properties."
+			);
 
 		if (hasFileExtensions && !isFileInfo)
-			acc?.Add(FilesystemPathAttributeTypeMismatch, loc, declaredName,
-				"[FileExtensions] only applies to FileInfo, FileInfo?, or a collection of FileInfo parameters and properties.");
+			acc?.Add(
+				FilesystemPathAttributeTypeMismatch,
+				loc,
+				declaredName,
+				"[FileExtensions] only applies to FileInfo, FileInfo?, or a collection of FileInfo parameters and properties."
+			);
 	}
 
 	private static bool TryReadExpandUserProfileBeforeBind(ISymbol host, CliScalarKind scalarKind)
 	{
 		foreach (var attr in host.GetAttributes())
 		{
-			if (attr.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ==
-			    "global::Nullean.Argh.ExpandUserProfileAttribute")
+			if (attr.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Nullean.Argh.ExpandUserProfileAttribute")
 			{
 				return scalarKind is CliScalarKind.FileInfo or CliScalarKind.DirectoryInfo;
 			}
@@ -2201,7 +2562,6 @@ switch (p.Special)
 
 		return false;
 	}
-
 
 	/// <summary>
 	/// Reads DataAnnotations/Argh validation attributes off <paramref name="attributeHost"/>.

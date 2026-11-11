@@ -5,15 +5,12 @@ namespace Nullean.Argh.IntegrationTests.Help;
 
 public class RootAndNamespaceHelpTests
 {
-	private static string TrimLines(string s) =>
-		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
+	private static string TrimLines(string s) => string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
 
 	[Test]
 	public void RootHelp_does_not_list_nested_blob_command()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		var expected = ($"""
@@ -208,10 +205,7 @@ public class RootAndNamespaceHelpTests
 	[Test]
 	public void StorageHelp_lists_blob_namespace_and_not_flat_hello()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"storage",
-			"--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "storage", "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		var expected = ($"""
@@ -244,9 +238,7 @@ public class RootAndNamespaceHelpTests
 	[Test]
 	public void RootHelp_does_not_list_hidden_namespaces()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		text.Should().NotContain("schema-hidden-ns");

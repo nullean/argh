@@ -14,7 +14,8 @@ public sealed record ArghCliSchemaDocument(
 	string[]? Tags = null,
 	bool? RequiresAuth = null,
 	string[]? AuthCommands = null,
-	CliEnvironmentSchema? Environment = null);
+	CliEnvironmentSchema? Environment = null
+);
 
 /// <summary>Nested command namespace (subcommand group).</summary>
 public sealed record CliNamespaceSchema(
@@ -24,7 +25,8 @@ public sealed record CliNamespaceSchema(
 	CliParameterSchema[] Options,
 	CliDefaultHandlerSchema? DefaultCommand,
 	CliCommandSchema[] Commands,
-	CliNamespaceSchema[] Namespaces);
+	CliNamespaceSchema[] Namespaces
+);
 
 /// <summary>Registered command (non-default handler).</summary>
 public sealed record CliCommandSchema(
@@ -42,7 +44,8 @@ public sealed record CliCommandSchema(
 	CliIntentSchema? Intent = null,
 	CliOutputSchema? Output = null,
 	bool Streaming = false,
-	bool LongRunning = false);
+	bool LongRunning = false
+);
 
 /// <summary>Side-effect profile of a command, for agent reasoning.</summary>
 public sealed record CliIntentSchema(
@@ -50,12 +53,11 @@ public sealed record CliIntentSchema(
 	bool? Idempotent = null,
 	string? Scope = null,
 	bool? RequiresConfirmation = null,
-	bool? RequiresAuth = null);
+	bool? RequiresAuth = null
+);
 
 /// <summary>Machine-readable output format declarations for a command.</summary>
-public sealed record CliOutputSchema(
-	string[]? Formats = null,
-	string? FormatFlag = null);
+public sealed record CliOutputSchema(string[]? Formats = null, string? FormatFlag = null);
 
 /// <summary>Root or namespace default handler (no argv token).</summary>
 public sealed record CliDefaultHandlerSchema(
@@ -65,7 +67,8 @@ public sealed record CliDefaultHandlerSchema(
 	string? Usage,
 	string[] Examples,
 	CliParameterSchema[] Parameters,
-	bool Hidden = false);
+	bool Hidden = false
+);
 
 /// <summary>CLI flag or positional parameter description.</summary>
 /// <param name="Role"><c>flag</c>, <c>positional</c>, <c>confirmationSkip</c>, or <c>dryRun</c>.</param>
@@ -86,41 +89,25 @@ public sealed record CliParameterSchema(
 	bool Hidden = false,
 	bool Variadic = false,
 	CliDeprecationSchema? Deprecated = null,
-	CliConstraintSchema[]? Validations = null);
+	CliConstraintSchema[]? Validations = null
+);
 
 /// <summary>A single validation constraint on a CLI parameter.</summary>
 /// <param name="Kind">One of: range, length, count, regex, allowed, denied, email, url, uriScheme, fileExtensions, timeSpanRange, existing, nonExisting, rejectSymbolicLinks, expandUserProfile.</param>
-public sealed record CliConstraintSchema(
-	string Kind,
-	string? Min = null,
-	string? Max = null,
-	string? Pattern = null,
-	string[]? Values = null);
+public sealed record CliConstraintSchema(string Kind, string? Min = null, string? Max = null, string? Pattern = null, string[]? Values = null);
 
 /// <summary>
 /// Structured deprecation metadata for a command or parameter. Serialized by <see cref="CliSchemaJsonWriter"/>
 /// as <c>true</c> when no structured details are present, or as an object with non-null fields when details
 /// exist, matching the cli-schema v1 deprecation oneOf.
 /// </summary>
-public sealed record CliDeprecationSchema(
-	string? Message = null,
-	string? Since = null,
-	string? RemovedIn = null);
+public sealed record CliDeprecationSchema(string? Message = null, string? Since = null, string? RemovedIn = null);
 
 /// <summary>External context the program depends on (env vars and config files).</summary>
-public sealed record CliEnvironmentSchema(
-	CliEnvVarSchema[]? Variables = null,
-	CliConfigFileSchema[]? ConfigFiles = null);
+public sealed record CliEnvironmentSchema(CliEnvVarSchema[]? Variables = null, CliConfigFileSchema[]? ConfigFiles = null);
 
 /// <summary>An environment variable the program reads.</summary>
-public sealed record CliEnvVarSchema(
-	string Name,
-	string? Description = null,
-	bool Required = false,
-	string? DefaultValue = null);
+public sealed record CliEnvVarSchema(string Name, string? Description = null, bool Required = false, string? DefaultValue = null);
 
 /// <summary>A configuration file the program reads.</summary>
-public sealed record CliConfigFileSchema(
-	string Path,
-	string? Description = null,
-	bool Required = false);
+public sealed record CliConfigFileSchema(string Path, string? Description = null, bool Required = false);

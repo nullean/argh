@@ -11,10 +11,13 @@ public sealed class CommandContext
 	/// <param name="commandPath">Segments from the app root to the matched command (e.g. group then command).</param>
 	/// <param name="args">Raw arguments for this invocation; the exact slice is defined by the generator.</param>
 	/// <param name="cancellationToken">Cancellation for this CLI run.</param>
-	public CommandContext(string[] commandPath, string[] args, CancellationToken cancellationToken = default)
-		: this(commandPath, args, cancellationToken, Array.Empty<CommandArgument>())
-	{
-	}
+	public CommandContext(string[] commandPath, string[] args, CancellationToken cancellationToken = default) : this(
+			commandPath,
+			args,
+			cancellationToken,
+			Array.Empty<CommandArgument>()
+		)
+	{ }
 
 	/// <param name="commandPath">Segments from the app root to the matched command (e.g. group then command).</param>
 	/// <param name="args">Raw arguments for this invocation; the exact slice is defined by the generator.</param>

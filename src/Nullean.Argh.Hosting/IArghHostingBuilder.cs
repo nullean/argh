@@ -16,14 +16,18 @@ public interface IArghHostingBuilder : IArghRootBuilder
 	new IArghHostingBuilder UseGlobalOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class;
 
 	/// <summary>Registers global options in DI with an explicit lifetime (default registration uses <see cref="ServiceLifetime.Transient"/>).</summary>
-	IArghHostingBuilder UseGlobalOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(ServiceLifetime lifetime) where T : class;
+	IArghHostingBuilder UseGlobalOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		ServiceLifetime lifetime
+	) where T : class;
 
 	/// <inheritdoc cref="IArghBuilder.UseMiddleware{TMiddleware}"/>
 	/// <remarks>Also registers <typeparamref name="TMiddleware"/> in DI with <see cref="ServiceLifetime.Transient"/>.</remarks>
 	new IArghHostingBuilder UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>() where TMiddleware : ICommandMiddleware;
 
 	/// <summary>Registers middleware in DI with an explicit lifetime (default registration uses <see cref="ServiceLifetime.Transient"/>).</summary>
-	IArghHostingBuilder UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>(ServiceLifetime lifetime) where TMiddleware : ICommandMiddleware;
+	IArghHostingBuilder UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>(
+		ServiceLifetime lifetime
+	) where TMiddleware : ICommandMiddleware;
 
 	/// <summary>Registers command handlers from <typeparamref name="T"/> as transient services (default lifetime).</summary>
 	new IArghHostingBuilder Map<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>() where T : class;
@@ -47,13 +51,21 @@ public interface IArghHostingBuilder : IArghRootBuilder
 	new IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name) where T : class;
 
 	/// <inheritdoc cref="IArghBuilder.MapNamespace{T}(string, Action{IArghBuilder})"/>
-	new IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghBuilder> configure) where T : class;
+	new IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		string name,
+		Action<IArghBuilder> configure
+	) where T : class;
 
 	/// <inheritdoc cref="IArghBuilder.MapNamespace{T}(string, Action{IArghNamespaceBuilder})"/>
-	new IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghNamespaceBuilder> configure) where T : class;
+	new IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		string name,
+		Action<IArghNamespaceBuilder> configure
+	) where T : class;
 
 	/// <inheritdoc cref="IArghBuilder.MapNamespace{T}(Action{IArghNamespaceBuilder})"/>
-	new IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(Action<IArghNamespaceBuilder> configure) where T : class;
+	new IArghHostingBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		Action<IArghNamespaceBuilder> configure
+	) where T : class;
 
 	/// <summary>
 	/// Sets the minimum log level applied to all logging providers when <c>AddArgh</c> detects an intrinsic

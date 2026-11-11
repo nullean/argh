@@ -96,7 +96,8 @@ public sealed partial class CliParserGenerator
 		/// <summary>True for a help-only row describing one union case property (e.g. <c>--json-pretty</c>).</summary>
 		bool IsUnionCaseProp = false,
 		string? EnvVarName = null,
-		bool EnvTreatEmptyAsUnset = true)
+		bool EnvTreatEmptyAsUnset = true
+	)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
 
@@ -118,7 +119,8 @@ public sealed partial class CliParserGenerator
 			out string? enumFq,
 			out ImmutableArray<string> enumMembers,
 			out string? parserFq,
-			out string? customValueTypeFq)
+			out string? customValueTypeFq
+		)
 		{
 			if (isSeparateType)
 				ClassifyScalarForType(type, attributeHost, bs, out sk, out typeName, out enumFq, out enumMembers, out parserFq, out customValueTypeFq);
@@ -142,32 +144,51 @@ public sealed partial class CliParserGenerator
 			ImmutableArray<string> synopsisAliasesFromSummary = default,
 			bool isVariadic = false,
 			DiagnosticAccumulator? reportAcc = null,
-			Location? reportFallbackLocation = null)
+			Location? reportFallbackLocation = null
+		)
 		{
-			ClassifyScalarForType(elementType, attributeHost, BoolSpecialKind.None,
-				out var elemSk, out var elemTn, out var eFq, out var eMem, out var pFq, out var cFq);
+			ClassifyScalarForType(
+				elementType,
+				attributeHost,
+				BoolSpecialKind.None,
+				out var elemSk,
+				out var elemTn,
+				out var eFq,
+				out var eMem,
+				out var pFq,
+				out var cFq
+			);
 			var eCliMem = elemSk == CliScalarKind.Enum ? TryGetEnumCliNames(elementType) : default;
 			var elemEnumDocs = elemSk == CliScalarKind.Enum ? TryGetEnumDocs(elementType) : null;
 			if (reportAcc is not null)
-				ReportFilesystemPathAttributeIssues(attributeHost, CliScalarKind.Collection, symbolName, reportAcc,
-					reportFallbackLocation, filesystemScalarKind: elemSk);
+				ReportFilesystemPathAttributeIssues(
+					attributeHost,
+					CliScalarKind.Collection,
+					symbolName,
+					reportAcc,
+					reportFallbackLocation,
+					filesystemScalarKind: elemSk
+				);
 			var sep = TryGetCollectionSeparatorFromAttribute(attributeHost);
 			var required = isSeparateType
 				? ComputeRequiredForOptionsType(collectionType, BoolSpecialKind.None)
 				: ComputeRequired((IParameterSymbol)attributeHost, BoolSpecialKind.None);
-			var defFq = (collectionType as INamedTypeSymbol)?.OriginalDefinition
-				.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
-			var synopsisAliasesResolved = synopsisAliasesFromSummary.IsDefault
-				? ImmutableArray<string>.Empty
-				: synopsisAliasesFromSummary;
+			var defFq = (collectionType as INamedTypeSymbol)?.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
+			var synopsisAliasesResolved = synopsisAliasesFromSummary.IsDefault ? ImmutableArray<string>.Empty : synopsisAliasesFromSummary;
 			var fq = collectionType.ToDisplayString(FullyQualifiedFormatWithNullableRefAnnotations);
 			var declaredNullableAnnotated = collectionType.NullableAnnotation == NullableAnnotation.Annotated;
-			var collValidations = ReadValidationConstraints(attributeHost, CliScalarKind.Collection, "values", isCollection: true,
-				filesystemScalarKind: elemSk);
+			var collValidations = ReadValidationConstraints(
+				attributeHost,
+				CliScalarKind.Collection,
+				"values",
+				isCollection: true,
+				filesystemScalarKind: elemSk
+			);
 			var expandProfileElem = TryReadExpandUserProfileBeforeBind(attributeHost, elemSk);
 			// Variadic positionals always allow zero items by C# params convention.
 			// Minimum count enforcement is handled via CollectionCountConstraint ([MinLength]).
-			if (isVariadic) required = false;
+			if (isVariadic)
+				required = false;
 			var (isOutputColl, outputFormatsColl) = TryGetCommandOutputAttribute(attributeHost);
 			var (isDeprecatedColl, deprecationMsgColl) = TryGetObsoleteAttribute(attributeHost);
 			var (_colHideHelp, _colHideSchema) = GetHiddenFlags(attributeHost);
@@ -218,13 +239,13 @@ public sealed partial class CliParserGenerator
 				IsCommandOutput: isOutputColl,
 				CommandOutputExplicitFormats: outputFormatsColl,
 				IsDeprecated: isDeprecatedColl,
-				DeprecationMessage: deprecationMsgColl);
+				DeprecationMessage: deprecationMsgColl
+			);
 		}
 
 		// ── five factory methods ─────────────────────────────────────────────
 
-		public static ParameterModel From(IParameterSymbol p, DiagnosticAccumulator? reportAcc = null,
-			Location? reportFallbackLocation = null)
+		public static ParameterModel From(IParameterSymbol p, DiagnosticAccumulator? reportAcc = null, Location? reportFallbackLocation = null)
 		{
 			var isArg = HasArgumentAttribute(p);
 
@@ -245,23 +266,45 @@ public sealed partial class CliParserGenerator
 					null,
 					"",
 					null,
-					ImmutableArray<string>.Empty);
+					ImmutableArray<string>.Empty
+				);
 
 			var kind = isArg ? ParameterKind.Positional : ParameterKind.Flag;
 			var bs = ClassifyBool(p.Type);
-			if (TryUnwrapCollectionType(p.Type, out var elemType) && bs == BoolSpecialKind.None
-				&& TryParserTypeFqFromSymbol(p) is null)
+			if (TryUnwrapCollectionType(p.Type, out var elemType) && bs == BoolSpecialKind.None && TryParserTypeFqFromSymbol(p) is null)
 			{
 				var isVariadic = isArg && p.Type is IArrayTypeSymbol;
 				var defLitColl = TryGetDefaultLiteral(p, BoolSpecialKind.None);
-				return BuildCollectionParameterModel(p.Type, elemType, p, kind,
-					Naming.ToCliLongName(p.Name), SafeLocalName(p.Name), p.Name,
-					isSeparateType: false, defLitColl, "", asParams: null, isVariadic: isVariadic,
-					reportAcc: reportAcc, reportFallbackLocation: reportFallbackLocation);
+				return BuildCollectionParameterModel(
+					p.Type,
+					elemType,
+					p,
+					kind,
+					Naming.ToCliLongName(p.Name),
+					SafeLocalName(p.Name),
+					p.Name,
+					isSeparateType: false,
+					defLitColl,
+					"",
+					asParams: null,
+					isVariadic: isVariadic,
+					reportAcc: reportAcc,
+					reportFallbackLocation: reportFallbackLocation
+				);
 			}
 
-			ClassifyScalarUnified(p.Type, p, bs, isSeparateType: false,
-				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
+			ClassifyScalarUnified(
+				p.Type,
+				p,
+				bs,
+				isSeparateType: false,
+				out var sk,
+				out var typeName,
+				out var enumFq,
+				out var enumMembers,
+				out var parserFq,
+				out var customValFq
+			);
 			if (reportAcc is not null)
 				ReportFilesystemPathAttributeIssues(p, sk, p.Name, reportAcc, reportFallbackLocation);
 
@@ -274,15 +317,14 @@ public sealed partial class CliParserGenerator
 			var (isOutputP, outputFormatsP) = TryGetCommandOutputAttribute(p);
 			var (isDeprecatedP, deprecationMsgP) = TryGetObsoleteAttribute(p);
 			// Union fields
-			var unionTypeFq  = sk == CliScalarKind.Union && p.Type is INamedTypeSymbol unionT
-				? unionT.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null;
-			var unionCases = sk == CliScalarKind.Union && p.Type is INamedTypeSymbol unionT2
-				? GetUnionCasesFromSymbol(unionT2) : default;
+			var unionTypeFq = sk == CliScalarKind.Union && p.Type is INamedTypeSymbol unionT
+				? unionT.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+				: null;
+			var unionCases = sk == CliScalarKind.Union && p.Type is INamedTypeSymbol unionT2 ? GetUnionCasesFromSymbol(unionT2) : default;
 			var unionIsArg = sk == CliScalarKind.Union && isArg;
 			// Complex class types (e.g. global-options DTOs) fall through to Primitive/string; mark them
 			// so the argument-order validator can skip them (they become OptionsInjected in the collect step).
-			var isOIC = sk == CliScalarKind.Primitive && bs == BoolSpecialKind.None
-				&& p.Type is { TypeKind: TypeKind.Class, SpecialType: SpecialType.None };
+			var isOIC = sk == CliScalarKind.Primitive && bs == BoolSpecialKind.None && p.Type is { TypeKind: TypeKind.Class, SpecialType: SpecialType.None };
 			var (_paramHideHelp, _paramHideSchema) = GetHiddenFlags(p);
 			var (_paramEnvVar, _paramEnvEmpty) = GetEnvAttribute(p);
 			return new ParameterModel(
@@ -319,7 +361,8 @@ public sealed partial class CliParserGenerator
 				UnionIsArgument: unionIsArg,
 				IsOptionsInjectionCandidate: isOIC,
 				EnvVarName: _paramEnvVar,
-				EnvTreatEmptyAsUnset: _paramEnvEmpty);
+				EnvTreatEmptyAsUnset: _paramEnvEmpty
+			);
 		}
 
 		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -329,17 +372,37 @@ public sealed partial class CliParserGenerator
 			var derivedLongNameProp = Naming.ToCliLongName(prop.Name);
 			var effectiveLongNameProp = doc.ExplicitLongName ?? derivedLongNameProp;
 			var bs = ClassifyBool(prop.Type);
-			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None
-				&& TryParserTypeFqFromSymbol(prop) is null)
+			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None && TryParserTypeFqFromSymbol(prop) is null)
 			{
-				return BuildCollectionParameterModel(prop.Type, elemType, prop, ParameterKind.Flag,
-					effectiveLongNameProp, SafeLocalName(prop.Name), prop.Name,
-					isSeparateType: true, defaultLiteral: null, doc.Description, asParams: null,
-					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases);
+				return BuildCollectionParameterModel(
+					prop.Type,
+					elemType,
+					prop,
+					ParameterKind.Flag,
+					effectiveLongNameProp,
+					SafeLocalName(prop.Name),
+					prop.Name,
+					isSeparateType: true,
+					defaultLiteral: null,
+					doc.Description,
+					asParams: null,
+					flagShortOpt: doc.ShortOpt,
+					synopsisAliasesFromSummary: doc.Aliases
+				);
 			}
 
-			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
-				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
+			ClassifyScalarUnified(
+				prop.Type,
+				prop,
+				bs,
+				isSeparateType: true,
+				out var sk,
+				out var typeName,
+				out var enumFq,
+				out var enumMembers,
+				out var parserFq,
+				out var customValFq
+			);
 			// A property initializer supplies a CLI default: the flag is not required on the command line.
 			// For cross-assembly types, DeclaringSyntaxReferences is empty so we can't read the initializer
 			// expression from syntax. Mark the property as using a runtime default instead of "required".
@@ -350,10 +413,10 @@ public sealed partial class CliParserGenerator
 			var validations = ReadValidationConstraints(prop, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
-			var unionTypeFqProp  = sk == CliScalarKind.Union && prop.Type is INamedTypeSymbol unionTp
-				? unionTp.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null;
-			var unionCasesProp = sk == CliScalarKind.Union && prop.Type is INamedTypeSymbol unionTp2
-				? GetUnionCasesFromSymbol(unionTp2) : default;
+			var unionTypeFqProp = sk == CliScalarKind.Union && prop.Type is INamedTypeSymbol unionTp
+				? unionTp.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+				: null;
+			var unionCasesProp = sk == CliScalarKind.Union && prop.Type is INamedTypeSymbol unionTp2 ? GetUnionCasesFromSymbol(unionTp2) : default;
 			var (_propHideHelp, _propHideSchema) = GetHiddenFlags(prop);
 			var (_propEnvVar, _propEnvEmpty) = GetEnvAttribute(prop);
 			return new ParameterModel(
@@ -380,8 +443,8 @@ public sealed partial class CliParserGenerator
 				IsHidden: _propHideHelp,
 				IsHiddenInSchema: _propHideSchema,
 				UsesRuntimeDefault: isCrossAssemblyDefault,
-				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated
-					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
+				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated ||
+					prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
 				IsConfirmationSkip: HasConfirmationSkipAttribute(prop),
 				IsDryRun: HasDryRunAttribute(prop),
 				IsCommandOutput: TryGetCommandOutputAttribute(prop).IsOutput,
@@ -391,7 +454,8 @@ public sealed partial class CliParserGenerator
 				UnionTypeFq: unionTypeFqProp,
 				UnionCases: unionCasesProp,
 				EnvVarName: _propEnvVar,
-				EnvTreatEmptyAsUnset: _propEnvEmpty);
+				EnvTreatEmptyAsUnset: _propEnvEmpty
+			);
 		}
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -401,17 +465,37 @@ public sealed partial class CliParserGenerator
 			var derivedLongNameField = Naming.ToCliLongName(field.Name);
 			var effectiveLongNameField = doc.ExplicitLongName ?? derivedLongNameField;
 			var bs = ClassifyBool(field.Type);
-			if (TryUnwrapCollectionType(field.Type, out var elemType) && bs == BoolSpecialKind.None
-				&& TryParserTypeFqFromSymbol(field) is null)
+			if (TryUnwrapCollectionType(field.Type, out var elemType) && bs == BoolSpecialKind.None && TryParserTypeFqFromSymbol(field) is null)
 			{
-				return BuildCollectionParameterModel(field.Type, elemType, field, ParameterKind.Flag,
-					effectiveLongNameField, SafeLocalName(field.Name), field.Name,
-					isSeparateType: true, defaultLiteral: null, doc.Description, asParams: null,
-					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases);
+				return BuildCollectionParameterModel(
+					field.Type,
+					elemType,
+					field,
+					ParameterKind.Flag,
+					effectiveLongNameField,
+					SafeLocalName(field.Name),
+					field.Name,
+					isSeparateType: true,
+					defaultLiteral: null,
+					doc.Description,
+					asParams: null,
+					flagShortOpt: doc.ShortOpt,
+					synopsisAliasesFromSummary: doc.Aliases
+				);
 			}
 
-			ClassifyScalarUnified(field.Type, field, bs, isSeparateType: true,
-				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
+			ClassifyScalarUnified(
+				field.Type,
+				field,
+				bs,
+				isSeparateType: true,
+				out var sk,
+				out var typeName,
+				out var enumFq,
+				out var enumMembers,
+				out var parserFq,
+				out var customValFq
+			);
 			var isCrossAssemblyDefault = defaultValueLiteral is null && field.DeclaringSyntaxReferences.IsEmpty;
 			var required = !isCrossAssemblyDefault && ComputeRequiredForOptionsType(field.Type, bs) && defaultValueLiteral is null;
 			var enumCliNames = sk == CliScalarKind.Enum ? TryGetEnumCliNames(field.Type) : default;
@@ -443,10 +527,11 @@ public sealed partial class CliParserGenerator
 				IsHidden: _fieldHideHelp,
 				IsHiddenInSchema: _fieldHideSchema,
 				UsesRuntimeDefault: isCrossAssemblyDefault,
-				IsNullableAnnotated: field.Type.NullableAnnotation == NullableAnnotation.Annotated
-					|| field.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
+				IsNullableAnnotated: field.Type.NullableAnnotation == NullableAnnotation.Annotated ||
+					field.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
 				EnvVarName: _fieldEnvVar,
-				EnvTreatEmptyAsUnset: _fieldEnvEmpty);
+				EnvTreatEmptyAsUnset: _fieldEnvEmpty
+			);
 		}
 		public static ParameterModel FromAsParametersCtorParameter(
 			string methodParamName,
@@ -458,7 +543,8 @@ public sealed partial class CliParserGenerator
 			Compilation? compilation,
 			CSharpParseOptions parseOptions,
 			DiagnosticAccumulator? reportAcc = null,
-			Location? reportFallbackLocation = null)
+			Location? reportFallbackLocation = null
+		)
 		{
 			if (IsInjectedType(cp.Type))
 			{
@@ -485,7 +571,8 @@ public sealed partial class CliParserGenerator
 					AsParametersMemberOrder: memberOrder,
 					AsParametersTypeFq: typeFq,
 					AsParametersUseInit: false,
-					AsParametersClrName: cp.Name);
+					AsParametersClrName: cp.Name
+				);
 			}
 
 			var isArg = HasArgumentAttribute(cp);
@@ -510,22 +597,42 @@ public sealed partial class CliParserGenerator
 			if (string.IsNullOrWhiteSpace(desc))
 				desc = Documentation.GetTypeSummaryLine(TryExtractDocumentationFromParameterTrivia(cp));
 			var meta = new AsParametersMeta(methodParamName, memberOrder, typeFq, UseInit: false, cp.Name);
-			if (TryUnwrapCollectionType(cp.Type, out var elemType) && bs == BoolSpecialKind.None
-				&& TryParserTypeFqFromSymbol(cp) is null)
+			if (TryUnwrapCollectionType(cp.Type, out var elemType) && bs == BoolSpecialKind.None && TryParserTypeFqFromSymbol(cp) is null)
 			{
 				var isVariadicCp = isArg && cp.Type is IArrayTypeSymbol;
 				var defLitColl = TryGetDefaultLiteral(cp, BoolSpecialKind.None);
-				return BuildCollectionParameterModel(cp.Type, elemType, cp, kind, cli, local, cp.Name,
-					isSeparateType: false, defLitColl, desc, meta, isVariadic: isVariadicCp,
+				return BuildCollectionParameterModel(
+					cp.Type,
+					elemType,
+					cp,
+					kind,
+					cli,
+					local,
+					cp.Name,
+					isSeparateType: false,
+					defLitColl,
+					desc,
+					meta,
+					isVariadic: isVariadicCp,
 					reportAcc: reportAcc,
-					reportFallbackLocation: cp.Locations.FirstOrDefault() ?? reportFallbackLocation);
+					reportFallbackLocation: cp.Locations.FirstOrDefault() ?? reportFallbackLocation
+				);
 			}
 
-			ClassifyScalarUnified(cp.Type, cp, bs, isSeparateType: false,
-				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
+			ClassifyScalarUnified(
+				cp.Type,
+				cp,
+				bs,
+				isSeparateType: false,
+				out var sk,
+				out var typeName,
+				out var enumFq,
+				out var enumMembers,
+				out var parserFq,
+				out var customValFq
+			);
 			if (reportAcc is not null)
-				ReportFilesystemPathAttributeIssues(cp, sk, cp.Name, reportAcc,
-					cp.Locations.FirstOrDefault() ?? reportFallbackLocation);
+				ReportFilesystemPathAttributeIssues(cp, sk, cp.Name, reportAcc, cp.Locations.FirstOrDefault() ?? reportFallbackLocation);
 
 			var required = ComputeRequired(cp, bs);
 			var defLit = TryGetDefaultLiteral(cp, bs);
@@ -567,7 +674,8 @@ public sealed partial class CliParserGenerator
 				IsDeprecated: isDeprecatedCp,
 				DeprecationMessage: deprecationMsgCp,
 				EnvVarName: cpEnvVar,
-				EnvTreatEmptyAsUnset: cpEnvEmpty);
+				EnvTreatEmptyAsUnset: cpEnvEmpty
+			);
 		}
 
 		public static ParameterModel FromAsParametersInitProperty(
@@ -579,7 +687,8 @@ public sealed partial class CliParserGenerator
 			Compilation? compilation,
 			CSharpParseOptions parseOptions,
 			DiagnosticAccumulator? reportAcc = null,
-			Location? reportFallbackLocation = null)
+			Location? reportFallbackLocation = null
+		)
 		{
 			if (IsInjectedType(prop.Type))
 			{
@@ -606,7 +715,8 @@ public sealed partial class CliParserGenerator
 					AsParametersMemberOrder: memberOrder,
 					AsParametersTypeFq: typeFq,
 					AsParametersUseInit: true,
-					AsParametersClrName: prop.Name);
+					AsParametersClrName: prop.Name
+				);
 			}
 
 			var isArg = HasArgumentAttribute(prop);
@@ -618,22 +728,43 @@ public sealed partial class CliParserGenerator
 			var derivedCli = namePrefix + Naming.ToCliLongName(prop.Name);
 			var cli = doc.ExplicitLongName is not null ? namePrefix + doc.ExplicitLongName : derivedCli;
 			var meta = new AsParametersMeta(methodParamName, memberOrder, typeFq, UseInit: true, prop.Name);
-			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None
-				&& TryParserTypeFqFromSymbol(prop) is null)
+			if (TryUnwrapCollectionType(prop.Type, out var elemType) && bs == BoolSpecialKind.None && TryParserTypeFqFromSymbol(prop) is null)
 			{
 				var isVariadicProp = isArg && prop.Type is IArrayTypeSymbol;
-				return BuildCollectionParameterModel(prop.Type, elemType, prop, kind, cli, local, prop.Name,
-					isSeparateType: true, defaultLiteral: null, doc.Description, meta,
-					flagShortOpt: doc.ShortOpt, synopsisAliasesFromSummary: doc.Aliases, isVariadic: isVariadicProp,
+				return BuildCollectionParameterModel(
+					prop.Type,
+					elemType,
+					prop,
+					kind,
+					cli,
+					local,
+					prop.Name,
+					isSeparateType: true,
+					defaultLiteral: null,
+					doc.Description,
+					meta,
+					flagShortOpt: doc.ShortOpt,
+					synopsisAliasesFromSummary: doc.Aliases,
+					isVariadic: isVariadicProp,
 					reportAcc: reportAcc,
-					reportFallbackLocation: prop.Locations.FirstOrDefault() ?? reportFallbackLocation);
+					reportFallbackLocation: prop.Locations.FirstOrDefault() ?? reportFallbackLocation
+				);
 			}
 
-			ClassifyScalarUnified(prop.Type, prop, bs, isSeparateType: true,
-				out var sk, out var typeName, out var enumFq, out var enumMembers, out var parserFq, out var customValFq);
+			ClassifyScalarUnified(
+				prop.Type,
+				prop,
+				bs,
+				isSeparateType: true,
+				out var sk,
+				out var typeName,
+				out var enumFq,
+				out var enumMembers,
+				out var parserFq,
+				out var customValFq
+			);
 			if (reportAcc is not null)
-				ReportFilesystemPathAttributeIssues(prop, sk, prop.Name, reportAcc,
-					prop.Locations.FirstOrDefault() ?? reportFallbackLocation);
+				ReportFilesystemPathAttributeIssues(prop, sk, prop.Name, reportAcc, prop.Locations.FirstOrDefault() ?? reportFallbackLocation);
 
 			var defaultValueLiteral = compilation is not null ? TryGetOptionsPropertyDefaultLiteral(prop, compilation) : null;
 			// Cross-assembly [AsParameters] types: syntax refs empty, can't read initializer.
@@ -672,8 +803,8 @@ public sealed partial class CliParserGenerator
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
 				UsesRuntimeDefault: isCrossAssemblyDefault,
-				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated
-					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
+				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated ||
+					prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
 				IsConfirmationSkip: HasConfirmationSkipAttribute(prop),
 				IsDryRun: HasDryRunAttribute(prop),
 				IsCommandOutput: isOutputProp,
@@ -681,7 +812,8 @@ public sealed partial class CliParserGenerator
 				IsDeprecated: isDeprecatedProp,
 				DeprecationMessage: deprecationMsgProp,
 				EnvVarName: initPropEnvVar,
-				EnvTreatEmptyAsUnset: initPropEnvEmpty);
+				EnvTreatEmptyAsUnset: initPropEnvEmpty
+			);
 		}
 
 		private static bool ComputeRequiredForOptionsType(ITypeSymbol type, BoolSpecialKind bs)
@@ -710,7 +842,8 @@ public sealed partial class CliParserGenerator
 			out string? enumFq,
 			out ImmutableArray<string> enumMembers,
 			out string? parserFq,
-			out string? customValueFq)
+			out string? customValueFq
+		)
 		{
 			enumFq = null;
 			enumMembers = ImmutableArray<string>.Empty;
@@ -785,12 +918,10 @@ public sealed partial class CliParserGenerator
 		{
 			foreach (var attr in symbol.GetAttributes())
 			{
-				if (attr.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) !=
-				    "global::Nullean.Argh.ArgumentParserAttribute")
+				if (attr.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) != "global::Nullean.Argh.ArgumentParserAttribute")
 					continue;
 
-				if (attr.ConstructorArguments.Length > 0 &&
-				    attr.ConstructorArguments[0].Value is INamedTypeSymbol parser)
+				if (attr.ConstructorArguments.Length > 0 && attr.ConstructorArguments[0].Value is INamedTypeSymbol parser)
 					return parser.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			}
 
@@ -805,7 +936,8 @@ public sealed partial class CliParserGenerator
 			out string? enumFq,
 			out ImmutableArray<string> enumMembers,
 			out string? parserFq,
-			out string? customValueFq)
+			out string? customValueFq
+		)
 		{
 			enumFq = null;
 			enumMembers = ImmutableArray<string>.Empty;
@@ -899,9 +1031,10 @@ public sealed partial class CliParserGenerator
 				string? cliName = null;
 				foreach (var attr in m.GetAttributes())
 				{
-					if (attr.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Nullean.Argh.EnumValueAttribute"
-					    && attr.ConstructorArguments.Length > 0
-					    && attr.ConstructorArguments[0].Value is string v)
+					if (
+						attr.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ==
+							"global::Nullean.Argh.EnumValueAttribute" && attr.ConstructorArguments.Length > 0 && attr.ConstructorArguments[0].Value is string v
+					)
 					{
 						cliName = v;
 						hasAny = true;
@@ -929,13 +1062,15 @@ public sealed partial class CliParserGenerator
 			// IUnion interface (runtime marker from lowered union keyword)
 			foreach (var iface in t.AllInterfaces)
 			{
-				if (iface.Name == "IUnion") return true;
+				if (iface.Name == "IUnion")
+					return true;
 			}
 			// [Union] attribute
 			foreach (var attr in t.GetAttributes())
 			{
 				var name = attr.AttributeClass?.Name;
-				if (name is "UnionAttribute" or "Union") return true;
+				if (name is "UnionAttribute" or "Union")
+					return true;
 			}
 			// Structural: struct with object? Value property + ≥1 single-param public ctor
 			if (t.TypeKind == TypeKind.Struct)
@@ -944,7 +1079,10 @@ public sealed partial class CliParserGenerator
 				foreach (var m in t.GetMembers("Value"))
 				{
 					if (m is IPropertySymbol vp && vp.Type.SpecialType == SpecialType.System_Object)
-					{ hasValueProp = true; break; }
+					{
+						hasValueProp = true;
+						break;
+					}
 				}
 				if (hasValueProp)
 				{
@@ -964,12 +1102,14 @@ public sealed partial class CliParserGenerator
 			var b = ImmutableArray.CreateBuilder<UnionCaseInfo>();
 			foreach (var ctor in unionType.Constructors)
 			{
-				if (ctor.Parameters.Length != 1 || ctor.DeclaredAccessibility != Accessibility.Public) continue;
-				if (ctor.Parameters[0].Type is not INamedTypeSymbol caseNamed) continue;
-				var caseName   = caseNamed.Name;
+				if (ctor.Parameters.Length != 1 || ctor.DeclaredAccessibility != Accessibility.Public)
+					continue;
+				if (ctor.Parameters[0].Type is not INamedTypeSymbol caseNamed)
+					continue;
+				var caseName = caseNamed.Name;
 				var caseTypeFq = caseNamed.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-				var caseCli    = Naming.ToCliLongName(caseName);
-				var props      = GetUnionCasePropsFromSymbol(caseNamed, caseCli);
+				var caseCli = Naming.ToCliLongName(caseName);
+				var props = GetUnionCasePropsFromSymbol(caseNamed, caseCli);
 				b.Add(new UnionCaseInfo(caseName, caseTypeFq, caseCli, props));
 			}
 			return b.ToImmutable();
@@ -983,11 +1123,13 @@ public sealed partial class CliParserGenerator
 			IMethodSymbol? primaryCtor = null;
 			foreach (var ctor in caseType.Constructors)
 			{
-				if (ctor.DeclaredAccessibility != Accessibility.Public) continue;
+				if (ctor.DeclaredAccessibility != Accessibility.Public)
+					continue;
 				if (primaryCtor is null || ctor.Parameters.Length > primaryCtor.Parameters.Length)
 					primaryCtor = ctor;
 			}
-			if (primaryCtor is null) return b.ToImmutable();
+			if (primaryCtor is null)
+				return b.ToImmutable();
 			foreach (var param in primaryCtor.Parameters)
 			{
 				var bs = ClassifyBool(param.Type);
@@ -1002,11 +1144,21 @@ public sealed partial class CliParserGenerator
 					ClassifyScalar(param, bs, out sk, out typeName, out enumFq, out enumMembers, out _, out _);
 				var supported = IsSupportedUnionCasePropType(sk, bs, typeName, param.Type);
 				var defLit = supported ? UnionCasePropDefaultLiteral(param, sk, bs, typeName, enumFq) : null;
-				b.Add(new UnionCasePropInfo(param.Name, cliName, sk, bs, typeName, defLit, flagName,
-					EnumTypeFq: sk == CliScalarKind.Enum ? enumFq : null,
-					EnumMemberNames: sk == CliScalarKind.Enum ? enumMembers : default,
-					EnumMemberCliNames: sk == CliScalarKind.Enum ? TryGetEnumCliNames(param.Type) : default,
-					UnsupportedTypeDisplay: supported ? null : param.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)));
+				b.Add(
+					new UnionCasePropInfo(
+						param.Name,
+						cliName,
+						sk,
+						bs,
+						typeName,
+						defLit,
+						flagName,
+						EnumTypeFq: sk == CliScalarKind.Enum ? enumFq : null,
+						EnumMemberNames: sk == CliScalarKind.Enum ? enumMembers : default,
+						EnumMemberCliNames: sk == CliScalarKind.Enum ? TryGetEnumCliNames(param.Type) : default,
+						UnsupportedTypeDisplay: supported ? null : param.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
+					)
+				);
 			}
 			return b.ToImmutable();
 		}
@@ -1040,8 +1192,12 @@ public sealed partial class CliParserGenerator
 			if (type.SpecialType == SpecialType.System_Boolean)
 				return BoolSpecialKind.Bool;
 
-			if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } named &&
-			    named.TypeArguments[0].SpecialType == SpecialType.System_Boolean)
+			if (
+				type is INamedTypeSymbol
+				{
+					OriginalDefinition.SpecialType: SpecialType.System_Nullable_T
+				} named && named.TypeArguments[0].SpecialType == SpecialType.System_Boolean
+			)
 				return BoolSpecialKind.NullableBool;
 
 			return BoolSpecialKind.None;
@@ -1150,16 +1306,83 @@ public sealed partial class CliParserGenerator
 
 		private static readonly HashSet<string> CSharpKeywords = new HashSet<string>(StringComparer.Ordinal)
 		{
-			"abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked",
-			"class", "const", "continue", "decimal", "default", "delegate", "do", "double", "else",
-			"enum", "event", "explicit", "extern", "false", "finally", "fixed", "float", "for",
-			"foreach", "goto", "if", "implicit", "in", "int", "interface", "internal", "is", "lock",
-			"long", "namespace", "new", "null", "object", "operator", "out", "override", "params",
-			"private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed", "short",
-			"sizeof", "stackalloc", "static", "string", "struct", "switch", "this", "throw", "true",
-			"try", "typeof", "uint", "ulong", "unchecked", "unsafe", "ushort", "using", "virtual",
-			"void", "volatile", "while"
+			"abstract",
+			"as",
+			"base",
+			"bool",
+			"break",
+			"byte",
+			"case",
+			"catch",
+			"char",
+			"checked",
+			"class",
+			"const",
+			"continue",
+			"decimal",
+			"default",
+			"delegate",
+			"do",
+			"double",
+			"else",
+			"enum",
+			"event",
+			"explicit",
+			"extern",
+			"false",
+			"finally",
+			"fixed",
+			"float",
+			"for",
+			"foreach",
+			"goto",
+			"if",
+			"implicit",
+			"in",
+			"int",
+			"interface",
+			"internal",
+			"is",
+			"lock",
+			"long",
+			"namespace",
+			"new",
+			"null",
+			"object",
+			"operator",
+			"out",
+			"override",
+			"params",
+			"private",
+			"protected",
+			"public",
+			"readonly",
+			"ref",
+			"return",
+			"sbyte",
+			"sealed",
+			"short",
+			"sizeof",
+			"stackalloc",
+			"static",
+			"string",
+			"struct",
+			"switch",
+			"this",
+			"throw",
+			"true",
+			"try",
+			"typeof",
+			"uint",
+			"ulong",
+			"unchecked",
+			"unsafe",
+			"ushort",
+			"using",
+			"virtual",
+			"void",
+			"volatile",
+			"while"
 		};
 	}
-
 }

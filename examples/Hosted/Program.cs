@@ -16,35 +16,30 @@ using Nullean.Argh.Hosting;
 var builder = Host.CreateApplicationBuilder(args);
 var verbose = HostedGlobalCliOptions.TryParseArgh(args, out var options) && options.Verbose;
 
-builder.Services.AddLogging(c => c
-	.AddConsole()
-	.SetMinimumLevel(verbose ? LogLevel.Debug : LogLevel.Information)
-);
+builder.Services.AddLogging(c => c.AddConsole().SetMinimumLevel(verbose ? LogLevel.Debug : LogLevel.Information));
 
 builder.Services.AddSingleton<HostedGlobalMiddleware>();
 builder.Services.AddSingleton<HostedOrderingDemoMiddleware>();
 builder.Services.AddSingleton<HostedPerCommandMiddleware>();
 
-builder.Services.AddArgh(
-	args,
-	app =>
+builder.Services.AddArgh(args, app =>
+{
+	app.UseMiddleware<HostedGlobalMiddleware>();
+	app.UseMiddleware<HostedOrderingDemoMiddleware>();
+	app.UseGlobalOptions<HostedGlobalCliOptions>();
+	app.Map<HostedCliCommands>();
+	app.Map("doc-echo", HostedLocalHandlers.DocEcho);
+	app.Map("quick-echo", (string msg) => Console.WriteLine($"hosted:quick:{msg}"));
+	app.MapNamespace<HostedStorageCommands>("storage", g =>
 	{
-		app.UseMiddleware<HostedGlobalMiddleware>();
-		app.UseMiddleware<HostedOrderingDemoMiddleware>();
-		app.UseGlobalOptions<HostedGlobalCliOptions>();
-		app.Map<HostedCliCommands>();
-		app.Map("doc-echo", HostedLocalHandlers.DocEcho);
-		app.Map("quick-echo", (string msg) => Console.WriteLine($"hosted:quick:{msg}"));
-		app.MapNamespace<HostedStorageCommands>("storage", g =>
-		{
-			g.UseNamespaceOptions<HostedStorageCommandNamespaceOptions>();
-			g.MapNamespace<HostedStorageCommands.BlobCommands>("blob");
-		});
-		app.MapNamespace<HostedApiCommands>("api", g =>
-		{
-			g.UseNamespaceOptions<HostedApiNamespaceOptions>();
-		});
+		g.UseNamespaceOptions<HostedStorageCommandNamespaceOptions>();
+		g.MapNamespace<HostedStorageCommands.BlobCommands>("blob");
 	});
+	app.MapNamespace<HostedApiCommands>("api", g =>
+	{
+		g.UseNamespaceOptions<HostedApiNamespaceOptions>();
+	});
+});
 
 using var host = builder.Build();
 await host.RunAsync();

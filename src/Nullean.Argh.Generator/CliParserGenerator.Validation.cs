@@ -20,7 +20,8 @@ public sealed partial class CliParserGenerator
 		DiagnosticAccumulator acc,
 		Location fallbackLocation,
 		ImmutableArray<ParameterModel> parameters,
-		IMethodSymbol method)
+		IMethodSymbol method
+	)
 	{
 		var locByParamName = new Dictionary<string, Location>(StringComparer.Ordinal);
 		foreach (var sym in method.Parameters)
@@ -49,19 +50,19 @@ public sealed partial class CliParserGenerator
 		}
 	}
 
-
-
-
 	/// <summary>DiagnosticAccumulator-based overload for Select-step analysis.</summary>
 	private static void ReportDuplicateCliNamesAcc(DiagnosticAccumulator acc, Location location, ImmutableArray<ParameterModel> parameters)
 	{
 		var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		foreach (var p in parameters)
 		{
-			if (p.Kind != ParameterKind.Flag) continue;
+			if (p.Kind != ParameterKind.Flag)
+				continue;
+
 			void check(string name)
 			{
-				if (string.IsNullOrEmpty(name)) return;
+				if (string.IsNullOrEmpty(name))
+					return;
 				if (seen.TryGetValue(name, out var first))
 				{
 					if (!string.Equals(first, p.SymbolName, StringComparison.Ordinal))
@@ -70,9 +71,12 @@ public sealed partial class CliParserGenerator
 				else
 					seen[name] = p.SymbolName;
 			}
+
 			check(p.CliLongName);
-			foreach (var al in p.Aliases) check(al);
-			if (p.Special == BoolSpecialKind.NullableBool) check("no-" + p.CliLongName);
+			foreach (var al in p.Aliases)
+				check(al);
+			if (p.Special == BoolSpecialKind.NullableBool)
+				check("no-" + p.CliLongName);
 		}
 	}
 
@@ -104,10 +108,7 @@ public sealed partial class CliParserGenerator
 			if (cmd.Parameters.IsDefaultOrEmpty)
 				continue;
 			var loc = cmd.HandlerSpanInfo.ToLocation();
-			var scope =
-				cmd.RoutePrefix.IsDefaultOrEmpty
-					? $"command '{cmd.CommandName}'"
-					: $"command '{string.Join(" ", cmd.RoutePrefix)} {cmd.CommandName}'";
+			var scope = cmd.RoutePrefix.IsDefaultOrEmpty ? $"command '{cmd.CommandName}'" : $"command '{string.Join(" ", cmd.RoutePrefix)} {cmd.CommandName}'";
 			ReportDuplicateShortsAmongMembers(context, loc, cmd.Parameters, scope);
 		}
 	}
@@ -116,7 +117,8 @@ public sealed partial class CliParserGenerator
 		SourceProductionContext context,
 		Location location,
 		ImmutableArray<ParameterModel> members,
-		string scopeDescription)
+		string scopeDescription
+	)
 	{
 		var byChar = new Dictionary<char, string>();
 		foreach (var p in members)
@@ -127,13 +129,7 @@ public sealed partial class CliParserGenerator
 				continue;
 			if (byChar.TryGetValue(ch, out var firstLong))
 			{
-				context.ReportDiagnostic(Diagnostic.Create(
-					DuplicateShortOption,
-					location,
-					ch.ToString(),
-					firstLong,
-					p.CliLongName,
-					scopeDescription));
+				context.ReportDiagnostic(Diagnostic.Create(DuplicateShortOption, location, ch.ToString(), firstLong, p.CliLongName, scopeDescription));
 			}
 			else
 			{
@@ -169,11 +165,13 @@ public sealed partial class CliParserGenerator
 			foreach (var ch in node.Children)
 				walkNs(ch.Node, ctx, report);
 		}
+
 		walkNs(app.Root, context, reportIfBoolEnv);
 
 		foreach (var cmd in app.AllCommands)
 		{
-			if (cmd.Parameters.IsDefaultOrEmpty) continue;
+			if (cmd.Parameters.IsDefaultOrEmpty)
+				continue;
 			var loc = cmd.HandlerSpanInfo.ToLocation();
 			reportIfBoolEnv(cmd.Parameters, loc);
 		}
@@ -185,12 +183,14 @@ public sealed partial class CliParserGenerator
 		var seenFlag = false;
 		foreach (var p in expanded)
 		{
-			if (p.Kind == ParameterKind.Injected) continue;
+			if (p.Kind == ParameterKind.Injected)
+				continue;
 			if (p.Kind == ParameterKind.Flag)
 			{
 				// Complex class types (e.g. global-options objects) appear as Flag here but will be
 				// promoted to OptionsInjected in the collect step — don't treat them as CLI flags.
-				if (!p.IsOptionsInjectionCandidate) seenFlag = true;
+				if (!p.IsOptionsInjectionCandidate)
+					seenFlag = true;
 				continue;
 			}
 			// A variadic positional is allowed after flags — C# requires params to be last.
@@ -202,15 +202,20 @@ public sealed partial class CliParserGenerator
 		}
 	}
 
-
 	private static void ValidateVariadicPositionalIsLastAcc(DiagnosticAccumulator acc, Location location, ImmutableArray<ParameterModel> parameters)
 	{
 		var sawVariadic = false;
 		foreach (var p in parameters)
 		{
-			if (p.Kind != ParameterKind.Positional) continue;
-			if (sawVariadic) { acc.Add(VariadicMustBeLastPositional, location); return; }
-			if (p.IsVariadic) sawVariadic = true;
+			if (p.Kind != ParameterKind.Positional)
+				continue;
+			if (sawVariadic)
+			{
+				acc.Add(VariadicMustBeLastPositional, location);
+				return;
+			}
+			if (p.IsVariadic)
+				sawVariadic = true;
 		}
 	}
 
@@ -222,7 +227,8 @@ public sealed partial class CliParserGenerator
 		INamedTypeSymbol type,
 		string? prefix,
 		Compilation? compilation,
-		CSharpParseOptions parseOptions)
+		CSharpParseOptions parseOptions
+	)
 	{
 		var pfx = string.IsNullOrWhiteSpace(prefix) ? "" : Naming.ToCliLongName(prefix!.Trim()) + "-";
 		var owner = methodParam.Name;
@@ -236,9 +242,7 @@ public sealed partial class CliParserGenerator
 			foreach (var cp in primary.Parameters)
 			{
 				ctorNames.Add(cp.Name);
-				list.Add(ParameterModel.FromAsParametersCtorParameter(owner, typeFq, type, cp, pfx, order++, compilation, parseOptions,
-					acc,
-					location));
+				list.Add(ParameterModel.FromAsParametersCtorParameter(owner, typeFq, type, cp, pfx, order++, compilation, parseOptions, acc, location));
 			}
 		}
 		var chain = new List<INamedTypeSymbol>();
@@ -250,14 +254,19 @@ public sealed partial class CliParserGenerator
 			var tt = chain[i];
 			foreach (var member in tt.GetMembers())
 			{
-				if (member is not IPropertySymbol prop) continue;
-				if (prop.DeclaredAccessibility != Accessibility.Public || prop.IsStatic || prop.IsIndexer) continue;
-				if (!IsSettableForAsParameters(prop)) continue;
-				if (ctorNames.Contains(prop.Name)) continue;
-				if (!seenPropNames.Add(prop.Name)) continue;
-				list.Add(ParameterModel.FromAsParametersInitProperty(methodParamName: owner, typeFq, prop, pfx, order++, compilation, parseOptions,
-					acc,
-					location));
+				if (member is not IPropertySymbol prop)
+					continue;
+				if (prop.DeclaredAccessibility != Accessibility.Public || prop.IsStatic || prop.IsIndexer)
+					continue;
+				if (!IsSettableForAsParameters(prop))
+					continue;
+				if (ctorNames.Contains(prop.Name))
+					continue;
+				if (!seenPropNames.Add(prop.Name))
+					continue;
+				list.Add(
+					ParameterModel.FromAsParametersInitProperty(methodParamName: owner, typeFq, prop, pfx, order++, compilation, parseOptions, acc, location)
+				);
 			}
 		}
 		if (list.Count == 0)
@@ -265,17 +274,20 @@ public sealed partial class CliParserGenerator
 		return list.ToImmutableArray();
 	}
 
-
-	private static string? TryGetStringLiteral(ExpressionSyntax expr) =>
-		expr switch
-		{
-			LiteralExpressionSyntax { RawKind: (int)SyntaxKind.StringLiteralExpression } lit => lit.Token.ValueText,
-			_ => null
-		};
+	private static string? TryGetStringLiteral(ExpressionSyntax expr) => expr switch
+	{
+		LiteralExpressionSyntax { RawKind: (int)SyntaxKind.StringLiteralExpression } lit => lit.Token.ValueText,
+		_ => null
+	};
 
 	/// <summary>Unique per compilation assembly so generated CLI types do not collide across referenced assemblies (e.g. CS0436 with InternalsVisibleTo).</summary>
-	private static ImmutableArray<ValidationConstraint> ReadValidationConstraints(ISymbol attributeHost, CliScalarKind scalarKind,
-		string primitiveTypeName, bool isCollection = false, CliScalarKind? filesystemScalarKind = null)
+	private static ImmutableArray<ValidationConstraint> ReadValidationConstraints(
+		ISymbol attributeHost,
+		CliScalarKind scalarKind,
+		string primitiveTypeName,
+		bool isCollection = false,
+		CliScalarKind? filesystemScalarKind = null
+	)
 	{
 		var fsKind = filesystemScalarKind ?? scalarKind;
 		var builder = ImmutableArray.CreateBuilder<ValidationConstraint>();
@@ -289,11 +301,8 @@ public sealed partial class CliParserGenerator
 						builder.Add(new RangeConstraint(attr.ConstructorArguments[0].ToCSharpString(), attr.ConstructorArguments[1].ToCSharpString()));
 					break;
 				case "global::Nullean.Argh.TimeSpanRangeAttribute":
-					if (primitiveTypeName is "TimeSpan" or "TimeSpan?" &&
-					    attr.ConstructorArguments.Length >= 2)
-						builder.Add(new TimeSpanRangeConstraint(
-							attr.ConstructorArguments[0].ToCSharpString(),
-							attr.ConstructorArguments[1].ToCSharpString()));
+					if (primitiveTypeName is "TimeSpan" or "TimeSpan?" && attr.ConstructorArguments.Length >= 2)
+						builder.Add(new TimeSpanRangeConstraint(attr.ConstructorArguments[0].ToCSharpString(), attr.ConstructorArguments[1].ToCSharpString()));
 					break;
 				case "global::System.ComponentModel.DataAnnotations.StringLengthAttribute":
 					if (attr.ConstructorArguments.Length >= 1)
@@ -301,7 +310,8 @@ public sealed partial class CliParserGenerator
 						var max = (int?)(int?)attr.ConstructorArguments[0].Value;
 						int? min = null;
 						foreach (var n in attr.NamedArguments)
-							if (n.Key == "MinimumLength") min = (int?)n.Value.Value;
+							if (n.Key == "MinimumLength")
+								min = (int?)n.Value.Value;
 						if (isCollection)
 							builder.Add(new CollectionCountConstraint(min, max));
 						else
@@ -343,14 +353,16 @@ public sealed partial class CliParserGenerator
 					if (attr.ConstructorArguments.Length >= 1 && attr.ConstructorArguments[0].Kind == TypedConstantKind.Array)
 					{
 						var vals = attr.ConstructorArguments[0].Values.Select(v => v.ToCSharpString()).ToImmutableArray();
-						if (!vals.IsEmpty) builder.Add(new AllowedValuesConstraint(vals));
+						if (!vals.IsEmpty)
+							builder.Add(new AllowedValuesConstraint(vals));
 					}
 					break;
 				case "global::System.ComponentModel.DataAnnotations.DeniedValuesAttribute":
 					if (attr.ConstructorArguments.Length >= 1 && attr.ConstructorArguments[0].Kind == TypedConstantKind.Array)
 					{
 						var vals = attr.ConstructorArguments[0].Values.Select(v => v.ToCSharpString()).ToImmutableArray();
-						if (!vals.IsEmpty) builder.Add(new DeniedValuesConstraint(vals));
+						if (!vals.IsEmpty)
+							builder.Add(new DeniedValuesConstraint(vals));
 					}
 					break;
 				case "global::System.ComponentModel.DataAnnotations.EmailAddressAttribute":
@@ -363,24 +375,30 @@ public sealed partial class CliParserGenerator
 						builder.Add(new UrlConstraint());
 					break;
 				case "global::System.ComponentModel.DataAnnotations.FileExtensionsAttribute":
-				{
-					if (fsKind != CliScalarKind.FileInfo)
+					{
+						if (fsKind != CliScalarKind.FileInfo)
+							break;
+						string? extsStr = null;
+						foreach (var n in attr.NamedArguments)
+							if (n.Key == "Extensions")
+								extsStr = n.Value.Value as string;
+						extsStr ??= "png,jpg,jpeg,gif";
+						var exts = extsStr.Split(',').Select(e => e.Trim().TrimStart('.')).ToImmutableArray();
+						builder.Add(new FileExtensionsConstraint(exts));
 						break;
-					string? extsStr = null;
-					foreach (var n in attr.NamedArguments)
-						if (n.Key == "Extensions") extsStr = n.Value.Value as string;
-					extsStr ??= "png,jpg,jpeg,gif";
-					var exts = extsStr.Split(',').Select(e => e.Trim().TrimStart('.')).ToImmutableArray();
-					builder.Add(new FileExtensionsConstraint(exts));
-					break;
-				}
+					}
 				case "global::Nullean.Argh.UriSchemeAttribute":
 					if (attr.ConstructorArguments.Length >= 1 && attr.ConstructorArguments[0].Kind == TypedConstantKind.Array)
 					{
-						var schemes = attr.ConstructorArguments[0].Values
-							.Select(v => v.Value as string).Where(s => s is not null).Select(s => s!)
+						var schemes = attr
+							.ConstructorArguments[0]
+							.Values
+							.Select(v => v.Value as string)
+							.Where(s => s is not null)
+							.Select(s => s!)
 							.ToImmutableArray();
-						if (!schemes.IsEmpty) builder.Add(new UriSchemeConstraint(schemes));
+						if (!schemes.IsEmpty)
+							builder.Add(new UriSchemeConstraint(schemes));
 					}
 					break;
 				case "global::Nullean.Argh.ExistingAttribute":
@@ -434,8 +452,8 @@ public sealed partial class CliParserGenerator
 		return b.ToImmutable();
 	}
 
-	private static string ResolveEnumMemberCliName(ImmutableArray<string> cliNames, int index, string memberName)
-		=> !cliNames.IsDefaultOrEmpty ? cliNames[index] : memberName.ToLowerInvariant();
+	private static string ResolveEnumMemberCliName(ImmutableArray<string> cliNames, int index, string memberName) =>
+		!cliNames.IsDefaultOrEmpty ? cliNames[index] : memberName.ToLowerInvariant();
 
 	private static string? BuildValidationLine(ParameterModel p)
 	{
@@ -465,7 +483,9 @@ public sealed partial class CliParserGenerator
 		if (p.IsCollection && p.ElementScalarKind == CliScalarKind.Enum && !p.ElementEnumMemberNames.IsDefaultOrEmpty)
 		{
 			var label = p.CollectionTargetIsReadOnlySet ? "Combination of:" : "One or more of:";
-			tokens.Add(label + " <" + string.Join("|", p.ElementEnumMemberNames.Select((m, i) => ResolveEnumMemberCliName(p.ElementEnumMemberCliNames, i, m))) + ">");
+			tokens.Add(
+				label + " <" + string.Join("|", p.ElementEnumMemberNames.Select((m, i) => ResolveEnumMemberCliName(p.ElementEnumMemberCliNames, i, m))) + ">"
+			);
 			if (p.ElementEnumMemberDocs is { Count: > 0 } elemDocs)
 			{
 				var memberDescParts = new List<string>();
@@ -552,19 +572,32 @@ public sealed partial class CliParserGenerator
 	}
 
 	private abstract record ValidationConstraint;
-	private sealed record CollectionCountConstraint(int? Min, int? Max) : ValidationConstraint;
-	private sealed record RangeConstraint(string MinLiteral, string MaxLiteral) : ValidationConstraint;
-	private sealed record TimeSpanRangeConstraint(string MinLiteral, string MaxLiteral) : ValidationConstraint;
-	private sealed record StringLengthConstraint(int? Min, int? Max) : ValidationConstraint;
-	private sealed record RegexConstraint(string Pattern) : ValidationConstraint;
-	private sealed record AllowedValuesConstraint(ImmutableArray<string> Values) : ValidationConstraint;
-	private sealed record DeniedValuesConstraint(ImmutableArray<string> Values) : ValidationConstraint;
-	private sealed record EmailConstraint : ValidationConstraint;
-	private sealed record UrlConstraint : ValidationConstraint;
-	private sealed record UriSchemeConstraint(ImmutableArray<string> Schemes) : ValidationConstraint;
-	private sealed record FileExtensionsConstraint(ImmutableArray<string> Extensions) : ValidationConstraint;
-	private sealed record ExistingPathConstraint : ValidationConstraint;
-	private sealed record NonExistingPathConstraint : ValidationConstraint;
-	private sealed record RejectSymbolicLinksConstraint : ValidationConstraint;
 
+	private sealed record CollectionCountConstraint(int? Min, int? Max) : ValidationConstraint;
+
+	private sealed record RangeConstraint(string MinLiteral, string MaxLiteral) : ValidationConstraint;
+
+	private sealed record TimeSpanRangeConstraint(string MinLiteral, string MaxLiteral) : ValidationConstraint;
+
+	private sealed record StringLengthConstraint(int? Min, int? Max) : ValidationConstraint;
+
+	private sealed record RegexConstraint(string Pattern) : ValidationConstraint;
+
+	private sealed record AllowedValuesConstraint(ImmutableArray<string> Values) : ValidationConstraint;
+
+	private sealed record DeniedValuesConstraint(ImmutableArray<string> Values) : ValidationConstraint;
+
+	private sealed record EmailConstraint : ValidationConstraint;
+
+	private sealed record UrlConstraint : ValidationConstraint;
+
+	private sealed record UriSchemeConstraint(ImmutableArray<string> Schemes) : ValidationConstraint;
+
+	private sealed record FileExtensionsConstraint(ImmutableArray<string> Extensions) : ValidationConstraint;
+
+	private sealed record ExistingPathConstraint : ValidationConstraint;
+
+	private sealed record NonExistingPathConstraint : ValidationConstraint;
+
+	private sealed record RejectSymbolicLinksConstraint : ValidationConstraint;
 }

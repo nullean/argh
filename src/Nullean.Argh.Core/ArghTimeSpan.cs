@@ -8,8 +8,7 @@ namespace Nullean.Argh;
 public static class ArghTimeSpan
 {
 	/// <inheritdoc cref="TryParse(string?, IFormatProvider?, out TimeSpan)"/>
-	public static bool TryParse(string? s, out TimeSpan value) =>
-		TryParse(s, CultureInfo.InvariantCulture, out value);
+	public static bool TryParse(string? s, out TimeSpan value) => TryParse(s, CultureInfo.InvariantCulture, out value);
 
 	/// <summary>
 	/// Parses a duration: compact form is one or more ASCII digits followed by <c>s</c>, <c>m</c>, <c>h</c>, or <c>d</c> (case-insensitive); otherwise invariant <see cref="TimeSpan"/> parsing.

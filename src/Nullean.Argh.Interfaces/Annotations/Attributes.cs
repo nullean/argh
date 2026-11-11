@@ -192,13 +192,13 @@ public sealed class EnumValueAttribute : Attribute
 [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
 public sealed class EnvAttribute : Attribute
 {
-    public EnvAttribute(string varName) => VarName = varName;
+	public EnvAttribute(string varName) => VarName = varName;
 
-    /// <summary>The environment variable name to read when the flag is absent (e.g. <c>"MY_APP_TOKEN"</c>).</summary>
-    public string VarName { get; }
+	/// <summary>The environment variable name to read when the flag is absent (e.g. <c>"MY_APP_TOKEN"</c>).</summary>
+	public string VarName { get; }
 
-    /// <summary>When <c>true</c> (default), an empty string from the environment is treated the same as unset.</summary>
-    public bool TreatEmptyAsUnset { get; set; } = true;
+	/// <summary>When <c>true</c> (default), an empty string from the environment is treated the same as unset.</summary>
+	public bool TreatEmptyAsUnset { get; set; } = true;
 }
 
 /// <summary>
@@ -211,9 +211,8 @@ public sealed class EnvAttribute : Attribute
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Parameter | AttributeTargets.Property | AttributeTargets.Class)]
 public sealed class HiddenAttribute : Attribute
 {
-    /// <summary>When <c>true</c> (default), the item is suppressed from user-facing help listings.</summary>
-    public bool Help { get; set; } = true;
-    /// <summary>When <c>true</c>, the item is marked <c>hidden: true</c> in <c>__schema</c> output. Default is <c>false</c>.</summary>
-    public bool Schema { get; set; } = false;
+	/// <summary>When <c>true</c> (default), the item is suppressed from user-facing help listings.</summary>
+	public bool Help { get; set; } = true;
+	/// <summary>When <c>true</c>, the item is marked <c>hidden: true</c> in <c>__schema</c> output. Default is <c>false</c>.</summary>
+	public bool Schema { get; set; } = false;
 }
-

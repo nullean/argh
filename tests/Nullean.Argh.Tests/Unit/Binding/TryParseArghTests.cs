@@ -1,5 +1,5 @@
-using External.Ns.Options;
 using AwesomeAssertions;
+using External.Ns.Options;
 using Nullean.Argh.Tests.Fixtures;
 using Nullean.Argh.Tests.ReferencedDtos;
 
@@ -28,9 +28,7 @@ public class TryParseArghTests
 	[Test]
 	public void TryParseArgh_static_on_command_namespace_options_binds_inherited_and_namespace_flags()
 	{
-		var ok = TestStorageCommandNamespaceOptions.TryParseArgh(
-			["--verbose", "--prefix", "pre"],
-			out var s);
+		var ok = TestStorageCommandNamespaceOptions.TryParseArgh(["--verbose", "--prefix", "pre"], out var s);
 		ok.Should().BeTrue();
 		s.Should().NotBeNull();
 		s.Verbose.Should().BeTrue();
@@ -40,9 +38,7 @@ public class TryParseArghTests
 	[Test]
 	public void TryParseArgh_static_on_AsParameters_record_binds_prefixed_flags()
 	{
-		var ok = DeployCliArgs.TryParseArgh(
-			["--app-env", "prod", "--app-port", "8080"],
-			out var d);
+		var ok = DeployCliArgs.TryParseArgh(["--app-env", "prod", "--app-port", "8080"], out var d);
 		ok.Should().BeTrue();
 		d.Should().NotBeNull();
 		d.Env.Should().Be("prod");
@@ -52,9 +48,7 @@ public class TryParseArghTests
 	[Test]
 	public void TryParseArgh_static_on_AsParameters_record_uses_default_CancellationToken_for_injected_member()
 	{
-		var ok = AsParamsWithCtArgs.TryParseArgh(
-			["--run-env", "z", "--run-port", "7"],
-			out var a);
+		var ok = AsParamsWithCtArgs.TryParseArgh(["--run-env", "z", "--run-port", "7"], out var a);
 		ok.Should().BeTrue();
 		a.Should().NotBeNull();
 		a.Env.Should().Be("z");
@@ -65,9 +59,7 @@ public class TryParseArghTests
 	[Test]
 	public void TryParseArgh_static_on_AsParameters_record_binds_nullable_int_flags()
 	{
-		var ok = NullableNumericAsParamsArgs.TryParseArgh(
-			["--labs-rps", "10", "--labs-max-pages", "5"],
-			out var a);
+		var ok = NullableNumericAsParamsArgs.TryParseArgh(["--labs-rps", "10", "--labs-max-pages", "5"], out var a);
 		ok.Should().BeTrue();
 		a.Should().NotBeNull();
 		a.Rps.Should().Be(10);
@@ -131,9 +123,7 @@ public class TryParseArghTests
 	[Test]
 	public void TryParseArgh_mixed_nullability_multi_enum_DTO_parses_flags()
 	{
-		var ok = MultiEnumAsParamsArgs.TryParseArgh(
-			["--mix-severity", "Trace", "--mix-config-source", "Environment"],
-			out var a);
+		var ok = MultiEnumAsParamsArgs.TryParseArgh(["--mix-severity", "Trace", "--mix-config-source", "Environment"], out var a);
 		ok.Should().BeTrue();
 		a.Should().NotBeNull();
 		a.Severity.Should().Be(FixtureSeverity.Trace);

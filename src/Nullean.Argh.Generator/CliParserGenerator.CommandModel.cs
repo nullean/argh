@@ -51,10 +51,9 @@ public sealed partial class CliParserGenerator
 		bool IsDeprecated = false,
 		string? DeprecationMessage = null,
 		CommandIntentData? Intent = null,
-		CommandOutputData? Output = null)
+		CommandOutputData? Output = null
+	)
 	{
-
-
 		/// <summary>Overload for the per-invocation Select step — uses <see cref="DiagnosticAccumulator"/> instead of SourceProductionContext.</summary>
 		public static CommandModel FromRootMethod(
 			IMethodSymbol method,
@@ -62,7 +61,8 @@ public sealed partial class CliParserGenerator
 			ImmutableArray<string> routePrefix,
 			DiagnosticAccumulator acc,
 			Location diagnosticLocation,
-			Compilation? compilation = null)
+			Compilation? compilation = null
+		)
 		{
 			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation, compilation);
 			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
@@ -88,7 +88,32 @@ public sealed partial class CliParserGenerator
 			var containingFq = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			var hasParamlessCtor = method.ContainingType is INamedTypeSymbol namedCt && HasPublicParameterlessCtor(namedCt);
 			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) = ExtractHandlerAnalysis(method);
-			return new CommandModel(routePrefix, RootDefaultInternalCommandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData, IsRootDefault: true);
+			return new CommandModel(
+				routePrefix,
+				RootDefaultInternalCommandName,
+				runName,
+				containingFq,
+				method.Name,
+				!method.IsStatic,
+				hasParamlessCtor,
+				retFq,
+				retIsAsync,
+				retIsVoid,
+				withDocs,
+				handlerNoInj,
+				handlerParams,
+				handlerLoc,
+				ctorParams,
+				docId,
+				docs.SummaryOneLiner,
+				docs.RemarksRendered,
+				docs.SummaryInnerXml,
+				docs.RemarksInnerXml,
+				docs.ExamplesRendered,
+				usage,
+				mwData,
+				IsRootDefault: true
+			);
 		}
 
 		/// <summary>Overload for the per-invocation Select step — uses <see cref="DiagnosticAccumulator"/> instead of SourceProductionContext.</summary>
@@ -99,7 +124,8 @@ public sealed partial class CliParserGenerator
 			ImmutableArray<string> routePrefix,
 			DiagnosticAccumulator acc,
 			Location diagnosticLocation,
-			Compilation? compilation = null)
+			Compilation? compilation = null
+		)
 		{
 			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation, compilation);
 			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
@@ -127,7 +153,39 @@ public sealed partial class CliParserGenerator
 			var (retFq, retIsAsync, retIsVoid, handlerNoInj, handlerParams, handlerLoc, ctorParams, mwData, docId) = ExtractHandlerAnalysis(method);
 			var (isDeprecated, deprecationMsg) = TryGetObsoleteAttribute(method);
 			var (_cmdHideHelp, _cmdHideSchema) = GetHiddenFlags(method);
-			return new CommandModel(routePrefix, commandName, runName, containingFq, method.Name, !method.IsStatic, hasParamlessCtor, retFq, retIsAsync, retIsVoid, withDocs, handlerNoInj, handlerParams, handlerLoc, ctorParams, docId, docs.SummaryOneLiner, docs.RemarksRendered, docs.SummaryInnerXml, docs.RemarksInnerXml, docs.ExamplesRendered, usage, mwData, IsIntrinsic: HasCommandIntrinsicAttribute(method), CommandAliases: TryGetCommandAliasesFromAttribute(method), IsHidden: _cmdHideHelp, IsHiddenInSchema: _cmdHideSchema, IsDeprecated: isDeprecated, DeprecationMessage: deprecationMsg, Intent: TryGetCommandIntentData(method), Output: BuildCommandOutputFromParameters(withDocs));
+			return new CommandModel(
+				routePrefix,
+				commandName,
+				runName,
+				containingFq,
+				method.Name,
+				!method.IsStatic,
+				hasParamlessCtor,
+				retFq,
+				retIsAsync,
+				retIsVoid,
+				withDocs,
+				handlerNoInj,
+				handlerParams,
+				handlerLoc,
+				ctorParams,
+				docId,
+				docs.SummaryOneLiner,
+				docs.RemarksRendered,
+				docs.SummaryInnerXml,
+				docs.RemarksInnerXml,
+				docs.ExamplesRendered,
+				usage,
+				mwData,
+				IsIntrinsic: HasCommandIntrinsicAttribute(method),
+				CommandAliases: TryGetCommandAliasesFromAttribute(method),
+				IsHidden: _cmdHideHelp,
+				IsHiddenInSchema: _cmdHideSchema,
+				IsDeprecated: isDeprecated,
+				DeprecationMessage: deprecationMsg,
+				Intent: TryGetCommandIntentData(method),
+				Output: BuildCommandOutputFromParameters(withDocs)
+			);
 		}
 
 		private static ImmutableArray<ParameterModel> BuildParameterModels(
@@ -135,7 +193,8 @@ public sealed partial class CliParserGenerator
 			CSharpParseOptions parseOptions,
 			DiagnosticAccumulator acc,
 			Location diagnosticLocation,
-			Compilation? compilation = null)
+			Compilation? compilation = null
+		)
 		{
 			var builder = ImmutableArray.CreateBuilder<ParameterModel>();
 			foreach (var p in method.Parameters)
@@ -159,11 +218,11 @@ public sealed partial class CliParserGenerator
 			return builder.ToImmutable();
 		}
 
-
 		private static ImmutableArray<ParameterModel> ApplyCollectionSeparatorsFromDocumentation(
 			ImmutableArray<ParameterModel> parameters,
 			IMethodSymbol method,
-			ImmutableDictionary<string, string> paramSeparators)
+			ImmutableDictionary<string, string> paramSeparators
+		)
 		{
 			if (paramSeparators.IsEmpty)
 				return parameters;
@@ -202,32 +261,20 @@ public sealed partial class CliParserGenerator
 		}
 
 		/// <summary>Returns the CSharp-error-message display string for a type — used as a stable, symbol-free metadata key.</summary>
-		private static string GetMetadataName(ITypeSymbol t) =>
-			t.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+		private static string GetMetadataName(ITypeSymbol t) => t.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
 
-		private static (
-			string ReturnTypeFq,
-			bool ReturnIsAsync,
-			bool ReturnIsVoid,
-			bool HasNoOptionsInjection,
-			ImmutableArray<HandlerParam> HandlerParamTypes,
-			SourceSpanInfo HandlerSpanInfo,
-			ImmutableArray<(string Name, string TypeMetadataName)> ContainingTypeCtorParams,
-			ImmutableArray<(string Fq, bool HasParameterlessCtor)> MiddlewareData,
-			string DocCommentId
-		) ExtractHandlerAnalysis(IMethodSymbol method)
+		private static (string ReturnTypeFq, bool ReturnIsAsync, bool ReturnIsVoid, bool HasNoOptionsInjection, ImmutableArray<HandlerParam> HandlerParamTypes, SourceSpanInfo HandlerSpanInfo, ImmutableArray<(string Name, string TypeMetadataName)> ContainingTypeCtorParams, ImmutableArray<(string Fq, bool HasParameterlessCtor)> MiddlewareData, string DocCommentId) ExtractHandlerAnalysis(
+			IMethodSymbol method
+		)
 		{
 			// Return type
 			var retFq = method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			// FullyQualifiedFormat renders special types via their C# keyword ("void"), not "global::System.Void".
-			var retIsVoid = retFq is "void"
-				or "global::System.Threading.Tasks.Task"
-				or "global::System.Threading.Tasks.ValueTask";
-			var retIsAsync = retFq is "global::System.Threading.Tasks.Task"
-				or "global::System.Threading.Tasks.ValueTask"
-				|| (method.ReturnType is INamedTypeSymbol named && named.IsGenericType &&
-				    (named.ConstructedFrom.Name is "Task" or "ValueTask") &&
-				    named.ConstructedFrom.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks");
+			var retIsVoid = retFq is "void" or "global::System.Threading.Tasks.Task" or "global::System.Threading.Tasks.ValueTask";
+			var retIsAsync = retFq is "global::System.Threading.Tasks.Task" or "global::System.Threading.Tasks.ValueTask" ||
+				(method.ReturnType is INamedTypeSymbol named && named.IsGenericType &&
+					(named.ConstructedFrom.Name is "Task" or "ValueTask") && named.ConstructedFrom.ContainingNamespace?.ToDisplayString() ==
+					"System.Threading.Tasks");
 
 			// Parameters
 			var paramBuilder = ImmutableArray.CreateBuilder<HandlerParam>(method.Parameters.Length);
@@ -249,7 +296,10 @@ public sealed partial class CliParserGenerator
 					var membersForCtor = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 					foreach (var member in asNt.GetMembers())
 					{
-						if (member is IPropertySymbol prop && prop.DeclaredAccessibility == Accessibility.Public && !prop.IsStatic && !prop.IsIndexer && prop.GetMethod is not null && prop.SetMethod is not null)
+						if (
+							member is IPropertySymbol prop && prop.DeclaredAccessibility == Accessibility.Public && !prop.IsStatic && !prop.IsIndexer &&
+							prop.GetMethod is not null && prop.SetMethod is not null
+						)
 							membersForCtor.Add(prop.Name);
 						else if (member is IFieldSymbol field && field.DeclaredAccessibility == Accessibility.Public && !field.IsStatic)
 							membersForCtor.Add(field.Name);
@@ -258,9 +308,12 @@ public sealed partial class CliParserGenerator
 					IMethodSymbol? bestCtor = null;
 					foreach (var ctor in asNt.InstanceConstructors)
 					{
-						if (ctor.DeclaredAccessibility != Accessibility.Public) continue;
-						if (ctor.Parameters.Length == 0) continue;
-						if (!ctor.Parameters.All(cp => membersForCtor.Contains(cp.Name))) continue;
+						if (ctor.DeclaredAccessibility != Accessibility.Public)
+							continue;
+						if (ctor.Parameters.Length == 0)
+							continue;
+						if (!ctor.Parameters.All(cp => membersForCtor.Contains(cp.Name)))
+							continue;
 						if (bestCtor is null || ctor.Parameters.Length > bestCtor.Parameters.Length)
 							bestCtor = ctor;
 					}
@@ -272,10 +325,21 @@ public sealed partial class CliParserGenerator
 						asParamBestCtor = ctorB.MoveToImmutable();
 					}
 				}
-				var paramBaseNames = p.Type is INamedTypeSymbol paramNt
-				? CollectBaseTypeMetadataNames(paramNt)
-				: ImmutableArray<string>.Empty;
-			paramBuilder.Add(new HandlerParam(p.Name, GetMetadataName(p.Type), paramBaseNames, isInj, isAsParam, asParamPrefix, asParamTypeFq, asParamIsPublic, asParamIsGeneric, asParamBestCtor));
+				var paramBaseNames = p.Type is INamedTypeSymbol paramNt ? CollectBaseTypeMetadataNames(paramNt) : ImmutableArray<string>.Empty;
+				paramBuilder.Add(
+					new HandlerParam(
+						p.Name,
+						GetMetadataName(p.Type),
+						paramBaseNames,
+						isInj,
+						isAsParam,
+						asParamPrefix,
+						asParamTypeFq,
+						asParamIsPublic,
+						asParamIsGeneric,
+						asParamBestCtor
+					)
+				);
 			}
 
 			// Handler location
@@ -300,17 +364,11 @@ public sealed partial class CliParserGenerator
 			var middlewareData = mwBuilder.ToImmutable();
 
 			var docId = method.GetDocumentationCommentId() ?? "";
-			return (
-				ReturnTypeFq: retFq,
-				ReturnIsAsync: retIsAsync,
-				ReturnIsVoid: retIsVoid,
-				HasNoOptionsInjection: HasNoOptionsInjection(method),
-				HandlerParamTypes: paramBuilder.ToImmutable(),
-				HandlerSpanInfo: SourceSpanInfo.From(loc),
-				ContainingTypeCtorParams: ctorParams,
-				MiddlewareData: middlewareData,
-				DocCommentId: docId
-			);
+			return (ReturnTypeFq: retFq, ReturnIsAsync: retIsAsync, ReturnIsVoid: retIsVoid, HasNoOptionsInjection: HasNoOptionsInjection(
+				method
+			), HandlerParamTypes: paramBuilder.ToImmutable(), HandlerSpanInfo: SourceSpanInfo.From(
+				loc
+			), ContainingTypeCtorParams: ctorParams, MiddlewareData: middlewareData, DocCommentId: docId);
 		}
 
 		private static string BuildRunMethodName(ImmutableArray<string> routePrefix, string commandName)
@@ -332,17 +390,16 @@ public sealed partial class CliParserGenerator
 		}
 
 		/// <summary>Visible to <see cref="CliParserGenerator"/> for lambda root commands (same naming as <see cref="FromRootMethod"/>).</summary>
-		internal static string BuildRootDefaultRunMethodName(ImmutableArray<string> routePrefix) =>
-			BuildRunMethodName(routePrefix, "RootDefault");
+		internal static string BuildRootDefaultRunMethodName(ImmutableArray<string> routePrefix) => BuildRunMethodName(routePrefix, "RootDefault");
 
 		/// <summary>Public helper used by the analyzed-invocation pipeline to re-compute run method names when prefixing.</summary>
-		internal static string BuildRunMethodNameStatic(ImmutableArray<string> routePrefix, string commandName) =>
-			BuildRunMethodName(routePrefix, commandName);
+		internal static string BuildRunMethodNameStatic(ImmutableArray<string> routePrefix, string commandName) => BuildRunMethodName(routePrefix, commandName);
 
 		private static ImmutableArray<ParameterModel> ApplyParamDocumentation(
 			ImmutableArray<ParameterModel> parameters,
 			IMethodSymbol method,
-			ImmutableDictionary<string, string> paramDocsRaw)
+			ImmutableDictionary<string, string> paramDocsRaw
+		)
 		{
 			if (paramDocsRaw.IsEmpty)
 				return parameters;
@@ -393,5 +450,4 @@ public sealed partial class CliParserGenerator
 	// ── Validation constraint types ─────────────────────────────────────────────
 	// All fields are value types, strings, or ImmutableArray<string> so these can be
 	// cached inside AnalyzedInvocation records in the Roslyn incremental pipeline.
-
 }

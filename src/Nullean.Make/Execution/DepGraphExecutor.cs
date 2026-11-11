@@ -8,10 +8,7 @@ internal static class DepGraphExecutor
 	public static async Task<int> ExecuteAsync(TargetNode root, ParsedArgs parsed, BuildGraph graph)
 	{
 		var plan = BuildPlan(root, parsed.SingleTarget);
-		var context = new MakeContext(parsed.GlobalValues, parsed.SingleTarget)
-		{
-			TargetArgs = parsed.TargetArgs
-		};
+		var context = new MakeContext(parsed.GlobalValues, parsed.SingleTarget) { TargetArgs = parsed.TargetArgs };
 
 		foreach (var step in plan)
 		{

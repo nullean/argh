@@ -12,9 +12,7 @@ public static class ArghNamespaceSegmentCodegen
 	}
 
 	/// <summary>For source generator use: records the CLI segment for handler type <typeparamref name="T"/>.</summary>
-	public static void Set<T>(string segment) where T : class =>
-		Holder<T>.Value = segment;
+	public static void Set<T>(string segment) where T : class => Holder<T>.Value = segment;
 
-	internal static string? Get<T>() where T : class =>
-		Holder<T>.Value;
+	internal static string? Get<T>() where T : class => Holder<T>.Value;
 }

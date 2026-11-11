@@ -15,11 +15,14 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 {
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		var tables = context.SyntaxProvider
+		var tables = context
+			.SyntaxProvider
 			.CreateSyntaxProvider(
-				static (node, _) => node is ImplicitObjectCreationExpressionSyntax
-					|| node is ObjectCreationExpressionSyntax { Type: var t } && IsMakeAppName(t),
-				static (ctx, ct) => Analyze(ctx.SemanticModel.GetTypeInfo(ctx.Node, ct).Type))
+				static (node, _) => node is ImplicitObjectCreationExpressionSyntax || node is ObjectCreationExpressionSyntax { Type: var t } && IsMakeAppName(
+					t
+				),
+				static (ctx, ct) => Analyze(ctx.SemanticModel.GetTypeInfo(ctx.Node, ct).Type)
+			)
 			.Where(static t => t is not null)
 			.Collect();
 
@@ -28,7 +31,8 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 			var seen = new HashSet<string>(StringComparer.Ordinal);
 			foreach (var table in all)
 			{
-				if (table is null || !seen.Add(table.HintName)) continue;
+				if (table is null || !seen.Add(table.HintName))
+					continue;
 				spc.AddSource(table.HintName, table.Source);
 			}
 		});
@@ -48,9 +52,12 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 
 	private static UnionTable? Analyze(ITypeSymbol? created)
 	{
-		if (created is not INamedTypeSymbol { Name: "MakeApp", Arity: 1 } app) return null;
-		if (app.ContainingNamespace?.ToDisplayString() != "Nullean.Make") return null;
-		if (app.TypeArguments[0] is not INamedTypeSymbol union || !IsUnion(union)) return null;
+		if (created is not INamedTypeSymbol { Name: "MakeApp", Arity: 1 } app)
+			return null;
+		if (app.ContainingNamespace?.ToDisplayString() != "Nullean.Make")
+			return null;
+		if (app.TypeArguments[0] is not INamedTypeSymbol union || !IsUnion(union))
+			return null;
 
 		var unionName = union.ToDisplayString(Fqn);
 		var cases = new List<string>();
@@ -70,7 +77,8 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 		sb.AppendLine($"\t\t\tglobal::Nullean.Make.UnionGraph.UnionCaseTable<{unionName}>.Register(");
 		sb.AppendLine($"\t\t\t\tnew global::Nullean.Make.UnionGraph.UnionCase<{unionName}>[]");
 		sb.AppendLine("\t\t\t\t{");
-		foreach (var c in cases) sb.AppendLine($"\t\t\t\t\t{c},");
+		foreach (var c in cases)
+			sb.AppendLine($"\t\t\t\t\t{c},");
 		sb.AppendLine("\t\t\t\t},");
 		sb.AppendLine("\t\t\t\tstatic u => Leaf(u.Value));");
 		sb.AppendLine();
@@ -88,12 +96,12 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 	}
 
 	/// <summary>Walks the union's case constructors; a case that is itself a union adds a route segment.</summary>
-	private static void Collect(
-		INamedTypeSymbol union, string[] route, INamedTypeSymbol[] wrappers, List<string> cases, List<INamedTypeSymbol> nestedUnions)
+	private static void Collect(INamedTypeSymbol union, string[] route, INamedTypeSymbol[] wrappers, List<string> cases, List<INamedTypeSymbol> nestedUnions)
 	{
 		foreach (var ctor in UnionCtors(union))
 		{
-			if (ctor.Parameters[0].Type is not INamedTypeSymbol caseType) continue;
+			if (ctor.Parameters[0].Type is not INamedTypeSymbol caseType)
+				continue;
 			string[] caseRoute = [.. route, ToKebabCase(caseType.Name)];
 			INamedTypeSymbol[] caseWrappers = [.. wrappers, union];
 			if (IsUnion(caseType))
@@ -106,9 +114,9 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 			var caseName = caseType.ToDisplayString(Fqn);
 			var routeLiteral = string.Join(", ", caseRoute.Select(s => "\"" + s + "\""));
 			cases.Add(
-				$"new(new string[] {{ {routeLiteral} }}, typeof({caseName}), " +
-				$"static c => {Wrap(caseWrappers, $"({caseName})c")}, " +
-				$"static () => {Wrap(caseWrappers, DefaultInstance(caseType, caseName))})");
+				$"new(new string[] {{ {routeLiteral} }}, typeof({caseName}), " + $"static c => {Wrap(caseWrappers, $"({caseName})c")}, " +
+					$"static () => {Wrap(caseWrappers, DefaultInstance(caseType, caseName))})"
+			);
 		}
 	}
 
@@ -126,7 +134,8 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 	/// </summary>
 	private static string DefaultInstance(INamedTypeSymbol caseType, string caseName)
 	{
-		var ctor = caseType.InstanceConstructors
+		var ctor = caseType
+			.InstanceConstructors
 			.Where(c => c.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
 			.Where(c => !(c.Parameters.Length == 1 && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, caseType)))
 			.OrderByDescending(c => c.Parameters.Length)
@@ -135,9 +144,7 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 			return caseType.IsValueType
 				? $"default({caseName})"
 				: $"throw new global::System.InvalidOperationException(\"{caseType.Name} has no accessible constructor.\")";
-		var args = ctor.Parameters
-			.Where(p => !p.HasExplicitDefaultValue && !p.IsParams)
-			.Select(p => $"@{p.Name}: default!");
+		var args = ctor.Parameters.Where(p => !p.HasExplicitDefaultValue && !p.IsParams).Select(p => $"@{p.Name}: default!");
 		return $"new {caseName}({string.Join(", ", args)})";
 	}
 
@@ -147,11 +154,14 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 	/// <summary>Same check as the Argh generator: the lowered <c>IUnion</c> marker, <c>[Union]</c>, or the structural shape.</summary>
 	private static bool IsUnion(INamedTypeSymbol t)
 	{
-		if (t.AllInterfaces.Any(i => i.Name == "IUnion")) return true;
-		if (t.GetAttributes().Any(a => a.AttributeClass?.Name is "UnionAttribute" or "Union")) return true;
-		return t.TypeKind == TypeKind.Struct
-		       && t.GetMembers("Value").OfType<IPropertySymbol>().Any(p => p.Type.SpecialType == SpecialType.System_Object)
-		       && UnionCtors(t).Any();
+		if (t.AllInterfaces.Any(i => i.Name == "IUnion"))
+			return true;
+		if (t.GetAttributes().Any(a => a.AttributeClass?.Name is "UnionAttribute" or "Union"))
+			return true;
+		return t.TypeKind == TypeKind.Struct && t
+			.GetMembers("Value")
+			.OfType<IPropertySymbol>()
+			.Any(p => p.Type.SpecialType == SpecialType.System_Object) && UnionCtors(t).Any();
 	}
 
 	internal static string ToKebabCase(string name)
@@ -160,7 +170,8 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 		for (var i = 0; i < name.Length; i++)
 		{
 			var c = name[i];
-			if (char.IsUpper(c) && i > 0) sb.Append('-');
+			if (char.IsUpper(c) && i > 0)
+				sb.Append('-');
 			sb.Append(char.ToLowerInvariant(c));
 		}
 		return sb.ToString();

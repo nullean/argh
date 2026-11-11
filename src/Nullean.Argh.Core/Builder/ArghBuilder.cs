@@ -15,11 +15,9 @@ public sealed class ArghBuilder : IArghRootBuilder
 
 	/// <summary>Initializes a new <see cref="ArghBuilder"/> with a fresh <see cref="ArghApp"/>.</summary>
 	public ArghBuilder() : this(new ArghApp())
-	{
-	}
+	{ }
 
-	internal ArghBuilder(ArghApp app) =>
-		_app = app ?? throw new ArgumentNullException(nameof(app));
+	internal ArghBuilder(ArghApp app) => _app = app ?? throw new ArgumentNullException(nameof(app));
 
 	internal ArghApp App => _app;
 
@@ -52,9 +50,7 @@ public sealed class ArghBuilder : IArghRootBuilder
 	}
 
 	/// <inheritdoc />
-	public IArghRootBuilder DocumentEnvironmentVariables(
-		CliEnvVar[]? variables = null,
-		CliConfigFile[]? configFiles = null)
+	public IArghRootBuilder DocumentEnvironmentVariables(CliEnvVar[]? variables = null, CliConfigFile[]? configFiles = null)
 	{
 		_ = _app.DocumentEnvironmentVariables(variables, configFiles);
 		return this;
@@ -96,21 +92,29 @@ public sealed class ArghBuilder : IArghRootBuilder
 	}
 
 	/// <inheritdoc />
-	public IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghBuilder> configure) where T : class
+	public IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		string name,
+		Action<IArghBuilder> configure
+	) where T : class
 	{
 		_ = _app.MapNamespace<T>(name, configure);
 		return this;
 	}
 
 	/// <inheritdoc />
-	public IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
+	public IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		string name,
+		Action<IArghNamespaceBuilder> configure
+	) where T : class
 	{
 		_ = _app.MapNamespace<T>(name, configure);
 		return this;
 	}
 
 	/// <inheritdoc />
-	public IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(Action<IArghNamespaceBuilder> configure) where T : class
+	public IArghBuilder MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		Action<IArghNamespaceBuilder> configure
+	) where T : class
 	{
 		_ = _app.MapNamespace<T>(configure);
 		return this;

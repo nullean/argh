@@ -28,22 +28,19 @@ internal sealed class RootAliasSingleMethodCommands
 {
 	[DefaultCommand]
 	[CommandName("build")]
-	public static void Build(TestGlobalCliOptions g) =>
-		Console.Out.WriteLine("marker:alias-followed-build");
+	public static void Build(TestGlobalCliOptions g) => Console.Out.WriteLine("marker:alias-followed-build");
 }
 
 /// <summary>First follow-up mapped command after a root alias registration.</summary>
 internal sealed class RootAliasFollowupDiffCommands
 {
 	[CommandName("diff")]
-	public static void Diff() =>
-		Console.Out.WriteLine("marker:alias-followed-diff");
+	public static void Diff() => Console.Out.WriteLine("marker:alias-followed-diff");
 }
 
 /// <summary>Second follow-up mapped command after a root alias registration.</summary>
 internal sealed class RootAliasFollowupServeCommands
 {
 	[CommandName("serve")]
-	public static void Serve() =>
-		Console.Out.WriteLine("marker:alias-followed-serve");
+	public static void Serve() => Console.Out.WriteLine("marker:alias-followed-serve");
 }

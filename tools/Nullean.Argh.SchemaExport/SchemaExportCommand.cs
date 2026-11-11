@@ -44,20 +44,28 @@ internal static class SchemaExportCommand
 				// Add enum constraints to the string fields that the meta-schema closes
 				var enumValues = (declaringType, propName) switch
 				{
-					(nameof(CliParameterSchema), "role") =>
-						["flag", "positional", "confirmationSkip", "dryRun"],
-					(nameof(CliParameterSchema), "type") =>
-						["string", "integer", "number", "boolean", "array", "enum"],
-					(nameof(CliParameterSchema), "elementType") =>
-						["string", "integer", "number", "boolean"],
+					(nameof(CliParameterSchema), "role") => ["flag", "positional", "confirmationSkip", "dryRun"],
+					(nameof(CliParameterSchema), "type") => ["string", "integer", "number", "boolean", "array", "enum"],
+					(nameof(CliParameterSchema), "elementType") => ["string", "integer", "number", "boolean"],
 					(nameof(CliConstraintSchema), "kind") =>
-						["range", "timeSpanRange", "length", "count", "regex", "allowed", "denied",
-						 "email", "url", "uriScheme", "fileExtensions", "existing", "nonExisting",
-						 "rejectSymbolicLinks"],
-					(nameof(CliIntentSchema), "scope") =>
-						["file", "directory", "global"],
-					(nameof(CliDefaultHandlerSchema), "kind") =>
-						["root", "namespace"],
+						[
+							"range",
+							"timeSpanRange",
+							"length",
+							"count",
+							"regex",
+							"allowed",
+							"denied",
+							"email",
+							"url",
+							"uriScheme",
+							"fileExtensions",
+							"existing",
+							"nonExisting",
+							"rejectSymbolicLinks"
+						],
+					(nameof(CliIntentSchema), "scope") => ["file", "directory", "global"],
+					(nameof(CliDefaultHandlerSchema), "kind") => ["root", "namespace"],
 					_ => (string[]?)null
 				};
 
@@ -190,7 +198,8 @@ internal static class SchemaExportCommand
 
 	private static bool IsNullableSchemaNode(JsonNode? node)
 	{
-		if (node is not JsonObject obj) return false;
+		if (node is not JsonObject obj)
+			return false;
 		if (obj["type"] is JsonArray typeArr)
 			return typeArr.Any(t => t?.GetValue<string>() == "null");
 		// JsonSchemaExporter emits {"default": null} (C# null ref, not JsonValue) for converter-backed nullables
@@ -199,7 +208,8 @@ internal static class SchemaExportCommand
 
 	private static void StripNullType(JsonObject obj)
 	{
-		if (obj["type"] is not JsonArray typeArr) return;
+		if (obj["type"] is not JsonArray typeArr)
+			return;
 		var nonNull = typeArr.Select(t => t?.GetValue<string>()).Where(t => t != "null").ToList();
 		if (nonNull.Count == 1)
 			obj["type"] = JsonValue.Create(nonNull[0]);

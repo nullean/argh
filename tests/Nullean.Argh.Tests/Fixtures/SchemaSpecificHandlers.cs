@@ -8,22 +8,18 @@ internal static class SchemaSpecificHandlers
 	/// <summary>Schema test: command with a default value on --level.</summary>
 	/// <param name="level">Verbosity level.</param>
 	[NoOptionsInjection]
-	public static void SchemaDefaultValue(int level = 3) =>
-		Console.Out.WriteLine($"level:{level}");
+	public static void SchemaDefaultValue(int level = 3) => Console.Out.WriteLine($"level:{level}");
 
 	/// <summary>Schema test: command with a separator-based collection on --ids.</summary>
 	/// <param name="ids">-i, Comma-separated IDs.</param>
 	[NoOptionsInjection]
-	public static void SchemaSeparatorList(
-		[CollectionSyntax(Separator = ",")] List<int> ids) =>
-		Console.Out.WriteLine("ids:" + string.Join(",", ids));
+	public static void SchemaSeparatorList([CollectionSyntax(Separator = ",")] List<int> ids) => Console.Out.WriteLine("ids:" + string.Join(",", ids));
 
 	/// <summary>Schema test: command with a hidden parameter.</summary>
 	/// <param name="name">Visible name flag.</param>
 	/// <param name="internalId">Internal ID (hidden).</param>
 	[NoOptionsInjection]
-	public static void SchemaHiddenParam(string name, [Hidden(Schema = true)] string? internalId = null) =>
-		Console.Out.WriteLine($"name:{name}");
+	public static void SchemaHiddenParam(string name, [Hidden(Schema = true)] string? internalId = null) => Console.Out.WriteLine($"name:{name}");
 }
 
 /// <summary>Schema test: hidden command.</summary>
@@ -51,7 +47,6 @@ internal static partial class SchemaDeprecatedHandlers
 	[Obsolete("Use schema-deprecated-replacement instead.")]
 	[NoOptionsInjection]
 	public static void SchemaDeprecatedWithMessage() => Console.Out.WriteLine("deprecated-message");
-
 }
 
 /// <summary>Schema test: a DTO with a deprecated property, used via [AsParameters].</summary>
@@ -69,8 +64,7 @@ internal static partial class SchemaDeprecatedHandlers
 {
 	/// <summary>A command with a deprecated parameter via [AsParameters].</summary>
 	[NoOptionsInjection]
-	public static void SchemaDeprecatedParam([AsParameters] SchemaDeprecatedParamArgs args) =>
-		Console.Out.WriteLine($"name:{args.Name ?? args.OldName}");
+	public static void SchemaDeprecatedParam([AsParameters] SchemaDeprecatedParamArgs args) => Console.Out.WriteLine($"name:{args.Name ?? args.OldName}");
 }
 
 /// <summary>Schema test: intent annotation on a destructive command.</summary>
@@ -81,16 +75,12 @@ internal static class SchemaIntentHandlers
 	[MutationScope(MutationScope.Global)]
 	[RequiresAuth]
 	[NoOptionsInjection]
-	public static void SchemaIntentDestructive(
-		[ConfirmationSkip] bool yes = false) =>
-		Console.Out.WriteLine("deleted");
+	public static void SchemaIntentDestructive([ConfirmationSkip] bool yes = false) => Console.Out.WriteLine("deleted");
 
 	/// <summary>Lists resources safely.</summary>
 	[CommandIntent(Intent.Idempotent)]
 	[NoOptionsInjection]
-	public static void SchemaIntentRead(
-		[DryRun] bool dryRun = false) =>
-		Console.Out.WriteLine("list");
+	public static void SchemaIntentRead([DryRun] bool dryRun = false) => Console.Out.WriteLine("list");
 }
 
 /// <summary>Schema test: a namespace hidden from help only (default [Hidden]).</summary>
@@ -112,13 +102,17 @@ internal sealed class SchemaHiddenSchemaNamespace
 }
 
 /// <summary>Enum for output format selection.</summary>
-internal enum OutputFormat { Json, Table, Csv }
+internal enum OutputFormat
+{
+	Json,
+	Table,
+	Csv
+}
 
 /// <summary>Schema test: output formats on a command — enum parameter.</summary>
 internal static class SchemaOutputHandlers
 {
 	/// <summary>Reports status in multiple formats.</summary>
 	[NoOptionsInjection]
-	public static void SchemaOutputFormats([CommandOutput] OutputFormat? format = null) =>
-		Console.Out.WriteLine($"format:{format}");
+	public static void SchemaOutputFormats([CommandOutput] OutputFormat? format = null) => Console.Out.WriteLine($"format:{format}");
 }

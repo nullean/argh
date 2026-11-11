@@ -8,7 +8,8 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddArgh(args, app =>
 {
 	app.Map<SmokeCmds>();
-	app.MapNamespace<NsCmds>("ns", _ => { });
+	app.MapNamespace<NsCmds>("ns", _ =>
+	{ });
 });
 
 await builder.Build().RunAsync();

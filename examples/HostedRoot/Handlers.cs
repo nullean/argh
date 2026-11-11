@@ -7,9 +7,7 @@ namespace HostedRoot;
 internal static class HostedRootDefaults
 {
 	/// <summary>App root: runs when you omit a namespace or subcommand.</summary>
-	public static void App(HostedRootGlobalCliOptions g) =>
-		Console.WriteLine("hosted-root:app-default");
-
+	public static void App(HostedRootGlobalCliOptions g) => Console.WriteLine("hosted-root:app-default");
 }
 
 /// <summary>Named command registered with <c>Add(string, …)</c> (shows as a top-level command in help).</summary>
@@ -18,8 +16,7 @@ internal static class HostedRootHello
 	/// <summary>Greets by name.</summary>
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="name">-n,--name, Name.</param>
-	public static void Run(HostedRootGlobalCliOptions g, string name) =>
-		Console.WriteLine($"hosted-root:hello:{name}");
+	public static void Run(HostedRootGlobalCliOptions g, string name) => Console.WriteLine($"hosted-root:hello:{name}");
 }
 
 /// <summary><c>storage</c> subcommands.</summary>
@@ -28,8 +25,7 @@ internal sealed class HostedRootStorageCommands(ILogger<HostedRootStorageCommand
 {
 	/// <summary>Storage namespace root: runs when <c>storage</c> is selected but no deeper command.</summary>
 	[DefaultCommand]
-	public static void StorageNamespace(HostedRootStorageNamespaceOptions o) =>
-		Console.WriteLine("hosted-root:storage-namespace-default");
+	public static void StorageNamespace(HostedRootStorageNamespaceOptions o) => Console.WriteLine("hosted-root:storage-namespace-default");
 
 	/// <summary>List storage items.</summary>
 	/// <remarks>Does not modify remote state.</remarks>

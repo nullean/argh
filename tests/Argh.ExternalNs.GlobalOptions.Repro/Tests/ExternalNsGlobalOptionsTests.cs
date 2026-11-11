@@ -1,5 +1,5 @@
-using AwesomeAssertions;
 using System.Collections;
+using AwesomeAssertions;
 using ProcNet;
 using ProcNet.Std;
 
@@ -32,8 +32,7 @@ public class ExternalNsGlobalOptionsTests
 		return Proc.Start(new StartArguments("dotnet", allArgs) { Timeout = TimeSpan.FromSeconds(30) });
 	}
 
-	private static string Stdout(ProcessCaptureResult r) =>
-		string.Join("\n", r.ConsoleOut.Cast<LineOut>().Where(l => !l.Error).Select(l => l.Line)).Trim();
+	private static string Stdout(ProcessCaptureResult r) => string.Join("\n", r.ConsoleOut.Cast<LineOut>().Where(l => !l.Error).Select(l => l.Line)).Trim();
 
 	[Test]
 	public void External_ns_global_options_defaults_used_when_flags_absent()

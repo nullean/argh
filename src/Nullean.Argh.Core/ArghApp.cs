@@ -70,20 +70,27 @@ public sealed partial class ArghApp : IArghRootBuilder
 	/// Creates a nested namespace with no configure callback; equivalent to <c>MapNamespace&lt;T&gt;(name, _ =&gt; { })</c>.
 	/// </summary>
 	public ArghApp MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name) where T : class =>
-		MapNamespace<T>(name, static (IArghBuilder _) => { });
+		MapNamespace<T>(name, static (IArghBuilder _) =>
+		{ });
 
 	/// <summary>
 	/// Creates a nested namespace; the listing description is taken from the XML <c>&lt;summary&gt;</c> on <typeparamref name="T"/>.
 	/// Public commands on <typeparamref name="T"/> (and nested handler classes) are registered automatically—do not call <c>Map&lt;T&gt;()</c> again inside the configure callback.
 	/// </summary>
-	public ArghApp MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghBuilder> configure) where T : class
+	public ArghApp MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		string name,
+		Action<IArghBuilder> configure
+	) where T : class
 	{
 		configure(new ArghBuilder(CreateChildApp(name)));
 		return this;
 	}
 
 	/// <summary>Like <see cref="MapNamespace{T}(string, Action{IArghBuilder})"/> but passes an <see cref="IArghNamespaceBuilder"/> that exposes <see cref="IArghNamespaceBuilder.Segment"/>.</summary>
-	public ArghApp MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
+	public ArghApp MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		string name,
+		Action<IArghNamespaceBuilder> configure
+	) where T : class
 	{
 		configure(new ArghNamespaceBuilder(CreateChildApp(name), name));
 		return this;
@@ -93,13 +100,18 @@ public sealed partial class ArghApp : IArghRootBuilder
 	/// Nested namespace where the segment is resolved at compile time (see <see cref="ArghNamespaceSegmentCodegen"/>).
 	/// Requires the source generator to emit registration for <typeparamref name="T"/>.
 	/// </summary>
-	public ArghApp MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(Action<IArghNamespaceBuilder> configure) where T : class
+	public ArghApp MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		Action<IArghNamespaceBuilder> configure
+	) where T : class
 	{
 		var seg = ArghNamespaceSegmentCodegen.Get<T>();
 		if (seg is null)
 		{
 			throw new InvalidOperationException(
-				"MapNamespace<" + typeof(T).Name + ">(Action<IArghNamespaceBuilder>) requires the Argh source generator to emit a namespace segment for this type. Use MapNamespace<" + typeof(T).Name + ">(string name, ...) with an explicit segment, or ensure the project references Nullean.Argh.Generator.");
+				"MapNamespace<" + typeof(T).Name +
+					">(Action<IArghNamespaceBuilder>) requires the Argh source generator to emit a namespace segment for this type. Use MapNamespace<" + typeof(T).Name +
+					">(string name, ...) with an explicit segment, or ensure the project references Nullean.Argh.Generator."
+			);
 		}
 
 		configure(new ArghNamespaceBuilder(CreateChildApp(seg), seg));
@@ -126,8 +138,7 @@ public sealed partial class ArghApp : IArghRootBuilder
 	public Task<int> RunAsync(string[] args) => ArghRuntime.RunAsync(args);
 
 	/// <summary>Gets the delegate stored for a lambda-registered command by its storage key.</summary>
-	public static Delegate? GetRegisteredLambda(string key) =>
-		Lambdas.TryGetValue(key, out var h) ? h : null;
+	public static Delegate? GetRegisteredLambda(string key) => Lambdas.TryGetValue(key, out var h) ? h : null;
 
 	/// <summary>
 	/// Returns <see langword="true"/> if <paramref name="args"/> resolve to a built-in intrinsic command
@@ -138,8 +149,7 @@ public sealed partial class ArghApp : IArghRootBuilder
 	/// For the pre-host fast-exit path, use <see cref="TryArghIntrinsicCommand"/>.
 	/// </para>
 	/// </summary>
-	public static bool IsIntrinsicCommand(string[] args) =>
-		IsArghBuiltinIntrinsic(args) || ArghRuntime.IsUserIntrinsicCommand(args);
+	public static bool IsIntrinsicCommand(string[] args) => IsArghBuiltinIntrinsic(args) || ArghRuntime.IsUserIntrinsicCommand(args);
 
 	/// <summary>
 	/// Pre-host fast path for built-in intrinsic commands. If <paramref name="args"/> match a built-in
@@ -163,13 +173,13 @@ public sealed partial class ArghApp : IArghRootBuilder
 	/// </example>
 	public static async Task TryArghIntrinsicCommand(string[] args)
 	{
-		if (!IsArghBuiltinIntrinsic(args)) return;
+		if (!IsArghBuiltinIntrinsic(args))
+			return;
 		var code = await ArghRuntime.RunAsync(args).ConfigureAwait(false);
 		Environment.Exit(code);
 	}
 
 	private static bool IsArghBuiltinIntrinsic(string[] args) =>
 		args is { Length: > 0 } &&
-		(CompletionProtocol.IsArghMetaCompletionInvocation(args) ||
-		 Array.Exists(args, static a => a is "--help" or "-h" or "--version"));
+			(CompletionProtocol.IsArghMetaCompletionInvocation(args) || Array.Exists(args, static a => a is "--help" or "-h" or "--version"));
 }

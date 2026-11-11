@@ -1,6 +1,6 @@
-using AwesomeAssertions;
 using System.Collections.Immutable;
 using System.Text;
+using AwesomeAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
@@ -22,8 +22,7 @@ public class CrossCompilationSafetyTests
 {
 	private static ImmutableArray<MetadataReference> BuildBaseReferences()
 	{
-		var tpaPaths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
-			.Split(Path.PathSeparator);
+		var tpaPaths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 
 		var builder = ImmutableArray.CreateBuilder<MetadataReference>();
 		foreach (var path in tpaPaths)
@@ -40,7 +39,8 @@ public class CrossCompilationSafetyTests
 			assemblyName,
 			new[] { tree },
 			references,
-			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: false));
+			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: false)
+		);
 	}
 
 	[Test]
@@ -48,7 +48,8 @@ public class CrossCompilationSafetyTests
 	{
 		var baseReferences = BuildBaseReferences();
 
-		const string sharedSource = """
+		const string sharedSource =
+			"""
 			namespace Shared
 			{
 				public class SharedOptions
@@ -63,7 +64,8 @@ public class CrossCompilationSafetyTests
 		var sharedCompilation = CreateCompilation("SharedLib", sharedSource, baseReferences);
 		AssertNoErrors(sharedCompilation);
 
-		const string appSource = """
+		const string appSource =
+			"""
 			using Nullean.Argh.Builder;
 			using Shared;
 

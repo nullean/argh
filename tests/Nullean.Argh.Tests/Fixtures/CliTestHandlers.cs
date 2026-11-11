@@ -57,7 +57,8 @@ internal sealed record TagSetArgs(IReadOnlySet<int> TagIds);
 internal sealed record CollectionSyntaxAsParamsArgs(
 	[property: CollectionSyntax(Separator = ",")] IReadOnlySet<int> TagIds,
 	[property: CollectionSyntax(Separator = "|")] List<string> Labels,
-	[property: CollectionSyntax(Separator = ";")] int[] Ports);
+	[property: CollectionSyntax(Separator = ";")] int[] Ports
+);
 
 /// <summary>Init-property [AsParameters] DTO with optional collection syntax separator.</summary>
 internal sealed class OptionalCollectionSyntaxAsParamsArgs
@@ -108,24 +109,20 @@ internal static class CliTestHandlers
 	/// <summary>Greet by name without a global-options handler parameter (-m still parses).</summary>
 	/// <param name="name">The name.</param>
 	[NoOptionsInjection]
-	public static void NinHello(string name) =>
-		Console.Out.WriteLine($"nin:{name}");
+	public static void NinHello(string name) => Console.Out.WriteLine($"nin:{name}");
 
 	/// <summary>Enum and short options.</summary>
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="color">-c,--colour, Pick a color.</param>
 	/// <param name="name">-n,--name, Display name</param>
-	public static void EnumCmd(TestGlobalCliOptions g, TestColor color, string name) =>
-		Console.Out.WriteLine($"ok:{color}:{name}");
+	public static void EnumCmd(TestGlobalCliOptions g, TestColor color, string name) => Console.Out.WriteLine($"ok:{color}:{name}");
 
 	/// <summary>Enum with custom CLI value strings via EnumValueAttribute.</summary>
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="palette">Pick a palette color using kebab-case CLI values.</param>
-	public static void EnumValueCmd(TestGlobalCliOptions g, TestPalette palette) =>
-		Console.Out.WriteLine($"enum-value:{palette}");
+	public static void EnumValueCmd(TestGlobalCliOptions g, TestPalette palette) => Console.Out.WriteLine($"enum-value:{palette}");
 
-	public static void Deploy(TestGlobalCliOptions g, [AsParameters("app")] DeployCliArgs args) =>
-		Console.Out.WriteLine($"deploy:{args.Env}:{args.Port}");
+	public static void Deploy(TestGlobalCliOptions g, [AsParameters("app")] DeployCliArgs args) => Console.Out.WriteLine($"deploy:{args.Env}:{args.Port}");
 
 	public static void AsParamsWithCt(TestGlobalCliOptions g, [AsParameters("run")] AsParamsWithCtArgs args) =>
 		Console.Out.WriteLine($"as-params-ct:{args.Env}:{args.Port}:{args.Ct.CanBeCanceled}");
@@ -142,41 +139,32 @@ internal static class CliTestHandlers
 	public static void PropDocAsParams(TestGlobalCliOptions g, [AsParameters] PropDocBoundArgs args) =>
 		Console.Out.WriteLine($"prop-doc:{args.Alpha}:{args.Beta}");
 
-	public static void ParamCommentRecordCmd(TestGlobalCliOptions g, [AsParameters] ParamCommentRecord r) =>
-		Console.Out.WriteLine($"param-comment:{r.Gamma}");
+	public static void ParamCommentRecordCmd(TestGlobalCliOptions g, [AsParameters] ParamCommentRecord r) => Console.Out.WriteLine($"param-comment:{r.Gamma}");
 
-	public static void Tags(TestGlobalCliOptions g, List<string> tags) =>
-		Console.Out.WriteLine("tags:" + string.Join(",", tags));
+	public static void Tags(TestGlobalCliOptions g, List<string> tags) => Console.Out.WriteLine("tags:" + string.Join(",", tags));
 
 	/// <summary>Regression: braces in XML docs must not become C# interpolation in generated help.</summary>
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="description">Supports {version} and {owner} placeholders.</param>
-	public static void BraceDoc(TestGlobalCliOptions g, string? description = null) =>
-		Console.Out.WriteLine("brace-doc:" + (description ?? ""));
+	public static void BraceDoc(TestGlobalCliOptions g, string? description = null) => Console.Out.WriteLine("brace-doc:" + (description ?? ""));
 
 	// For global enum re-parse after command test
-	public static void SeverityCmd(TestGlobalCliOptions g) =>
-		Console.Out.WriteLine($"severity:{g.Severity}");
+	public static void SeverityCmd(TestGlobalCliOptions g) => Console.Out.WriteLine($"severity:{g.Severity}");
 
 	// For bool? test
-	public static void DryRunCmd(TestGlobalCliOptions g, bool? dryRun = null) =>
-		Console.Out.WriteLine($"dry-run:{dryRun?.ToString().ToLower() ?? "null"}");
+	public static void DryRunCmd(TestGlobalCliOptions g, bool? dryRun = null) => Console.Out.WriteLine($"dry-run:{dryRun?.ToString().ToLower() ?? "null"}");
 
 	// For int parsing test
-	public static void CountCmd(TestGlobalCliOptions g, int count) =>
-		Console.Out.WriteLine($"count:{count}");
+	public static void CountCmd(TestGlobalCliOptions g, int count) => Console.Out.WriteLine($"count:{count}");
 
 	// For FileInfo test
-	public static void FileCmd(TestGlobalCliOptions g, FileInfo file) =>
-		Console.Out.WriteLine($"file:{file.Name}");
+	public static void FileCmd(TestGlobalCliOptions g, FileInfo file) => Console.Out.WriteLine($"file:{file.Name}");
 
 	// For DirectoryInfo test
-	public static void DirCmd(TestGlobalCliOptions g, DirectoryInfo dir) =>
-		Console.Out.WriteLine($"dir:{dir.Name}");
+	public static void DirCmd(TestGlobalCliOptions g, DirectoryInfo dir) => Console.Out.WriteLine($"dir:{dir.Name}");
 
 	// For Uri test
-	public static void UriCmd(TestGlobalCliOptions g, Uri uri) =>
-		Console.Out.WriteLine($"uri:{uri.Host}");
+	public static void UriCmd(TestGlobalCliOptions g, Uri uri) => Console.Out.WriteLine($"uri:{uri.Host}");
 
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="duration">Duration flag.</param>
@@ -199,35 +187,31 @@ internal static class CliTestHandlers
 		Console.Out.WriteLine("tag-set-parser-opt:" + (tags is null ? "null" : string.Join(",", tags.OrderBy(x => x))));
 
 	// IReadOnlySet<T> handlers
-	public static void TagSet(TestGlobalCliOptions g, IReadOnlySet<int> tagIds) =>
-		Console.Out.WriteLine("tag-set:" + string.Join(",", tagIds.OrderBy(x => x)));
+	public static void TagSet(TestGlobalCliOptions g, IReadOnlySet<int> tagIds) => Console.Out.WriteLine("tag-set:" + string.Join(",", tagIds.OrderBy(x => x)));
 
 	public static void ColorSet(TestGlobalCliOptions g, IReadOnlySet<TestColor> colors) =>
 		Console.Out.WriteLine("color-set:" + string.Join(",", colors.OrderBy(x => (int)x)));
 
 	public static void OptTagSet(TestGlobalCliOptions g, IReadOnlySet<int>? tagIds) =>
-		Console.Out.WriteLine(
-			"opt-tag-set:"
-			+ (tagIds is null ? "null" : tagIds.Count == 0 ? "empty" : string.Join(",", tagIds.OrderBy(x => x))));
+		Console.Out.WriteLine("opt-tag-set:" + (tagIds is null ? "null" : tagIds.Count == 0 ? "empty" : string.Join(",", tagIds.OrderBy(x => x))));
 
 	public static void AsParamsTagSet(TestGlobalCliOptions g, [AsParameters] TagSetArgs args) =>
 		Console.Out.WriteLine("as-params-tag-set:" + string.Join(",", args.TagIds.OrderBy(x => x)));
 
 	public static void AsParamsCollectionSyntax(TestGlobalCliOptions g, [AsParameters("cs")] CollectionSyntaxAsParamsArgs args) =>
 		Console.Out.WriteLine(
-			"as-params-collection-syntax:"
-			+ string.Join(",", args.TagIds.OrderBy(x => x))
-			+ ":"
-			+ string.Join(",", args.Labels)
-			+ ":"
-			+ string.Join(",", args.Ports));
+			"as-params-collection-syntax:" + string.Join(",", args.TagIds.OrderBy(x => x)) + ":" + string.Join(",", args.Labels) + ":" + string.Join(
+				",",
+				args.Ports
+			)
+		);
 
 	public static void AsParamsOptionalCollectionSyntax(TestGlobalCliOptions g, [AsParameters("ocs")] OptionalCollectionSyntaxAsParamsArgs args) =>
 		Console.Out.WriteLine(
-			"as-params-optional-collection-syntax:"
-			+ (args.TagIds is null ? "null" : args.TagIds.Count == 0 ? "empty" : string.Join(",", args.TagIds.OrderBy(x => x)))
-			+ ":"
-			+ (args.Output ?? "null"));
+			"as-params-optional-collection-syntax:" +
+				(args.TagIds is null ? "null" : args.TagIds.Count == 0 ? "empty" : string.Join(",", args.TagIds.OrderBy(x => x))) + ":" +
+				(args.Output ?? "null")
+		);
 
 	public static void AsParamsReferencedDto(TestGlobalCliOptions g, [AsParameters] IsolatedBuildOptions options) =>
 		Console.Out.WriteLine($"as-params-referenced:{options.Path ?? "null"}:{options.Output ?? "null"}:{options.Source?.ToString() ?? "null"}");
@@ -249,7 +233,10 @@ internal static class CliTestHandlers
 			value = default;
 			var parts = raw.Split(',');
 			if (parts.Length == 2 && int.TryParse(parts[0], out var x) && int.TryParse(parts[1], out var y))
-			{ value = new Point(x, y); return true; }
+			{
+				value = new Point(x, y);
+				return true;
+			}
 			return false;
 		}
 	}
@@ -267,15 +254,13 @@ internal static class CliTestHandlers
 /// <summary>Handlers under <c>billing tools</c> for AGH0022 nested-namespace regression.</summary>
 internal static class BillingToolsHandlers
 {
-	public static void Status(TestGlobalCliOptions g) =>
-		Console.Out.WriteLine("billing-tools-status");
+	public static void Status(TestGlobalCliOptions g) => Console.Out.WriteLine("billing-tools-status");
 }
 
 /// <summary>Handlers under <c>support tools</c> for AGH0022 nested-namespace regression.</summary>
 internal static class SupportToolsHandlers
 {
-	public static void Status(TestGlobalCliOptions g) =>
-		Console.Out.WriteLine("support-tools-status");
+	public static void Status(TestGlobalCliOptions g) => Console.Out.WriteLine("support-tools-status");
 }
 
 /// <summary>
@@ -288,37 +273,31 @@ internal static class EnvBindingHandlers
 	/// <summary>Echo a token from either the flag or an env var fallback.</summary>
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="token">-t, --token, The token value.</param>
-	public static void EnvCmd(TestGlobalCliOptions g, [Env("MY_APP_TOKEN")] string? token = null) =>
-		Console.Out.WriteLine($"env-token:{token}");
+	public static void EnvCmd(TestGlobalCliOptions g, [Env("MY_APP_TOKEN")] string? token = null) => Console.Out.WriteLine($"env-token:{token}");
 
 	/// <summary>Echo a required value that can come from an env var.</summary>
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="secret">The required secret value.</param>
-	public static void EnvRequired(TestGlobalCliOptions g, [Env("MY_APP_SECRET")] string secret) =>
-		Console.Out.WriteLine($"env-secret:{secret}");
+	public static void EnvRequired(TestGlobalCliOptions g, [Env("MY_APP_SECRET")] string secret) => Console.Out.WriteLine($"env-secret:{secret}");
 
 	/// <summary>Echo a boolean flag that supports env var fallback.</summary>
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="verbose">--verbose, Enable verbose mode.</param>
-	public static void EnvBool(TestGlobalCliOptions g, [Env("MY_APP_VERBOSE")] bool verbose = false) =>
-		Console.Out.WriteLine($"env-verbose:{verbose}");
+	public static void EnvBool(TestGlobalCliOptions g, [Env("MY_APP_VERBOSE")] bool verbose = false) => Console.Out.WriteLine($"env-verbose:{verbose}");
 
 	/// <summary>Echo global option api-url which is env-bound to TEST_API_URL.</summary>
 	/// <param name="g">Injected global CLI options.</param>
-	public static void EnvGlobal(TestGlobalCliOptions g) =>
-		Console.Out.WriteLine($"env-global-api-url:{g.ApiUrl}");
+	public static void EnvGlobal(TestGlobalCliOptions g) => Console.Out.WriteLine($"env-global-api-url:{g.ApiUrl}");
 
 	/// <summary>Echo namespace option key which is env-bound to TEST_NS_KEY.</summary>
 	/// <param name="o">Namespace-scoped options with env binding.</param>
-	public static void EnvNs(EnvTestNamespaceOptions o) =>
-		Console.Out.WriteLine($"env-ns-key:{o.Key}");
+	public static void EnvNs(EnvTestNamespaceOptions o) => Console.Out.WriteLine($"env-ns-key:{o.Key}");
 }
 
 /// </summary>
 internal static class CrossAssemblyHandlers
 {
-	public static void Echo(TestGlobalCliOptions g, [AsParameters] CrossAssemblyAsParamsDto o) =>
-		Console.Out.WriteLine($"cross-assembly:{o.Level}:{o.Tag}");
+	public static void Echo(TestGlobalCliOptions g, [AsParameters] CrossAssemblyAsParamsDto o) => Console.Out.WriteLine($"cross-assembly:{o.Level}:{o.Tag}");
 
 	/// <summary>Echo verbose and tag from an [AsParameters] DTO in an unrelated external namespace.</summary>
 	/// <param name="g">Injected global CLI options.</param>

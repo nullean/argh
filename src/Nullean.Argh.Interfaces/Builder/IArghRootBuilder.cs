@@ -19,9 +19,7 @@ public interface IArghRootBuilder : IArghBuilder
 	/// Arguments must be <c>new CliEnvVar(...)</c> or <c>new CliConfigFile(...)</c> object creation
 	/// expressions with string/bool literals so the generator can extract them statically.
 	/// </summary>
-	IArghRootBuilder DocumentEnvironmentVariables(
-		CliEnvVar[]? variables = null,
-		CliConfigFile[]? configFiles = null);
+	IArghRootBuilder DocumentEnvironmentVariables(CliEnvVar[]? variables = null, CliConfigFile[]? configFiles = null);
 
 	/// <summary>
 	/// Sets a prefix prepended to every flag name to derive an environment variable fallback.

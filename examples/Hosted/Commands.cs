@@ -18,8 +18,7 @@ internal sealed class HostedCliCommands
 {
 	private readonly ILogger<HostedCliCommands> _logger;
 
-	public HostedCliCommands(ILogger<HostedCliCommands> logger) =>
-		_logger = logger;
+	public HostedCliCommands(ILogger<HostedCliCommands> logger) => _logger = logger;
 
 	/// <summary>Greets by name.</summary>
 	/// <param name="name">-n,--name, Name.</param>
@@ -33,17 +32,14 @@ internal sealed class HostedCliCommands
 	/// <summary>Status with enum.</summary>
 	/// <param name="color">-c,--color, Color.</param>
 	/// <param name="label">-l,--label, Label.</param>
-	public void Status(HostedGlobalCliOptions g, HostedExampleColor color, string label) =>
-		Console.WriteLine($"status:{color}:{label}");
+	public void Status(HostedGlobalCliOptions g, HostedExampleColor color, string label) => Console.WriteLine($"status:{color}:{label}");
 
 	/// <summary>Deploy with <see cref="AsParametersAttribute"/>.</summary>
-	public void Deploy(HostedGlobalCliOptions g, [AsParameters("app")] HostedDeployArgs app) =>
-		Console.WriteLine($"deploy env={app.Env} port={app.Port}");
+	public void Deploy(HostedGlobalCliOptions g, [AsParameters("app")] HostedDeployArgs app) => Console.WriteLine($"deploy env={app.Env} port={app.Port}");
 
 	/// <summary>Repeated labels.</summary>
 	/// <param name="labels">--label, Values.</param>
-	public void Labels(HostedGlobalCliOptions g, List<string> labels) =>
-		Console.WriteLine("labels: " + string.Join(", ", labels));
+	public void Labels(HostedGlobalCliOptions g, List<string> labels) => Console.WriteLine("labels: " + string.Join(", ", labels));
 }
 
 /// <summary><c>storage</c> group with nested <c>blob</c> commands.</summary>

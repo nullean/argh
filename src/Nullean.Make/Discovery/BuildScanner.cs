@@ -66,7 +66,8 @@ internal static class BuildScanner
 			if (propType == _targetType)
 			{
 				var value = (Target?)prop.GetValue(instance);
-				if (value is null) continue;
+				if (value is null)
+					continue;
 				var route = BuildRoute(prefix, prop);
 				var node = new TargetNode { Route = route, Kind = TargetKind.Target, ConfigureMethod = value.Method };
 				value(new TargetBuilderImpl(node));
@@ -78,7 +79,8 @@ internal static class BuildScanner
 			if (propType == _commandType)
 			{
 				var value = (Command?)prop.GetValue(instance);
-				if (value is null) continue;
+				if (value is null)
+					continue;
 				var route = BuildRoute(prefix, prop);
 				var node = new TargetNode { Route = route, Kind = TargetKind.Command, ConfigureMethod = value.Method };
 				value(new TargetBuilderImpl(node));
@@ -91,7 +93,8 @@ internal static class BuildScanner
 			{
 				var dtoType = propType.GetGenericArguments()[0];
 				var value = (Delegate?)prop.GetValue(instance);
-				if (value is null) continue;
+				if (value is null)
+					continue;
 				var route = BuildRoute(prefix, prop);
 				var node = new TargetNode { Route = route, Kind = TargetKind.Target, DtoType = dtoType, ConfigureMethod = value.Method };
 				InvokeTypedDelegate(value, dtoType, node, TargetKind.Target);
@@ -104,7 +107,8 @@ internal static class BuildScanner
 			{
 				var dtoType = propType.GetGenericArguments()[0];
 				var value = (Delegate?)prop.GetValue(instance);
-				if (value is null) continue;
+				if (value is null)
+					continue;
 				var route = BuildRoute(prefix, prop);
 				var node = new TargetNode { Route = route, Kind = TargetKind.Command, DtoType = dtoType, ConfigureMethod = value.Method };
 				InvokeTypedDelegate(value, dtoType, node, TargetKind.Command);
@@ -117,9 +121,13 @@ internal static class BuildScanner
 	private static void InvokeTypedDelegate(Delegate value, Type dtoType, TargetNode node, TargetKind kind)
 	{
 		var builderType = typeof(TargetBuilderImplOfT<>).MakeGenericType(dtoType);
-		var builder = (ITargetBuilder)builderType
-			.GetConstructor(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, null, [typeof(TargetNode)], null)!
-			.Invoke([node]);
+		var builder =
+			(ITargetBuilder)builderType.GetConstructor(
+				System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+				null,
+				[typeof(TargetNode)],
+				null
+			)!.Invoke([node]);
 		value.DynamicInvoke(builder);
 	}
 
@@ -146,7 +154,7 @@ internal static class BuildScanner
 	private static string[] BuildRoute(string[] prefix, PropertyInfo prop)
 	{
 		var leaf = ToKebabCase(prop.Name);
-		return [..prefix, leaf];
+		return [.. prefix, leaf];
 	}
 
 	private static void Register(BuildGraph graph, TargetNode node)
@@ -177,7 +185,8 @@ internal static class BuildScanner
 
 	internal static string ToKebabCase(string name)
 	{
-		if (string.IsNullOrEmpty(name)) return name;
+		if (string.IsNullOrEmpty(name))
+			return name;
 		var sb = new System.Text.StringBuilder();
 		for (var i = 0; i < name.Length; i++)
 		{

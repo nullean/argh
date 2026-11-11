@@ -1,7 +1,13 @@
 namespace Nullean.Argh.Tests.ReferencedDtos;
 
 /// <summary>Severity enum defined in a separate assembly to exercise cross-assembly options parsing.</summary>
-public enum CrossAssemblyLevel { Trace, Information, Warning, Error }
+public enum CrossAssemblyLevel
+{
+	Trace,
+	Information,
+	Warning,
+	Error
+}
 
 /// <summary>
 /// DTO defined in a separate assembly.

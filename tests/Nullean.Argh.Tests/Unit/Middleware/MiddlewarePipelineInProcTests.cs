@@ -36,8 +36,14 @@ public class MiddlewarePipelineInProcTests
 		var err = new StringWriter();
 		var previous = Console.Error;
 		Console.SetError(err);
-		try { ctx.ReportError("must be positive", "run-port"); }
-		finally { Console.SetError(previous); }
+		try
+		{
+			ctx.ReportError("must be positive", "run-port");
+		}
+		finally
+		{
+			Console.SetError(previous);
+		}
 
 		err.ToString().Should().Be($"Error: --run-port: must be positive{Environment.NewLine}");
 		ctx.ExitCode.Should().Be(2);

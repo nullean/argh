@@ -25,7 +25,11 @@ public class SchemaTests
 		root.TryGetProperty("description", out var descProp);
 		if (descProp.ValueKind != JsonValueKind.Undefined)
 			descProp.ValueKind.Should().NotBe(JsonValueKind.Null);
-		root.GetProperty("reservedMetaCommands").EnumerateArray().Select(e => e.GetString()).Should()
+		root
+			.GetProperty("reservedMetaCommands")
+			.EnumerateArray()
+			.Select(e => e.GetString())
+			.Should()
 			.Contain(new[] { "__complete", "__completion", "__schema" });
 		root.GetProperty("globalOptions").ValueKind.Should().Be(JsonValueKind.Array);
 		// rootDefault is optional; absent when the app has no MapRoot default handler
@@ -45,10 +49,8 @@ public class SchemaTests
 		var commands = doc.RootElement.GetProperty("commands");
 
 		// validate-range has an int? port parameter → type should be "integer"
-		var validateRange = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "validate-range");
-		var portParam = validateRange.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("name").GetString() == "port");
+		var validateRange = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "validate-range");
+		var portParam = validateRange.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("name").GetString() == "port");
 		portParam.GetProperty("type").GetString().Should().Be("integer");
 	}
 
@@ -59,12 +61,10 @@ public class SchemaTests
 		result.ExitCode.Should().Be(0);
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
 		var commands = doc.RootElement.GetProperty("commands");
-		var validateRange = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "validate-range");
+		var validateRange = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "validate-range");
 		validateRange.ValueKind.Should().Be(JsonValueKind.Object);
 
-		var portParam = validateRange.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("name").GetString() == "port");
+		var portParam = validateRange.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("name").GetString() == "port");
 		portParam.ValueKind.Should().Be(JsonValueKind.Object);
 
 		portParam.GetProperty("validations").ValueKind.Should().Be(JsonValueKind.Array);
@@ -81,18 +81,15 @@ public class SchemaTests
 		result.ExitCode.Should().Be(0);
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
 		var commands = doc.RootElement.GetProperty("commands");
-		var validateAllowed = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "validate-allowed");
+		var validateAllowed = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "validate-allowed");
 		validateAllowed.ValueKind.Should().Be(JsonValueKind.Object);
 
-		var envParam = validateAllowed.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("name").GetString() == "env");
+		var envParam = validateAllowed.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("name").GetString() == "env");
 		envParam.ValueKind.Should().Be(JsonValueKind.Object);
 
 		var constraint = envParam.GetProperty("validations").EnumerateArray().First();
 		constraint.GetProperty("kind").GetString().Should().Be("allowed");
-		constraint.GetProperty("values").EnumerateArray().Select(v => v.GetString())
-			.Should().BeEquivalentTo(new[] { "\"dev\"", "\"staging\"", "\"prod\"" });
+		constraint.GetProperty("values").EnumerateArray().Select(v => v.GetString()).Should().BeEquivalentTo(new[] { "\"dev\"", "\"staging\"", "\"prod\"" });
 	}
 
 	[Test]
@@ -104,11 +101,9 @@ public class SchemaTests
 		var commands = doc.RootElement.GetProperty("commands");
 
 		// renamed-cmd has [CommandName("renamed-cmd", "rc")]
-		var renamedCmd = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "renamed-cmd");
+		var renamedCmd = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "renamed-cmd");
 		renamedCmd.ValueKind.Should().Be(JsonValueKind.Object);
-		renamedCmd.GetProperty("aliases").EnumerateArray()
-			.Select(a => a.GetString()).Should().BeEquivalentTo(new[] { "rc" });
+		renamedCmd.GetProperty("aliases").EnumerateArray().Select(a => a.GetString()).Should().BeEquivalentTo(new[] { "rc" });
 	}
 
 	[Test]
@@ -119,8 +114,7 @@ public class SchemaTests
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
 		var commands = doc.RootElement.GetProperty("commands");
 
-		var helloCmd = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "hello");
+		var helloCmd = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "hello");
 		helloCmd.ValueKind.Should().Be(JsonValueKind.Object);
 		helloCmd.TryGetProperty("aliases", out _).Should().BeFalse();
 	}
@@ -133,13 +127,11 @@ public class SchemaTests
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
 		var commands = doc.RootElement.GetProperty("commands");
 
-		var hiddenCmd = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "hidden-cmd");
+		var hiddenCmd = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "hidden-cmd");
 		hiddenCmd.ValueKind.Should().Be(JsonValueKind.Object);
 		hiddenCmd.GetProperty("hidden").GetBoolean().Should().BeTrue();
 
-		var visibleCmd = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "visible-cmd");
+		var visibleCmd = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "visible-cmd");
 		visibleCmd.ValueKind.Should().Be(JsonValueKind.Object);
 		visibleCmd.TryGetProperty("hidden", out _).Should().BeFalse();
 	}
@@ -152,17 +144,14 @@ public class SchemaTests
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
 		var commands = doc.RootElement.GetProperty("commands");
 
-		var cmd = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-hidden-param");
+		var cmd = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-hidden-param");
 		cmd.ValueKind.Should().Be(JsonValueKind.Object);
 
-		var internalIdParam = cmd.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("name").GetString() == "internal-id");
+		var internalIdParam = cmd.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("name").GetString() == "internal-id");
 		internalIdParam.ValueKind.Should().Be(JsonValueKind.Object);
 		internalIdParam.GetProperty("hidden").GetBoolean().Should().BeTrue();
 
-		var nameParam = cmd.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("name").GetString() == "name");
+		var nameParam = cmd.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("name").GetString() == "name");
 		nameParam.ValueKind.Should().Be(JsonValueKind.Object);
 		nameParam.TryGetProperty("hidden", out _).Should().BeFalse();
 	}
@@ -176,8 +165,7 @@ public class SchemaTests
 		var namespaces = doc.RootElement.GetProperty("namespaces");
 
 		// [Hidden] default: Help=true, Schema=false — namespace appears in schema, no hidden:true marker
-		var hiddenNs = namespaces.EnumerateArray()
-			.FirstOrDefault(n => n.GetProperty("segment").GetString() == "schema-hidden-ns");
+		var hiddenNs = namespaces.EnumerateArray().FirstOrDefault(n => n.GetProperty("segment").GetString() == "schema-hidden-ns");
 		hiddenNs.ValueKind.Should().Be(JsonValueKind.Object);
 		hiddenNs.TryGetProperty("hidden", out _).Should().BeFalse();
 	}
@@ -190,12 +178,10 @@ public class SchemaTests
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
 		var commands = doc.RootElement.GetProperty("commands");
 
-		var cmd = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-default-value");
+		var cmd = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-default-value");
 		cmd.ValueKind.Should().Be(JsonValueKind.Object);
 
-		var levelParam = cmd.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("name").GetString() == "level");
+		var levelParam = cmd.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("name").GetString() == "level");
 		levelParam.ValueKind.Should().Be(JsonValueKind.Object);
 		levelParam.GetProperty("defaultValue").GetString().Should().Be("3");
 	}
@@ -209,12 +195,10 @@ public class SchemaTests
 		var commands = doc.RootElement.GetProperty("commands");
 
 		// "tags" command has List<string> tags = repeated flag
-		var tagsCmd = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "tags");
+		var tagsCmd = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "tags");
 		tagsCmd.ValueKind.Should().Be(JsonValueKind.Object);
 
-		var tagsParam = tagsCmd.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("name").GetString() == "tags");
+		var tagsParam = tagsCmd.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("name").GetString() == "tags");
 		tagsParam.ValueKind.Should().Be(JsonValueKind.Object);
 		tagsParam.GetProperty("repeatable").GetBoolean().Should().BeTrue();
 		tagsParam.GetProperty("type").GetString().Should().Be("array");
@@ -229,12 +213,10 @@ public class SchemaTests
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
 		var commands = doc.RootElement.GetProperty("commands");
 
-		var cmd = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-separator-list");
+		var cmd = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-separator-list");
 		cmd.ValueKind.Should().Be(JsonValueKind.Object);
 
-		var idsParam = cmd.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("name").GetString() == "ids");
+		var idsParam = cmd.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("name").GetString() == "ids");
 		idsParam.ValueKind.Should().Be(JsonValueKind.Object);
 		idsParam.GetProperty("separator").GetString().Should().Be(",");
 		idsParam.GetProperty("type").GetString().Should().Be("array");
@@ -251,12 +233,10 @@ public class SchemaTests
 		var commands = doc.RootElement.GetProperty("commands");
 
 		// "enum-cmd" has an enum parameter
-		var enumCmd = commands.EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "enum-cmd");
+		var enumCmd = commands.EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "enum-cmd");
 		enumCmd.ValueKind.Should().Be(JsonValueKind.Object);
 
-		var enumParam = enumCmd.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("type").GetString() == "enum");
+		var enumParam = enumCmd.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("type").GetString() == "enum");
 		enumParam.ValueKind.Should().Be(JsonValueKind.Object);
 		enumParam.GetProperty("enumValues").EnumerateArray().Should().NotBeEmpty();
 	}
@@ -267,8 +247,7 @@ public class SchemaTests
 		var result = CliHostRunner.Run("__schema");
 		result.ExitCode.Should().Be(0);
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
-		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-deprecated-simple");
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-deprecated-simple");
 		cmd.ValueKind.Should().Be(JsonValueKind.Object);
 		cmd.TryGetProperty("deprecated", out var dep).Should().BeTrue();
 		// No message/since/removedIn → emits the boolean true per cli-schema oneOf
@@ -281,7 +260,10 @@ public class SchemaTests
 		var result = CliHostRunner.Run("__schema");
 		result.ExitCode.Should().Be(0);
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
-		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
+		var cmd = doc
+			.RootElement
+			.GetProperty("commands")
+			.EnumerateArray()
 			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-deprecated-with-message");
 		cmd.ValueKind.Should().Be(JsonValueKind.Object);
 		cmd.TryGetProperty("deprecated", out var dep).Should().BeTrue();
@@ -294,10 +276,8 @@ public class SchemaTests
 		var result = CliHostRunner.Run("__schema");
 		result.ExitCode.Should().Be(0);
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
-		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-deprecated-param");
-		var oldNameParam = cmd.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("name").GetString() == "old-name");
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-deprecated-param");
+		var oldNameParam = cmd.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("name").GetString() == "old-name");
 		oldNameParam.TryGetProperty("deprecated", out var dep).Should().BeTrue();
 		dep.GetProperty("message").GetString().Should().Contain("--name");
 	}
@@ -308,7 +288,10 @@ public class SchemaTests
 		var result = CliHostRunner.Run("__schema");
 		result.ExitCode.Should().Be(0);
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
-		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
+		var cmd = doc
+			.RootElement
+			.GetProperty("commands")
+			.EnumerateArray()
 			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-intent-destructive");
 		cmd.ValueKind.Should().Be(JsonValueKind.Object);
 		var intent = cmd.GetProperty("intent");
@@ -325,10 +308,12 @@ public class SchemaTests
 		var result = CliHostRunner.Run("__schema");
 		result.ExitCode.Should().Be(0);
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
-		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
+		var cmd = doc
+			.RootElement
+			.GetProperty("commands")
+			.EnumerateArray()
 			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-intent-destructive");
-		var yesParam = cmd.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("name").GetString() == "yes");
+		var yesParam = cmd.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("name").GetString() == "yes");
 		yesParam.GetProperty("role").GetString().Should().Be("confirmationSkip");
 	}
 
@@ -338,10 +323,8 @@ public class SchemaTests
 		var result = CliHostRunner.Run("__schema");
 		result.ExitCode.Should().Be(0);
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
-		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-intent-read");
-		var dryRunParam = cmd.GetProperty("parameters").EnumerateArray()
-			.FirstOrDefault(p => p.GetProperty("name").GetString() == "dry-run");
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-intent-read");
+		var dryRunParam = cmd.GetProperty("parameters").EnumerateArray().FirstOrDefault(p => p.GetProperty("name").GetString() == "dry-run");
 		dryRunParam.GetProperty("role").GetString().Should().Be("dryRun");
 	}
 
@@ -351,8 +334,7 @@ public class SchemaTests
 		var result = CliHostRunner.Run("__schema");
 		result.ExitCode.Should().Be(0);
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
-		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
-			.FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-output-formats");
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray().FirstOrDefault(c => c.GetProperty("name").GetString() == "schema-output-formats");
 		cmd.ValueKind.Should().Be(JsonValueKind.Object);
 		var output = cmd.GetProperty("output");
 		output.GetProperty("formatFlag").GetString().Should().Be("--format");

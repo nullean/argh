@@ -19,6 +19,6 @@ public sealed partial class ArghApp
 	/// <remarks>
 	/// The generator will wire <typeparamref name="TMiddleware"/> into the middleware pipeline (and in hosting scenarios, types may be resolved from DI).
 	/// </remarks>
-	public ArghApp UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>()
-		where TMiddleware : ICommandMiddleware => this;
+	public ArghApp UseMiddleware<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>() where TMiddleware : ICommandMiddleware =>
+		this;
 }

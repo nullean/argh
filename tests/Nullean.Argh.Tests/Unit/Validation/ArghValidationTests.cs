@@ -80,7 +80,9 @@ public class ArghValidationTests : IDisposable
 	[Test]
 	public async Task A_validator_for_the_global_options_type_runs_before_any_command()
 	{
-		ArghValidation.Register<TestGlobalCliOptions>(o => o.Verbose ? [new ArghValidationError("verbose is not allowed here", nameof(TestGlobalCliOptions.Verbose))] : []);
+		ArghValidation.Register<TestGlobalCliOptions>(
+			o => o.Verbose ? [new ArghValidationError("verbose is not allowed here", nameof(TestGlobalCliOptions.Verbose))] : []
+		);
 
 		var (code, err) = await Run("--verbose", "hello", "--name", "t");
 

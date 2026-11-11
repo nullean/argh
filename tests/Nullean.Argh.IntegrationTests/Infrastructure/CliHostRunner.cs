@@ -10,8 +10,7 @@ internal static class CliHostRunner
 {
 	private static readonly TimeSpan s_timeout = TimeSpan.FromMinutes(2);
 
-	internal static ProcessCaptureResult Run(params string[] cliArgs) =>
-		Run(environment: null, cliArgs);
+	internal static ProcessCaptureResult Run(params string[] cliArgs) => Run(environment: null, cliArgs);
 
 	/// <param name="environment">Extra or replacement variables merged on top of <see cref="Environment.GetEnvironmentVariables()"/>.</param>
 	/// <param name="cliArgs">Arguments after <c>dotnet exec</c> and the host DLL.</param>
