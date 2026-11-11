@@ -1,5 +1,4 @@
-using FluentAssertions;
-using Xunit;
+using AwesomeAssertions;
 
 namespace Nullean.Make.Tests.CaseTable;
 
@@ -23,7 +22,7 @@ public union Unregistered(Orphan);
 /// Cases come from the case table that the Nullean.Make source generator emits at build time,
 /// so a case without a parameterless constructor is still a target.
 /// </summary>
-[Collection(nameof(ConsoleCollection))]
+[NotInParallel]
 public class UnionCaseTableTests
 {
 	private sealed record Run(int ExitCode, IReadOnlyList<string> Log, string Stdout, string Stderr);
@@ -58,7 +57,7 @@ public class UnionCaseTableTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task Case_with_a_required_parameter_is_a_target()
 	{
 		var run = await RunAsync("deploy", "--environment", "prod", "--replicas", "3");
@@ -66,7 +65,7 @@ public class UnionCaseTableTests
 		run.Log.Should().Equal("deploy:prod:3");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Dependency_on_a_case_with_a_required_parameter_resolves()
 	{
 		var run = await RunAsync("smoke");
@@ -75,7 +74,7 @@ public class UnionCaseTableTests
 		run.Log[1].Should().Be("smoke");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Nested_union_case_routes_under_its_namespace()
 	{
 		var run = await RunAsync("ops", "purge");
@@ -83,7 +82,7 @@ public class UnionCaseTableTests
 		run.Log.Should().Equal("purge");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Help_lists_every_case()
 	{
 		var run = await RunAsync("--help");
@@ -92,7 +91,7 @@ public class UnionCaseTableTests
 
 	private static MakeApp<T> Create<T>() where T : struct => new("generic");
 
-	[Fact]
+	[Test]
 	public async Task Union_without_a_generated_case_table_explains_why()
 	{
 		var app = Create<Unregistered>();

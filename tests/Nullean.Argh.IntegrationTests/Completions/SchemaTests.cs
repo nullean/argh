@@ -1,14 +1,13 @@
 using System.Linq;
 using System.Text.Json;
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Completions;
 
 public class SchemaTests
 {
-	[Fact]
+	[Test]
 	public void Schema_stdout_is_json_with_expected_shape()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -37,7 +36,7 @@ public class SchemaTests
 		root.GetProperty("namespaces").ValueKind.Should().Be(JsonValueKind.Array);
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_uses_json_schema_type_primitives_not_csharp_names()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -53,7 +52,7 @@ public class SchemaTests
 		portParam.GetProperty("type").GetString().Should().Be("integer");
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_validate_range_command_has_range_constraint_on_port()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -75,7 +74,7 @@ public class SchemaTests
 		constraint.GetProperty("max").GetString().Should().Be("65535");
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_validate_allowed_command_has_allowed_constraint_with_values()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -96,7 +95,7 @@ public class SchemaTests
 			.Should().BeEquivalentTo(new[] { "\"dev\"", "\"staging\"", "\"prod\"" });
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_command_with_aliases_exposes_aliases_array()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -112,7 +111,7 @@ public class SchemaTests
 			.Select(a => a.GetString()).Should().BeEquivalentTo(new[] { "rc" });
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_command_without_aliases_omits_aliases_field()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -126,7 +125,7 @@ public class SchemaTests
 		helloCmd.TryGetProperty("aliases", out _).Should().BeFalse();
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_hidden_command_has_hidden_true()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -145,7 +144,7 @@ public class SchemaTests
 		visibleCmd.TryGetProperty("hidden", out _).Should().BeFalse();
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_hidden_parameter_has_hidden_true()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -168,7 +167,7 @@ public class SchemaTests
 		nameParam.TryGetProperty("hidden", out _).Should().BeFalse();
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_hidden_namespace_appears_in_schema_without_hidden_flag()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -183,7 +182,7 @@ public class SchemaTests
 		hiddenNs.TryGetProperty("hidden", out _).Should().BeFalse();
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_default_value_is_emitted_for_parameters_with_defaults()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -201,7 +200,7 @@ public class SchemaTests
 		levelParam.GetProperty("defaultValue").GetString().Should().Be("3");
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_repeatable_collection_has_repeatable_true()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -222,7 +221,7 @@ public class SchemaTests
 		tagsParam.GetProperty("elementType").GetString().Should().Be("string");
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_separator_collection_has_separator_field()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -243,7 +242,7 @@ public class SchemaTests
 		idsParam.TryGetProperty("repeatable", out _).Should().BeFalse();
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_enum_parameter_has_type_enum_and_enum_values()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -262,7 +261,7 @@ public class SchemaTests
 		enumParam.GetProperty("enumValues").EnumerateArray().Should().NotBeEmpty();
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_deprecated_command_without_message_emits_deprecated_true()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -276,7 +275,7 @@ public class SchemaTests
 		dep.ValueKind.Should().Be(JsonValueKind.True);
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_deprecated_command_with_message_emits_deprecated_message()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -289,7 +288,7 @@ public class SchemaTests
 		dep.GetProperty("message").GetString().Should().Contain("schema-deprecated-replacement");
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_deprecated_parameter_emits_deprecated_with_message()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -303,7 +302,7 @@ public class SchemaTests
 		dep.GetProperty("message").GetString().Should().Contain("--name");
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_command_with_intent_emits_intent_object()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -320,7 +319,7 @@ public class SchemaTests
 		intent.TryGetProperty("idempotent", out _).Should().BeFalse();
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_confirmationSkip_parameter_has_correct_role()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -333,7 +332,7 @@ public class SchemaTests
 		yesParam.GetProperty("role").GetString().Should().Be("confirmationSkip");
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_dryRun_parameter_has_correct_role()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -346,7 +345,7 @@ public class SchemaTests
 		dryRunParam.GetProperty("role").GetString().Should().Be("dryRun");
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_command_with_output_formats_emits_output_object()
 	{
 		var result = CliHostRunner.Run("__schema");
@@ -361,7 +360,7 @@ public class SchemaTests
 		formats.Should().BeEquivalentTo(new[] { "json", "table", "csv" });
 	}
 
-	[Fact]
+	[Test]
 	public void Version_flag_emits_full_informational_version_not_major_only()
 	{
 		var result = CliHostRunner.Run("--version");

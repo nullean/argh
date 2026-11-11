@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- TUnit test projects are self-hosting Microsoft.Testing.Platform executables; F# has no source generators,
+         so TUnit discovers these tests by reflection -->
+    <OutputType>Exe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
@@ -9,6 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Assert.fs" />
     <Compile Include="MakeAppTests.fs" />
     <Compile Include="BuilderTests.fs" />
     <Compile Include="ShellTargetTests.fs" />
@@ -17,17 +21,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Nullean.Make.Fs\Nullean.Make.Fs.fsproj" />
     <PackageReference Include="FSharp.Core" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="xunit" />
-    <PackageReference Include="xunit.runner.visualstudio">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="GitHubActionsTestLogger">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Nullean.VsTest.Pretty.TestLogger" PrivateAssets="All" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="AwesomeAssertions" />
+  </ItemGroup>
 </Project>

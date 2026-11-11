@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Commands;
 
@@ -12,7 +11,7 @@ namespace Nullean.Argh.IntegrationTests.Commands;
 /// </summary>
 public class CrossAssemblyOptionsTests
 {
-	[Fact]
+	[Test]
 	public void Cross_assembly_as_params_non_nullable_defaults_used_when_flags_absent()
 	{
 		var result = CliHostRunner.Run("cross-assembly-echo");
@@ -20,7 +19,7 @@ public class CrossAssemblyOptionsTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("cross-assembly:Information:default-tag");
 	}
 
-	[Fact]
+	[Test]
 	public void Cross_assembly_as_params_flag_overrides_default()
 	{
 		var result = CliHostRunner.Run("cross-assembly-echo", "--level", "Warning", "--tag", "custom");
@@ -34,7 +33,7 @@ public class CrossAssemblyOptionsTests
 	/// If the generator uses the consuming project's namespace instead of the type's actual namespace
 	/// the generated code would reference a non-existent type and fail to compile.
 	/// </summary>
-	[Fact]
+	[Test]
 	public void External_ns_as_params_defaults_used_when_flags_absent()
 	{
 		var result = CliHostRunner.Run("ext-ns-as-params-echo");
@@ -42,7 +41,7 @@ public class CrossAssemblyOptionsTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("ext-ns-as-params:False:default");
 	}
 
-	[Fact]
+	[Test]
 	public void External_ns_as_params_flags_override_defaults()
 	{
 		var result = CliHostRunner.Run("ext-ns-as-params-echo", "--verbose", "--tag", "custom");

@@ -1,5 +1,4 @@
-using FluentAssertions;
-using Xunit;
+using AwesomeAssertions;
 using static Nullean.Make.Shell;
 
 namespace Nullean.Make.Tests.LambdaSyntax;
@@ -26,7 +25,7 @@ public record class Ship;
 
 public union Lambda(Wipe, Compile, Check, Pack, Undocumented, Ship);
 
-[Collection(nameof(ConsoleCollection))]
+[NotInParallel]
 public class MakeAppLambdaSyntaxTests
 {
 	private sealed record Run(int ExitCode, IReadOnlyList<string> Log, string Stdout, string Stderr);
@@ -74,7 +73,7 @@ public class MakeAppLambdaSyntaxTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task Target_with_dependencies_runs_them_first()
 	{
 		var run = await RunAsync(null, "compile");
@@ -82,14 +81,14 @@ public class MakeAppLambdaSyntaxTests
 		run.Log.Should().Equal("wipe", "compile");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Target_body_can_branch_on_the_case_payload()
 	{
 		(await RunAsync(null, "check", "--filter", "Unit", "-s")).Log.Should().Equal("check:Unit");
 		(await RunAsync(null, "check", "-s")).Log.Should().Equal("check:all");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Async_target_body_runs()
 	{
 		var run = await RunAsync(null, "pack", "-s");
@@ -97,7 +96,7 @@ public class MakeAppLambdaSyntaxTests
 		run.Log.Should().Equal("pack");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Command_runs_requires_composes_then_its_body()
 	{
 		var run = await RunAsync(null, "ship");
@@ -105,7 +104,7 @@ public class MakeAppLambdaSyntaxTests
 		run.Log.Should().Equal("wipe", "compile", "check:all", "pack", "ship");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Descriptions_come_from_xml_doc_summaries()
 	{
 		var run = await RunAsync(null, "--help");
@@ -115,7 +114,7 @@ public class MakeAppLambdaSyntaxTests
 		run.Stdout.Should().Contain("Build, check and pack.");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Explicit_description_wins_over_the_doc_summary()
 	{
 		var run = await RunAsync(null, "--help");
@@ -123,7 +122,7 @@ public class MakeAppLambdaSyntaxTests
 		run.Stdout.Should().NotContain("Documented, but the explicit description wins.");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Exec_runs_a_command_line()
 	{
 		var run = await RunAsync((app, log) => app.Bind(t => t.Value switch
@@ -135,7 +134,7 @@ public class MakeAppLambdaSyntaxTests
 		run.Log.Should().Equal("ran");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Exec_failure_fails_the_target()
 	{
 		var run = await RunAsync((app, log) => app.Bind(t => t.Value switch
@@ -151,22 +150,22 @@ public class MakeAppLambdaSyntaxTests
 
 public class ShellSplitTests
 {
-	[Theory]
-	[InlineData("dotnet build -c Release", new[] { "dotnet", "build", "-c", "Release" })]
-	[InlineData("  dotnet   clean  ", new[] { "dotnet", "clean" })]
-	[InlineData("dotnet test \"My Project.csproj\"", new[] { "dotnet", "test", "My Project.csproj" })]
-	[InlineData("git commit -m \"say \\\"hi\\\"\"", new[] { "git", "commit", "-m", "say \"hi\"" })]
-	[InlineData("tool \"\" last", new[] { "tool", "", "last" })]
-	[InlineData("a--b=\"c d\"", new[] { "a--b=c d" })]
-	[InlineData("", new string[0])]
+	[Test]
+	[Arguments("dotnet build -c Release", new[] { "dotnet", "build", "-c", "Release" })]
+	[Arguments("  dotnet   clean  ", new[] { "dotnet", "clean" })]
+	[Arguments("dotnet test \"My Project.csproj\"", new[] { "dotnet", "test", "My Project.csproj" })]
+	[Arguments("git commit -m \"say \\\"hi\\\"\"", new[] { "git", "commit", "-m", "say \"hi\"" })]
+	[Arguments("tool \"\" last", new[] { "tool", "", "last" })]
+	[Arguments("a--b=\"c d\"", new[] { "a--b=c d" })]
+	[Arguments("", new string[0])]
 	public void Split_follows_quotes_and_escapes(string commandLine, string[] expected) =>
 		Shell.Split(commandLine).Should().Equal(expected);
 
-	[Fact]
+	[Test]
 	public void Unclosed_quote_is_an_error() =>
 		FluentActions.Invoking(() => Shell.Split("echo \"oops")).Should().Throw<ArgumentException>();
 
-	[Fact]
+	[Test]
 	public void Empty_command_line_cannot_run() =>
 		FluentActions.Invoking(() => Exec("   ")).Should().Throw<ArgumentException>();
 }

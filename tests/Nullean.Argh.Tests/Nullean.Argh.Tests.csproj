@@ -1,6 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- TUnit test projects are self-hosting Microsoft.Testing.Platform executables -->
+    <OutputType>Exe</OutputType>
+    <!-- assertions are AwesomeAssertions; do not bring TUnit's own Assert.That into scope -->
+    <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
+    <!-- TUnit0055: these tests swap Console.Out/Error on purpose to capture CLI output; they run [NotInParallel] -->
+    <NoWarn>$(NoWarn);TUnit0055</NoWarn>
     <TargetFramework>net11.0</TargetFramework>
     <AssemblyName>Nullean.Argh.Tests</AssemblyName>
     <RootNamespace>Nullean.Argh.Tests</RootNamespace>
@@ -29,19 +35,9 @@
     <Copy SourceFiles="@(_CliHostFiles)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(_CliHostFiles)' != ''" />
   </Target>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="xunit" />
-    <PackageReference Include="xunit.runner.visualstudio">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="GitHubActionsTestLogger">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Nullean.VsTest.Pretty.TestLogger" PrivateAssets="All" />
-    <PackageReference Include="FluentAssertions" />
-  </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="AwesomeAssertions" />
+  </ItemGroup>
 </Project>

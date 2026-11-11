@@ -1,28 +1,27 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.Runtime;
 using Nullean.Argh.Tests.Fixtures;
-using Xunit;
 
 namespace Nullean.Argh.Tests.Unit.Runtime;
 
-[Collection("Console")]
+[NotInParallel]
 public class ArghRuntimeInProcTests
 {
-	[Fact]
+	[Test]
 	public async Task RunAsync_invokes_named_command_with_flag()
 	{
 		var code = await ArghRuntime.RunAsync(["hello", "--name", "test"]);
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_unknown_command_returns_2()
 	{
 		var code = await ArghRuntime.RunAsync(["nope"]);
 		code.Should().Be(2);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_completions_bash_prints_script()
 	{
 		var prev = Console.Out;
@@ -40,70 +39,70 @@ public class ArghRuntimeInProcTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_parses_enum_flags()
 	{
 		var code = await ArghRuntime.RunAsync(["enum-cmd", "--colour", "red", "--name", "x"]);
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_parses_enum_case_insensitive()
 	{
 		var code = await ArghRuntime.RunAsync(["enum-cmd", "--colour", "Blue", "--name", "y"]);
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_grouped_storage_list_routes()
 	{
 		var code = await ArghRuntime.RunAsync(["storage", "list"]);
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_grouped_nested_blob_upload_routes()
 	{
 		var code = await ArghRuntime.RunAsync(["storage", "blob", "upload"]);
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_global_then_group_options_parse_order()
 	{
 		var code = await ArghRuntime.RunAsync(["--verbose", "storage", "--prefix", "p", "list"]);
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_global_bool_after_namespace_command_is_bare_switch()
 	{
 		var code = await ArghRuntime.RunAsync(["storage", "list", "--verbose"]);
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_short_global_verbose_before_subcommand_peels_without_value()
 	{
 		var code = await ArghRuntime.RunAsync(["-v", "storage", "--prefix", "p", "list"]);
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_short_global_verbose_after_namespace_command_is_bare_switch()
 	{
 		var code = await ArghRuntime.RunAsync(["storage", "list", "-v"]);
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_global_enum_long_form_accepted_after_command_flags()
 	{
 		var code = await ArghRuntime.RunAsync(["hello", "--name", "t", "--severity", "trace"]);
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_global_mode_short_after_command_flags_binds_value()
 	{
 		var prev = Console.Out;
@@ -121,7 +120,7 @@ public class ArghRuntimeInProcTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_global_mode_long_after_command_flags_binds_value()
 	{
 		var prev = Console.Out;
@@ -139,7 +138,7 @@ public class ArghRuntimeInProcTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_global_mode_short_equals_form_after_command_flags_binds_value()
 	{
 		var prev = Console.Out;
@@ -157,7 +156,7 @@ public class ArghRuntimeInProcTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_global_mode_short_before_command_matches_post_command_form()
 	{
 		var prev = Console.Out;
@@ -175,7 +174,7 @@ public class ArghRuntimeInProcTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_namespace_command_accepts_global_short_after_namespace_flags()
 	{
 		var prev = Console.Out;
@@ -193,7 +192,7 @@ public class ArghRuntimeInProcTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_AsParameters_prefixed_flags_bind_record()
 	{
 		var prev = Console.Out;
@@ -211,7 +210,7 @@ public class ArghRuntimeInProcTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_collection_repeated_flags_parse_list()
 	{
 		var prev = Console.Out;
@@ -229,14 +228,14 @@ public class ArghRuntimeInProcTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_unknown_group_returns_2()
 	{
 		var code = await ArghRuntime.RunAsync(["nope-group", "x"]);
 		code.Should().Be(2);
 	}
 
-	[Fact]
+	[Test]
 	public async Task Help_omits_ansi_when_NO_COLOR_set()
 	{
 		var prev = Environment.GetEnvironmentVariable("NO_COLOR");
@@ -257,7 +256,7 @@ public class ArghRuntimeInProcTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_resolves_AddT_instance_from_ArghServices()
 	{
 		var prevOut = Console.Out;
@@ -277,7 +276,7 @@ public class ArghRuntimeInProcTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task CommandName_attribute_overrides_method_name()
 	{
 		var prev = Console.Out;
@@ -295,14 +294,14 @@ public class ArghRuntimeInProcTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task CommandName_attribute_original_method_name_not_routable()
 	{
 		var code = await ArghRuntime.RunAsync(["original-method-name"]);
 		code.Should().Be(2);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_readonly_set_int_repeated_flags_unique()
 	{
 		var prev = Console.Out;
@@ -317,7 +316,7 @@ public class ArghRuntimeInProcTests
 		finally { Console.SetOut(prev); }
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_readonly_set_int_duplicate_returns_2()
 	{
 		var prev = Console.Error;
@@ -332,7 +331,7 @@ public class ArghRuntimeInProcTests
 		finally { Console.SetError(prev); }
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_readonly_set_enum_repeated_flags_unique()
 	{
 		var prev = Console.Out;
@@ -347,7 +346,7 @@ public class ArghRuntimeInProcTests
 		finally { Console.SetOut(prev); }
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_nullable_readonly_set_omitted_is_null()
 	{
 		var prev = Console.Out;
@@ -362,7 +361,7 @@ public class ArghRuntimeInProcTests
 		finally { Console.SetOut(prev); }
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_nullable_readonly_set_with_values()
 	{
 		var prev = Console.Out;
@@ -377,7 +376,7 @@ public class ArghRuntimeInProcTests
 		finally { Console.SetOut(prev); }
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_as_params_readonly_set_binds()
 	{
 		var prev = Console.Out;
@@ -392,7 +391,7 @@ public class ArghRuntimeInProcTests
 		finally { Console.SetOut(prev); }
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_root_MapAndRootAlias_command_flag_prefetches_before_dispatch()
 	{
 		var prev = Console.Out;
@@ -407,7 +406,7 @@ public class ArghRuntimeInProcTests
 		finally { Console.SetOut(prev); }
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_alias_followed_namespace_default_routes_to_alias_target()
 	{
 		var prev = Console.Out;
@@ -422,7 +421,7 @@ public class ArghRuntimeInProcTests
 		finally { Console.SetOut(prev); }
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_alias_followed_namespace_first_followup_command_is_routable()
 	{
 		var prev = Console.Out;
@@ -437,7 +436,7 @@ public class ArghRuntimeInProcTests
 		finally { Console.SetOut(prev); }
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_alias_followed_namespace_second_followup_command_is_routable()
 	{
 		var prev = Console.Out;
@@ -452,7 +451,7 @@ public class ArghRuntimeInProcTests
 		finally { Console.SetOut(prev); }
 	}
 
-	[Fact]
+	[Test]
 	public void FormatCliSchemaJson_uses_UseSchemaVersion_override()
 	{
 		var json = ArghRuntime.FormatCliSchemaJson();

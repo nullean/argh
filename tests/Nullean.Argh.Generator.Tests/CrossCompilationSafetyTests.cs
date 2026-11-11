@@ -1,9 +1,9 @@
+using AwesomeAssertions;
 using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
-using Xunit;
 
 namespace Nullean.Argh.Generator.Tests;
 
@@ -43,7 +43,7 @@ public class CrossCompilationSafetyTests
 			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: false));
 	}
 
-	[Fact]
+	[Test]
 	public void Generator_does_not_crash_when_global_options_type_lives_in_a_referenced_compilation()
 	{
 		var baseReferences = BuildBaseReferences();
@@ -88,14 +88,14 @@ public class CrossCompilationSafetyTests
 		driver = (CSharpGeneratorDriver)driver.RunGeneratorsAndUpdateCompilation(appCompilation, out _, out var diagnostics);
 
 		var runResult = driver.GetRunResult();
-		var generatorResult = Assert.Single(runResult.Results);
-		Assert.Null(generatorResult.Exception);
-		Assert.DoesNotContain(diagnostics, d => d.Id == "CS8785");
+		var generatorResult = runResult.Results.Should().ContainSingle().Which;
+		generatorResult.Exception.Should().BeNull();
+		diagnostics.Should().NotContain(d => d.Id == "CS8785");
 	}
 
 	private static void AssertNoErrors(CSharpCompilation compilation)
 	{
 		var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
-		Assert.True(errors.Count == 0, string.Join(Environment.NewLine, errors.Select(e => e.ToString())));
+		(errors.Count == 0).Should().BeTrue(string.Join(Environment.NewLine, errors.Select(e => e.ToString())));
 	}
 }

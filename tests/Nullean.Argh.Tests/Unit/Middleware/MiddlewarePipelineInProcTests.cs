@@ -1,14 +1,13 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.Runtime;
 using Nullean.Argh.Tests.Fixtures;
-using Xunit;
 
 namespace Nullean.Argh.Tests.Unit.Middleware;
 
-[Collection("Console")]
+[NotInParallel]
 public class MiddlewarePipelineInProcTests
 {
-	[Fact]
+	[Test]
 	public async Task RunAsync_global_and_per_command_middleware_run()
 	{
 		TestsGlobalMiddleware.InvokeCount = 0;
@@ -19,7 +18,7 @@ public class MiddlewarePipelineInProcTests
 		TestsPerCommandMiddleware.InvokeCount.Should().Be(1);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_middleware_sees_bound_AsParameters_objects_with_their_flags()
 	{
 		var code = await ArghRuntime.RunAsync(["as-params-with-ct", "--run-env", "prod", "--run-port", "8080"]);
@@ -30,7 +29,7 @@ public class MiddlewarePipelineInProcTests
 		arg.MemberFlags.Should().Contain("Port", "run-port");
 	}
 
-	[Fact]
+	[Test]
 	public void ReportError_writes_the_generated_parsers_format_and_sets_exit_code_2()
 	{
 		var ctx = new Nullean.Argh.Middleware.CommandContext(["x"], []);
@@ -44,7 +43,7 @@ public class MiddlewarePipelineInProcTests
 		ctx.ExitCode.Should().Be(2);
 	}
 
-	[Fact]
+	[Test]
 	public async Task WriteUsageFooter_prints_the_flag_help_rows_and_the_run_hint_like_the_parser()
 	{
 		var err = new StringWriter();
@@ -67,7 +66,7 @@ public class MiddlewarePipelineInProcTests
 		text.Should().Contain("for usage.");
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_middleware_skipped_for_root_help()
 	{
 		TestsGlobalMiddleware.InvokeCount = 0;
@@ -78,7 +77,7 @@ public class MiddlewarePipelineInProcTests
 		TestsPerCommandMiddleware.InvokeCount.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_middleware_skipped_for_version()
 	{
 		TestsGlobalMiddleware.InvokeCount = 0;
@@ -89,7 +88,7 @@ public class MiddlewarePipelineInProcTests
 		TestsPerCommandMiddleware.InvokeCount.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_middleware_skipped_for_completions()
 	{
 		TestsGlobalMiddleware.InvokeCount = 0;
@@ -100,7 +99,7 @@ public class MiddlewarePipelineInProcTests
 		TestsPerCommandMiddleware.InvokeCount.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_middleware_skipped_for_complete()
 	{
 		TestsGlobalMiddleware.InvokeCount = 0;
@@ -111,7 +110,7 @@ public class MiddlewarePipelineInProcTests
 		TestsPerCommandMiddleware.InvokeCount.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task RunAsync_middleware_skipped_for_command_help()
 	{
 		TestsGlobalMiddleware.InvokeCount = 0;

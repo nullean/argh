@@ -1,12 +1,11 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Commands;
 
 public class GroupedCommandOutputTests
 {
-	[Fact]
+	[Test]
 	public void Storage_list_prints_marker()
 	{
 		var result = CliHostRunner.Run("storage", "list");
@@ -14,7 +13,7 @@ public class GroupedCommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("storage-list");
 	}
 
-	[Fact]
+	[Test]
 	public void Storage_blob_upload_prints_marker()
 	{
 		var result = CliHostRunner.Run("storage", "blob", "upload");

@@ -1,17 +1,16 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using System.Reflection;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Help;
 
 public class VersionTests
 {
-	[Fact]
+	[Test]
 	public void Version_stdout_matches_cli_host_informational_version()
 	{
 		var dll = Path.Combine(AppContext.BaseDirectory, CliHostPaths.CliHostDllFileName);
-		var asm = Assembly.LoadFrom(dll);
+		var asm = System.Reflection.Assembly.LoadFrom(dll);
 		var ver = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
 		          ?? asm.GetName().Version!.ToString();
 		var result = CliHostRunner.Run("--version");

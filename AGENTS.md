@@ -32,8 +32,8 @@ that RID-specific tool package comes before `assembly-differ`.
 For a narrower loop, `dotnet test` works directly:
 
 ```bash
-dotnet test tests/Nullean.Argh.IntegrationTests/ -c Release
-dotnet test tests/Nullean.Argh.IntegrationTests/ -c Release --filter "FullyQualifiedName~HelpContent"
+dotnet test --project tests/Nullean.Argh.IntegrationTests -c Release
+dotnet test --project tests/Nullean.Argh.IntegrationTests -c Release --treenode-filter "/*/*/HelpContentTests/*"
 ```
 
 ## Releasing
@@ -89,7 +89,8 @@ The generator uses a single **hierarchical** emit path; flat CLIs (no namespaces
 
 **`Nullean.Argh.IntegrationTests`** invokes `CliHostRunner.Run(...)`, capturing stdout/stderr and exit codes. Tests are organized under `Help/`, `Commands/`, `Binding/`, `Completions/`, `Middleware/`, `ParseErrors/`.
 
-**`Nullean.Argh.Tests`** runs unit tests against the generated code directly (xunit + FluentAssertions). Test fixtures live in `tests/Nullean.Argh.Tests/Fixtures/`.
+**`Nullean.Argh.Tests`** runs unit tests against the generated code directly. Every test project is TUnit with AwesomeAssertions, on
+Microsoft.Testing.Platform (`global.json` selects it); tests that swap `Console.Out` are `[NotInParallel]`. Test fixtures live in `tests/Nullean.Argh.Tests/Fixtures/`.
 
 The generator itself has minimal direct unit tests — coverage is primarily through the integration test suite.
 

@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Commands;
 
@@ -10,7 +9,7 @@ namespace Nullean.Argh.IntegrationTests.Commands;
 /// </summary>
 public class DuplicateNestedSegmentNameTests
 {
-	[Fact]
+	[Test]
 	public void Same_nested_segment_under_distinct_parent_namespaces_routes_correctly()
 	{
 		var billing = CliHostRunner.Run("billing", "tools", "status");

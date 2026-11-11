@@ -1,13 +1,12 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.Runtime;
-using Xunit;
 
 namespace Nullean.Argh.Tests.Unit.Parsing;
 
-[Collection("Console")]
+[NotInParallel]
 public class ArghParserRouteTests
 {
-	[Fact]
+	[Test]
 	public void Route_resolves_flat_command_and_remaining_arguments()
 	{
 		var r = ArghParser.Route(["hello", "--name", "x"]);
@@ -16,7 +15,7 @@ public class ArghParserRouteTests
 		r.Value.RemainingArgs.Should().Equal("--name", "x");
 	}
 
-	[Fact]
+	[Test]
 	public void Route_resolves_group_command_and_remaining_arguments()
 	{
 		var r = ArghParser.Route(["storage", "list", "--verbose"]);
@@ -25,7 +24,7 @@ public class ArghParserRouteTests
 		r.Value.RemainingArgs.Should().Equal("--verbose");
 	}
 
-	[Fact]
+	[Test]
 	public void Route_resolves_nested_group_command_path()
 	{
 		var r = ArghParser.Route(["storage", "blob", "upload"]);
@@ -34,6 +33,6 @@ public class ArghParserRouteTests
 		r.Value.RemainingArgs.Should().BeEmpty();
 	}
 
-	[Fact]
+	[Test]
 	public void Route_returns_null_for_root_help() => ArghParser.Route(["--help"]).Should().BeNull();
 }

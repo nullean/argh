@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh;
-using Xunit;
 
 namespace Nullean.Make.Tests;
 
@@ -20,7 +19,7 @@ public class GlobalOptionHelpBuild : MakeBuild
 	public Target<GlobalOptionHelpTestOptions> Test => _ => _.Executes(_ => { });
 }
 
-[Collection(nameof(ConsoleCollection))]
+[NotInParallel]
 public class MakeAppGlobalOptionHelpTests
 {
 	private static async Task<string> HelpAsync(params string[] args)
@@ -39,7 +38,7 @@ public class MakeAppGlobalOptionHelpTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task Global_options_show_their_property_type()
 	{
 		var help = await HelpAsync("--help");
@@ -48,7 +47,7 @@ public class MakeAppGlobalOptionHelpTests
 		help.Should().Contain("--ratio <double>");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Target_options_use_csharp_type_names()
 	{
 		var help = await HelpAsync("test", "--help");

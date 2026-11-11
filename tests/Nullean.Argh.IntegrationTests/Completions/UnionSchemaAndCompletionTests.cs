@@ -1,7 +1,6 @@
 using System.Text.Json;
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Completions;
 
@@ -20,7 +19,7 @@ public class UnionSchemaAndCompletionTests
 	private static JsonElement Param(JsonElement[] ps, string name) =>
 		ps.Single(p => p.GetProperty("name").GetString() == name);
 
-	[Fact]
+	[Test]
 	public void Schema_lists_the_selector_as_an_enum_of_case_names()
 	{
 		var selector = Param(SchemaParameters("union-shape"), "shape");
@@ -29,7 +28,7 @@ public class UnionSchemaAndCompletionTests
 		selector.GetProperty("enumValues").EnumerateArray().Select(e => e.GetString()).Should().Equal("circle", "rect");
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_lists_each_case_flag_with_its_type_and_default()
 	{
 		var ps = SchemaParameters("union-shape");
@@ -44,7 +43,7 @@ public class UnionSchemaAndCompletionTests
 		Param(ps, "rect-rounded").GetProperty("defaultValue").GetString().Should().Be("true");
 	}
 
-	[Fact]
+	[Test]
 	public void Schema_lists_argument_mode_selector_as_positional_and_shared_flags_once()
 	{
 		var ps = SchemaParameters("union-format-arg");
@@ -53,7 +52,7 @@ public class UnionSchemaAndCompletionTests
 		Param(ps, "indent").GetProperty("type").GetString().Should().Be("integer");
 	}
 
-	[Fact]
+	[Test]
 	public void Completion_offers_case_flags()
 	{
 		var result = CliHostRunner.Run("__complete", "bash", "--", "union-shape", "--");
@@ -62,7 +61,7 @@ public class UnionSchemaAndCompletionTests
 		lines.Should().Contain(new[] { "--shape", "--circle-radius", "--circle-fill", "--rect-width", "--rect-rounded", "--no-rect-rounded" });
 	}
 
-	[Fact]
+	[Test]
 	public void Completion_offers_bare_case_flags_in_argument_mode()
 	{
 		var result = CliHostRunner.Run("__complete", "bash", "--", "union-format-arg", "json", "--");

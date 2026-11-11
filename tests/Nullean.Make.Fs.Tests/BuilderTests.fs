@@ -2,7 +2,7 @@ module Nullean.Make.Fs.Tests.BuilderTests
 
 open System
 open System.IO
-open Xunit
+open TUnit.Core
 open Nullean.Make.Fs
 open Proc.Fs
 
@@ -89,34 +89,34 @@ let private runSteps (args: string list) =
 let private ok (r: Result) =
     if r.ExitCode <> 0 then failwithf "expected exit 0, got %d. stderr: %s" r.ExitCode r.Stderr
 
-[<Collection("Console")>]
+[<NotInParallel>]
 type BuilderTests() =
 
-    [<Fact>]
+    [<Test>]
     member _.``target block runs after its dependencies and only when run``() =
         let r = runSteps ["compile"]
         ok r
         Assert.Equal<string list>(["clean"; "compile"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``target block can branch and loop on the case payload``() =
         let r = runSteps ["check"; "--filter"; "Unit"; "-s"]
         ok r
         Assert.Equal<string list>(["check:Unit"; "pass1"; "pass2"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``command block runs requires then composes``() =
         let r = runSteps ["ship"]
         ok r
         Assert.Equal<string list>(["clean"; "compile"; "check:all"; "pass1"; "pass2"; "pkg-generate"; "pkg-validate"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``command block skips requires under -s``() =
         let r = runSteps ["ship"; "-s"]
         ok r
         Assert.Equal<string list>(["pkg-generate"; "pkg-validate"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``Descriptions come from DU case doc comments``() =
         let r = runSteps ["--help"]
         Assert.Contains("Delete build output", r.Stdout)
@@ -125,37 +125,37 @@ type BuilderTests() =
         Assert.Contains("Run the tests", r.Stdout)
         Assert.Contains("Build, check and pack", r.Stdout)
 
-    [<Fact>]
+    [<Test>]
     member _.``Namespace sub cases take their own doc comments``() =
         let r = runSteps ["pkg"; "--help"]
         Assert.Contains("Pack every project", r.Stdout)
         Assert.Contains("Validate the packages", r.Stdout)
 
-    [<Fact>]
+    [<Test>]
     member _.``exec inside a target runs the command``() =
         let r = runSteps ["runs-dotnet"]
         ok r
         Assert.Equal<string list>(["ran"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``exec output can be captured in a target block``() =
         let r = runSteps ["capture-in-target"]
         ok r
         Assert.Equal<string list>(["target-exit:0"; "target-saw-build"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``command executes body runs after its composes``() =
         let r = runSteps ["capture-in-command"]
         ok r
         Assert.Equal<string list>(["clean"; "pkg-generate"; "command-exit:0"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``command executes body is deferred``() =
         let r = runSteps ["--help"]
         ok r
         Assert.Empty(r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``a failing exec fails the target``() =
         let r = runSteps ["fails-dotnet"]
         Assert.Equal(1, r.ExitCode)

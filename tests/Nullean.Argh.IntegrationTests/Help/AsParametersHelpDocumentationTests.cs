@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Help;
 
@@ -9,7 +8,7 @@ public class AsParametersHelpDocumentationTests
 	private static readonly IReadOnlyDictionary<string, string> NoColor =
 		new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" };
 
-	[Fact]
+	[Test]
 	public void AsParameters_init_property_summaries_appear_in_command_help()
 	{
 		var result = CliHostRunner.Run(NoColor, "prop-doc-as-params", "--help");
@@ -19,7 +18,7 @@ public class AsParametersHelpDocumentationTests
 		text.Should().Contain("Argh_help_doc_beta_unique");
 	}
 
-	[Fact]
+	[Test]
 	public void AsParameters_record_positional_parameter_summary_appears_in_command_help()
 	{
 		var result = CliHostRunner.Run(NoColor, "param-comment-record", "--help");
@@ -28,7 +27,7 @@ public class AsParametersHelpDocumentationTests
 		text.Should().Contain("Argh_help_doc_gamma_unique");
 	}
 
-	[Fact]
+	[Test]
 	public void PropDocAsParams_binds()
 	{
 		var result = CliHostRunner.Run("prop-doc-as-params", "--alpha", "x", "--beta", "3");
@@ -36,7 +35,7 @@ public class AsParametersHelpDocumentationTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("prop-doc:x:3");
 	}
 
-	[Fact]
+	[Test]
 	public void AsParameters_referenced_project_property_summaries_appear_in_command_help()
 	{
 		var result = CliHostRunner.Run(NoColor, "as-params-referenced-dto", "--help");
