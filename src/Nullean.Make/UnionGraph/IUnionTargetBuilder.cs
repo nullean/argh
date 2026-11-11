@@ -1,8 +1,8 @@
 namespace Nullean.Make.UnionGraph;
 
 /// <summary>
-/// Fluent builder returned from <see cref="UnionMakeApp{TUnion}.Target()"/> and
-/// <see cref="UnionMakeApp{TUnion}.Command()"/> inside the <c>app.Bind(...)</c> lambda.
+/// Fluent builder returned from <see cref="MakeApp{TUnion}.Target()"/> and
+/// <see cref="MakeApp{TUnion}.Command()"/> inside the <c>app.Bind(...)</c> lambda.
 /// <para>
 /// The lambda is called twice per case: once at graph-build time with default values (for
 /// metadata), and once at execution time with real CLI-parsed values (for the Executes body).

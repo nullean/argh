@@ -17,11 +17,11 @@ public union Db(Migrate, Seed);
 public union Build(Clean, Compile, Test, Pack, Release, Db);
 
 /// <summary>
-/// <see cref="UnionMakeApp{TUnion}"/> writes to <see cref="Console"/>, so these tests swap the process-wide
+/// <see cref="MakeApp{TUnion}"/> writes to <see cref="Console"/>, so these tests swap the process-wide
 /// writers and must not run in parallel with each other.
 /// </summary>
 [Collection(nameof(ConsoleCollection))]
-public class UnionMakeAppTests
+public class MakeAppTests
 {
 	private sealed record Run(int ExitCode, IReadOnlyList<string> Log, string Stdout, string Stderr);
 
@@ -32,7 +32,7 @@ public class UnionMakeAppTests
 	private static async Task<Run> RunAsync(params string[] args)
 	{
 		var log = new List<string>();
-		var app = new UnionMakeApp<Build>("build", "Test build script");
+		var app = new MakeApp<Build>("build", "Test build script");
 		var config = app.Option<string>("--config", "Build configuration", defaultValue: "Release");
 		var retries = app.Option<int>("--max-retries", "Retry budget", defaultValue: 1);
 		var dryRun = app.Flag("--dry-run", "-n", "Print, do not run");
@@ -197,7 +197,7 @@ public class UnionMakeAppTests
 	public async Task Dependency_on_a_type_that_is_not_a_case_fails_before_running()
 	{
 		var ran = false;
-		var app = new UnionMakeApp<Build>("build");
+		var app = new MakeApp<Build>("build");
 		app.Bind(b => b.Value switch
 		{
 			Clean => app.Target().DependsOn<string>().Executes(() => ran = true),
@@ -221,7 +221,7 @@ public class UnionMakeAppTests
 	[Fact]
 	public async Task Bind_is_required()
 	{
-		var app = new UnionMakeApp<Build>("build");
+		var app = new MakeApp<Build>("build");
 		var stderr = new StringWriter();
 		var oldErr = Console.Error;
 		Console.SetError(stderr);

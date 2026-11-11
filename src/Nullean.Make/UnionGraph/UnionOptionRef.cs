@@ -1,8 +1,8 @@
 namespace Nullean.Make.UnionGraph;
 
 /// <summary>
-/// Mutable handle to a global option declared on <see cref="UnionMakeApp{TUnion}"/>.
-/// Obtain via <see cref="UnionMakeApp{TUnion}.Flag"/> or <see cref="UnionMakeApp{TUnion}.Option{T}"/>.
+/// Mutable handle to a global option declared on <see cref="MakeApp{TUnion}"/>.
+/// Obtain via <see cref="MakeApp{TUnion}.Flag"/> or <see cref="MakeApp{TUnion}.Option{T}"/>.
 /// The value is pre-populated during argv extraction, before any target body runs.
 /// </summary>
 public sealed class UnionOptionRef<T>

@@ -10,7 +10,7 @@ Typed build targets for .NET, with [Argh](https://github.com/nullean/argh)-quali
 using Nullean.Make;
 using static Nullean.Make.Shell;
 
-var app = new UnionMakeApp<Target>("build");
+var app = new MakeApp<Target>("build");
 var config = app.Option<string>("--config", "Build configuration", defaultValue: "Release");
 
 app.Bind(t => t.Value switch

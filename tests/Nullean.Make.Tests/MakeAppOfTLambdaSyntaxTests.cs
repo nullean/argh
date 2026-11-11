@@ -27,14 +27,14 @@ public record class Ship;
 public union Lambda(Wipe, Compile, Check, Pack, Undocumented, Ship);
 
 [Collection(nameof(ConsoleCollection))]
-public class UnionMakeAppLambdaSyntaxTests
+public class MakeAppLambdaSyntaxTests
 {
 	private sealed record Run(int ExitCode, IReadOnlyList<string> Log, string Stdout, string Stderr);
 
-	private static async Task<Run> RunAsync(Action<UnionMakeApp<Lambda>, List<string>>? configure, params string[] args)
+	private static async Task<Run> RunAsync(Action<MakeApp<Lambda>, List<string>>? configure, params string[] args)
 	{
 		var log = new List<string>();
-		var app = new UnionMakeApp<Lambda>("build");
+		var app = new MakeApp<Lambda>("build");
 		if (configure is not null)
 			configure(app, log);
 		else
