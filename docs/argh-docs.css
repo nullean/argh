@@ -1,0 +1,289 @@
+/*
+ * docs/argh-docs.css: the argh theme for docs-builder's design system (NAVIGATION_PREVIEW).
+ * Appended to the emitted _static/ds.css by scripts/docs-finish.sh, so it comes after the default theme and wins by
+ * cascade order within the same layer, without !important. The palette is the landing page's (docs/argh-landing.html):
+ * near-black, lime and blue in dark, a cool paper counterpart with a deep lime in light. Roles are named in
+ * docs-builder's Assets/ds/themes/bold-minimal.css; each pair is `var(--ds-l, light) var(--ds-d, dark)`.
+ */
+
+/* Self-hosted from Google Fonts (docs/fonts, OFL); both are variable fonts, one file for every weight. */
+@font-face {
+	font-family: 'JetBrains Mono';
+	font-style: normal;
+	font-weight: 400 700;
+	font-display: swap;
+	src: url('/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Space Grotesk';
+	font-style: normal;
+	font-weight: 500 700;
+	font-display: swap;
+	src: url('/fonts/space-grotesk-latin-wght-normal.woff2') format('woff2');
+}
+
+@layer ds.tokens {
+	:root {
+		/* The landing page sets everything in JetBrains Mono. Long prose reads better in a sans, so the mono goes to
+		   the chrome (header, sidebar, buttons, labels) and code, and Space Grotesk to headings, as on the landing page. */
+		--font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Inter', 'Segoe UI', sans-serif;
+		--font-heading: 'Space Grotesk', system-ui, sans-serif;
+		--font-display: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+		--font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+		/* The landing page's corners are tight: 4px buttons, 6-8px panels. */
+		--radius-sm: 4px;
+		--radius-md: 6px;
+		--radius-lg: 8px;
+		/* Room for the landing page's 87x48 animated lockup (scripts/docs-pages.py), with air around it as there. The
+		   layout offsets (sticky sidebar, scroll margins) follow this token. */
+		--header-height: 4rem;
+	}
+}
+
+@layer ds.theme {
+	:root,
+	[data-theme],
+	.hero-block:not(.hero-block--paper),
+	.band--ink,
+	.band--blue,
+	.band--dusk,
+	.band--aurora,
+	.cta-band:not(.cta-band--teal),
+	.band--lagoon,
+	.cta-band--teal {
+		--color-page: var(--ds-l, #f4f6f1) var(--ds-d, #08090b);
+		--color-surface: var(--ds-l, #ffffff) var(--ds-d, #0d1013);
+		--color-surface-sunken: var(--ds-l, #eaeee5) var(--ds-d, #0b0d10);
+
+		--color-heading: var(--ds-l, #08090b) var(--ds-d, #f4f6f9);
+		--color-text: var(--ds-l, #1b2126) var(--ds-d, #e9ecf1);
+		--color-text-muted: var(--ds-l, #525b67) var(--ds-d, #98a1ae);
+
+		/* The landing page's hairlines are lime at 10%; these are those, made opaque. */
+		--color-border: var(--ds-l, #d9dfd1) var(--ds-d, #1b2414);
+		--color-border-strong: var(--ds-l, #08090b) var(--ds-d, #e9ecf1);
+		--color-border-control: var(--ds-l, #747d6c) var(--ds-d, #6a7584);
+
+		/* Lime: as on the landing page in dark; a deep lime in light, so links hold 4.5:1 on paper. */
+		--color-accent: var(--ds-l, #3b6a00) var(--ds-d, #b8ff3d);
+		--color-accent-hover: var(--ds-l, #2a4d00) var(--ds-d, #ccff72);
+		--color-on-accent: var(--ds-l, #ffffff) var(--ds-d, #08090b);
+		--color-accent-surface: var(--ds-l, #eaf6d4) var(--ds-d, #121a08);
+		--color-accent-border: var(--ds-l, #a9d266) var(--ds-d, #33500d);
+
+		/* Buttons: the landing page's primary button, ink on lime in dark; in light, lime on ink, like the brand mark. */
+		--color-action: var(--ds-l, #0d1013) var(--ds-d, #b8ff3d);
+		--color-action-hover: var(--ds-l, #1b2126) var(--ds-d, #ccff72);
+		--color-action-hover-deep: var(--ds-l, #08090b) var(--ds-d, #9ad62a);
+		--color-action-deep: var(--ds-l, #08090b) var(--ds-d, #93cc29);
+		--color-action-edge: var(--ds-l, #000000) var(--ds-d, #6f9c1c);
+		--color-action-border: var(--ds-l, #0d1013) var(--ds-d, #b8ff3d);
+		--color-on-action: var(--ds-l, #b8ff3d) var(--ds-d, #08090b);
+
+		--color-brand-deep: var(--ds-l, #08090b) var(--ds-d, #b8ff3d);
+		--color-brand-bright: #b8ff3d;
+		--color-highlight: var(--ds-l, #2f62c9) var(--ds-d, #6ba3ff);
+		--color-highlight-surface: var(--ds-l, #e6efff) var(--ds-d, rgb(74 140 255 / 14%));
+		--color-emphasis: var(--ds-l, #0d1013) var(--ds-d, #1b2126);
+		--color-on-emphasis: #b8ff3d;
+
+		--gradient-wash: var(--ds-l, linear-gradient(180deg, #f4f6f1 0%, #edf1e8 100%))
+			var(--ds-d, linear-gradient(180deg, #0d1013 0%, #08090b 100%));
+		--gradient-hero: var(--ds-l, linear-gradient(160deg, #f4f6f1 0%, #e9f3dc 55%, #e3ecfb 100%))
+			var(--ds-d, linear-gradient(160deg, #0d1013 0%, #0d1a0a 50%, #0b1730 100%));
+		--color-hatch: var(--ds-l, rgb(59 106 0 / 6%)) var(--ds-d, rgb(184 255 61 / 4%));
+
+		/* Code is a dark panel in both modes, like the landing page's terminal and code panels, with its colours. */
+		--color-code-bg: var(--ds-l, #0d1013) var(--ds-d, #0d1013);
+		--color-code-border: var(--ds-l, transparent) var(--ds-d, #1f2a17);
+		--color-code-text: #e9ecf1;
+		--color-code-danger: #ff8a7a;
+		--color-code-warning: #e8b96a;
+		--color-code-info: #6ba3ff;
+		--color-code-muted: #98a1ae;
+		--color-code-gutter: #7a8492;
+		--color-code-keyword: #c792ea;
+		--color-code-string: #c3e88d;
+		--color-code-number: #e8b96a;
+		--color-code-attr: #b8ff3d;
+		--color-code-type: #6ba3ff;
+		--color-code-variable: #ccff72;
+		--color-code-literal: #e8b96a;
+		--color-code-punctuation: #98a1ae;
+
+		--color-focus-ring: var(--ds-l, #3b6a00) var(--ds-d, #b8ff3d);
+
+		/* The landing page's second colour, blue, for "important"; status colours otherwise stay the default's. */
+		--color-important: var(--ds-l, #2457c5) var(--ds-d, #6ba3ff);
+		--color-important-surface: var(--ds-l, #eef4ff) var(--ds-d, rgb(74 140 255 / 10%));
+		--color-success: var(--ds-l, #3b6a00) var(--ds-d, #b8ff3d);
+		--color-success-surface: var(--ds-l, #f1f8e6) var(--ds-d, rgb(184 255 61 / 7%));
+		--color-warning: var(--ds-l, #8a5a00) var(--ds-d, #e8b96a);
+		--color-warning-surface: var(--ds-l, #fdf5e4) var(--ds-d, rgb(232 185 106 / 9%));
+
+		/* No offset slabs: the landing page lifts things with a long soft shadow. */
+		--color-slab-plate: var(--ds-l, #d9dfd1) var(--ds-d, #0d1013);
+		--shadow-slab: 0 24px 60px -20px rgb(0 0 0 / var(--ds-l, 22%) var(--ds-d, 70%));
+		--shadow-slab-sm: 0 10px 24px -10px rgb(0 0 0 / var(--ds-l, 18%) var(--ds-d, 60%));
+		--shadow-slab-rest: 0 1px 0 var(--color-border);
+		--shadow-overlay: 0 24px 60px rgb(0 0 0 / var(--ds-l, 18%) var(--ds-d, 60%));
+
+		/* The teal call to action becomes the landing page's lime button. */
+		--cta-top: #ccff72;
+		--cta-bottom: #b8ff3d;
+		--cta-edge: #6f9c1c;
+		--cta-border: #b8ff3d;
+		--cta-fg: #08090b;
+		--cta-glow: rgb(184 255 61 / 30%);
+		--cta-hover-top: #d9ff96;
+		--cta-hover-bottom: #c4ff5a;
+		--cta-active-top: #b8ff3d;
+		--cta-active-bottom: #a6ec2c;
+
+		--swatch-light: #f4f6f1;
+		--swatch-dark: #08090b;
+		--swatch-black: #000;
+	}
+
+	/* True black keeps the dark roles, on black. */
+	[data-theme='black'] {
+		--color-page: #000;
+		--color-surface: #08090b;
+		--color-surface-sunken: #050607;
+		--color-border: #182010;
+		--color-code-bg: #08090b;
+	}
+}
+
+@layer ds.pages {
+	/* The landing page's mesh: lime and blue glows on near-black, fixed behind the page. Toned down here (about half
+	   the landing page's strength) so prose keeps its contrast; in light the same glows, as a pale wash on paper.
+	   Black drops it, as black means black. */
+	body.navigation-preview {
+		background-color: var(--color-page);
+		background-image:
+			radial-gradient(at 8% 18%, rgb(184 255 61 / var(--ds-l, 16%) var(--ds-d, 10%)) 0, transparent 55%),
+			radial-gradient(at 92% 6%, rgb(74 140 255 / var(--ds-l, 14%) var(--ds-d, 15%)) 0, transparent 50%),
+			radial-gradient(at 60% 78%, rgb(74 140 255 / var(--ds-l, 10%) var(--ds-d, 11%)) 0, transparent 55%),
+			radial-gradient(at 22% 88%, rgb(184 255 61 / var(--ds-l, 10%) var(--ds-d, 5%)) 0, transparent 50%),
+			radial-gradient(at 80% 48%, rgb(107 163 255 / var(--ds-l, 8%) var(--ds-d, 8%)) 0, transparent 50%);
+		background-attachment: fixed;
+	}
+
+	[data-theme='black'] body.navigation-preview,
+	body.navigation-preview[data-theme='black'] {
+		background-image: none;
+	}
+
+	/* Light: the mesh spread over paper tints the whole reading column, and where lime meets blue it turns muddy.
+	   Instead the two brand glows sit apart at the top of the page, behind the header and title, and scroll away, so
+	   prose reads on clean paper. */
+	body.navigation-preview {
+		--glow-light:
+			radial-gradient(55% 520px at 0% 0%, rgb(184 255 61 / 26%), transparent 72%),
+			radial-gradient(50% 460px at 100% 0%, rgb(74 140 255 / 16%), transparent 72%);
+	}
+
+	:root[data-theme='light'] body.navigation-preview {
+		background-image: var(--glow-light);
+		background-attachment: scroll;
+		background-repeat: no-repeat;
+	}
+
+	@media (prefers-color-scheme: light) {
+		:root:not([data-theme]) body.navigation-preview {
+			background-image: var(--glow-light);
+			background-attachment: scroll;
+			background-repeat: no-repeat;
+		}
+	}
+
+	.site-header {
+		background: color-mix(in srgb, var(--color-page) 72%, transparent);
+		backdrop-filter: blur(12px);
+	}
+
+	/* The landing page's animated lockup (scripts/docs-pages.py), at its size there. It reads "--argh_", so the text
+	   title stays for screen readers only. */
+	.site-header__logo {
+		width: 87px;
+		height: 48px;
+		flex: none;
+	}
+
+	.site-header__brand:has(.site-header__logo) .site-header__title {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	.site-header__brand,
+	.site-header__title {
+		font-family: var(--font-mono);
+		font-weight: 700;
+		font-size: 1.05rem;
+		letter-spacing: -0.03em;
+	}
+
+	/* The chrome speaks mono, as the whole landing page does. */
+	.nav-tree,
+	.site-header,
+	.btn,
+	.toc,
+	.pager {
+		font-family: var(--font-mono);
+	}
+
+	/* Mono runs wider than the sans these columns were sized for: a step smaller, as the landing page's nav is. */
+	.nav-side,
+	.toc {
+		--text-sm: 0.8125rem;
+	}
+
+	/* Code callouts in lime, the landing page's prompt colour, rather than the keyword purple. */
+	.code-callout {
+		background: #b8ff3d;
+	}
+
+	.prose :is(h1, h2, h3, h4) {
+		font-family: var(--font-heading);
+		letter-spacing: -0.028em;
+		text-wrap: balance;
+	}
+
+	.prose h1 {
+		font-weight: 700;
+		letter-spacing: -0.035em;
+	}
+
+	.prose h2,
+	.prose h3 {
+		font-weight: 700;
+	}
+
+	/* Sidebar: the current page in lime, as the landing page marks what matters. */
+	.nav-tree__link[aria-current='page'] {
+		color: var(--color-accent);
+	}
+
+	/* The design system leaves .prose img uncapped, so a wide image runs past the column. */
+	.prose img {
+		max-width: 100%;
+		height: auto;
+	}
+
+	/* The design system gives .prose table a top margin, inside .table-wrapper too, whose surface then shows as an empty
+	   strip above every table. */
+	.prose .table-wrapper > table {
+		margin-top: 0;
+	}
+
+	.prose kbd,
+	.kbd {
+		font-family: var(--font-mono);
+	}
+}

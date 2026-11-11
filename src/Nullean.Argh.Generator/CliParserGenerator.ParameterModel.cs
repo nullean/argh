@@ -59,6 +59,7 @@ public sealed partial class CliParserGenerator
 		bool ExpandUserProfileBeforeBind = false,
 		ImmutableArray<ValidationConstraint> Validations = default,
 		bool IsHidden = false,
+		bool IsHiddenInSchema = false,
 		bool IsVariadic = false,
 		/// <summary>
 		/// True when the property is from a cross-assembly type (DeclaringSyntaxReferences empty) and has no
@@ -91,7 +92,9 @@ public sealed partial class CliParserGenerator
 		/// analysis step the kind is still <see cref="ParameterKind.Flag"/>; this flag lets the argument-
 		/// order validator skip it so it does not trigger AGH0003.
 		/// </summary>
-		bool IsOptionsInjectionCandidate = false)
+		bool IsOptionsInjectionCandidate = false,
+		string? EnvVarName = null,
+		bool EnvTreatEmptyAsUnset = true)
 	{
 		// ── shared helpers ──────────────────────────────────────────────────────
 
@@ -165,6 +168,7 @@ public sealed partial class CliParserGenerator
 			if (isVariadic) required = false;
 			var (isOutputColl, outputFormatsColl) = TryGetCommandOutputAttribute(attributeHost);
 			var (isDeprecatedColl, deprecationMsgColl) = TryGetObsoleteAttribute(attributeHost);
+			var (_colHideHelp, _colHideSchema) = GetHiddenFlags(attributeHost);
 			return new ParameterModel(
 				symbolName,
 				localVarName,
@@ -204,7 +208,8 @@ public sealed partial class CliParserGenerator
 				AsParametersClrName: asParams?.ClrName,
 				ExpandUserProfileBeforeBind: expandProfileElem,
 				Validations: collValidations,
-				IsHidden: HasHiddenAttribute(attributeHost),
+				IsHidden: _colHideHelp,
+				IsHiddenInSchema: _colHideSchema,
 				IsVariadic: isVariadic,
 				IsConfirmationSkip: HasConfirmationSkipAttribute(attributeHost),
 				IsDryRun: HasDryRunAttribute(attributeHost),
@@ -276,6 +281,8 @@ public sealed partial class CliParserGenerator
 			// so the argument-order validator can skip them (they become OptionsInjected in the collect step).
 			var isOIC = sk == CliScalarKind.Primitive && bs == BoolSpecialKind.None
 				&& p.Type is { TypeKind: TypeKind.Class, SpecialType: SpecialType.None };
+			var (_paramHideHelp, _paramHideSchema) = GetHiddenFlags(p);
+			var (_paramEnvVar, _paramEnvEmpty) = GetEnvAttribute(p);
 			return new ParameterModel(
 				p.Name,
 				SafeLocalName(p.Name),
@@ -297,7 +304,8 @@ public sealed partial class CliParserGenerator
 				EnumMemberDocs: enumDocs,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
-				IsHidden: HasHiddenAttribute(p),
+				IsHidden: _paramHideHelp,
+				IsHiddenInSchema: _paramHideSchema,
 				IsConfirmationSkip: HasConfirmationSkipAttribute(p),
 				IsDryRun: HasDryRunAttribute(p),
 				IsCommandOutput: isOutputP,
@@ -307,7 +315,9 @@ public sealed partial class CliParserGenerator
 				UnionTypeFq: unionTypeFq,
 				UnionCases: unionCases,
 				UnionIsArgument: unionIsArg,
-				IsOptionsInjectionCandidate: isOIC);
+				IsOptionsInjectionCandidate: isOIC,
+				EnvVarName: _paramEnvVar,
+				EnvTreatEmptyAsUnset: _paramEnvEmpty);
 		}
 
 		public static ParameterModel FromOptionsProperty(IPropertySymbol prop, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -342,6 +352,8 @@ public sealed partial class CliParserGenerator
 				? unionTp.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null;
 			var unionCasesProp = sk == CliScalarKind.Union && prop.Type is INamedTypeSymbol unionTp2
 				? GetUnionCasesFromSymbol(unionTp2) : default;
+			var (_propHideHelp, _propHideSchema) = GetHiddenFlags(prop);
+			var (_propEnvVar, _propEnvEmpty) = GetEnvAttribute(prop);
 			return new ParameterModel(
 				prop.Name,
 				SafeLocalName(prop.Name),
@@ -363,7 +375,8 @@ public sealed partial class CliParserGenerator
 				EnumMemberDocs: enumDocs,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
-				IsHidden: HasHiddenAttribute(prop),
+				IsHidden: _propHideHelp,
+				IsHiddenInSchema: _propHideSchema,
 				UsesRuntimeDefault: isCrossAssemblyDefault,
 				IsNullableAnnotated: prop.Type.NullableAnnotation == NullableAnnotation.Annotated
 					|| prop.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
@@ -374,7 +387,9 @@ public sealed partial class CliParserGenerator
 				IsDeprecated: TryGetObsoleteAttribute(prop).IsDeprecated,
 				DeprecationMessage: TryGetObsoleteAttribute(prop).Message,
 				UnionTypeFq: unionTypeFqProp,
-				UnionCases: unionCasesProp);
+				UnionCases: unionCasesProp,
+				EnvVarName: _propEnvVar,
+				EnvTreatEmptyAsUnset: _propEnvEmpty);
 		}
 
 		public static ParameterModel FromOptionsField(IFieldSymbol field, Compilation? compilation = null, string? defaultValueLiteral = null)
@@ -401,6 +416,8 @@ public sealed partial class CliParserGenerator
 			var validations = ReadValidationConstraints(field, sk, typeName);
 			var defLit = QualifyOptionsEnumDefaultLiteral(defaultValueLiteral, sk, enumFq, enumMembers);
 			var expandProf = TryReadExpandUserProfileBeforeBind(field, sk);
+			var (_fieldHideHelp, _fieldHideSchema) = GetHiddenFlags(field);
+			var (_fieldEnvVar, _fieldEnvEmpty) = GetEnvAttribute(field);
 			return new ParameterModel(
 				field.Name,
 				SafeLocalName(field.Name),
@@ -421,10 +438,13 @@ public sealed partial class CliParserGenerator
 				EnumMemberCliNames: enumCliNames,
 				ExpandUserProfileBeforeBind: expandProf,
 				Validations: validations,
-				IsHidden: HasHiddenAttribute(field),
+				IsHidden: _fieldHideHelp,
+				IsHiddenInSchema: _fieldHideSchema,
 				UsesRuntimeDefault: isCrossAssemblyDefault,
 				IsNullableAnnotated: field.Type.NullableAnnotation == NullableAnnotation.Annotated
-					|| field.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
+					|| field.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T },
+				EnvVarName: _fieldEnvVar,
+				EnvTreatEmptyAsUnset: _fieldEnvEmpty);
 		}
 		public static ParameterModel FromAsParametersCtorParameter(
 			string methodParamName,
@@ -512,6 +532,7 @@ public sealed partial class CliParserGenerator
 			var expandProf = TryReadExpandUserProfileBeforeBind(cp, sk);
 			var (isDeprecatedCp, deprecationMsgCp) = TryGetObsoleteAttribute(cp);
 			var (isOutputCp, outputFormatsCp) = TryGetCommandOutputAttribute(cp);
+			var (cpEnvVar, cpEnvEmpty) = GetEnvAttribute(cp);
 			return new ParameterModel(
 				cp.Name,
 				local,
@@ -542,7 +563,9 @@ public sealed partial class CliParserGenerator
 				IsCommandOutput: isOutputCp,
 				CommandOutputExplicitFormats: outputFormatsCp,
 				IsDeprecated: isDeprecatedCp,
-				DeprecationMessage: deprecationMsgCp);
+				DeprecationMessage: deprecationMsgCp,
+				EnvVarName: cpEnvVar,
+				EnvTreatEmptyAsUnset: cpEnvEmpty);
 		}
 
 		public static ParameterModel FromAsParametersInitProperty(
@@ -620,6 +643,7 @@ public sealed partial class CliParserGenerator
 			var expandProf = TryReadExpandUserProfileBeforeBind(prop, sk);
 			var (isDeprecatedProp, deprecationMsgProp) = TryGetObsoleteAttribute(prop);
 			var (isOutputProp, outputFormatsProp) = TryGetCommandOutputAttribute(prop);
+			var (initPropEnvVar, initPropEnvEmpty) = GetEnvAttribute(prop);
 			return new ParameterModel(
 				prop.Name,
 				local,
@@ -653,7 +677,9 @@ public sealed partial class CliParserGenerator
 				IsCommandOutput: isOutputProp,
 				CommandOutputExplicitFormats: outputFormatsProp,
 				IsDeprecated: isDeprecatedProp,
-				DeprecationMessage: deprecationMsgProp);
+				DeprecationMessage: deprecationMsgProp,
+				EnvVarName: initPropEnvVar,
+				EnvTreatEmptyAsUnset: initPropEnvEmpty);
 		}
 
 		private static bool ComputeRequiredForOptionsType(ITypeSymbol type, BoolSpecialKind bs)

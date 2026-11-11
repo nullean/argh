@@ -163,6 +163,12 @@ public sealed class ArghHostingBuilder : IArghHostingBuilder
 		return this;
 	}
 
+	IArghRootBuilder IArghRootBuilder.UseEnvironmentPrefix(string prefix)
+	{
+		_ = _inner.UseEnvironmentPrefix(prefix);
+		return this;
+	}
+
 	/// <inheritdoc />
 	IArghBuilder IArghBuilder.MapRoot(Delegate handler)
 	{

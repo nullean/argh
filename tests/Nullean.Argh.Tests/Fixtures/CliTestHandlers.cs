@@ -282,6 +282,38 @@ internal static class SupportToolsHandlers
 /// Cross-assembly [AsParameters] handler.
 /// Tests that non-nullable init properties with C# initializers are not required when the
 /// [AsParameters] DTO type comes from a referenced assembly.
+/// <summary>Handlers for environment variable binding tests.</summary>
+internal static class EnvBindingHandlers
+{
+	/// <summary>Echo a token from either the flag or an env var fallback.</summary>
+	/// <param name="g">Injected global CLI options.</param>
+	/// <param name="token">-t, --token, The token value.</param>
+	public static void EnvCmd(TestGlobalCliOptions g, [Env("MY_APP_TOKEN")] string? token = null) =>
+		Console.Out.WriteLine($"env-token:{token}");
+
+	/// <summary>Echo a required value that can come from an env var.</summary>
+	/// <param name="g">Injected global CLI options.</param>
+	/// <param name="secret">The required secret value.</param>
+	public static void EnvRequired(TestGlobalCliOptions g, [Env("MY_APP_SECRET")] string secret) =>
+		Console.Out.WriteLine($"env-secret:{secret}");
+
+	/// <summary>Echo a boolean flag that supports env var fallback.</summary>
+	/// <param name="g">Injected global CLI options.</param>
+	/// <param name="verbose">--verbose, Enable verbose mode.</param>
+	public static void EnvBool(TestGlobalCliOptions g, [Env("MY_APP_VERBOSE")] bool verbose = false) =>
+		Console.Out.WriteLine($"env-verbose:{verbose}");
+
+	/// <summary>Echo global option api-url which is env-bound to TEST_API_URL.</summary>
+	/// <param name="g">Injected global CLI options.</param>
+	public static void EnvGlobal(TestGlobalCliOptions g) =>
+		Console.Out.WriteLine($"env-global-api-url:{g.ApiUrl}");
+
+	/// <summary>Echo namespace option key which is env-bound to TEST_NS_KEY.</summary>
+	/// <param name="o">Namespace-scoped options with env binding.</param>
+	public static void EnvNs(EnvTestNamespaceOptions o) =>
+		Console.Out.WriteLine($"env-ns-key:{o.Key}");
+}
+
 /// </summary>
 internal static class CrossAssemblyHandlers
 {

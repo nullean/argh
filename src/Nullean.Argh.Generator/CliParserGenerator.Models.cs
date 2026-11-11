@@ -37,6 +37,8 @@ public sealed partial class CliParserGenerator
 			/// <summary>First non-empty XML summary from the first generic <c>Add</c> handler type in this namespace block.</summary>
 			public string SummaryOneLiner = "";
 			public Location Location = Location.None;
+			public bool IsHidden = false;
+			public bool IsHiddenInSchema = false;
 		}
 	}
 
@@ -45,6 +47,7 @@ public sealed partial class CliParserGenerator
 		public OptionsTypeModel? GlobalOptionsModel;
 		public string RootSummary = "";
 		public string? SchemaVersionOverride;
+		public string? EnvironmentPrefix;
 		public readonly RegistryNode Root = new();
 		public ImmutableArray<CommandModel> AllCommands = ImmutableArray<CommandModel>.Empty;
 		public ImmutableArray<GlobalMiddlewareRegistration> GlobalMiddleware = ImmutableArray<GlobalMiddlewareRegistration>.Empty;
@@ -171,6 +174,10 @@ public sealed partial class CliParserGenerator
 	private sealed record AIUseSchemaVersion(string FilePath, int SpanStart, string Version)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
+	/// <summary>A <c>UseEnvironmentPrefix(string)</c> invocation — sets an env var prefix for all flags.</summary>
+	private sealed record AIUseEnvironmentPrefix(string FilePath, int SpanStart, string Prefix)
+		: AnalyzedInvocation(FilePath, SpanStart);
+
 	/// <summary>A <c>DocumentEnvironmentVariables(...)</c> invocation — only meaningful at root scope.</summary>
 	private sealed record AIDocumentEnvironmentVariables(
 		string FilePath,
@@ -254,7 +261,9 @@ public sealed partial class CliParserGenerator
 		/// Contains root commands, regular commands, and nested children from ExpandTypeRegistration.
 		/// Null when there is no entry type.
 		/// </summary>
-		RegistryNodeSnapshot? EntryTypeSnapshot)
+		RegistryNodeSnapshot? EntryTypeSnapshot,
+		bool NsIsHiddenFromHelp = false,
+		bool NsIsHiddenFromSchema = false)
 		: AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>Symbol-free snapshot of a RegistryNode subtree produced during analysis.</summary>
@@ -271,7 +280,9 @@ public sealed partial class CliParserGenerator
 	private sealed record ChildNamespaceSnapshot(
 		string Segment,
 		RegistryNodeSnapshot Node,
-		string SummaryOneLiner);
+		string SummaryOneLiner,
+		bool IsHidden = false,
+		bool IsHiddenInSchema = false);
 
 	// ─────────────────────────────────────────────────────────────────────────────
 

@@ -183,10 +183,34 @@ public sealed class EnumValueAttribute : Attribute
 }
 
 /// <summary>
-/// Marks a command method or parameter as hidden from user-facing help and autocomplete suggestions.
-/// The command or parameter still parses and works correctly, and appears in <c>__schema</c> output
-/// with <c>hidden: true</c> so tooling can suppress it selectively.
+/// Binds a CLI flag to a named environment variable. When the flag is not provided on the command line,
+/// the generator reads the specified environment variable as a fallback value.
 /// </summary>
-[AttributeUsage(AttributeTargets.Method | AttributeTargets.Parameter | AttributeTargets.Property)]
-public sealed class HiddenAttribute : Attribute;
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]
+public sealed class EnvAttribute : Attribute
+{
+    public EnvAttribute(string varName) => VarName = varName;
+
+    /// <summary>The environment variable name to read when the flag is absent (e.g. <c>"MY_APP_TOKEN"</c>).</summary>
+    public string VarName { get; }
+
+    /// <summary>When <c>true</c> (default), an empty string from the environment is treated the same as unset.</summary>
+    public bool TreatEmptyAsUnset { get; set; } = true;
+}
+
+/// <summary>
+/// Marks a command method, parameter, or namespace class as hidden from user-facing help and autocomplete.
+/// By default (<c>Help=true, Schema=false</c>) the item is suppressed from help output but remains fully
+/// visible in <c>__schema</c> output without any hidden marker. Set <c>Schema=true</c> to also mark it
+/// with <c>hidden: true</c> in the schema so tooling can suppress it selectively.
+/// The command or parameter still parses and works correctly regardless of these flags.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Parameter | AttributeTargets.Property | AttributeTargets.Class)]
+public sealed class HiddenAttribute : Attribute
+{
+    /// <summary>When <c>true</c> (default), the item is suppressed from user-facing help listings.</summary>
+    public bool Help { get; set; } = true;
+    /// <summary>When <c>true</c>, the item is marked <c>hidden: true</c> in <c>__schema</c> output. Default is <c>false</c>.</summary>
+    public bool Schema { get; set; } = false;
+}
 

@@ -83,6 +83,15 @@ internal static class CliRegistrationModule
 		app.Map("long-name-override", ValidationCliHandlers.LongNameOverride);
 		app.Map<DiProbeCommands>();
 		app.Map<CommandNameOverrideCommands>();
+		app.Map("env-cmd", EnvBindingHandlers.EnvCmd);
+		app.Map("env-required", EnvBindingHandlers.EnvRequired);
+		app.Map("env-bool", EnvBindingHandlers.EnvBool);
+		app.Map("env-global", EnvBindingHandlers.EnvGlobal);
+		app.MapNamespace("env-ns", "Env binding namespace options tests.", g =>
+		{
+			g.UseNamespaceOptions<EnvTestNamespaceOptions>();
+			g.Map("key", EnvBindingHandlers.EnvNs);
+		});
 		app.Map("schema-default-value", SchemaSpecificHandlers.SchemaDefaultValue);
 		app.Map("schema-separator-list", SchemaSpecificHandlers.SchemaSeparatorList);
 		app.Map("schema-hidden-param", SchemaSpecificHandlers.SchemaHiddenParam);
@@ -93,6 +102,8 @@ internal static class CliRegistrationModule
 		app.Map("schema-intent-destructive", SchemaIntentHandlers.SchemaIntentDestructive);
 		app.Map("schema-intent-read", SchemaIntentHandlers.SchemaIntentRead);
 		app.Map("schema-output-formats", SchemaOutputHandlers.SchemaOutputFormats);
+		app.MapNamespace<SchemaHiddenNamespace>("schema-hidden-ns");
+		app.MapNamespace<SchemaHiddenSchemaNamespace>("schema-hidden-schema-ns");
 		app.MapNamespace<StorageCliCommands>("storage", g =>
 		{
 			g.UseNamespaceOptions<TestStorageCommandNamespaceOptions>();

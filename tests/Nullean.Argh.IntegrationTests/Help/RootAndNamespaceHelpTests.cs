@@ -27,15 +27,17 @@ public class RootAndNamespaceHelpTests
 			Global options:
 			  -h, --help           Show help.
 			  --version            Show version.
-			  -v, --verbose        
+			  -v, --verbose
 			  --severity <enum>    Enum default for global-flag parsing regression. [default: information]
 			                       One of: <trace|information|warning>
 			  -m, --mode <string>  Test-only global mode label (non-bool global short-option coverage). [default: ]
+			  --api-url <string>   API URL for env-binding global options tests. [env: TEST_API_URL]
 
 			Namespaces:
 			  alias-followed  Root alias followed by additional mapped command classes.
 			  alias-scope     Root-alias integration test namespace.
 			  billing         Billing commands
+			  env-ns          Env binding namespace options tests.
 			  storage         Commands under storage. Nested BlobCommands must be registered
 			                  explicitly via MapNamespace<BlobCommands>.
 			  support         Support commands
@@ -75,6 +77,14 @@ public class RootAndNamespaceHelpTests
 			  enum-cmd                                      Enum and short options.
 			  enum-value-cmd                                Enum with custom CLI value
 			                                                strings via EnumValueAttribute.
+			  env-bool                                      Echo a boolean flag that
+			                                                supports env var fallback.
+			  env-cmd                                       Echo a token from either the
+			                                                flag or an env var fallback.
+			  env-global                                    Echo global option api-url which
+			                                                is env-bound to TEST_API_URL.
+			  env-required                                  Echo a required value that can
+			                                                come from an env var.
 			  exit-code-cmd
 			  exit-code-lambda
 			  ext-ns-as-params-echo                         Echo verbose and tag from an
@@ -226,5 +236,25 @@ public class RootAndNamespaceHelpTests
 			""").ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n";
 		TrimLines(text).Should().Be(TrimLines(expected));
 		text.Should().NotContain("hello");
+	}
+
+	[Fact]
+	public void RootHelp_does_not_list_hidden_namespaces()
+	{
+		var result = CliHostRunner.Run(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
+			"--help");
+		result.ExitCode.Should().Be(0);
+		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
+		text.Should().NotContain("schema-hidden-ns");
+		text.Should().NotContain("schema-hidden-schema-ns");
+	}
+
+	[Fact]
+	public void Hidden_namespace_is_still_callable()
+	{
+		var result = CliHostRunner.Run("schema-hidden-ns", "internal-cmd");
+		result.ExitCode.Should().Be(0);
+		CliHostRunner.StdoutText(result).Should().Contain("internal");
 	}
 }

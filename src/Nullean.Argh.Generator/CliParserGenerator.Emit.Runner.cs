@@ -16,6 +16,19 @@ namespace Nullean.Argh;
 
 public sealed partial class CliParserGenerator
 {
+	private static string? ComputeEffectiveEnvVarName(ParameterModel p, string? environmentPrefix)
+	{
+		if (!string.IsNullOrEmpty(p.EnvVarName))
+			return p.EnvVarName;
+		if (!string.IsNullOrEmpty(environmentPrefix) && p.Kind == ParameterKind.Flag && p.Special != BoolSpecialKind.NullableBool)
+		{
+			// "--my-flag" → strip leading "--", replace "-" with "_", uppercase, prepend prefix
+			var flagName = p.CliLongName.TrimStart('-').Replace('-', '_').ToUpperInvariant();
+			return environmentPrefix + flagName;
+		}
+		return null;
+	}
+
 	private static void EmitCommandRunner(
 		StringBuilder sb,
 		CommandModel cmd,
@@ -27,7 +40,8 @@ public sealed partial class CliParserGenerator
 		string? dtoOptionsTypeFq = null,
 		ImmutableArray<string>? dtoOptionsBestCtorParamOrder = null,
 		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions = default,
-		string? entryAssemblyName = null)
+		string? entryAssemblyName = null,
+		string? environmentPrefix = null)
 	{
 		var anyRepeatedCollection = cmd.Parameters.Any(static p =>
 			p is { IsCollection: true, Kind: ParameterKind.Flag } && p.CollectionSeparator is null);
@@ -277,7 +291,14 @@ public sealed partial class CliParserGenerator
 
 			if (p.Special == BoolSpecialKind.Bool)
 			{
-				sb.AppendLine($"\t\t\tvar {p.LocalVarName} = flags.ContainsKey(\"{Escape(p.CliLongName)}\");");
+				var boolEnvVar = ComputeEffectiveEnvVarName(p, environmentPrefix);
+				if (boolEnvVar != null)
+				{
+					sb.AppendLine($"\t\t\tvar {p.LocalVarName}EnvRaw = global::System.Environment.GetEnvironmentVariable(\"{Escape(boolEnvVar)}\");");
+					sb.AppendLine($"\t\t\tvar {p.LocalVarName} = flags.ContainsKey(\"{Escape(p.CliLongName)}\") || ({p.LocalVarName}EnvRaw != null && {p.LocalVarName}EnvRaw != \"0\" && {p.LocalVarName}EnvRaw != \"false\" && {p.LocalVarName}EnvRaw.Length > 0);");
+				}
+				else
+					sb.AppendLine($"\t\t\tvar {p.LocalVarName} = flags.ContainsKey(\"{Escape(p.CliLongName)}\");");
 				continue;
 			}
 
@@ -304,17 +325,38 @@ public sealed partial class CliParserGenerator
 			}
 
 			var flagKey = Escape(p.CliLongName);
+			var effectiveEnvVar = ComputeEffectiveEnvVarName(p, environmentPrefix);
 			sb.AppendLine($"\t\t\tif (!flags.TryGetValue(\"{flagKey}\", out var {p.LocalVarName}Text))");
+			sb.AppendLine("\t\t\t{");
+			if (effectiveEnvVar != null)
+			{
+				sb.AppendLine($"\t\t\t\tvar {p.LocalVarName}EnvVal = global::System.Environment.GetEnvironmentVariable(\"{Escape(effectiveEnvVar)}\");");
+				if (p.EnvTreatEmptyAsUnset)
+					sb.AppendLine($"\t\t\t\t{p.LocalVarName}Text = ({p.LocalVarName}EnvVal != null && {p.LocalVarName}EnvVal.Length > 0) ? {p.LocalVarName}EnvVal : null;");
+				else
+					sb.AppendLine($"\t\t\t\t{p.LocalVarName}Text = {p.LocalVarName}EnvVal;");
+			}
 			if (p.IsRequired)
 			{
-				sb.AppendLine("\t\t\t{");
-				sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
-				EmitAfterCliParseErrorHelp(sb, p, "\t\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
-				sb.AppendLine($"\t\t\t\t{failureExit};");
-				sb.AppendLine("\t\t\t}");
+				if (effectiveEnvVar != null)
+				{
+					sb.AppendLine($"\t\t\t\tif ({p.LocalVarName}Text == null)");
+					sb.AppendLine("\t\t\t\t{");
+					sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
+					EmitAfterCliParseErrorHelp(sb, p, "\t\t\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+					sb.AppendLine($"\t\t\t\t\t{failureExit};");
+					sb.AppendLine("\t\t\t\t}");
+				}
+				else
+				{
+					sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine($\"Error: missing required flag --{flagKey}.\");");
+					EmitAfterCliParseErrorHelp(sb, p, "\t\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+					sb.AppendLine($"\t\t\t\t{failureExit};");
+				}
 			}
-			else
+			else if (effectiveEnvVar == null)
 				sb.AppendLine($"\t\t\t\t{p.LocalVarName}Text = null;");
+			sb.AppendLine("\t\t\t}");
 
 			EmitParseAndAssign(sb, p, p.LocalVarName + "Text", p.LocalVarName, failureExit, helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
 		}
@@ -386,7 +428,8 @@ public sealed partial class CliParserGenerator
 		EmitValidationChecks(sb, cmd, failureExit, entryAssemblyName, flagHelpStdErrMethodName);
 
 		// Reconstruct options instances merging command-level flags with pre-parsed statics.
-		EmitOptionsReconstructLocals(sb, injectedOptions);
+		EmitOptionsReconstructLocals(sb, injectedOptions, environmentPrefix);
+		EmitRegisteredValidation(sb, cmd, injectedOptions, failureExit, flagHelpStdErrMethodName, parseFailureRunHint);
 
 		if (cmd.RequiresInstance)
 		{
@@ -446,7 +489,27 @@ public sealed partial class CliParserGenerator
 		else
 		{
 			EmitCommandPathLiteral(sb, cmd);
-			sb.AppendLine("\t\t\tvar ctx = new CommandContext(commandPath, args, ct);");
+			EmitCommandArguments(sb, cmd, injectedOptions);
+			sb.AppendLine("\t\t\tvar ctx = new CommandContext(commandPath, args, ct, __arguments);");
+			if (flagHelpStdErrMethodName is not null || parseFailureRunHint is not null)
+			{
+				sb.AppendLine("\t\t\tctx.UsageFooter = __flag =>");
+				sb.AppendLine("\t\t\t{");
+				if (flagHelpStdErrMethodName is not null)
+				{
+					sb.AppendLine("\t\t\t\tif (__flag is not null)");
+					sb.AppendLine("\t\t\t\t{");
+					sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
+					sb.AppendLine($"\t\t\t\t\t{flagHelpStdErrMethodName}(__flag);");
+					sb.AppendLine("\t\t\t\t\tConsole.Error.WriteLine();");
+					sb.AppendLine("\t\t\t\t}");
+				}
+
+				if (parseFailureRunHint is not null)
+					sb.AppendLine($"\t\t\t\tConsole.Error.WriteLine(\"{parseFailureRunHint}\");");
+				sb.AppendLine("\t\t\t};");
+			}
+
 			sb.AppendLine("\t\t\tCommandMiddlewareDelegate next = async c =>");
 			sb.AppendLine("\t\t\t{");
 			EmitInvocation(sb, cmd, "c.CancellationToken", "c", "\t\t\t\t", injectedOptions: injectedOptions);
@@ -474,6 +537,84 @@ public sealed partial class CliParserGenerator
 		}
 
 		sb.AppendLine("\t\t}");
+		sb.AppendLine();
+	}
+
+	/// <summary>The bound option objects a handler receives: [AsParameters] objects and injected options, each with its local variable and member-to-flag pairs.</summary>
+	private static List<(string Name, string VarName, List<(string Member, string Flag)> Flags)> EnumerateBoundObjects(CommandModel cmd, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions)
+	{
+		var result = new List<(string, string, List<(string, string)>)>();
+		if (!cmd.HandlerParamTypes.IsDefaultOrEmpty)
+		{
+			foreach (var mp in cmd.HandlerParamTypes)
+			{
+				if (!mp.IsAsParameters)
+					continue;
+				var group = cmd.Parameters.Where(p => p.AsParametersOwnerParamName == mp.Name && p.AsParametersClrName is not null && p.Kind != ParameterKind.Injected).ToArray();
+				if (group.Length == 0)
+					continue;
+				result.Add((mp.Name, AsParametersConstructedVarName(mp.Name), group.Select(p => (p.AsParametersClrName!, p.CliLongName)).ToList()));
+			}
+		}
+
+		if (!injectedOptions.IsDefaultOrEmpty)
+		{
+			foreach (var o in injectedOptions)
+				result.Add((o.TypeMetadataName, o.LocalVarName, o.FlatMembers.Where(static m => m.Kind != ParameterKind.Injected).Select(static m => (m.SymbolName, m.CliLongName)).ToList()));
+		}
+
+		return result;
+	}
+
+	private static string MemberFlagsLiteral(List<(string Member, string Flag)> flags)
+	{
+		var sb = new StringBuilder("new global::System.Collections.Generic.Dictionary<string, string> { ");
+		foreach (var (member, flag) in flags)
+			sb.Append($"[\"{Escape(member)}\"] = \"{Escape(flag)}\", ");
+		return sb.Append('}').ToString();
+	}
+
+	/// <summary>Emits <c>__arguments</c>: the bound objects with their member-to-flag map, for <c>CommandContext.Arguments</c>.</summary>
+	private static void EmitCommandArguments(StringBuilder sb, CommandModel cmd, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions)
+	{
+		sb.AppendLine("\t\t\tvar __arguments = new global::System.Collections.Generic.List<CommandArgument>();");
+		foreach (var (name, varName, flags) in EnumerateBoundObjects(cmd, injectedOptions))
+			sb.AppendLine($"\t\t\t__arguments.Add(new CommandArgument(\"{Escape(name)}\", {varName}, {MemberFlagsLiteral(flags)}));");
+	}
+
+	/// <summary>Runs registered <c>ArghValidation</c> validators over each bound object; on failure prints the flag's help rows and the run hint, then exits like a built-in check.</summary>
+	private static void EmitRegisteredValidation(StringBuilder sb, CommandModel cmd, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> injectedOptions, string failureExit, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
+	{
+		var bound = EnumerateBoundObjects(cmd, injectedOptions);
+		if (bound.Count == 0)
+			return;
+		sb.AppendLine("\t\t\tif (global::Nullean.Argh.Validation.ArghValidation.HasValidators)");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine("\t\t\t\tstring? __badFlag = null;");
+		sb.AppendLine("\t\t\t\tvar __valid = true;");
+		foreach (var (_, varName, flags) in bound)
+		{
+			sb.AppendLine($"\t\t\t\t__valid &= global::Nullean.Argh.Validation.ArghValidation.Validate({varName}, {MemberFlagsLiteral(flags)}, out var __f_{varName});");
+			sb.AppendLine($"\t\t\t\t__badFlag ??= __f_{varName};");
+		}
+
+		sb.AppendLine("\t\t\t\tif (!__valid)");
+		sb.AppendLine("\t\t\t\t{");
+		if (flagHelpStdErrMethodName is not null)
+		{
+			sb.AppendLine("\t\t\t\t\tif (__badFlag is not null)");
+			sb.AppendLine("\t\t\t\t\t{");
+			sb.AppendLine("\t\t\t\t\t\tConsole.Error.WriteLine();");
+			sb.AppendLine($"\t\t\t\t\t\t{flagHelpStdErrMethodName}(__badFlag);");
+			sb.AppendLine("\t\t\t\t\t\tConsole.Error.WriteLine();");
+			sb.AppendLine("\t\t\t\t\t}");
+		}
+
+		if (parseFailureRunHint is not null)
+			sb.AppendLine($"\t\t\t\t\tConsole.Error.WriteLine(\"{parseFailureRunHint}\");");
+		sb.AppendLine($"\t\t\t\t\t{failureExit};");
+		sb.AppendLine("\t\t\t\t}");
+		sb.AppendLine("\t\t\t}");
 		sb.AppendLine();
 	}
 
@@ -1884,7 +2025,7 @@ switch (p.Special)
 
 		foreach (var p in model.Members)
 		{
-			if (p.Kind == ParameterKind.Flag)
+			if (p.Kind == ParameterKind.Flag && !p.IsHidden)
 				yield return p;
 		}
 	}

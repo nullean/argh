@@ -68,6 +68,13 @@ public sealed class ArghBuilder : IArghRootBuilder
 	}
 
 	/// <inheritdoc />
+	public IArghRootBuilder UseEnvironmentPrefix(string prefix)
+	{
+		_ = _app.UseEnvironmentPrefix(prefix);
+		return this;
+	}
+
+	/// <inheritdoc />
 	public IArghBuilder MapRoot(Delegate handler)
 	{
 		_ = _app.MapRoot(handler);

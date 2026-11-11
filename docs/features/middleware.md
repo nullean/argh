@@ -9,11 +9,11 @@ Implement `ICommandMiddleware`:
 ```csharp
 public class TimingMiddleware : ICommandMiddleware
 {
-    public async Task InvokeAsync(CommandContext ctx, Func<Task> next)
+    public async ValueTask InvokeAsync(CommandContext ctx, CommandMiddlewareDelegate next)
     {
         var sw = Stopwatch.StartNew();
-        await next();
-        Console.Error.WriteLine($"{ctx.CommandPath}: {sw.ElapsedMilliseconds}ms");
+        await next(ctx);
+        Console.Error.WriteLine($"{ctx.CommandName}: {sw.ElapsedMilliseconds}ms");
     }
 }
 ```
@@ -43,6 +43,8 @@ public static Task<int> Deploy(string environment) { … }
 - `Args` - the raw arguments
 - `ExitCode` - settable exit code
 - `CancellationToken` - the cancellation token for the invocation
+- `Arguments` - the bound option objects the handler receives (`[AsParameters]` parameters, global and namespace options), each a `CommandArgument` with its `Value` and a `MemberFlags` map from member name to flag. Lets middleware validate what was parsed instead of re-parsing `Args`
+- `ReportError(message, flag)` - writes `Error: --flag: message` to stderr and sets `ExitCode` to 2, like the generated parser. Do not call `next` afterwards
 
 ## Pipeline behavior
 

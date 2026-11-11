@@ -8,6 +8,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <AssemblyName>Nullean.Argh.Tests.CliHost</AssemblyName>
+    <NoWarn>$(NoWarn);AGH0035</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,3 +1,5 @@
+using Nullean.Argh;
+
 namespace Nullean.Argh.Tests.Fixtures;
 
 /// <summary>Enum used by <see cref="TestGlobalCliOptions"/> for global-option default parsing tests.</summary>
@@ -26,12 +28,25 @@ internal class TestGlobalCliOptions
 
 	/// <summary>-m, Test-only global mode label (non-bool global short-option coverage).</summary>
 	public string Mode { get; set; } = "";
+
+	/// <summary>API URL for env-binding global options tests.</summary>
+	[Env("TEST_API_URL")]
+	[Hidden]
+	public string? ApiUrl { get; set; }
 }
 
 /// <summary>Storage command namespace options; must inherit global options type.</summary>
 internal sealed class TestStorageCommandNamespaceOptions : TestGlobalCliOptions
 {
 	public string Prefix { get; set; } = "";
+}
+
+/// <summary>Namespace options with an env-bound property for integration tests.</summary>
+internal sealed class EnvTestNamespaceOptions : TestGlobalCliOptions
+{
+	/// <summary>Namespace-scoped key from env var fallback.</summary>
+	[Env("TEST_NS_KEY")]
+	public string? Key { get; set; }
 }
 
 /// <summary>Commands under <c>storage</c>. Nested <see cref="BlobCommands"/> must be registered explicitly via <c>MapNamespace&lt;BlobCommands&gt;</c>.</summary>

@@ -40,16 +40,24 @@ public sealed partial class CliParserGenerator
 		return false;
 	}
 
-	private static bool HasHiddenAttribute(ISymbol symbol)
+	private static (bool HideHelp, bool HideSchema) GetHiddenFlags(ISymbol symbol)
 	{
 		foreach (var ad in symbol.GetAttributes())
 		{
 			if (ad.AttributeClass?.Name == "HiddenAttribute" &&
 			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh")
-				return true;
+			{
+				bool help = true, schema = false;
+				foreach (var na in ad.NamedArguments)
+				{
+					if (na.Key == "Help" && na.Value.Value is bool h) help = h;
+					if (na.Key == "Schema" && na.Value.Value is bool s) schema = s;
+				}
+				return (help, schema);
+			}
 		}
 
-		return false;
+		return (false, false);
 	}
 
 	private static string? TryGetCommandNameAttribute(IMethodSymbol method)
@@ -90,6 +98,28 @@ public sealed partial class CliParserGenerator
 		}
 
 		return ImmutableArray<string>.Empty;
+	}
+
+	private static (string? VarName, bool TreatEmptyAsUnset) GetEnvAttribute(ISymbol symbol)
+	{
+		foreach (var ad in symbol.GetAttributes())
+		{
+			if (ad.AttributeClass?.Name == "EnvAttribute" &&
+			    ad.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nullean.Argh" &&
+			    ad.ConstructorArguments.Length >= 1 &&
+			    ad.ConstructorArguments[0].Value is string varName &&
+			    !string.IsNullOrWhiteSpace(varName))
+			{
+				var treatEmpty = true;
+				foreach (var na in ad.NamedArguments)
+				{
+					if (na.Key == "TreatEmptyAsUnset" && na.Value.Value is bool b)
+						treatEmpty = b;
+				}
+				return (varName, treatEmpty);
+			}
+		}
+		return (null, true);
 	}
 
 	private static (bool IsDeprecated, string? Message) TryGetObsoleteAttribute(ISymbol symbol)

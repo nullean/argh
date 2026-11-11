@@ -40,6 +40,9 @@ public sealed partial class ArghApp : IArghRootBuilder
 	/// <summary>Overrides the schema document's <c>version</c> field. Analyzed by the source generator; no-op at runtime.</summary>
 	public ArghApp UseSchemaVersion(string version) => this;
 
+	/// <summary>Sets a prefix for environment variable fallback names. Analyzed by the source generator; no-op at runtime.</summary>
+	public ArghApp UseEnvironmentPrefix(string prefix) => this;
+
 	/// <summary>
 	/// Registers a default handler when no subcommand or namespace segment applies at the current scope
 	/// (app root or inside a <see cref="MapNamespace"/> block). Analyzed by the source generator.

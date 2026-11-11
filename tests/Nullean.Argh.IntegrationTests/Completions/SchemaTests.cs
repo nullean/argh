@@ -169,6 +169,21 @@ public class SchemaTests
 	}
 
 	[Fact]
+	public void Schema_hidden_namespace_appears_in_schema_without_hidden_flag()
+	{
+		var result = CliHostRunner.Run("__schema");
+		result.ExitCode.Should().Be(0);
+		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
+		var namespaces = doc.RootElement.GetProperty("namespaces");
+
+		// [Hidden] default: Help=true, Schema=false — namespace appears in schema, no hidden:true marker
+		var hiddenNs = namespaces.EnumerateArray()
+			.FirstOrDefault(n => n.GetProperty("segment").GetString() == "schema-hidden-ns");
+		hiddenNs.ValueKind.Should().Be(JsonValueKind.Object);
+		hiddenNs.TryGetProperty("hidden", out _).Should().BeFalse();
+	}
+
+	[Fact]
 	public void Schema_default_value_is_emitted_for_parameters_with_defaults()
 	{
 		var result = CliHostRunner.Run("__schema");

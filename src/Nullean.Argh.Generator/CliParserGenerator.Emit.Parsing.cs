@@ -363,7 +363,8 @@ public sealed partial class CliParserGenerator
 	/// </summary>
 	private static void EmitOptionsReconstructLocals(
 		StringBuilder sb,
-		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> chain)
+		ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)> chain,
+		string? environmentPrefix = null)
 	{
 		if (chain.IsDefaultOrEmpty) return;
 
@@ -396,7 +397,14 @@ public sealed partial class CliParserGenerator
 				if (!emittedTmpVars.Add(tmpName)) continue;
 				if (m.Special == BoolSpecialKind.Bool)
 				{
-					sb.AppendLine($"\t\t\tvar {tmpName} = flags.ContainsKey(\"{Escape(m.CliLongName)}\") || {fallback};");
+					var boolEnvVar = ComputeEffectiveEnvVarName(m, environmentPrefix);
+					if (boolEnvVar != null)
+					{
+						sb.AppendLine($"\t\t\tvar {tmpName}EnvRaw = global::System.Environment.GetEnvironmentVariable(\"{Escape(boolEnvVar)}\");");
+						sb.AppendLine($"\t\t\tvar {tmpName} = flags.ContainsKey(\"{Escape(m.CliLongName)}\") || ({tmpName}EnvRaw != null ? ({tmpName}EnvRaw != \"0\" && {tmpName}EnvRaw != \"false\" && {tmpName}EnvRaw.Length > 0) : {fallback});");
+					}
+					else
+						sb.AppendLine($"\t\t\tvar {tmpName} = flags.ContainsKey(\"{Escape(m.CliLongName)}\") || {fallback};");
 				}
 				else if (m.Special == BoolSpecialKind.NullableBool)
 				{
@@ -408,8 +416,20 @@ public sealed partial class CliParserGenerator
 				}
 				else
 				{
-					// For value-typed flags: if found in command flags use that; else keep static fallback value.
+					// For value-typed flags: if found in command flags use that; else check env var; else keep static fallback value.
 					sb.AppendLine($"\t\t\tflags.TryGetValue(\"{Escape(m.CliLongName)}\", out var {tmpName}Txt);");
+					var optEnvVar = ComputeEffectiveEnvVarName(m, environmentPrefix);
+					if (optEnvVar != null)
+					{
+						sb.AppendLine($"\t\t\tif ({tmpName}Txt == null)");
+						sb.AppendLine("\t\t\t{");
+						sb.AppendLine($"\t\t\t\tvar {tmpName}EnvVal = global::System.Environment.GetEnvironmentVariable(\"{Escape(optEnvVar)}\");");
+						if (m.EnvTreatEmptyAsUnset)
+							sb.AppendLine($"\t\t\t\t{tmpName}Txt = ({tmpName}EnvVal != null && {tmpName}EnvVal.Length > 0) ? {tmpName}EnvVal : null;");
+						else
+							sb.AppendLine($"\t\t\t\t{tmpName}Txt = {tmpName}EnvVal;");
+						sb.AppendLine("\t\t\t}");
+					}
 					sb.AppendLine($"\t\t\tvar {tmpName} = {fallback};");
 					if (m.ScalarKind == CliScalarKind.Primitive)
 					{
@@ -734,6 +754,18 @@ public sealed partial class CliParserGenerator
 		}
 
 		sb.AppendLine("\t\t\tvalue = __dto;");
+		EmitDtoRegisteredValidationAndReturn(sb, group.Select(static p => (p.AsParametersClrName ?? p.SymbolName, p.CliLongName)).ToList());
+	}
+
+	/// <summary>Ends a DTO try-parse: runs the registered validator over <c>value</c> (errors already printed, like the built-in checks) and returns false when it fails.</summary>
+	private static void EmitDtoRegisteredValidationAndReturn(StringBuilder sb, List<(string Member, string Flag)> flags)
+	{
+		sb.AppendLine($"\t\t\tif (global::Nullean.Argh.Validation.ArghValidation.HasValidators && !global::Nullean.Argh.Validation.ArghValidation.Validate(value, {MemberFlagsLiteral(flags)}, out _))");
+		sb.AppendLine("\t\t\t{");
+		sb.AppendLine("\t\t\t\tvalue = null;");
+		sb.AppendLine("\t\t\t\treturn false;");
+		sb.AppendLine("\t\t\t}");
+		sb.AppendLine();
 		sb.AppendLine("\t\t\treturn true;");
 	}
 
@@ -752,7 +784,7 @@ public sealed partial class CliParserGenerator
 			}
 
 			sb.AppendLine(");");
-			sb.AppendLine("\t\t\treturn true;");
+			EmitDtoRegisteredValidationAndReturn(sb, members.Select(static m => (m.SymbolName, m.CliLongName)).ToList());
 			return;
 		}
 
@@ -761,7 +793,7 @@ public sealed partial class CliParserGenerator
 			sb.AppendLine($"\t\t\t__dto.{m.SymbolName} = {m.LocalVarName};");
 
 		sb.AppendLine("\t\t\tvalue = __dto;");
-		sb.AppendLine("\t\t\treturn true;");
+		EmitDtoRegisteredValidationAndReturn(sb, members.Select(static m => (m.SymbolName, m.CliLongName)).ToList());
 	}
 
 	private static string AsParametersConstructedVarName(string methodParameterName) =>
