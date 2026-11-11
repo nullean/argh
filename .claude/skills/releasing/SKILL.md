@@ -7,7 +7,8 @@ description: Release this repository. Use when the user asks to release, ship a 
 
 Releases are never cut from a pushed tag. release-drafter keeps a **draft release** up to date from the labels of
 merged pull requests; **publishing that draft** creates the tag and runs `.github/workflows/ci.yml` on it, whose `release` job builds
-any binary assets, packs at the tag's version (MinVer) and pushes to nuget.org with trusted publishing.
+any binary assets and packs at the tag's version (MinVer), and whose `publish` job pushes to nuget.org with trusted
+publishing.
 
 ## Steps
 

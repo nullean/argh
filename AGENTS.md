@@ -39,8 +39,10 @@ dotnet test --project tests/Nullean.Argh.IntegrationTests -c Release --treenode-
 ## Releasing
 
 release-drafter keeps a draft release up to date from the labels of merged pull requests. **Publishing the draft**
-releases: it creates the tag (`0.26.0`, no `v`), and the `release` job in `ci.yml` packs at that version, pushes to
-nuget.org and appends the public API reports (`build/output/breaking-changes-*.md`) to the release notes. Pushing a
+releases: it creates the tag (`0.26.0`, no `v`), the `release` job in `ci.yml` packs at that version, and the
+`publish` job pushes to nuget.org and appends the public API reports (`build/output/breaking-changes-*.md`) to the
+release notes. The push has to run in a job of `ci.yml` itself: nuget.org's trusted publishing policy rejects a token
+issued to the shared workflow. Pushing a
 tag on its own does nothing. `mise run release` shows the draft. The [releasing](.claude/skills/releasing/SKILL.md)
 and [breaking-changes](.claude/skills/breaking-changes/SKILL.md) skills have the details. Every pull request carries
 exactly one release label.
