@@ -73,6 +73,9 @@ let main argv =
   (`Pkg of PkgTarget` gives `pkg generate`).
 - Global options: `app.Flag("--verbose", short = "-v", desc = "...")`, `app.Option<'T>(...)`, read with `.Value`
   inside a block.
+- `<run> __wrappers sync --run "dotnet run --project build --"` writes mise, make and just includes with one task per
+  target under `.make/`. It prints the include lines and mise hooks that regenerate them. `__wrappers check` exits `1`
+  when one is stale. Do not hand-write wrapper tasks per target.
 
 ## Gotchas
 

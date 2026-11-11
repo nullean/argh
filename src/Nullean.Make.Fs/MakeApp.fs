@@ -143,6 +143,10 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
                 return code
             | Ok () ->
 
+            match Nullean.Make.Wrappers.MakeIntrinsics.TryRun(argv, graph) |> Option.ofNullable with
+            | Some exitCode -> return exitCode
+            | None ->
+
             if argv.Length = 0 && _default.IsNone then
                 MakeHelpPrinter.PrintRoot(graph, appName)
                 return 0

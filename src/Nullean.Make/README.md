@@ -96,6 +96,58 @@ A target's description is the `<summary>` of its case type's XML doc comment. Th
 
 A case that is itself a union becomes a namespace: `union Db(Migrate, Seed)` inside `union Target(..., Db)` gives `db migrate` and `db seed`, and `db --help` lists them. Case type names must be unique across the whole union, including nested unions.
 
+## mise, make and just
+
+`__wrappers sync` writes one include file per wrapper from the targets, so `mise run test`, `make test` and
+`just test` call the script without one hand-written task per target:
+
+```
+./build.cs __wrappers sync
+wrote .make/mise-tasks.toml (5 targets)
+wrote .make/make.mk (5 targets)
+wrote .make/make.just (5 targets)
+```
+
+Pull each one in once:
+
+| File | Line to add | Arguments |
+|---|---|---|
+| `mise.toml` | `[task_config]` `includes = [".make/mise-tasks.toml"]` | `mise run test --filter Unit` |
+| `Makefile` | `-include .make/make.mk` | `make test ARGS="--filter Unit"` |
+| `justfile` | `import? '.make/make.just'` | `just test --filter Unit` |
+
+A namespaced target is `pkg:generate` in mise, `pkg/generate` in make and `pkg-generate` in just. The wrappers only
+forward to the script, which still runs the dependencies, so a mise task has no `depends`. The mise tasks carry a
+`usage` spec, so `mise` completes each target's flags, and `mise run test --help` prints the script's own help.
+
+- `--run "<command>"` is what the wrappers call. A file-based app defaults to `dotnet run build.cs --`. A project
+  needs it, e.g. `--run "dotnet run --project build --"`. Later syncs reuse the one recorded in the files.
+- `--only mise,just` limits the files. A bare `sync` refreshes the files already in `--out-dir` (default `.make`).
+- `--prefix make` names the tasks `make:test`, `make/test` and `make-test`. A task in `mise.toml` silently wins over
+  an included task of the same name, so use a prefix when `mise.toml` already has `build` or `test` tasks.
+- mise removes the first `--` after the task name, so `mise run test -- -- --x` passes `-- --x` to the script.
+- `__wrappers check` exits `1` when a file is missing or out of date, for CI when the files are committed.
+- `make.mk` keeps your Makefile's default goal. In a justfile, the first recipe is the default, so put yours above
+  the `import?`.
+
+Or let mise regenerate them and gitignore `.make/`. `sync` prints this when it creates a file:
+
+```toml
+[hooks]
+# On every `mise install`, so a fresh clone and CI get the files.
+postinstall = "dotnet run build.cs -- __wrappers sync --quiet"
+
+# In a shell with `mise activate`, on the next prompt after build.cs changes.
+[[watch_files]]
+patterns = ["build.cs"]
+run = "dotnet run build.cs -- __wrappers sync --quiet"
+```
+
+The `watch_files` hook compiles the script, so the first prompt after an edit waits for that.
+
+The docs have a page per wrapper: [mise](https://argh.nullean.net/make/mise), [make](https://argh.nullean.net/make/makefile)
+and [just](https://argh.nullean.net/make/just).
+
 ## Class-based targets
 
 `MakeApp.Execute<TBuild>(args)` discovers targets from a `MakeBuild` class instead: `Target` properties, `[Flag]` and `[GlobalOption]` properties, and nested `Namespace` classes. [`build.cs`](https://github.com/nullean/argh/blob/main/build.cs) in this repository is a complete example.

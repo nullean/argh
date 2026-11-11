@@ -162,6 +162,21 @@ let token   = app.Option<string option>("--token", desc = "API token", defaultVa
 
 Read them in target blocks through `.Value`. Help shows each option's type, such as `--config <string>`, and `--token <string?>` for an option type. Both `--token abc` and `--token=abc` work. A value that does not parse, or a missing value, exits `2` before any target runs. Enum options bind by name, ignoring case.
 
+## mise, make and just
+
+`__wrappers sync` writes a mise task include, a Makefile include and a justfile import with one task per target, so
+`mise run test`, `make test` and `just test` call the build. A project-based build passes the command to run once;
+later syncs reuse it:
+
+```
+dotnet run --project build -- __wrappers sync --run "dotnet run --project build --"
+```
+
+The files go to `.make/`, and `sync` prints the line each wrapper's config needs, plus mise hooks that regenerate the
+files so they can be gitignored. The [Nullean.Make README](https://github.com/nullean/argh/blob/main/src/Nullean.Make/README.md#mise-make-and-just)
+covers the options, the task names (`pkg:generate`, `pkg/generate`, `pkg-generate`) and `__wrappers check`; the
+[docs](https://argh.nullean.net/make/wrappers) have a page per wrapper.
+
 ## The explicit functions
 
 `target` and `command` are shorthand for these, which also take a description and give the body an `FsContext`:
