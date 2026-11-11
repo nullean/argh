@@ -1,36 +1,54 @@
 # Nullean.Argh.Interfaces
 
-[![NuGet](https://img.shields.io/nuget/v/Nullean.Argh.Interfaces.svg)](https://www.nuget.org/packages/Nullean.Argh.Interfaces)
+![Nullean.Argh](https://raw.githubusercontent.com/nullean/argh/main/docs/images/png/argh-lockup-348x192.png)
 
-Zero-dependency contracts and attributes for the Nullean.Argh CLI framework.
+The contracts and attributes of Nullean.Argh, for libraries that share middleware, argument parsers or option types
+without pulling in the runtime.
 
-## When to Use
+[![NuGet](https://img.shields.io/nuget/v/Nullean.Argh.Interfaces?style=flat-square)](https://www.nuget.org/packages/Nullean.Argh.Interfaces)
 
-Reference this package directly when building **shared libraries** — reusable middleware, custom argument parsers, or shared option types that shouldn't pull in the full runtime.
+## Install
 
-For applications, use [`Nullean.Argh`](https://www.nuget.org/packages/Nullean.Argh) or [`Nullean.Argh.Hosting`](https://www.nuget.org/packages/Nullean.Argh.Hosting) instead.
+```sh
+dotnet add package Nullean.Argh.Interfaces
+```
 
-## What's Inside
+Reference it directly when building **shared libraries**: reusable middleware, custom argument parsers, or shared
+option types. For applications, use [Nullean.Argh](https://www.nuget.org/packages/Nullean.Argh) or
+[Nullean.Argh.Hosting](https://www.nuget.org/packages/Nullean.Argh.Hosting) instead.
 
-- `IArghBuilder` / `IArghNamespaceBuilder` — builder contracts
-- `IArgumentParser<T>` — custom type parser interface
-- Middleware interfaces — pipeline extension points
-- All attributes — `[Command]`, `[Option]`, `[Positional]`, `[AsParameters]`, and more
+## Quick start
 
-## Key Properties
+A custom argument parser, which any Argh app can use for its parameters:
 
-- **Zero external dependencies** — safe to reference from any library
-- **netstandard2.0** — compatible with all modern .NET targets
+```csharp
+using Nullean.Argh.Parsing;
 
-## Documentation
+public readonly record struct Port(int Value);
 
-Full documentation is available at [nullean.github.io/argh](https://nullean.github.io/argh/).
+public sealed class PortParser : IArgumentParser<Port>
+{
+	public bool TryParse(string raw, out Port value)
+	{
+		var ok = int.TryParse(raw, out var n) && n is > 0 and < 65536;
+		value = new Port(ok ? n : 0);
+		return ok;
+	}
+}
+```
 
-## License
+## What's inside
 
-MIT — see [LICENSE](https://github.com/nullean/argh/blob/main/LICENSE) for details.
+- `IArghBuilder` and `IArghNamespaceBuilder`: the builder contracts.
+- `IArgumentParser<T>`: the custom type parser interface.
+- `ICommandMiddleware` and the middleware delegates: pipeline extension points.
+- All attributes: `[Argument]`, `[AsParameters]`, `[ArgumentParser]`, `[CommandName]`, `[DefaultCommand]`,
+  `[Hidden]`, `[Existing]`, `[Env]` and more.
 
-## Links
+It targets `netstandard2.0`, `net8.0` and `net11.0`, and depends on nothing beyond the BCL
+(`System.Threading.Tasks.Extensions` on `netstandard2.0`), so it is safe to reference from any library.
 
-- [GitHub](https://github.com/nullean/argh)
-- [Documentation](https://nullean.github.io/argh/)
+## Learn more
+
+- Documentation: https://argh.nullean.net
+- Source and issues: https://github.com/nullean/argh

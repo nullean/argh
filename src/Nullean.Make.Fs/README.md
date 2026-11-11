@@ -1,6 +1,20 @@
 # Nullean.Make.Fs
 
+![Nullean.Argh](https://raw.githubusercontent.com/nullean/argh/main/docs/images/png/argh-lockup-348x192.png)
+
 Typed, namespaced, exhaustive F# build targets. Your targets are DU cases, and a case you forget to handle in `Bind` is a compiler warning (FS0025). Target blocks are [Proc.Fs](https://www.nuget.org/packages/Proc.Fs) `shell { }` blocks, so commands are `sh $"…"` lines.
+
+[![NuGet](https://img.shields.io/nuget/v/Nullean.Make.Fs?style=flat-square)](https://www.nuget.org/packages/Nullean.Make.Fs)
+
+## Install
+
+```sh
+dotnet add package Nullean.Make.Fs
+```
+
+Requires .NET 11. The package pulls in `Nullean.Make` (the underlying C# engine) and `Proc.Fs` transitively.
+
+## Quick start
 
 ```fsharp
 open Nullean.Make.Fs
@@ -135,6 +149,8 @@ A case with a record payload binds the record's fields from CLI flags at executi
 Mark a record field `[<Argument>]` to take a positional token; a `'T list` field marked `[<Argument>]` takes every remaining positional. Mark a `'T list` field `[<Rest>]` to receive everything after a `--`:
 
 ```fsharp
+open Nullean.Argh                            // [<Argument>]; [<Rest>] is in Nullean.Make.Fs
+
 type TestOptions =
     { [<Argument>] Projects: string list     // build test src/A src/B
       Suite: string option                   // --suite unit  or  --suite=unit
@@ -188,10 +204,7 @@ Make.composer (requires: 'T list) (composes: 'T list) (body: FsContext -> unit) 
 failBuild "message"                                                               // abort with exit code 1
 ```
 
-## Installation
+## Learn more
 
-```xml
-<PackageReference Include="Nullean.Make.Fs" Version="0.24.0" />
-```
-
-Requires .NET 11. The package pulls in `Nullean.Make` (the underlying C# engine) and `Proc.Fs` transitively.
+- Documentation: https://argh.nullean.net/make
+- Source and issues: https://github.com/nullean/argh

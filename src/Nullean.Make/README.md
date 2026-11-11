@@ -1,6 +1,20 @@
 # Nullean.Make
 
+![Nullean.Argh](https://raw.githubusercontent.com/nullean/argh/main/docs/images/png/argh-lockup-348x192.png)
+
 Typed build targets for .NET, with [Argh](https://github.com/nullean/argh)-quality help. Your targets are the cases of a C# `union`; each one runs commands, and dependencies run first.
+
+[![NuGet](https://img.shields.io/nuget/v/Nullean.Make?style=flat-square)](https://www.nuget.org/packages/Nullean.Make)
+
+## Install
+
+```sh
+dotnet add package Nullean.Make
+```
+
+Or, in a file-based app such as `build.cs`, `#:package Nullean.Make@<version>` as below. It requires .NET 11.
+
+## Quick start
 
 ```csharp
 #!/usr/bin/env -S dotnet run --
@@ -86,7 +100,7 @@ A command shares the console. A non-zero exit code fails the target, and `RunAsy
 
 ## Descriptions
 
-A target's description is the `<summary>` of its case type's XML doc comment. The comment is read from the XML documentation file, so set `GenerateDocumentationFile=true`: `#:property GenerateDocumentationFile=true` in a file-based app, or `<GenerateDocumentationFile>` in a project. `.Description("...")` overrides it.
+A target's description is the summary of its case type's XML doc comment, such as `Run build` above. The comment is read from the XML documentation file, so set `GenerateDocumentationFile=true`: `#:property GenerateDocumentationFile=true` in a file-based app, or `<GenerateDocumentationFile>` in a project. `.Description("...")` overrides it.
 
 ## Global options
 
@@ -153,3 +167,8 @@ and [just](https://argh.nullean.net/make/just).
 `MakeApp.Execute<TBuild>(args)` discovers targets from a `MakeBuild` class instead: `Target` properties, `[Flag]` and `[GlobalOption]` properties, and nested `Namespace` classes. [`build.cs`](https://github.com/nullean/argh/blob/main/build.cs) in this repository is a complete example.
 
 For F#, see [`Nullean.Make.Fs`](https://www.nuget.org/packages/Nullean.Make.Fs).
+
+## Learn more
+
+- Documentation: https://argh.nullean.net/make
+- Source and issues: https://github.com/nullean/argh
