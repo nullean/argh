@@ -59,7 +59,10 @@ public static class MakeApp
 		if (parsed.ShowHelp)
 		{
 			if (string.IsNullOrEmpty(parsed.HelpTarget) || !graph.ByRoute.TryGetValue(parsed.HelpTarget, out var helpNode))
-				MakeHelpPrinter.PrintRoot(graph, scriptName);
+			{
+				if (string.IsNullOrEmpty(parsed.HelpTarget) || !MakeHelpPrinter.PrintNamespace(parsed.HelpTarget, graph, scriptName))
+					MakeHelpPrinter.PrintRoot(graph, scriptName);
+			}
 			else if (helpNode.Kind == TargetKind.Command)
 				MakeHelpPrinter.PrintCommand(helpNode, graph, scriptName);
 			else
