@@ -141,6 +141,10 @@ public class RootAndNamespaceHelpTests
 			                                                [--pretty] ...).
 			  union-format-flag                             Output in a specific format
 			                                                (flag mode: --format <case>).
+			  union-shape                                   Draw a shape (union case
+			                                                properties of enum, float,
+			                                                decimal and default-true bool
+			                                                types).
 			  uri-cmd
 			  validate-allowed                              Validate allowed values on
 			                                                --env.

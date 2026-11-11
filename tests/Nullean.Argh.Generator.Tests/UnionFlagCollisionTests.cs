@@ -142,4 +142,32 @@ public class UnionFlagCollisionTests
 
 		Assert.Empty(Agh0036(diagnostics));
 	}
+
+	[Theory]
+	[InlineData("System.DateTime Since = default", "'Json.Since' (DateTime)")]
+	[InlineData("int? Indent = null", "'Json.Indent' (int?)")]
+	[InlineData("bool? Pretty = null", "'Json.Pretty' (bool?)")]
+	[InlineData("string[]? Tags = null", "'Json.Tags' (string[]?)")]
+	public void Unsupported_case_property_type_is_reported(string ctorParam, string expected)
+	{
+		var diagnostics = RunGenerator(Source(
+			$"public record class Json({ctorParam}); public record class Table(bool Pretty = false);",
+			JsonTableCtors,
+			"public static void Convert(Format format) { }"));
+
+		var d = Assert.Single(diagnostics, x => x.Id == "AGH0037");
+		Assert.Equal(DiagnosticSeverity.Error, d.Severity);
+		Assert.Contains(expected, d.GetMessage());
+	}
+
+	[Fact]
+	public void Supported_case_property_types_are_not_reported()
+	{
+		var diagnostics = RunGenerator(Source(
+			"public enum Level { Low, High = 3 } public record class Json(string Name = \"x\", int A = 1, long B = 2, float C = 1.5f, double D = 2.5, decimal E = 3.5m, Level L = Level.High, bool P = true); public record class Table(bool Pretty = false);",
+			JsonTableCtors,
+			"public static void Convert(Format format) { }"));
+
+		Assert.DoesNotContain(diagnostics, x => x.Id == "AGH0037");
+	}
 }

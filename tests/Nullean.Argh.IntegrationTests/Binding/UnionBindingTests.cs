@@ -138,3 +138,47 @@ public class UnionBindingTests
 		CliHostRunner.StderrText(result).Should().Contain("Error: invalid value for --indent: 'x'.");
 	}
 }
+
+public class UnionCasePropertyTypeTests
+{
+	private static string Out(params string[] args)
+	{
+		var result = CliHostRunner.Run(args);
+		result.ExitCode.Should().Be(0, CliHostRunner.StderrText(result));
+		return CliHostRunner.StdoutText(result).Trim();
+	}
+
+	[Fact]
+	public void Defaults_bind_when_no_case_flags_are_given() =>
+		// Fill.None = 5: a non-zero enum default must bind by name, not by its underlying value.
+		Out("union-shape", "--shape", "circle").Should().Be("circle:radius=1.5:fill=None");
+
+	[Fact]
+	public void Float_and_enum_case_flags_bind() =>
+		Out("union-shape", "--shape", "circle", "--circle-radius", "2.25", "--circle-fill", "dash")
+			.Should().Be("circle:radius=2.25:fill=Dashed");
+
+	[Fact]
+	public void Decimal_case_flag_binds() =>
+		Out("union-shape", "--shape", "rect", "--rect-width", "3.75").Should().Be("rect:width=3.75:rounded=True");
+
+	[Fact]
+	public void Bool_that_defaults_to_true_switches_off_with_no_prefix() =>
+		Out("union-shape", "--shape", "rect", "--no-rect-rounded").Should().Be("rect:width=2.5:rounded=False");
+
+	[Fact]
+	public void Unknown_enum_value_exits_2()
+	{
+		var result = CliHostRunner.Run("union-shape", "--shape", "circle", "--circle-fill", "bogus");
+		result.ExitCode.Should().Be(2);
+		CliHostRunner.StderrText(result).Should().Contain("Error: invalid value for --circle-fill: 'bogus'.");
+	}
+
+	[Fact]
+	public void Unparseable_decimal_exits_2()
+	{
+		var result = CliHostRunner.Run("union-shape", "--shape", "rect", "--rect-width", "x");
+		result.ExitCode.Should().Be(2);
+		CliHostRunner.StderrText(result).Should().Contain("Error: invalid value for --rect-width: 'x'.");
+	}
+}

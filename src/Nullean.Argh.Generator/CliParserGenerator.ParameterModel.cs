@@ -991,13 +991,22 @@ public sealed partial class CliParserGenerator
 			foreach (var param in primaryCtor.Parameters)
 			{
 				var bs = ClassifyBool(param.Type);
-				// Only support primitives and enums; skip nested unions / collections
-				if (param.Type is not INamedTypeSymbol) continue;
-				ClassifyScalar(param, bs, out var sk, out var typeName, out _, out _, out _, out _);
-				if (sk is CliScalarKind.Union or CliScalarKind.Collection or CliScalarKind.CustomParser) continue;
-				var defLit = TryGetDefaultLiteral(param, bs);
-				var flagName = $"{caseCli}-{Naming.ToCliLongName(param.Name)}";
-				b.Add(new UnionCasePropInfo(param.Name, Naming.ToCliLongName(param.Name), sk, bs, typeName, defLit, flagName));
+				var cliName = Naming.ToCliLongName(param.Name);
+				var flagName = $"{caseCli}-{cliName}";
+				// Every constructor parameter must bind: skipping one would drop a constructor argument.
+				var sk = CliScalarKind.Primitive;
+				var typeName = GetSimpleTypeName(param.Type);
+				string? enumFq = null;
+				var enumMembers = ImmutableArray<string>.Empty;
+				if (param.Type is INamedTypeSymbol)
+					ClassifyScalar(param, bs, out sk, out typeName, out enumFq, out enumMembers, out _, out _);
+				var supported = IsSupportedUnionCasePropType(sk, bs, typeName, param.Type);
+				var defLit = supported ? UnionCasePropDefaultLiteral(param, sk, bs, typeName, enumFq) : null;
+				b.Add(new UnionCasePropInfo(param.Name, cliName, sk, bs, typeName, defLit, flagName,
+					EnumTypeFq: sk == CliScalarKind.Enum ? enumFq : null,
+					EnumMemberNames: sk == CliScalarKind.Enum ? enumMembers : default,
+					EnumMemberCliNames: sk == CliScalarKind.Enum ? TryGetEnumCliNames(param.Type) : default,
+					UnsupportedTypeDisplay: supported ? null : param.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)));
 			}
 			return b.ToImmutable();
 		}

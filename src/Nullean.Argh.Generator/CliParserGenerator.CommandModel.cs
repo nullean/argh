@@ -67,6 +67,7 @@ public sealed partial class CliParserGenerator
 			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation, compilation);
 			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
 			ReportUnionFlagCollisionsAcc(acc, diagnosticLocation, parameters);
+			ReportUnsupportedUnionCasePropsAcc(acc, diagnosticLocation, parameters);
 			ReportBoolNegationSwitchConflictsAcc(acc, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
 			ValidateVariadicPositionalIsLastAcc(acc, diagnosticLocation, parameters);
@@ -103,6 +104,7 @@ public sealed partial class CliParserGenerator
 			var parameters = BuildParameterModels(method, parseOptions, acc, diagnosticLocation, compilation);
 			ReportDuplicateCliNamesAcc(acc, diagnosticLocation, parameters);
 			ReportUnionFlagCollisionsAcc(acc, diagnosticLocation, parameters);
+			ReportUnsupportedUnionCasePropsAcc(acc, diagnosticLocation, parameters);
 			ReportBoolNegationSwitchConflictsAcc(acc, diagnosticLocation, parameters, method);
 			ValidateExpandedParameterLayoutAcc(acc, diagnosticLocation, parameters);
 			ValidateVariadicPositionalIsLastAcc(acc, diagnosticLocation, parameters);

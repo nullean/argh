@@ -67,7 +67,9 @@ Error: invalid value for --json-indent: 'abc'.
 
 ## Supported case property types
 
-Case properties can be `bool`, `string`, `int`, `long` or `double`. Union selectors and case flags are bound from the command line only, not from environment variables.
+Case properties can be `bool`, `string`, `int`, `long`, `float`, `double`, `decimal` or an enum. Enum values bind by their CLI names, including `[EnumValue]` overrides. A `bool` that defaults to `true` gets a `--no-` form, such as `--no-rect-rounded`, because a plain switch can only turn it on.
+
+Any other type, such as `DateTime`, `int?` or an array, is a build error (`AGH0037`). Union selectors and case flags are bound from the command line only, not from environment variables.
 
 ## Diagnostics
 
@@ -76,3 +78,5 @@ Case properties can be `bool`, `string`, `int`, `long` or `double`. Union select
 - two cases with the same CLI name, such as `Json` from two namespaces
 - a case flag that equals another flag of the command, such as `--json-pretty` next to a `bool jsonPretty` parameter
 - in argument mode, one bare flag that two cases declare with different types
+
+`AGH0037` (error) reports a case property whose type case flags cannot bind.

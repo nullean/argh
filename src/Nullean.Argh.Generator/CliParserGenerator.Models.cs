@@ -345,6 +345,12 @@ public sealed partial class CliParserGenerator
 		string TypeName,
 		string? DefaultValueLiteral,
 		/// <summary>Fully-qualified CLI flag name in flag mode, e.g. <c>"json-pretty"</c>.</summary>
-		string FlagModeName);
+		string FlagModeName,
+		/// <summary>Fully-qualified enum type when <see cref="ScalarKind"/> is <c>Enum</c>.</summary>
+		string? EnumTypeFq = null,
+		ImmutableArray<string> EnumMemberNames = default,
+		ImmutableArray<string> EnumMemberCliNames = default,
+		/// <summary>Display name of the property's type when union case flags cannot bind it (AGH0037); null when supported.</summary>
+		string? UnsupportedTypeDisplay = null);
 
 }

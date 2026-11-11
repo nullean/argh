@@ -69,4 +69,20 @@ public class UnionHelpTests
 			  --indent <int>       Applies when <format> is json. [default: 2]
 			"""));
 	}
+
+	[Fact]
+	public void Case_flags_show_plain_defaults_enum_choices_and_negatable_bools()
+	{
+		var help = Help("union-shape");
+		help.Should().Contain(Expected("""
+			Options:
+			  --shape <case>           [required]
+			                           One of: <circle|rect>
+			  --circle-radius <float>  Applies when --shape is circle. [default: 1.5]
+			  --circle-fill <enum>     Applies when --shape is circle. [default: none]
+			                           One of: <solid|dash|none>
+			  --rect-width <decimal>   Applies when --shape is rect. [default: 2.5]
+			  --[no-]rect-rounded      Applies when --shape is rect. [default: true]
+			"""));
+	}
 }

@@ -36,3 +36,31 @@ internal static class UnionFormatHandlers
 		Console.WriteLine(result);
 	}
 }
+
+public enum Fill
+{
+	Solid,
+	[EnumValue("dash")] Dashed,
+	None = 5
+}
+
+public record class Circle(float Radius = 1.5f, Fill Fill = Fill.None);
+public record class Rect(decimal Width = 2.5m, bool Rounded = true);
+
+public union Shape(Circle, Rect);
+
+internal static class UnionShapeHandlers
+{
+	/// <summary>Draw a shape (union case properties of enum, float, decimal and default-true bool types).</summary>
+	internal static void Draw(TestGlobalCliOptions g, Shape shape)
+	{
+		var inv = System.Globalization.CultureInfo.InvariantCulture;
+		var result = shape.Value switch
+		{
+			Circle c => string.Create(inv, $"circle:radius={c.Radius}:fill={c.Fill}"),
+			Rect r   => string.Create(inv, $"rect:width={r.Width}:rounded={r.Rounded}"),
+			_        => "unknown"
+		};
+		Console.WriteLine(result);
+	}
+}

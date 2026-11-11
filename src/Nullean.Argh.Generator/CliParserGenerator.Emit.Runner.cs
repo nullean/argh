@@ -912,8 +912,14 @@ public sealed partial class CliParserGenerator
 			{
 				foreach (var c in p.UnionCases)
 					foreach (var prop in c.Properties)
-						if (prop.Special == BoolSpecialKind.Bool)
-							names.Add(p.UnionIsArgument ? prop.CliName : prop.FlagModeName);
+					{
+						if (prop.Special != BoolSpecialKind.Bool)
+							continue;
+						var name = UnionCasePropFlagName(p, prop);
+						names.Add(name);
+						if (UnionBoolDefaultsTrue(prop))
+							noNames.Add("no-" + name);
+					}
 			}
 		}
 
@@ -1598,7 +1604,10 @@ switch (p.Special)
 				var propVar = UnionCasePropVar(p, c, prop);
 				if (prop.Special == BoolSpecialKind.Bool)
 				{
-					sb.AppendLine($"\t\t\tvar {propVar} = flags.ContainsKey(\"{Escape(flagName)}\");");
+					// A bool that defaults to true is switched off with --no-{flag}.
+					sb.AppendLine(UnionBoolDefaultsTrue(prop)
+						? $"\t\t\tvar {propVar} = !flags.ContainsKey(\"no-{Escape(flagName)}\");"
+						: $"\t\t\tvar {propVar} = flags.ContainsKey(\"{Escape(flagName)}\");");
 					continue;
 				}
 				sb.AppendLine($"\t\t\tflags.TryGetValue(\"{Escape(flagName)}\", out var {propVar}Raw);");
@@ -1654,11 +1663,36 @@ switch (p.Special)
 	private static void EmitUnionPropParse(StringBuilder sb, UnionCasePropInfo prop, string flagName, string rawVar, string parsedVar,
 		string ind, string failureExit, string? helpMethodName, string? flagHelpStdErrMethodName, string? parseFailureRunHint)
 	{
+		if (prop.ScalarKind == CliScalarKind.Enum && prop.EnumTypeFq is not null && !prop.EnumMemberNames.IsDefaultOrEmpty)
+		{
+			sb.AppendLine($"{ind}{prop.EnumTypeFq} {parsedVar} = {prop.DefaultValueLiteral ?? "default"};");
+			sb.AppendLine($"{ind}if ({rawVar} is not null)");
+			sb.AppendLine($"{ind}{{");
+			sb.AppendLine($"{ind}\tswitch ({rawVar}.ToLowerInvariant())");
+			sb.AppendLine($"{ind}\t{{");
+			for (var i = 0; i < prop.EnumMemberNames.Length; i++)
+			{
+				var member = prop.EnumMemberNames[i];
+				var cli = ResolveEnumMemberCliName(prop.EnumMemberCliNames, i, member);
+				sb.AppendLine($"{ind}\t\tcase \"{Escape(cli.ToLowerInvariant())}\": {parsedVar} = {prop.EnumTypeFq}.{member}; break;");
+			}
+			sb.AppendLine($"{ind}\t\tdefault:");
+			sb.AppendLine($"{ind}\t\t\tConsole.Error.WriteLine($\"Error: invalid value for --{Escape(flagName)}: '{{{rawVar}}}'.\");");
+			EmitAfterCliParseErrorHelp(sb, UnionCasePropHelpRow(flagName, prop, ""), ind + "\t\t\t", helpMethodName, flagHelpStdErrMethodName, parseFailureRunHint);
+			sb.AppendLine($"{ind}\t\t\t{failureExit};");
+			sb.AppendLine($"{ind}\t\t\tbreak;");
+			sb.AppendLine($"{ind}\t}}");
+			sb.AppendLine($"{ind}}}");
+			return;
+		}
+
 		var tryParse = prop.ScalarKind != CliScalarKind.Primitive ? null : prop.TypeName switch
 		{
 			"int" => $"int.TryParse({rawVar}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
 			"long" => $"long.TryParse({rawVar}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+			"float" => $"float.TryParse({rawVar}, global::System.Globalization.NumberStyles.Float | global::System.Globalization.NumberStyles.AllowThousands, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
 			"double" => $"double.TryParse({rawVar}, global::System.Globalization.NumberStyles.Float | global::System.Globalization.NumberStyles.AllowThousands, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
+			"decimal" => $"decimal.TryParse({rawVar}, global::System.Globalization.NumberStyles.Number, global::System.Globalization.CultureInfo.InvariantCulture, out {parsedVar})",
 			_ => null
 		};
 
