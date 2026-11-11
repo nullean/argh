@@ -4,10 +4,13 @@
     <TargetFramework>net11.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    <!-- Target descriptions come from the XML doc file next to the assembly. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="MakeAppTests.fs" />
+    <Compile Include="BuilderTests.fs" />
   </ItemGroup>
 
   <ItemGroup>

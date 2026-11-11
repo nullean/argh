@@ -68,6 +68,28 @@ public sealed class UnionMakeApp<TUnion> where TUnion : struct
 	/// <summary>Creates a command builder for use inside <see cref="Bind"/>. Commands compose other targets.</summary>
 	public IUnionTargetBuilder<TUnion> Command() => new UnionTargetBuilderImpl<TUnion>(TargetKind.Command);
 
+	/// <summary>A target whose body is <paramref name="body"/>. Its description comes from the case's XML doc comment.</summary>
+	public IUnionTargetBuilder<TUnion> Target(Action body) => Target().Executes(body);
+
+	/// <inheritdoc cref="Target(Action)"/>
+	public IUnionTargetBuilder<TUnion> Target(Func<Task> body) => Target().Executes(body);
+
+	/// <summary>A target that runs <paramref name="body"/> after <paramref name="dependsOn"/> (skipped under <c>-s</c>).</summary>
+	public IUnionTargetBuilder<TUnion> Target(TUnion[] dependsOn, Action body) => Target().DependsOn(dependsOn).Executes(body);
+
+	/// <inheritdoc cref="Target(TUnion[], Action)"/>
+	public IUnionTargetBuilder<TUnion> Target(TUnion[] dependsOn, Func<Task> body) => Target().DependsOn(dependsOn).Executes(body);
+
+	/// <summary>
+	/// A command: runs <paramref name="requires"/> (skipped under <c>-s</c>), then <paramref name="composes"/>
+	/// (always), then the optional <paramref name="body"/>.
+	/// </summary>
+	public IUnionTargetBuilder<TUnion> Command(TUnion[] requires, TUnion[] composes, Action? body = null)
+	{
+		var builder = Command().DependsOn(requires).Composes(composes);
+		return body is null ? builder : builder.Executes(body);
+	}
+
 	// ── Bind ──────────────────────────────────────────────────────────────────
 
 	/// <summary>
@@ -167,7 +189,7 @@ public sealed class UnionMakeApp<TUnion> where TUnion : struct
 				Route       = path.Route,
 				Kind        = builder.Kind,
 				DtoType     = path.CaseType,
-				Description = builder.DescriptionValue,
+				Description = builder.DescriptionValue ?? Docs.DocDescriptions.ForType(path.CaseType),
 			};
 			node.Hidden = builder.IsHidden;
 			node.RouteRequires.AddRange(builder.DepTypeNames);
