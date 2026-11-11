@@ -153,6 +153,15 @@ public class UnionMakeAppTests
 	}
 
 	[Fact]
+	public async Task Global_option_without_a_value_exits_2()
+	{
+		var run = await RunAsync("compile", "--config");
+		run.ExitCode.Should().Be(2);
+		run.Stderr.Should().Contain("Missing value for '--config'.");
+		run.Log.Should().BeEmpty();
+	}
+
+	[Fact]
 	public async Task Root_help_lists_targets_and_global_options()
 	{
 		var run = await RunAsync("--help");

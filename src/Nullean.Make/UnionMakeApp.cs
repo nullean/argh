@@ -244,7 +244,12 @@ public sealed class UnionMakeApp<TUnion> where TUnion : struct
 				var argN   = arg.TrimStart('-');
 				if (argN != longN && argN != shortN) continue;
 				if (opt.IsFlag) { opt.Set("true"); i++; }
-				else            { i++; if (i < argv.Length) opt.Set(argv[i++]); }
+				else
+				{
+					i++;
+					if (i >= argv.Length) throw new MakeException($"Missing value for '{opt.Long}'.", 2);
+					opt.Set(argv[i++]);
+				}
 				matched = true;
 				break;
 			}
@@ -278,8 +283,8 @@ public sealed class UnionMakeApp<TUnion> where TUnion : struct
 		try
 		{
 			if (target == typeof(string))  return raw;
-			if (target == typeof(int))     return int.Parse(raw);
-			if (target == typeof(long))    return long.Parse(raw);
+			if (target == typeof(int))     return int.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
+			if (target == typeof(long))    return long.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
 			if (target == typeof(double))  return double.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
 			if (target == typeof(bool))    return bool.Parse(raw);
 			if (target.IsEnum)             return Enum.Parse(target, raw, ignoreCase: true);
