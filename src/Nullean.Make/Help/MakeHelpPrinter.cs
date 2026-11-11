@@ -69,6 +69,64 @@ internal static class MakeHelpPrinter
 		PrintGlobalOptions(graph, scriptName);
 	}
 
+	/// <summary>
+	/// Prints the commands and targets under a namespace route such as <c>schema</c>.
+	/// Returns false when no visible target lives under <paramref name="routeKey"/>.
+	/// </summary>
+	public static bool PrintNamespace(string routeKey, BuildGraph graph, string scriptName)
+	{
+		var prefix = routeKey.Split('/');
+		var members = graph.Targets
+			.Where(t => !t.Hidden && t.Route.Length > prefix.Length
+				&& t.Route.Take(prefix.Length).SequenceEqual(prefix, StringComparer.OrdinalIgnoreCase))
+			.ToList();
+		if (members.Count == 0)
+			return false;
+
+		var route = string.Join(" ", prefix);
+		Console.WriteLine();
+		Console.WriteLine($"  {CliHelpFormatting.Accent(route)}");
+		Console.WriteLine();
+
+		Console.WriteLine($"  {CliHelpFormatting.Section("Usage:")}");
+		Console.WriteLine($"    {scriptName} {route} <command|target> [options]");
+		Console.WriteLine();
+
+		string rel(TargetNode t) => string.Join(" ", t.Route.Skip(prefix.Length));
+		var commands = members.Where(t => t.Kind == TargetKind.Command).ToList();
+		var targets = members.Where(t => t.Kind == TargetKind.Target).ToList();
+
+		if (commands.Count > 0)
+		{
+			Console.WriteLine($"  {CliHelpFormatting.Section("Commands:")}");
+			var colWidth = commands.Max(t => rel(t).Length) + 2;
+			foreach (var c in commands)
+			{
+				var desc = !string.IsNullOrEmpty(c.Description) ? c.Description : CommandSummary(c);
+				CliHelpFormatting.WriteHelpListNameAndDescription(true, rel(c), desc, colWidth);
+			}
+			Console.WriteLine();
+		}
+
+		if (targets.Count > 0)
+		{
+			Console.WriteLine($"  {CliHelpFormatting.Section("Targets:")}");
+			var colWidth = targets.Max(t => rel(t).Length) + 2;
+			foreach (var t in targets)
+			{
+				var deps = t.RequiresResolved.Concat(t.ComposesResolved).ToList();
+				var depSuffix = deps.Count > 0
+					? $"  (depends on: {string.Join(", ", deps.Select(d => string.Join(" ", d.Route)))})"
+					: "";
+				CliHelpFormatting.WriteHelpListNameAndDescription(false, rel(t), t.Description + depSuffix, colWidth);
+			}
+			Console.WriteLine();
+		}
+
+		PrintGlobalOptions(graph, scriptName);
+		return true;
+	}
+
 	public static void PrintTarget(TargetNode node, BuildGraph graph, string scriptName)
 	{
 		Console.WriteLine();
