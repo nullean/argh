@@ -1,6 +1,6 @@
 # Nullean.Make.Fs
 
-Typed, namespaced, exhaustive F# build targets. Your targets are DU cases, and a case you forget to handle in `Bind` is a compiler warning (FS0025).
+Typed, namespaced, exhaustive F# build targets. Your targets are DU cases, and a case you forget to handle in `Bind` is a compiler warning (FS0025). Target blocks are [Proc.Fs](https://www.nuget.org/packages/Proc.Fs) `shell { }` blocks, so commands are `sh $"…"` lines.
 
 ```fsharp
 open Nullean.Make.Fs
@@ -31,14 +31,14 @@ let main argv =
     let config = app.Option<string>("--config", desc = "Build configuration", defaultValue = "Release")
 
     app.Bind <| function
-        | Clean        -> target [] { exec { run "dotnet" "clean" } }
-        | Build        -> target [Clean] { exec { run "dotnet" ["build"; "-c"; config.Value] } }
+        | Clean        -> target [] { sh $"dotnet clean" }
+        | Build        -> target [Clean] { sh $"dotnet build -c {config.Value}" }
         | Test o       -> target [Build] {
                               match o.Filter with
-                              | Some f -> exec { run "dotnet" ["test"; "-c"; config.Value; $"--filter:{f}"] }
-                              | None   -> exec { run "dotnet" ["test"; "-c"; config.Value] } }
-        | Pkg Generate -> target [] { exec { run "dotnet" ["pack"; "-c"; "Release"; "-o"; "build/output"] } }
-        | Pkg Validate -> target [] { exec { run "dotnet" ["nupkg-validator"; "build/output"] } }
+                              | Some f -> sh $"dotnet test -c {config.Value} --filter:{f}"
+                              | None   -> sh $"dotnet test -c {config.Value}" }
+        | Pkg Generate -> target [] { sh $"dotnet pack -c Release -o build/output" }
+        | Pkg Validate -> target [] { sh $"dotnet nupkg-validator build/output" }
         | Release      -> command {
                               requires [Test { Filter = None }]
                               composes [Pkg Generate; Pkg Validate] }
@@ -67,26 +67,36 @@ build release -s        # skip the tests, run only pkg generate, pkg validate
   pkg
 ```
 
-The package depends on [`Proc.Fs`](https://www.nuget.org/packages/Proc.Fs), so `open Proc.Fs` gives you `exec { }` without another reference.
+The package depends on `Proc.Fs` 0.17, so `open Proc.Fs` brings in `sh`, the captures and `exec { }` without another reference.
 
 ---
 
 ## Targets: `target [deps] { ... }`
 
-`target [Clean] { ... }` declares a target that runs after `Clean`. The block is plain F#: `exec { }` calls, `if`, `match`, loops, `use`. It is deferred, so nothing in it runs until the target does. `-s` / `--single-target` skips the dependencies.
-
-A failing `exec { }` fails the target, and `RunAsync` returns `1`. To inspect a command's result instead, bind it:
+`target [Clean] { ... }` declares a target that runs after `Clean`; `-s` / `--single-target` skips the dependencies. The block is a Proc.Fs `shell { }` block that runs only when the target does:
 
 ```fsharp
-| Doctor -> target [] {
-      let helpOutput = exec {
-          binary "dotnet"
-          arguments "--help"
-          output
-      }
-      if helpOutput.ConsoleOut |> Seq.exists (fun l -> l.Line.Contains "workload") then
-          printfn "workloads are available" }
+| Info -> target [] {
+      let! sha = text $"git rev-parse --short HEAD"     // standard out as one trimmed string
+      let! files = lines $"git ls-files"                 // standard out as a list of lines
+      for file in files |> List.filter (fun f -> f.EndsWith ".fs") do
+          sh $"dotnet fantomas {file}"                   // {file} is always one argument
+      printfn $"formatted commit {sha}" }
 ```
+
+| Inside `target [] { }` | Does |
+|---|---|
+| `sh $"…"` | runs the command; a failure fails the target |
+| `let! s = text $"…"` | standard out as one trimmed string |
+| `let! ls = lines $"…"` | standard out as a list of lines |
+| `let! code = exitCode $"…"` | the exit code, without failing |
+| `let! ok = succeeds $"…"` | whether the exit code is `0`, without failing |
+| `cd`, `pushd`, `popd`, `env`, `setEnvs`, `unsetEnv` | change the commands that follow |
+| `use! _ = inDir "src"`, `use! _ = withEnv [...]` | change them until the end of the enclosing scope |
+
+Plain F# works too: `if`, `match`, loops, `printfn`, and `exec { }` from earlier versions. `sh` splits only the text you wrote, and each `{value}` stays one argument whatever it contains, so no value can start another command. See the [Proc.Fs README](https://github.com/nullean/proc/tree/main/src/Proc.Fs) for quoting, pipes (`|`) and multi-line commands.
+
+The first command that fails fails the target, and `RunAsync` returns `1`.
 
 ## Commands: `command { ... }`
 
@@ -96,19 +106,16 @@ A failing `exec { }` fails the target, and `RunAsync` returns `1`. To inspect a 
       composes [Pkg Generate; Pkg Validate] }            // the work, always runs
 ```
 
-`executes (...)` adds a body that runs after every composed target. Like a target block, it is deferred:
+`executes (...)` adds a body that runs after every composed target. Like a target block, it is deferred. Use `shell { }` inside it to run commands:
 
 ```fsharp
 | Publish -> command {
       requires [Release]
       composes [CreateGithubRelease]
       executes (
-          let head = exec {
-              binary "git"
-              arguments ["rev-parse"; "HEAD"]
-              output
-          }
-          printfn "published %s" (head.ConsoleOut |> Seq.head).Line) }
+          shell {
+              let! sha = text $"git rev-parse --short HEAD"
+              printfn $"published {sha}" }) }
 ```
 
 ## Descriptions from doc comments
@@ -146,7 +153,7 @@ failBuild "message"                                                             
 ## Installation
 
 ```xml
-<PackageReference Include="Nullean.Make.Fs" Version="0.23.0" />
+<PackageReference Include="Nullean.Make.Fs" Version="0.24.0" />
 ```
 
 Requires .NET 11. The package pulls in `Nullean.Make` (the underlying C# engine) and `Proc.Fs` transitively.

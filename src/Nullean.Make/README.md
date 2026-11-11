@@ -4,7 +4,7 @@ Typed build targets for .NET, with [Argh](https://github.com/nullean/argh)-quali
 
 ```csharp
 #!/usr/bin/env -S dotnet run --
-#:package Nullean.Make@0.23.0
+#:package Nullean.Make@0.24.0
 #:property GenerateDocumentationFile=true
 #:property NoWarn=CS1591
 using Nullean.Make;
