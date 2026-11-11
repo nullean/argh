@@ -1,5 +1,5 @@
 #!/usr/bin/env -S dotnet run --
-#:package Proc@0.13.0
+#:package Proc@0.15.0
 #:project src/Nullean.Make
 #:property ManagePackageVersionsCentrally=false
 // C# build pipeline for nullean/argh using Nullean.Make.
