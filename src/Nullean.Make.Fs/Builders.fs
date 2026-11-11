@@ -1,21 +1,41 @@
 namespace Nullean.Make.Fs
 
 open System
+open Proc.Fs
 
 /// <summary>
-/// Builds a target from a block of plain F#: <c>exec { }</c> calls, <c>if</c>, <c>match</c>, loops. The block is deferred:
-/// it runs only when the target runs. Created by <see cref="M:Nullean.Make.Fs.MakeBuilders.target"/>.
+/// Builds a target from a Proc.Fs <c>shell { }</c> block that runs only when the target runs:
+/// <code>
+/// | Build -> target [Clean] {
+///       sh $"dotnet build -c {config.Value}"
+///       let! sha = text $"git rev-parse HEAD"
+///       use! _ = inDir "src"
+///       sh $"dotnet pack" }
+/// </code>
+/// Everything <c>shell { }</c> accepts works: <c>sh $"…"</c> commands, <c>let!</c> captures (<c>text</c>, <c>lines</c>,
+/// <c>exitCode</c>, <c>succeeds</c>), steps such as <c>cd</c>, <c>pushd</c>, <c>env</c> and <c>inDir</c>, and plain F#
+/// including <c>exec { }</c>, <c>if</c>, <c>match</c> and loops. The first failing command fails the target.
+/// Created by <see cref="M:Nullean.Make.Fs.MakeBuilders.target"/>.
 /// </summary>
 type TargetBuilder<'TCase>(dependsOn: 'TCase list) =
-    member _.Zero() = ()
-    member _.Delay(f: unit -> unit) = f
-    member _.Combine((), f: unit -> unit) = f ()
-    member _.For(items: seq<'a>, body: 'a -> unit) = for item in items do body item
-    member _.While(condition: unit -> bool, body: unit -> unit) = while condition () do body ()
-    member _.TryWith(body: unit -> unit, handler: exn -> unit) = try body () with e -> handler e
-    member _.TryFinally(body: unit -> unit, cleanup: unit -> unit) = try body () finally cleanup ()
-    member _.Using(resource: 'r when 'r :> IDisposable, body: 'r -> unit) = use r = resource in body r
-    member _.Run(body: unit -> unit) : Definition<'TCase> = FsTarget("", dependsOn, fun _ -> body ())
+    // Building the block yields a deferred ShellStep; only ShellBuilder.Run executes it, so Run is
+    // the one member that differs: it wraps the step in the target's body instead of running it.
+    let shell = ShellBuilder(false)
+    member _.Zero() = shell.Zero()
+    member _.Yield(command: Cmd) = shell.Yield command
+    member _.Yield(step: ShellStep<unit>) = shell.Yield step
+    member _.Bind(step: ShellStep<'T>, f: 'T -> ShellStep<'U>) = shell.Bind(step, f)
+    member _.Bind(command: Cmd, f: unit -> ShellStep<'U>) = shell.Bind(command, f)
+    member _.Bind(capture: Capture<'T>, f: 'T -> ShellStep<'U>) = shell.Bind(capture, f)
+    member _.Delay(f: unit -> ShellStep<'T>) = shell.Delay f
+    member _.Combine(first: ShellStep<unit>, second: ShellStep<'T>) = shell.Combine(first, second)
+    member _.For(items: seq<'T>, body: 'T -> ShellStep<unit>) = shell.For(items, body)
+    member _.For(capture: Capture<'T list>, body: 'T -> ShellStep<unit>) = shell.For(capture, body)
+    member _.While(guard: unit -> bool, body: ShellStep<unit>) = shell.While(guard, body)
+    member _.TryWith(body: ShellStep<'T>, handler: exn -> ShellStep<'T>) = shell.TryWith(body, handler)
+    member _.TryFinally(body: ShellStep<'T>, compensation: unit -> unit) = shell.TryFinally(body, compensation)
+    member _.Using(resource: 'R :> IDisposable, body: 'R -> ShellStep<'T>) = shell.Using(resource, body)
+    member _.Run(step: ShellStep<unit>) : Definition<'TCase> = FsTarget("", dependsOn, fun _ -> shell.Run step)
 
 /// What a <c>command { }</c> block collects: its requires, its composes and an optional body.
 [<NoComparison; NoEquality>]
@@ -29,8 +49,9 @@ type CommandSpec<'TCase> = internal { Requires: 'TCase list; Composes: 'TCase li
 ///       requires [PristineCheck; Test defaultTest]
 ///       composes [Pkg Generate; Pkg PkgTarget.Validate]
 ///       executes (
-///           let notes = exec { binary "git"; arguments ["log"; "-1"]; output }
-///           printfn "%A" notes.ExitCode) }
+///           shell {
+///               let! sha = text $"git rev-parse --short HEAD"
+///               printfn $"released {sha}" }) }
 /// </code>
 /// </summary>
 type CommandBuilder() =

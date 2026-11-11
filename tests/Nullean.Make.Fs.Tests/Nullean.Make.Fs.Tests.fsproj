@@ -11,6 +11,7 @@
   <ItemGroup>
     <Compile Include="MakeAppTests.fs" />
     <Compile Include="BuilderTests.fs" />
+    <Compile Include="ShellTargetTests.fs" />
   </ItemGroup>
 
   <ItemGroup>
