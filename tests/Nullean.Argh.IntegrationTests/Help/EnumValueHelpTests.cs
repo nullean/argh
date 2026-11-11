@@ -1,12 +1,11 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Help;
 
 public class EnumValueHelpTests
 {
-	[Fact]
+	[Test]
 	public void EnumValue_help_shows_kebab_case_cli_names()
 	{
 		var result = CliHostRunner.Run(
@@ -18,7 +17,7 @@ public class EnumValueHelpTests
 		text.Should().Contain("One of: <fire-red|ocean-blue|green>");
 	}
 
-	[Fact]
+	[Test]
 	public void EnumValue_help_shows_kebab_case_in_usage_type_hint()
 	{
 		var result = CliHostRunner.Run(

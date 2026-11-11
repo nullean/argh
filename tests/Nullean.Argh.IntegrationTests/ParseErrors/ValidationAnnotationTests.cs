@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.ParseErrors;
 
@@ -11,7 +10,7 @@ public class ValidationAnnotationTests
 
 	// ── [Range] ──────────────────────────────────────────────────────────────
 
-	[Fact]
+	[Test]
 	public void Range_valid_value_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-range", "--port", "8080");
@@ -19,7 +18,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("port:8080");
 	}
 
-	[Fact]
+	[Test]
 	public void Range_too_large_returns_exit_2_with_error()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-range", "--port", "99999");
@@ -28,7 +27,7 @@ public class ValidationAnnotationTests
 			.Should().Contain("Error: --port: value must be between 1 and 65535.");
 	}
 
-	[Fact]
+	[Test]
 	public void Range_zero_returns_exit_2_with_error()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-range", "--port", "0");
@@ -37,7 +36,7 @@ public class ValidationAnnotationTests
 			.Should().Contain("Error: --port: value must be between 1 and 65535.");
 	}
 
-	[Fact]
+	[Test]
 	public void Range_error_includes_run_hint()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-range", "--port", "0");
@@ -45,7 +44,7 @@ public class ValidationAnnotationTests
 			.Should().Contain("--help' for usage.");
 	}
 
-	[Fact]
+	[Test]
 	public void Range_help_shows_constraint_inline()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-range", "--help");
@@ -56,7 +55,7 @@ public class ValidationAnnotationTests
 
 	// ── [StringLength] ───────────────────────────────────────────────────────
 
-	[Fact]
+	[Test]
 	public void StringLength_valid_value_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-length", "--name", "hi");
@@ -64,7 +63,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("name:hi");
 	}
 
-	[Fact]
+	[Test]
 	public void StringLength_too_short_returns_exit_2()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-length", "--name", "x");
@@ -73,7 +72,7 @@ public class ValidationAnnotationTests
 			.Should().Contain("Error: --name: value must be between 2 and 100 characters.");
 	}
 
-	[Fact]
+	[Test]
 	public void StringLength_help_shows_constraint()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-length", "--help");
@@ -83,7 +82,7 @@ public class ValidationAnnotationTests
 
 	// ── [RegularExpression] ──────────────────────────────────────────────────
 
-	[Fact]
+	[Test]
 	public void Regex_valid_value_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-regex", "--slug", "hello-world");
@@ -91,7 +90,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("slug:hello-world");
 	}
 
-	[Fact]
+	[Test]
 	public void Regex_invalid_value_returns_exit_2()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-regex", "--slug", "Hello World!");
@@ -100,7 +99,7 @@ public class ValidationAnnotationTests
 			.Should().Contain("Error: --slug: value does not match required pattern");
 	}
 
-	[Fact]
+	[Test]
 	public void Regex_help_shows_pattern()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-regex", "--help");
@@ -110,7 +109,7 @@ public class ValidationAnnotationTests
 
 	// ── [AllowedValues] ──────────────────────────────────────────────────────
 
-	[Fact]
+	[Test]
 	public void AllowedValues_valid_value_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-allowed", "--env", "dev");
@@ -118,7 +117,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("env:dev");
 	}
 
-	[Fact]
+	[Test]
 	public void AllowedValues_disallowed_value_returns_exit_2()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-allowed", "--env", "production");
@@ -127,7 +126,7 @@ public class ValidationAnnotationTests
 			.Should().Contain("Error: --env: value must be one of: dev, staging, prod.");
 	}
 
-	[Fact]
+	[Test]
 	public void AllowedValues_help_shows_allowed_values()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-allowed", "--help");
@@ -137,7 +136,7 @@ public class ValidationAnnotationTests
 
 	// ── [EmailAddress] ───────────────────────────────────────────────────────
 
-	[Fact]
+	[Test]
 	public void Email_valid_value_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-email", "--address", "user@example.com");
@@ -145,7 +144,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("email:user@example.com");
 	}
 
-	[Fact]
+	[Test]
 	public void Email_invalid_value_returns_exit_2()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-email", "--address", "notanemail");
@@ -154,7 +153,7 @@ public class ValidationAnnotationTests
 			.Should().Contain("Error: --address: value is not a valid email address.");
 	}
 
-	[Fact]
+	[Test]
 	public void Email_help_shows_email_constraint()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-email", "--help");
@@ -164,7 +163,7 @@ public class ValidationAnnotationTests
 		text.Should().Contain("--address <email>");
 	}
 
-	[Fact]
+	[Test]
 	public void Nullable_optional_string_email_uses_same_email_placeholder_as_required()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-email-opt", "--help");
@@ -175,7 +174,7 @@ public class ValidationAnnotationTests
 
 	// ── [UriScheme] ──────────────────────────────────────────────────────────
 
-	[Fact]
+	[Test]
 	public void UriScheme_https_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-uri-scheme", "--endpoint", "https://example.com");
@@ -183,7 +182,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("scheme:https");
 	}
 
-	[Fact]
+	[Test]
 	public void UriScheme_http_rejected_returns_exit_2()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-uri-scheme", "--endpoint", "http://example.com");
@@ -192,7 +191,7 @@ public class ValidationAnnotationTests
 			.Should().Contain("Error: --endpoint: URI scheme must be one of: https.");
 	}
 
-	[Fact]
+	[Test]
 	public void UriScheme_relative_uri_returns_exit_2_with_clean_error()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-uri-scheme", "--endpoint", "not-an-url");
@@ -201,7 +200,7 @@ public class ValidationAnnotationTests
 			.Should().Contain("Error: --endpoint: URI scheme must be one of: https.");
 	}
 
-	[Fact]
+	[Test]
 	public void UriScheme_help_shows_schemes_constraint()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-uri-scheme", "--help");
@@ -211,7 +210,7 @@ public class ValidationAnnotationTests
 		text.Should().Contain("--endpoint <url>");
 	}
 
-	[Fact]
+	[Test]
 	public void Nullable_optional_uri_https_uses_same_url_placeholder_as_required()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-uri-scheme-opt", "--help");
@@ -222,7 +221,7 @@ public class ValidationAnnotationTests
 
 	// ── [Range] on non-nullable value type with default ─────────────────────
 
-	[Fact]
+	[Test]
 	public void NonNullableRange_default_value_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-non-nullable-range");
@@ -230,7 +229,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("page-per:20");
 	}
 
-	[Fact]
+	[Test]
 	public void NonNullableRange_valid_value_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-non-nullable-range", "--page-per", "50");
@@ -238,7 +237,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("page-per:50");
 	}
 
-	[Fact]
+	[Test]
 	public void NonNullableRange_negative_returns_exit_2()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-non-nullable-range", "--page-per", "-1");
@@ -249,7 +248,7 @@ public class ValidationAnnotationTests
 
 	// ── [AsParameters] + [Range] ─────────────────────────────────────────────
 
-	[Fact]
+	[Test]
 	public void Dto_range_valid_value_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-dto", "--count", "50");
@@ -257,7 +256,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("dto:50");
 	}
 
-	[Fact]
+	[Test]
 	public void Dto_range_out_of_range_returns_exit_2()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-dto", "--count", "150");
@@ -269,7 +268,7 @@ public class ValidationAnnotationTests
 
 	// ── filesystem path validations (FileInfo / DirectoryInfo) ─────────────
 
-	[Fact]
+	[Test]
 	public void ExistingFile_existing_temp_file_succeeds()
 	{
 		var tmp = Path.GetTempFileName();
@@ -286,7 +285,7 @@ public class ValidationAnnotationTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public void ExistingFile_missing_returns_exit_2()
 	{
 		var path = Path.Combine(Path.GetTempPath(), "argh-missing-existing-" + Guid.NewGuid());
@@ -296,7 +295,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --file: file does not exist.");
 	}
 
-	[Fact]
+	[Test]
 	public void NonExistingFile_unused_path_succeeds()
 	{
 		var path = Path.Combine(Path.GetTempPath(), "argh-new-file-" + Guid.NewGuid());
@@ -314,7 +313,7 @@ public class ValidationAnnotationTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public void NonExistingFile_conflict_with_existing_returns_exit_2()
 	{
 		var tmp = Path.GetTempFileName();
@@ -328,7 +327,7 @@ public class ValidationAnnotationTests
 		finally { try { File.Delete(tmp); } catch { } }
 	}
 
-	[Fact]
+	[Test]
 	public void ExistingDirectory_temp_directory_succeeds()
 	{
 		var dir = Path.Combine(Path.GetTempPath(), "argh-extdir-" + Guid.NewGuid());
@@ -342,7 +341,7 @@ public class ValidationAnnotationTests
 		finally { try { Directory.Delete(dir); } catch { } }
 	}
 
-	[Fact]
+	[Test]
 	public void ExistingDirectory_missing_returns_exit_2()
 	{
 		var path = Path.Combine(Path.GetTempPath(), "argh-missing-dir-" + Guid.NewGuid());
@@ -352,7 +351,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --dir: directory does not exist.");
 	}
 
-	[Fact]
+	[Test]
 	public void ExistingDirectory_optional_omitted_does_not_run_existence_validation()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-existing-directory-opt");
@@ -360,7 +359,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("dir:(null)");
 	}
 
-	[Fact]
+	[Test]
 	public void NonExistingFile_optional_omitted_does_not_validate()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-non-existing-file-opt");
@@ -368,7 +367,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("path:(null)");
 	}
 
-	[Fact]
+	[Test]
 	public void NoSymlinkFile_optional_omitted_does_not_validate()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-no-symlink-file-opt");
@@ -376,7 +375,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("file:(null)");
 	}
 
-	[Fact]
+	[Test]
 	public void ExpandHomeFile_tilde_under_profile_succeeds()
 	{
 		var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -393,7 +392,7 @@ public class ValidationAnnotationTests
 		finally { try { File.Delete(abs); } catch { } }
 	}
 
-	[Fact]
+	[Test]
 	public void NoSymlinkFile_regular_temp_file_succeeds()
 	{
 		var tmp = Path.GetTempFileName();
@@ -406,7 +405,7 @@ public class ValidationAnnotationTests
 		finally { try { File.Delete(tmp); } catch { } }
 	}
 
-	[Fact]
+	[Test]
 	public void NoSymlinkFile_symbolic_link_returns_exit_2()
 	{
 		var dir = Path.Combine(Path.GetTempPath(), "argh-symlink-" + Guid.NewGuid());
@@ -434,7 +433,7 @@ public class ValidationAnnotationTests
 		finally { try { Directory.Delete(dir, recursive: true); } catch { } }
 	}
 
-	[Fact]
+	[Test]
 	public void ExistingFile_help_lists_existence_annotation()
 	{
 		var r =CliHostRunner.Run(NoColor, "validate-existing-file", "--help");
@@ -445,7 +444,7 @@ public class ValidationAnnotationTests
 
 	// ── filesystem path validations on collections (List<>/array of FileInfo/DirectoryInfo) ─
 
-	[Fact]
+	[Test]
 	public void ExistingFiles_all_present_succeeds()
 	{
 		var a = Path.GetTempFileName();
@@ -463,7 +462,7 @@ public class ValidationAnnotationTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public void ExistingFiles_multiple_missing_reports_every_failure_not_just_first()
 	{
 		var missing1 = Path.Combine(Path.GetTempPath(), "argh-missing-1-" + Guid.NewGuid());
@@ -475,7 +474,7 @@ public class ValidationAnnotationTests
 		stderr.Should().Contain("file does not exist.");
 	}
 
-	[Fact]
+	[Test]
 	public void ExistingDirectories_missing_one_of_two_reports_only_the_missing_one()
 	{
 		var okDir = Path.Combine(Path.GetTempPath(), "argh-okdir-" + Guid.NewGuid());
@@ -492,7 +491,7 @@ public class ValidationAnnotationTests
 		finally { try { Directory.Delete(okDir); } catch { } }
 	}
 
-	[Fact]
+	[Test]
 	public void FileExtensionsCollection_all_matching_extension_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-file-extensions-collection", "--files", "a.txt", "--files", "b.json");
@@ -500,7 +499,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("files:a.txt,b.json");
 	}
 
-	[Fact]
+	[Test]
 	public void FileExtensionsCollection_wrong_extension_returns_exit_2()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-file-extensions-collection", "--files", "a.txt", "--files", "b.png");
@@ -509,7 +508,7 @@ public class ValidationAnnotationTests
 		stderr.Should().Contain("b.png").And.Contain("extension must be one of: txt, json.");
 	}
 
-	[Fact]
+	[Test]
 	public void ExistingFileExtensionsCollection_reports_both_missing_and_wrong_extension_failures_together()
 	{
 		var okFile = Path.GetTempFileName();
@@ -525,7 +524,7 @@ public class ValidationAnnotationTests
 		finally { try { File.Delete(okFile); } catch { } }
 	}
 
-	[Fact]
+	[Test]
 	public void ExistingFiles_help_lists_existing_annotation_for_collection()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-existing-files", "--help");
@@ -535,7 +534,7 @@ public class ValidationAnnotationTests
 
 	// ── Variadic positional collections of FileInfo ──────────────────────────
 
-	[Fact]
+	[Test]
 	public void VariadicFileCollection_existing_zip_files_succeeds()
 	{
 		var a = Path.Combine(Path.GetTempPath(), "argh-var-" + Guid.NewGuid() + ".zip");
@@ -555,7 +554,7 @@ public class ValidationAnnotationTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public void VariadicFileCollection_reports_missing_and_wrong_extension_together()
 	{
 		var wrongExt = Path.Combine(Path.GetTempPath(), "argh-var-" + Guid.NewGuid() + ".txt");
@@ -574,7 +573,7 @@ public class ValidationAnnotationTests
 
 	// ── Variadic positionals ──────────────────────────────────────────────────
 
-	[Fact]
+	[Test]
 	public void Variadic_params_collects_remaining_positionals()
 	{
 		var r = CliHostRunner.Run(NoColor, "copy-variadic", "red", "a.txt", "b.txt", "c.txt");
@@ -582,7 +581,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("mode:Red files:a.txt,b.txt,c.txt");
 	}
 
-	[Fact]
+	[Test]
 	public void Variadic_params_empty_when_no_trailing_args()
 	{
 		var r = CliHostRunner.Run(NoColor, "copy-variadic", "blue");
@@ -590,7 +589,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("mode:Blue files:");
 	}
 
-	[Fact]
+	[Test]
 	public void Variadic_with_flags_interleaved_between_positionals()
 	{
 		var r = CliHostRunner.Run(NoColor, "mixed-variadic", "first-val", "--verbose", "tag1", "tag2");
@@ -598,7 +597,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("first:first-val verbose:True tags:tag1,tag2");
 	}
 
-	[Fact]
+	[Test]
 	public void Variadic_with_flags_after_variadic_tokens()
 	{
 		var r = CliHostRunner.Run(NoColor, "mixed-variadic", "first-val", "tag1", "tag2", "--verbose");
@@ -606,7 +605,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("first:first-val verbose:True tags:tag1,tag2");
 	}
 
-	[Fact]
+	[Test]
 	public void Variadic_compile_variadic_array_without_params_keyword()
 	{
 		var r = CliHostRunner.Run(NoColor, "compile-variadic", "main.cs", "util.cs", "--verbose");
@@ -614,7 +613,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("sources:main.cs,util.cs verbose:True");
 	}
 
-	[Fact]
+	[Test]
 	public void Variadic_compile_variadic_empty_array_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "compile-variadic");
@@ -622,7 +621,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("sources: verbose:False");
 	}
 
-	[Fact]
+	[Test]
 	public void Variadic_min_count_constraint_too_few_returns_exit_2()
 	{
 		var r = CliHostRunner.Run(NoColor, "archive-variadic", "only-one.txt");
@@ -630,7 +629,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("must have at least 2 items.");
 	}
 
-	[Fact]
+	[Test]
 	public void Variadic_max_count_constraint_too_many_returns_exit_2()
 	{
 		var r = CliHostRunner.Run(NoColor, "archive-variadic", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11");
@@ -638,7 +637,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("must have at most 10 items.");
 	}
 
-	[Fact]
+	[Test]
 	public void Variadic_count_within_constraints_succeeds()
 	{
 		var r = CliHostRunner.Run(NoColor, "archive-variadic", "a.zip", "b.zip", "c.zip");
@@ -646,7 +645,7 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("files:a.zip,b.zip,c.zip");
 	}
 
-	[Fact]
+	[Test]
 	public void Variadic_help_shows_ellipsis_notation()
 	{
 		var r = CliHostRunner.Run(NoColor, "copy-variadic", "--help");
@@ -656,7 +655,7 @@ public class ValidationAnnotationTests
 
 	// ── Explicit long option name override ───────────────────────────────────
 
-	[Fact]
+	[Test]
 	public void LongNameOverride_primary_name_is_explicit_flag()
 	{
 		var r = CliHostRunner.Run(NoColor, "long-name-override", "--tag", "foo", "--tag", "bar");
@@ -664,14 +663,14 @@ public class ValidationAnnotationTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("tags:foo,bar");
 	}
 
-	[Fact]
+	[Test]
 	public void LongNameOverride_derived_name_is_not_recognized()
 	{
 		var r = CliHostRunner.Run(NoColor, "long-name-override", "--tags", "foo");
 		r.ExitCode.Should().Be(2);
 	}
 
-	[Fact]
+	[Test]
 	public void LongNameOverride_short_opt_works()
 	{
 		var r = CliHostRunner.Run(NoColor, "long-name-override", "-t", "foo");

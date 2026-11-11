@@ -1,13 +1,12 @@
 using System.IO;
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.Help;
-using Xunit;
 
 namespace Nullean.Argh.Tests.Unit.Help;
 
 public class XmlDocumentationRendererTests
 {
-	[Fact]
+	[Test]
 	public void Summary_collapses_comment_line_breaks_to_one_output_line()
 	{
 		const string inner = """
@@ -22,7 +21,7 @@ public class XmlDocumentationRendererTests
 		lines[0].Should().Contain("null");
 	}
 
-	[Fact]
+	[Test]
 	public void Remarks_two_para_does_not_emit_runs_of_blank_lines()
 	{
 		const string inner = """
@@ -35,7 +34,7 @@ public class XmlDocumentationRendererTests
 		text.Should().NotContain("\n\n\n");
 	}
 
-	[Fact]
+	[Test]
 	public void Example_block_emits_example_section_and_plain_code_lines()
 	{
 		const string inner = "<example><code>dotnet run --help\n</code></example>";

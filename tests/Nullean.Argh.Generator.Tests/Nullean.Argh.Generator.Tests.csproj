@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- TUnit test projects are self-hosting Microsoft.Testing.Platform executables -->
+    <OutputType>Exe</OutputType>
+    <!-- assertions are AwesomeAssertions; do not bring TUnit's own Assert.That into scope -->
+    <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
     <TargetFramework>net11.0</TargetFramework>
     <AssemblyName>Nullean.Argh.Generator.Tests</AssemblyName>
     <RootNamespace>Nullean.Argh.Generator.Tests</RootNamespace>
@@ -15,17 +19,10 @@
     <ProjectReference Include="..\..\src\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj" />
     <ProjectReference Include="..\..\src\Nullean.Argh.Interfaces\Nullean.Argh.Interfaces.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="xunit" />
-    <PackageReference Include="xunit.runner.visualstudio">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="GitHubActionsTestLogger">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Nullean.VsTest.Pretty.TestLogger" PrivateAssets="All" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="AwesomeAssertions" />
+  </ItemGroup>
 </Project>

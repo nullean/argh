@@ -1,12 +1,11 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Commands;
 
 public class CommandOutputTests
 {
-	[Fact]
+	[Test]
 	public void Hello_ok_marker()
 	{
 		var result = CliHostRunner.Run("hello", "--name", "test");
@@ -14,7 +13,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("ok:test");
 	}
 
-	[Fact]
+	[Test]
 	public void NullableBool_dry_run_true()
 	{
 		var result = CliHostRunner.Run("dry-run-cmd", "--dry-run");
@@ -22,7 +21,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("dry-run:true");
 	}
 
-	[Fact]
+	[Test]
 	public void NullableBool_no_dry_run_false()
 	{
 		var result = CliHostRunner.Run("dry-run-cmd", "--no-dry-run");
@@ -30,7 +29,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("dry-run:false");
 	}
 
-	[Fact]
+	[Test]
 	public void NullableBool_no_flag_null()
 	{
 		var result = CliHostRunner.Run("dry-run-cmd");
@@ -38,7 +37,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("dry-run:null");
 	}
 
-	[Fact]
+	[Test]
 	public void Int_count()
 	{
 		var result = CliHostRunner.Run("count-cmd", "--count", "42");
@@ -46,7 +45,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("count:42");
 	}
 
-	[Fact]
+	[Test]
 	public void FileInfo_echo()
 	{
 		var result = CliHostRunner.Run("file-cmd", "--file", "/tmp/test.txt");
@@ -54,7 +53,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("file:test.txt");
 	}
 
-	[Fact]
+	[Test]
 	public void DirectoryInfo_echo()
 	{
 		var result = CliHostRunner.Run("dir-cmd", "--dir", "/tmp/mydir");
@@ -62,7 +61,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("dir:mydir");
 	}
 
-	[Fact]
+	[Test]
 	public void Uri_echo()
 	{
 		var result = CliHostRunner.Run("uri-cmd", "--uri", "https://example.com/path");
@@ -70,7 +69,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("uri:example.com");
 	}
 
-	[Fact]
+	[Test]
 	public void Uri_help_plain_parameter_uses_uri_placeholder()
 	{
 		var result = CliHostRunner.Run("uri-cmd", "--help");
@@ -78,7 +77,7 @@ public class CommandOutputTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(result)).Should().Contain("--uri <uri>");
 	}
 
-	[Fact]
+	[Test]
 	public void CustomParser_point()
 	{
 		var result = CliHostRunner.Run("point-cmd", "--point", "3,4");
@@ -86,7 +85,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("point:3,4");
 	}
 
-	[Fact]
+	[Test]
 	public void CustomParser_property_on_as_parameters()
 	{
 		var result = CliHostRunner.Run("point-as-params-cmd", "--point", "7,8");
@@ -94,7 +93,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("point-as-params:7,8");
 	}
 
-	[Fact]
+	[Test]
 	public void WholeCollection_ArgumentParser_on_IReadOnlySet_parameter()
 	{
 		var result = CliHostRunner.Run("tag-set-parser", "--tags", "c,a,b");
@@ -102,7 +101,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("tag-set-parser:a,b,c");
 	}
 
-	[Fact]
+	[Test]
 	public void WholeCollection_ArgumentParser_on_nullable_IReadOnlySet_parameter_when_provided()
 	{
 		var result = CliHostRunner.Run("tag-set-parser-opt", "--tags", "x,y");
@@ -110,7 +109,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("tag-set-parser-opt:x,y");
 	}
 
-	[Fact]
+	[Test]
 	public void WholeCollection_ArgumentParser_on_nullable_IReadOnlySet_parameter_when_absent()
 	{
 		var result = CliHostRunner.Run("tag-set-parser-opt");
@@ -118,7 +117,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("tag-set-parser-opt:null");
 	}
 
-	[Fact]
+	[Test]
 	public void Anonymous_lambda_command()
 	{
 		var result = CliHostRunner.Run("lambda-cmd", "--msg", "hi");
@@ -126,7 +125,7 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("lambda:hi");
 	}
 
-	[Fact]
+	[Test]
 	public void Documented_named_handler_doc_lambda()
 	{
 		var result = CliHostRunner.Run("doc-lambda", "--line", "ping");
@@ -134,10 +133,10 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("doc-lambda:ping");
 	}
 
-	[Theory]
-	[InlineData(0)]
-	[InlineData(3)]
-	[InlineData(42)]
+	[Test]
+	[Arguments(0)]
+	[Arguments(3)]
+	[Arguments(42)]
 	public void Synchronous_int_returning_method_handler_sets_exit_code(int code)
 	{
 		var result = CliHostRunner.Run("exit-code-cmd", "--code", code.ToString());
@@ -145,9 +144,9 @@ public class CommandOutputTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be($"exit-code:{code}");
 	}
 
-	[Theory]
-	[InlineData(0)]
-	[InlineData(7)]
+	[Test]
+	[Arguments(0)]
+	[Arguments(7)]
 	public void Synchronous_int_returning_lambda_handler_sets_exit_code(int code)
 	{
 		var result = CliHostRunner.Run("exit-code-lambda", "--code", code.ToString());

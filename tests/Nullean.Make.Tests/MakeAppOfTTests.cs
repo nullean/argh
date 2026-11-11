@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh;
-using Xunit;
 
 namespace Nullean.Make.Tests;
 
@@ -20,7 +19,7 @@ public union Build(Clean, Compile, Test, Pack, Release, Db);
 /// <see cref="MakeApp{TUnion}"/> writes to <see cref="Console"/>, so these tests swap the process-wide
 /// writers and must not run in parallel with each other.
 /// </summary>
-[Collection(nameof(ConsoleCollection))]
+[NotInParallel]
 public class MakeAppTests
 {
 	private sealed record Run(int ExitCode, IReadOnlyList<string> Log, string Stdout, string Stderr);
@@ -68,7 +67,7 @@ public class MakeAppTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task Target_runs_its_dependencies_first()
 	{
 		var run = await RunAsync("pack");
@@ -76,7 +75,7 @@ public class MakeAppTests
 		run.Log.Should().Equal("clean", "compile:Release:dry=False:retries=1", "test::0", "pack");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Single_target_skips_dependencies()
 	{
 		var run = await RunAsync("pack", "-s");
@@ -84,7 +83,7 @@ public class MakeAppTests
 		run.Log.Should().Equal("pack");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Target_flags_bind_to_the_case_record()
 	{
 		var run = await RunAsync("test", "--filter", "Unit", "--retries", "3");
@@ -92,7 +91,7 @@ public class MakeAppTests
 		run.Log.Should().EndWith("test:Unit:3");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Global_options_are_visible_to_every_target()
 	{
 		var run = await RunAsync("compile", "--config", "Debug", "--dry-run", "--max-retries", "5");
@@ -100,7 +99,7 @@ public class MakeAppTests
 		run.Log.Should().Equal("clean", "compile:Debug:dry=True:retries=5");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Short_global_flag_is_recognised()
 	{
 		var run = await RunAsync("compile", "-n", "-s");
@@ -108,7 +107,7 @@ public class MakeAppTests
 		run.Log.Should().Equal("compile:Release:dry=True:retries=1");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Nested_union_cases_route_through_a_namespace()
 	{
 		var run = await RunAsync("db", "seed");
@@ -116,7 +115,7 @@ public class MakeAppTests
 		run.Log.Should().Equal("db-migrate", "db-seed");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Command_composes_targets_including_nested_cases()
 	{
 		var run = await RunAsync("release");
@@ -125,7 +124,7 @@ public class MakeAppTests
 		run.Log.ToList().IndexOf("release").Should().BeGreaterThan(run.Log.ToList().IndexOf("pack"));
 	}
 
-	[Fact]
+	[Test]
 	public async Task Unknown_target_exits_2()
 	{
 		var run = await RunAsync("deploy");
@@ -134,7 +133,7 @@ public class MakeAppTests
 		run.Log.Should().BeEmpty();
 	}
 
-	[Fact]
+	[Test]
 	public async Task Unknown_target_flag_exits_2_with_a_suggestion()
 	{
 		var run = await RunAsync("test", "--filtr", "Unit", "-s");
@@ -143,7 +142,7 @@ public class MakeAppTests
 		run.Stderr.Should().Contain("--filter");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Unparseable_global_option_value_exits_2()
 	{
 		var run = await RunAsync("compile", "--max-retries", "lots");
@@ -152,7 +151,7 @@ public class MakeAppTests
 		run.Log.Should().BeEmpty();
 	}
 
-	[Fact]
+	[Test]
 	public async Task Global_option_without_a_value_exits_2()
 	{
 		var run = await RunAsync("compile", "--config");
@@ -161,7 +160,7 @@ public class MakeAppTests
 		run.Log.Should().BeEmpty();
 	}
 
-	[Fact]
+	[Test]
 	public async Task Root_help_lists_targets_and_global_options()
 	{
 		var run = await RunAsync("--help");
@@ -174,7 +173,7 @@ public class MakeAppTests
 		run.Log.Should().BeEmpty();
 	}
 
-	[Fact]
+	[Test]
 	public async Task Namespace_help_lists_nested_union_cases()
 	{
 		var run = await RunAsync("db", "--help");
@@ -184,7 +183,7 @@ public class MakeAppTests
 		run.Log.Should().BeEmpty();
 	}
 
-	[Fact]
+	[Test]
 	public async Task Target_help_lists_its_flags()
 	{
 		var run = await RunAsync("test", "--help");
@@ -193,7 +192,7 @@ public class MakeAppTests
 		run.Log.Should().BeEmpty();
 	}
 
-	[Fact]
+	[Test]
 	public async Task Dependency_on_a_type_that_is_not_a_case_fails_before_running()
 	{
 		var ran = false;
@@ -218,7 +217,7 @@ public class MakeAppTests
 		ran.Should().BeFalse();
 	}
 
-	[Fact]
+	[Test]
 	public async Task Bind_is_required()
 	{
 		var app = new MakeApp<Build>("build");

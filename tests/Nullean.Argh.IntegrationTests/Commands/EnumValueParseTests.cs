@@ -1,16 +1,15 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Commands;
 
 public class EnumValueParseTests
 {
-	[Theory]
-	[InlineData("fire-red", "FireRed")]
-	[InlineData("FIRE-RED", "FireRed")]
-	[InlineData("ocean-blue", "OceanBlue")]
-	[InlineData("green", "Green")]
+	[Test]
+	[Arguments("fire-red", "FireRed")]
+	[Arguments("FIRE-RED", "FireRed")]
+	[Arguments("ocean-blue", "OceanBlue")]
+	[Arguments("green", "Green")]
 	public void EnumValue_custom_cli_strings_parse_to_correct_member(string cliInput, string expectedMember)
 	{
 		var result = CliHostRunner.Run(
@@ -21,7 +20,7 @@ public class EnumValueParseTests
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(result)).Should().Contain($"enum-value:{expectedMember}");
 	}
 
-	[Fact]
+	[Test]
 	public void EnumValue_old_identifier_name_is_rejected()
 	{
 		var result = CliHostRunner.Run(
@@ -33,7 +32,7 @@ public class EnumValueParseTests
 		err.Should().Contain("Error: invalid value for --palette: 'firered'.");
 	}
 
-	[Fact]
+	[Test]
 	public void EnumValue_invalid_value_reports_error_with_flag_name()
 	{
 		var result = CliHostRunner.Run(

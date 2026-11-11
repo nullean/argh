@@ -1,7 +1,7 @@
+using AwesomeAssertions;
 using System.Collections;
 using ProcNet;
 using ProcNet.Std;
-using Xunit;
 
 namespace Argh.ExternalNs.GlobalOptions.Repro.Tests;
 
@@ -35,27 +35,27 @@ public class ExternalNsGlobalOptionsTests
 	private static string Stdout(ProcessCaptureResult r) =>
 		string.Join("\n", r.ConsoleOut.Cast<LineOut>().Where(l => !l.Error).Select(l => l.Line)).Trim();
 
-	[Fact]
+	[Test]
 	public void External_ns_global_options_defaults_used_when_flags_absent()
 	{
 		var result = Run("echo");
-		Assert.Equal(0, result.ExitCode);
-		Assert.Equal("verbose=False tag=default", Stdout(result));
+		result.ExitCode.Should().Be(0);
+		Stdout(result).Should().Be("verbose=False tag=default");
 	}
 
-	[Fact]
+	[Test]
 	public void External_ns_global_options_verbose_flag_parsed()
 	{
 		var result = Run("echo", "--verbose");
-		Assert.Equal(0, result.ExitCode);
-		Assert.Equal("verbose=True tag=default", Stdout(result));
+		result.ExitCode.Should().Be(0);
+		Stdout(result).Should().Be("verbose=True tag=default");
 	}
 
-	[Fact]
+	[Test]
 	public void External_ns_global_options_tag_flag_parsed()
 	{
 		var result = Run("echo", "--tag", "custom");
-		Assert.Equal(0, result.ExitCode);
-		Assert.Equal("verbose=False tag=custom", Stdout(result));
+		result.ExitCode.Should().Be(0);
+		Stdout(result).Should().Be("verbose=False tag=custom");
 	}
 }

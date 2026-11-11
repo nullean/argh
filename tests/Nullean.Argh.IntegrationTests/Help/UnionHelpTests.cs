@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Help;
 
@@ -22,7 +21,7 @@ public class UnionHelpTests
 	private static string Expected(string s) =>
 		TrimLines(s.ReplaceLineEndings("\n").TrimEnd('\r', '\n') + "\n");
 
-	[Fact]
+	[Test]
 	public void Flag_mode_help_lists_cases_and_case_flags()
 	{
 		Help("union-format-flag").Should().Be(Expected($"""
@@ -46,7 +45,7 @@ public class UnionHelpTests
 			"""));
 	}
 
-	[Fact]
+	[Test]
 	public void Argument_mode_help_lists_cases_and_shared_case_flags_once()
 	{
 		Help("union-format-arg").Should().Be(Expected($"""
@@ -70,7 +69,7 @@ public class UnionHelpTests
 			"""));
 	}
 
-	[Fact]
+	[Test]
 	public void Case_flags_show_plain_defaults_enum_choices_and_negatable_bools()
 	{
 		var help = Help("union-shape");

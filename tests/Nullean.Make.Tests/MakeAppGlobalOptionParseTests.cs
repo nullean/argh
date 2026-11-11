@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh;
-using Xunit;
 
 namespace Nullean.Make.Tests;
 
@@ -22,7 +21,7 @@ public class GlobalOptionParseBuild : MakeBuild
 	public Target Run => _ => _.Executes(() => Log.Add($"run:{Parallel}:{Ratio}:{Level}"));
 }
 
-[Collection(nameof(ConsoleCollection))]
+[NotInParallel]
 public class MakeAppGlobalOptionParseTests
 {
 	private static async Task<(int ExitCode, string Stderr)> RunAsync(params string[] args)
@@ -44,7 +43,7 @@ public class MakeAppGlobalOptionParseTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task Typed_global_options_bind()
 	{
 		var (exit, stderr) = await RunAsync("run", "--parallel", "4", "--ratio", "0.5", "--level", "high");
@@ -52,10 +51,10 @@ public class MakeAppGlobalOptionParseTests
 		GlobalOptionParseBuild.Log.Should().Equal("run:4:0.5:High");
 	}
 
-	[Theory]
-	[InlineData("--parallel", "lots")]
-	[InlineData("--ratio", "half")]
-	[InlineData("--level", "extreme")]
+	[Test]
+	[Arguments("--parallel", "lots")]
+	[Arguments("--ratio", "half")]
+	[Arguments("--level", "extreme")]
 	public async Task Unparseable_global_option_value_exits_2_without_running(string flag, string value)
 	{
 		var (exit, stderr) = await RunAsync("run", flag, value);
@@ -64,7 +63,7 @@ public class MakeAppGlobalOptionParseTests
 		GlobalOptionParseBuild.Log.Should().BeEmpty();
 	}
 
-	[Fact]
+	[Test]
 	public async Task Global_option_without_a_value_exits_2()
 	{
 		var (exit, stderr) = await RunAsync("run", "--parallel");

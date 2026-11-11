@@ -1,12 +1,11 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Middleware;
 
 public class MiddlewareStderrTests
 {
-	[Fact]
+	[Test]
 	public void Hello_emits_global_and_per_command_middleware_markers_on_stderr()
 	{
 		var result = CliHostRunner.Run("hello", "--name", "x");

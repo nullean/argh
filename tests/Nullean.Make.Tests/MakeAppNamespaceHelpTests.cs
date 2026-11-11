@@ -1,5 +1,4 @@
-using FluentAssertions;
-using Xunit;
+using AwesomeAssertions;
 
 namespace Nullean.Make.Tests;
 
@@ -19,7 +18,7 @@ public class NamespaceHelpBuild : MakeBuild
 /// <see cref="MakeApp"/> writes to <see cref="Console"/>, so these tests swap the process-wide writers and
 /// must not run in parallel with other tests that do the same.
 /// </summary>
-[Collection(nameof(ConsoleCollection))]
+[NotInParallel]
 public class MakeAppNamespaceHelpTests
 {
 	private static async Task<(int ExitCode, string Stdout)> RunAsync(params string[] args)
@@ -38,7 +37,7 @@ public class MakeAppNamespaceHelpTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task Namespace_help_lists_the_namespace_targets()
 	{
 		var (exit, stdout) = await RunAsync("schema", "--help");
@@ -50,7 +49,7 @@ public class MakeAppNamespaceHelpTests
 		stdout.Should().NotContain("Delete artifacts");
 	}
 
-	[Fact]
+	[Test]
 	public async Task Root_help_still_lists_root_targets_and_namespaces()
 	{
 		var (exit, stdout) = await RunAsync("--help");

@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Help;
 
@@ -9,7 +8,7 @@ public class HelpContentTests
 	private static string TrimLines(string s) =>
 		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
 
-	[Fact]
+	[Test]
 	public void HelloHelp_with_NO_COLOR_omits_ansi()
 	{
 		var result = CliHostRunner.Run(
@@ -42,7 +41,7 @@ public class HelpContentTests
 		TrimLines(text).Should().Be(TrimLines(expected));
 	}
 
-	[Fact]
+	[Test]
 	public void DocLambda_help_matches_expected_text()
 	{
 		var result = CliHostRunner.Run(
@@ -72,7 +71,7 @@ public class HelpContentTests
 		TrimLines(text).Should().Be(TrimLines(expected));
 	}
 
-	[Fact]
+	[Test]
 	public void BraceDoc_help_shows_braces_from_xml_doc_without_breaking_build()
 	{
 		var result = CliHostRunner.Run(

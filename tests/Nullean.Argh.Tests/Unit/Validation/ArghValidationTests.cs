@@ -1,12 +1,11 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.Runtime;
 using Nullean.Argh.Tests.Fixtures;
 using Nullean.Argh.Validation;
-using Xunit;
 
 namespace Nullean.Argh.Tests.Unit.Validation;
 
-[Collection("Console")]
+[NotInParallel]
 public class ArghValidationTests : IDisposable
 {
 	public ArghValidationTests() => ArghValidation.Clear();
@@ -28,7 +27,7 @@ public class ArghValidationTests : IDisposable
 		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task A_registered_validator_failure_prints_like_a_built_in_check_and_exits_2()
 	{
 		ArghValidation.Register<AsParamsWithCtArgs>(a => a.Port > 1024 ? [] : [new ArghValidationError("must be above 1024", nameof(AsParamsWithCtArgs.Port))]);
@@ -40,7 +39,7 @@ public class ArghValidationTests : IDisposable
 		err.Should().Contain("for usage.");
 	}
 
-	[Fact]
+	[Test]
 	public async Task A_registered_validator_that_passes_lets_the_command_run()
 	{
 		ArghValidation.Register<AsParamsWithCtArgs>(a => a.Port > 1024 ? [] : [new ArghValidationError("must be above 1024", nameof(AsParamsWithCtArgs.Port))]);
@@ -50,7 +49,7 @@ public class ArghValidationTests : IDisposable
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public async Task Without_registered_validators_nothing_changes()
 	{
 		var (code, _) = await Run("as-params-with-ct", "--run-env", "prod", "--run-port", "80");
@@ -58,7 +57,7 @@ public class ArghValidationTests : IDisposable
 		code.Should().Be(0);
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_runs_the_validator_too_and_reports_failure_as_false()
 	{
 		ArghValidation.Register<AsParamsWithCtArgs>(a => a.Port > 1024 ? [] : [new ArghValidationError("must be above 1024", nameof(AsParamsWithCtArgs.Port))]);
@@ -78,7 +77,7 @@ public class ArghValidationTests : IDisposable
 		err.ToString().Should().Contain("Error: --run-port: must be above 1024");
 	}
 
-	[Fact]
+	[Test]
 	public async Task A_validator_for_the_global_options_type_runs_before_any_command()
 	{
 		ArghValidation.Register<TestGlobalCliOptions>(o => o.Verbose ? [new ArghValidationError("verbose is not allowed here", nameof(TestGlobalCliOptions.Verbose))] : []);

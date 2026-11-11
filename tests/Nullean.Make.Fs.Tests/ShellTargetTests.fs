@@ -2,7 +2,7 @@ module Nullean.Make.Fs.Tests.ShellTargetTests
 
 open System
 open System.IO
-open Xunit
+open TUnit.Core
 open Nullean.Make.Fs
 open Proc.Fs
 
@@ -59,47 +59,47 @@ let private runShell (args: string list) =
 let private ok (r: Result) =
     if r.ExitCode <> 0 then failwithf "expected exit 0, got %d. stderr: %s" r.ExitCode r.Stderr
 
-[<Collection("Console")>]
+[<NotInParallel>]
 type ShellTargetTests() =
 
-    [<Fact>]
+    [<Test>]
     member _.``sh runs a command in a target block``() =
         let r = runShell ["version"]
         ok r
         Assert.Equal<string list>(["version"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``let! text captures standard out, placeholders included``() =
         let r = runShell ["capture"]
         ok r
         Assert.Equal<string list>(["major:11"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``let! lines feeds a for loop``() =
         let r = runShell ["loop"]
         ok r
         Assert.Equal<string list>(["sdk-line:True"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``succeeds reports failure without throwing``() =
         let r = runShell ["branch"]
         ok r
         Assert.Equal<string list>(["failed-without-throwing"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``inDir changes the directory for the rest of the block``() =
         let r = runShell ["folder"]
         ok r
         Assert.Equal<string list>(["in-temp:True"], r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``a failing sh fails the target and stops the block``() =
         let r = runShell ["fails"]
         Assert.Equal(1, r.ExitCode)
         Assert.Contains("[make] Target 'fails' failed", r.Stderr)
         Assert.Empty(r.Log)
 
-    [<Fact>]
+    [<Test>]
     member _.``shell blocks are deferred until their target runs``() =
         let r = runShell ["after-version"; "-s"]
         ok r

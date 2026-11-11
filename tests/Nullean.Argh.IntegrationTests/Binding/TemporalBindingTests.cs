@@ -1,12 +1,11 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Binding;
 
 public class TemporalBindingTests
 {
-	[Fact]
+	[Test]
 	public void TemporalCmd_compact_timespan_and_date_only()
 	{
 		var result = CliHostRunner.Run("temporal-cmd", "--duration", "5m", "--on", "2024-06-15");
@@ -14,7 +13,7 @@ public class TemporalBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("temporal:300:2024-06-15");
 	}
 
-	[Fact]
+	[Test]
 	public void TemporalCmd_standard_timespan_fallback()
 	{
 		var result = CliHostRunner.Run("temporal-cmd", "--duration", "01:30:00", "--on", "2024-01-01");
@@ -22,7 +21,7 @@ public class TemporalBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("temporal:5400:2024-01-01");
 	}
 
-	[Fact]
+	[Test]
 	public void ValidateTimeSpanRange_in_range_succeeds()
 	{
 		var result = CliHostRunner.Run("validate-timespan-range", "--window", "30m");
@@ -30,7 +29,7 @@ public class TemporalBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("ts-range:30");
 	}
 
-	[Fact]
+	[Test]
 	public void ValidateTimeSpanRange_out_of_range_exits_2()
 	{
 		var result = CliHostRunner.Run("validate-timespan-range", "--window", "3h");

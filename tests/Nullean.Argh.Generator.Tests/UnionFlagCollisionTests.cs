@@ -1,9 +1,9 @@
+using AwesomeAssertions;
 using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
-using Xunit;
 
 namespace Nullean.Argh.Generator.Tests;
 
@@ -50,7 +50,7 @@ public class UnionFlagCollisionTests
 		var compilation = CSharpCompilation.Create("App", new[] { tree }, references,
 			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 		var sourceErrors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
-		Assert.True(sourceErrors.Count == 0, string.Join(Environment.NewLine, sourceErrors));
+		(sourceErrors.Count == 0).Should().BeTrue(string.Join(Environment.NewLine, sourceErrors));
 
 		var driver = CSharpGeneratorDriver.Create(new CliParserGenerator());
 		driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out var diagnostics);
@@ -65,7 +65,7 @@ public class UnionFlagCollisionTests
 		public Format(Table value) => Value = value;
 		""";
 
-	[Fact]
+	[Test]
 	public void Flag_mode_case_flag_colliding_with_another_flag_is_reported()
 	{
 		var diagnostics = RunGenerator(Source(
@@ -73,12 +73,12 @@ public class UnionFlagCollisionTests
 			JsonTableCtors,
 			"public static void Convert(Format format, bool jsonPretty = false) { }"));
 
-		var d = Assert.Single(Agh0036(diagnostics));
-		Assert.Equal(DiagnosticSeverity.Error, d.Severity);
-		Assert.Contains("--json-pretty", d.GetMessage());
+		var d = Agh0036(diagnostics).Should().ContainSingle().Which;
+		d.Severity.Should().Be(DiagnosticSeverity.Error);
+		d.GetMessage().Should().Contain("--json-pretty");
 	}
 
-	[Fact]
+	[Test]
 	public void Flag_mode_case_flag_colliding_with_another_case_flag_is_reported()
 	{
 		// Json.PrettyPrint and JsonPretty.Print both map to --json-pretty-print.
@@ -90,11 +90,11 @@ public class UnionFlagCollisionTests
 			""",
 			"public static void Convert(Format format) { }"));
 
-		var d = Assert.Single(Agh0036(diagnostics));
-		Assert.Contains("--json-pretty-print", d.GetMessage());
+		var d = Agh0036(diagnostics).Should().ContainSingle().Which;
+		d.GetMessage().Should().Contain("--json-pretty-print");
 	}
 
-	[Fact]
+	[Test]
 	public void Argument_mode_shared_prop_with_different_types_is_reported()
 	{
 		var diagnostics = RunGenerator(Source(
@@ -102,11 +102,11 @@ public class UnionFlagCollisionTests
 			JsonTableCtors,
 			"public static void Convert([Argument] Format format) { }"));
 
-		var d = Assert.Single(Agh0036(diagnostics));
-		Assert.Contains("--pretty", d.GetMessage());
+		var d = Agh0036(diagnostics).Should().ContainSingle().Which;
+		d.GetMessage().Should().Contain("--pretty");
 	}
 
-	[Fact]
+	[Test]
 	public void Duplicate_case_cli_names_are_reported()
 	{
 		var diagnostics = RunGenerator(Source(
@@ -117,11 +117,11 @@ public class UnionFlagCollisionTests
 			""",
 			"public static void Convert(Format format) { }"));
 
-		var d = Assert.Single(Agh0036(diagnostics));
-		Assert.Contains("case 'json'", d.GetMessage());
+		var d = Agh0036(diagnostics).Should().ContainSingle().Which;
+		d.GetMessage().Should().Contain("case 'json'");
 	}
 
-	[Fact]
+	[Test]
 	public void Argument_mode_shared_prop_with_the_same_type_is_allowed()
 	{
 		var diagnostics = RunGenerator(Source(
@@ -129,10 +129,10 @@ public class UnionFlagCollisionTests
 			JsonTableCtors,
 			"public static void Convert([Argument] Format format) { }"));
 
-		Assert.Empty(Agh0036(diagnostics));
+		Agh0036(diagnostics).Should().BeEmpty();
 	}
 
-	[Fact]
+	[Test]
 	public void Flag_mode_prefixed_case_flags_do_not_collide()
 	{
 		var diagnostics = RunGenerator(Source(
@@ -140,14 +140,14 @@ public class UnionFlagCollisionTests
 			JsonTableCtors,
 			"public static void Convert(Format format, bool verbose = false) { }"));
 
-		Assert.Empty(Agh0036(diagnostics));
+		Agh0036(diagnostics).Should().BeEmpty();
 	}
 
-	[Theory]
-	[InlineData("System.DateTime Since = default", "'Json.Since' (DateTime)")]
-	[InlineData("int? Indent = null", "'Json.Indent' (int?)")]
-	[InlineData("bool? Pretty = null", "'Json.Pretty' (bool?)")]
-	[InlineData("string[]? Tags = null", "'Json.Tags' (string[]?)")]
+	[Test]
+	[Arguments("System.DateTime Since = default", "'Json.Since' (DateTime)")]
+	[Arguments("int? Indent = null", "'Json.Indent' (int?)")]
+	[Arguments("bool? Pretty = null", "'Json.Pretty' (bool?)")]
+	[Arguments("string[]? Tags = null", "'Json.Tags' (string[]?)")]
 	public void Unsupported_case_property_type_is_reported(string ctorParam, string expected)
 	{
 		var diagnostics = RunGenerator(Source(
@@ -155,12 +155,12 @@ public class UnionFlagCollisionTests
 			JsonTableCtors,
 			"public static void Convert(Format format) { }"));
 
-		var d = Assert.Single(diagnostics, x => x.Id == "AGH0037");
-		Assert.Equal(DiagnosticSeverity.Error, d.Severity);
-		Assert.Contains(expected, d.GetMessage());
+		var d = diagnostics.Should().ContainSingle(x => x.Id == "AGH0037").Which;
+		d.Severity.Should().Be(DiagnosticSeverity.Error);
+		d.GetMessage().Should().Contain(expected);
 	}
 
-	[Fact]
+	[Test]
 	public void Supported_case_property_types_are_not_reported()
 	{
 		var diagnostics = RunGenerator(Source(
@@ -168,7 +168,7 @@ public class UnionFlagCollisionTests
 			JsonTableCtors,
 			"public static void Convert(Format format) { }"));
 
-		Assert.DoesNotContain(diagnostics, x => x.Id == "AGH0037");
+		diagnostics.Should().NotContain(x => x.Id == "AGH0037");
 	}
 
 	private static string GlobalOptionsSource(string globalProps) => $$"""
@@ -207,29 +207,29 @@ public class UnionFlagCollisionTests
 		}
 		""";
 
-	[Fact]
+	[Test]
 	public void Case_flag_colliding_with_a_global_option_is_reported()
 	{
 		var diagnostics = RunGenerator(GlobalOptionsSource("public bool JsonPretty { get; set; }"));
 
-		var d = Assert.Single(Agh0036(diagnostics));
-		Assert.Contains("--json-pretty (also in global options)", d.GetMessage());
+		var d = Agh0036(diagnostics).Should().ContainSingle().Which;
+		d.GetMessage().Should().Contain("--json-pretty (also in global options)");
 	}
 
-	[Fact]
+	[Test]
 	public void Selector_colliding_with_a_global_option_is_reported()
 	{
 		var diagnostics = RunGenerator(GlobalOptionsSource("public string? Format { get; set; }"));
 
-		var d = Assert.Single(Agh0036(diagnostics));
-		Assert.Contains("--format (also in global options)", d.GetMessage());
+		var d = Agh0036(diagnostics).Should().ContainSingle().Which;
+		d.GetMessage().Should().Contain("--format (also in global options)");
 	}
 
-	[Fact]
+	[Test]
 	public void Unrelated_global_options_are_not_reported()
 	{
 		var diagnostics = RunGenerator(GlobalOptionsSource("public bool Verbose { get; set; }"));
 
-		Assert.Empty(Agh0036(diagnostics));
+		Agh0036(diagnostics).Should().BeEmpty();
 	}
 }

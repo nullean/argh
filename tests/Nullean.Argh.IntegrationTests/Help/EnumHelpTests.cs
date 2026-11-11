@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Help;
 
@@ -9,7 +8,7 @@ public class EnumHelpTests
 	private static string TrimLines(string s) =>
 		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
 
-	[Fact]
+	[Test]
 	public void Enum_cmd_help_matches_expected_text()
 	{
 		var result = CliHostRunner.Run(
@@ -38,7 +37,7 @@ public class EnumHelpTests
 		TrimLines(text).Should().Be(TrimLines(expected));
 	}
 
-	[Fact]
+	[Test]
 	public void ReadOnlySet_of_enum_lists_allowed_members_in_help()
 	{
 		var result = CliHostRunner.Run(

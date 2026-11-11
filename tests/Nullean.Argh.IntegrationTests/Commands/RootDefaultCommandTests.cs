@@ -1,13 +1,12 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Commands;
 
 /// <summary>Subprocess tests for app-root <c>MapAndRootAlias</c> (and <c>MapRoot</c> in namespaces) defaults.</summary>
 public class RootDefaultCommandTests
 {
-	[Fact]
+	[Test]
 	public void No_args_invokes_root_default_handler()
 	{
 		var result = CliHostRunner.Run();
@@ -15,7 +14,7 @@ public class RootDefaultCommandTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("marker:root-default");
 	}
 
-	[Fact]
+	[Test]
 	public void Global_flags_only_invokes_root_default_handler()
 	{
 		var result = CliHostRunner.Run("--verbose");
@@ -23,7 +22,7 @@ public class RootDefaultCommandTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("marker:root-default");
 	}
 
-	[Fact]
+	[Test]
 	public void Global_short_verbose_only_invokes_root_default_handler()
 	{
 		var result = CliHostRunner.Run("-v");
@@ -31,7 +30,7 @@ public class RootDefaultCommandTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("marker:root-default");
 	}
 
-	[Fact]
+	[Test]
 	public void Root_alias_command_flag_before_subcommand_name_routes_to_default()
 	{
 		var result = CliHostRunner.Run("--prefetch-regression");
@@ -39,7 +38,7 @@ public class RootDefaultCommandTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("marker:root-default:prefetch");
 	}
 
-	[Fact]
+	[Test]
 	public void Namespace_only_with_required_namespace_options_invokes_namespace_root()
 	{
 		var result = CliHostRunner.Run("storage", "--prefix", "p1");
@@ -47,7 +46,7 @@ public class RootDefaultCommandTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("marker:storage-ns-root");
 	}
 
-	[Fact]
+	[Test]
 	public void Root_help_mentions_root_command_section()
 	{
 		var result = CliHostRunner.Run(
@@ -59,7 +58,7 @@ public class RootDefaultCommandTests
 		text.Should().Contain("Integration-test default when no sub-command is given at the app root.");
 	}
 
-	[Fact]
+	[Test]
 	public void Storage_help_mentions_namespace_root_section()
 	{
 		var result = CliHostRunner.Run(

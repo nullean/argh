@@ -1,12 +1,11 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Completions;
 
 public class CompletionsTests
 {
-	[Fact]
+	[Test]
 	public void Zsh_nonempty()
 	{
 		var result = CliHostRunner.Run("__completion", "zsh");
@@ -14,7 +13,7 @@ public class CompletionsTests
 		CliHostRunner.StdoutText(result).Should().NotBeNullOrWhiteSpace();
 	}
 
-	[Fact]
+	[Test]
 	public void Fish_nonempty()
 	{
 		var result = CliHostRunner.Run("__completion", "fish");
@@ -22,7 +21,7 @@ public class CompletionsTests
 		CliHostRunner.StdoutText(result).Should().NotBeNullOrWhiteSpace();
 	}
 
-	[Fact]
+	[Test]
 	public void Zsh_contains_complete_keyword()
 	{
 		var result = CliHostRunner.Run("__completion", "zsh");
@@ -30,7 +29,7 @@ public class CompletionsTests
 		CliHostRunner.StdoutText(result).Should().Contain("complete");
 	}
 
-	[Fact]
+	[Test]
 	public void Fish_contains_complete_keyword()
 	{
 		var result = CliHostRunner.Run("__completion", "fish");
@@ -38,7 +37,7 @@ public class CompletionsTests
 		CliHostRunner.StdoutText(result).Should().Contain("complete");
 	}
 
-	[Fact]
+	[Test]
 	public void Complete_bash_root_emits_command_names()
 	{
 		var result = CliHostRunner.Run("__complete", "bash", "--");
@@ -48,7 +47,7 @@ public class CompletionsTests
 		stdout.Should().Contain("storage");
 	}
 
-	[Fact]
+	[Test]
 	public void Complete_bash_after_storage_namespace_emits_subcommands()
 	{
 		var result = CliHostRunner.Run("__complete", "bash", "--", "storage", "");
@@ -58,7 +57,7 @@ public class CompletionsTests
 		stdout.Should().Contain("list");
 	}
 
-	[Fact]
+	[Test]
 	public void Complete_unknown_shell_exits_nonzero()
 	{
 		var result = CliHostRunner.Run("__complete", "pwsh", "--");

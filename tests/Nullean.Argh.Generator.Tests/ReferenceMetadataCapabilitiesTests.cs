@@ -1,20 +1,20 @@
+using AwesomeAssertions;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Xunit;
 
 namespace Nullean.Argh.Generator.Tests;
 
 public class ReferenceMetadataCapabilitiesTests
 {
-	[Fact]
+	[Test]
 	public void Compute_empty_is_all_false()
 	{
 		var c = ReferenceMetadataCapabilities.Compute(ImmutableArray<MetadataReference>.Empty);
-		Assert.False(c.HasMicrosoftExtensionsDependencyInjection);
-		Assert.False(c.HasMicrosoftExtensionsHosting);
+		c.HasMicrosoftExtensionsDependencyInjection.Should().BeFalse();
+		c.HasMicrosoftExtensionsHosting.Should().BeFalse();
 	}
 
-	[Fact]
+	[Test]
 	public void Compute_detects_di_and_host_by_display_suffix()
 	{
 		var baseDir = Path.Combine(Path.GetTempPath(), "argh-refcap-" + Guid.NewGuid());
@@ -30,8 +30,8 @@ public class ReferenceMetadataCapabilitiesTests
 				MetadataReference.CreateFromFile(diPath),
 				MetadataReference.CreateFromFile(hostPath));
 			var c = ReferenceMetadataCapabilities.Compute(refs);
-			Assert.True(c.HasMicrosoftExtensionsDependencyInjection);
-			Assert.True(c.HasMicrosoftExtensionsHosting);
+			c.HasMicrosoftExtensionsDependencyInjection.Should().BeTrue();
+			c.HasMicrosoftExtensionsHosting.Should().BeTrue();
 		}
 		finally
 		{
@@ -46,7 +46,7 @@ public class ReferenceMetadataCapabilitiesTests
 		}
 	}
 
-	[Fact]
+	[Test]
 	public void Compute_mismatch_suffix_does_not_set_flags()
 	{
 		var baseDir = Path.Combine(Path.GetTempPath(), "argh-refcap-" + Guid.NewGuid());
@@ -59,8 +59,8 @@ public class ReferenceMetadataCapabilitiesTests
 			ImmutableArray<MetadataReference> refs = ImmutableArray.Create<MetadataReference>(
 				MetadataReference.CreateFromFile(otherPath));
 			var c = ReferenceMetadataCapabilities.Compute(refs);
-			Assert.False(c.HasMicrosoftExtensionsDependencyInjection);
-			Assert.False(c.HasMicrosoftExtensionsHosting);
+			c.HasMicrosoftExtensionsDependencyInjection.Should().BeFalse();
+			c.HasMicrosoftExtensionsHosting.Should().BeFalse();
 		}
 		finally
 		{

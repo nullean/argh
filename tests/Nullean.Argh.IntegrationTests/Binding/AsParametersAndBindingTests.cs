@@ -1,12 +1,11 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Binding;
 
 public class AsParametersAndBindingTests
 {
-	[Fact]
+	[Test]
 	public void Deploy_AsParameters_prefixed()
 	{
 		var result = CliHostRunner.Run("deploy", "--app-env", "prod", "--app-port", "8080");
@@ -14,7 +13,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("deploy:prod:8080");
 	}
 
-	[Fact]
+	[Test]
 	public void AsParameters_DTO_includes_injected_CancellationToken_from_runtime()
 	{
 		var result = CliHostRunner.Run("as-params-with-ct", "--run-env", "prod", "--run-port", "8080");
@@ -22,7 +21,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-ct:prod:8080:True");
 	}
 
-	[Fact]
+	[Test]
 	public void Nullable_numeric_AsParameters_binds_prefixed_flags()
 	{
 		var result = CliHostRunner.Run(
@@ -31,7 +30,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("nullable-numeric:12:3");
 	}
 
-	[Fact]
+	[Test]
 	public void Optional_Uri_AsParameters_omitted_flag_binds_null()
 	{
 		var result = CliHostRunner.Run("optional-uri-as-params");
@@ -39,7 +38,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("optional-uri:null");
 	}
 
-	[Fact]
+	[Test]
 	public void Optional_Uri_AsParameters_passed_flag_binds_value()
 	{
 		var result = CliHostRunner.Run("optional-uri-as-params", "--endpoint", "https://example.com/path");
@@ -47,7 +46,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("optional-uri:https://example.com/path");
 	}
 
-	[Fact]
+	[Test]
 	public void Tags_repeated_flags()
 	{
 		var result = CliHostRunner.Run("tags", "--tags", "a", "--tags", "b");
@@ -55,7 +54,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("tags:a,b");
 	}
 
-	[Fact]
+	[Test]
 	public void AsParameters_CollectionSyntax_property_target_binds_supported_collections()
 	{
 		var result = CliHostRunner.Run(
@@ -67,7 +66,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-collection-syntax:1,2,3:alpha,beta:80,443");
 	}
 
-	[Fact]
+	[Test]
 	public void AsParameters_CollectionSyntax_property_target_rejects_readonlyset_duplicates()
 	{
 		var result = CliHostRunner.Run("as-params-collection-syntax", "--cs-tag-ids", "1,1", "--cs-labels", "x", "--cs-ports", "80");
@@ -75,7 +74,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StderrText(result).Should().Contain("duplicate value");
 	}
 
-	[Fact]
+	[Test]
 	public void AsParameters_optional_init_property_with_CollectionSyntax_omitted_flag_binds_null()
 	{
 		var result = CliHostRunner.Run("as-params-optional-collection-syntax");
@@ -83,7 +82,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-optional-collection-syntax:null:null");
 	}
 
-	[Fact]
+	[Test]
 	public void AsParameters_optional_init_property_with_CollectionSyntax_parses_csv_values()
 	{
 		var result = CliHostRunner.Run(
@@ -94,7 +93,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-optional-collection-syntax:1,2,3:dist");
 	}
 
-	[Fact]
+	[Test]
 	public void AsParameters_referenced_project_type_binds_flags()
 	{
 		var result = CliHostRunner.Run(
@@ -105,7 +104,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:.artifacts/site:null");
 	}
 
-	[Fact]
+	[Test]
 	public void AsParameters_referenced_project_short_path_flag_works()
 	{
 		var result = CliHostRunner.Run("as-params-referenced-dto", "-p", "docs", "--output", ".artifacts/site");
@@ -113,7 +112,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:.artifacts/site:null");
 	}
 
-	[Fact]
+	[Test]
 	public void AsParameters_referenced_project_short_flag_only_sets_path()
 	{
 		var result = CliHostRunner.Run("as-params-referenced-dto", "-p", "docs");
@@ -121,7 +120,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("as-params-referenced:docs:null:null");
 	}
 
-	[Fact]
+	[Test]
 	public void Non_nullable_AsParameters_property_with_default_uses_default_value_when_omitted()
 	{
 		// MultiEnumAsParamsArgs.Severity defaults to FixtureSeverity.Information when --mix-severity is not provided
@@ -131,7 +130,7 @@ public class AsParametersAndBindingTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("multi-enum:Information:null");
 	}
 
-	[Fact]
+	[Test]
 	public void Non_nullable_method_param_with_default_uses_default_value_when_omitted()
 	{
 		// ValidateNonNullableRange: int pagePer = 20 — default used when --page-per is not provided

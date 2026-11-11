@@ -1,14 +1,13 @@
 using External.Ns.Options;
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.Tests.Fixtures;
 using Nullean.Argh.Tests.ReferencedDtos;
-using Xunit;
 
 namespace Nullean.Argh.Tests.Unit.Binding;
 
 public class TryParseArghTests
 {
-	[Fact]
+	[Test]
 	public void TryParseArgh_static_on_options_type_binds_global_flags()
 	{
 		var ok = TestGlobalCliOptions.TryParseArgh(["--verbose"], out var o);
@@ -17,7 +16,7 @@ public class TryParseArghTests
 		o.Verbose.Should().BeTrue();
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_static_on_options_type_binds_global_short_bool_without_value()
 	{
 		var ok = TestGlobalCliOptions.TryParseArgh(["-v"], out var o);
@@ -26,7 +25,7 @@ public class TryParseArghTests
 		o.Verbose.Should().BeTrue();
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_static_on_command_namespace_options_binds_inherited_and_namespace_flags()
 	{
 		var ok = TestStorageCommandNamespaceOptions.TryParseArgh(
@@ -38,7 +37,7 @@ public class TryParseArghTests
 		s.Prefix.Should().Be("pre");
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_static_on_AsParameters_record_binds_prefixed_flags()
 	{
 		var ok = DeployCliArgs.TryParseArgh(
@@ -50,7 +49,7 @@ public class TryParseArghTests
 		d.Port.Should().Be(8080);
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_static_on_AsParameters_record_uses_default_CancellationToken_for_injected_member()
 	{
 		var ok = AsParamsWithCtArgs.TryParseArgh(
@@ -63,7 +62,7 @@ public class TryParseArghTests
 		a.Ct.CanBeCanceled.Should().BeFalse();
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_static_on_AsParameters_record_binds_nullable_int_flags()
 	{
 		var ok = NullableNumericAsParamsArgs.TryParseArgh(
@@ -75,7 +74,7 @@ public class TryParseArghTests
 		a.MaxPages.Should().Be(5);
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_static_on_AsParameters_omitted_nullable_int_flags_are_null()
 	{
 		var ok = NullableNumericAsParamsArgs.TryParseArgh([], out var a);
@@ -85,7 +84,7 @@ public class TryParseArghTests
 		a.MaxPages.Should().BeNull();
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_Type_extension_still_works_for_generic_dispatch()
 	{
 		var ok = typeof(TestGlobalCliOptions).TryParseArgh<TestGlobalCliOptions>(["--verbose"], out var o);
@@ -93,7 +92,7 @@ public class TryParseArghTests
 		o!.Verbose.Should().BeTrue();
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_global_non_nullable_enum_omitted_uses_property_initializer()
 	{
 		var ok = TestGlobalCliOptions.TryParseArgh([], out var o);
@@ -102,7 +101,7 @@ public class TryParseArghTests
 		o.Severity.Should().Be(FixtureSeverity.Information);
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_global_non_nullable_enum_can_be_overridden_by_flag()
 	{
 		var ok = TestGlobalCliOptions.TryParseArgh(["--severity", "Warning"], out var o);
@@ -111,7 +110,7 @@ public class TryParseArghTests
 		o.Severity.Should().Be(FixtureSeverity.Warning);
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_global_mode_short_option_binds_value()
 	{
 		var ok = TestGlobalCliOptions.TryParseArgh(["-m", "z"], out var o);
@@ -120,7 +119,7 @@ public class TryParseArghTests
 		o.Mode.Should().Be("z");
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_global_mode_short_equals_form_binds_value()
 	{
 		var ok = TestGlobalCliOptions.TryParseArgh(["-m=z"], out var o);
@@ -129,7 +128,7 @@ public class TryParseArghTests
 		o.Mode.Should().Be("z");
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_mixed_nullability_multi_enum_DTO_parses_flags()
 	{
 		var ok = MultiEnumAsParamsArgs.TryParseArgh(
@@ -141,7 +140,7 @@ public class TryParseArghTests
 		a.ConfigSource.Should().Be(FixtureConfigSource.Environment);
 	}
 
-	[Fact]
+	[Test]
 	public void TryParseArgh_as_parameters_property_level_custom_parser_binds_value()
 	{
 		var ok = PointAsParamsArgs.TryParseArgh(["--point", "11,12"], out var a);
@@ -151,7 +150,7 @@ public class TryParseArghTests
 		a.Point.Y.Should().Be(12);
 	}
 
-	[Fact]
+	[Test]
 	public void Cross_assembly_as_params_non_nullable_defaults_are_not_required()
 	{
 		var ok = CrossAssemblyAsParamsDto.TryParseArgh([], out var o);
@@ -160,7 +159,7 @@ public class TryParseArghTests
 		o.Tag.Should().Be("default-tag");
 	}
 
-	[Fact]
+	[Test]
 	public void Cross_assembly_as_params_flag_overrides_runtime_default()
 	{
 		var ok = CrossAssemblyAsParamsDto.TryParseArgh(["--level", "Warning", "--tag", "custom"], out var o);
@@ -175,7 +174,7 @@ public class TryParseArghTests
 	/// The static TryParseArgh extension method on ExternalNsGlobalOptions is generated in
 	/// ArghTypeBindingExtensions.g.cs; it only exists if the generator used the right namespace.
 	/// </summary>
-	[Fact]
+	[Test]
 	public void External_ns_as_params_defaults_used_when_no_flags()
 	{
 		var ok = ExternalNsGlobalOptions.TryParseArgh([], out var o);
@@ -184,7 +183,7 @@ public class TryParseArghTests
 		o.Tag.Should().Be("default");
 	}
 
-	[Fact]
+	[Test]
 	public void External_ns_as_params_verbose_flag_parsed()
 	{
 		var ok = ExternalNsGlobalOptions.TryParseArgh(["--verbose"], out var o);

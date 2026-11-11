@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Help;
 
@@ -9,7 +8,7 @@ public class RootAndNamespaceHelpTests
 	private static string TrimLines(string s) =>
 		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
 
-	[Fact]
+	[Test]
 	public void RootHelp_does_not_list_nested_blob_command()
 	{
 		var result = CliHostRunner.Run(
@@ -206,7 +205,7 @@ public class RootAndNamespaceHelpTests
 		fromCommands.Should().NotContain("blob");
 	}
 
-	[Fact]
+	[Test]
 	public void StorageHelp_lists_blob_namespace_and_not_flat_hello()
 	{
 		var result = CliHostRunner.Run(
@@ -242,7 +241,7 @@ public class RootAndNamespaceHelpTests
 		text.Should().NotContain("hello");
 	}
 
-	[Fact]
+	[Test]
 	public void RootHelp_does_not_list_hidden_namespaces()
 	{
 		var result = CliHostRunner.Run(
@@ -254,7 +253,7 @@ public class RootAndNamespaceHelpTests
 		text.Should().NotContain("schema-hidden-schema-ns");
 	}
 
-	[Fact]
+	[Test]
 	public void Hidden_namespace_is_still_callable()
 	{
 		var result = CliHostRunner.Run("schema-hidden-ns", "internal-cmd");

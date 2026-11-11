@@ -1,6 +1,5 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Help;
 
@@ -10,7 +9,7 @@ public class RootHelpFullTextTests
 	private static string TrimLines(string s) =>
 		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
 
-	[Fact]
+	[Test]
 	public void Root_help_full_text_matches_expected_shape()
 	{
 		var result = CliHostRunner.Run(

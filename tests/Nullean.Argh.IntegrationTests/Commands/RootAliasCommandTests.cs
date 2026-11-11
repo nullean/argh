@@ -1,13 +1,12 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Nullean.Argh.IntegrationTests.Infrastructure;
-using Xunit;
 
 namespace Nullean.Argh.IntegrationTests.Commands;
 
 /// <summary>Subprocess tests for <see cref="Nullean.Argh.Builder.IArghBuilder.MapAndRootAlias{T}"/> scoped to the <c>alias-scope</c> namespace.</summary>
 public class RootAliasCommandTests
 {
-	[Fact]
+	[Test]
 	public void No_args_in_namespace_executes_alias_target()
 	{
 		var result = CliHostRunner.Run("alias-scope");
@@ -15,7 +14,7 @@ public class RootAliasCommandTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("marker:alias-build output=null force=null");
 	}
 
-	[Fact]
+	[Test]
 	public void Flags_only_route_to_alias_target()
 	{
 		var result = CliHostRunner.Run("alias-scope", "--output", ".artifacts/html");
@@ -23,7 +22,7 @@ public class RootAliasCommandTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("marker:alias-build output=.artifacts/html force=null");
 	}
 
-	[Fact]
+	[Test]
 	public void Alias_target_is_still_accessible_as_named_command()
 	{
 		var result = CliHostRunner.Run("alias-scope", "build", "--output", "dist");
@@ -31,7 +30,7 @@ public class RootAliasCommandTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("marker:alias-build output=dist force=null");
 	}
 
-	[Fact]
+	[Test]
 	public void Other_command_in_type_is_accessible()
 	{
 		var result = CliHostRunner.Run("alias-scope", "serve", "--port", "8080");
@@ -39,7 +38,7 @@ public class RootAliasCommandTests
 		CliHostRunner.StdoutText(result).Trim().Should().Be("marker:alias-serve port=8080");
 	}
 
-	[Fact]
+	[Test]
 	public void Namespace_help_shows_alias_section_not_full_option_list()
 	{
 		var result = CliHostRunner.Run(
@@ -55,7 +54,7 @@ public class RootAliasCommandTests
 		text.Should().NotContain("--output");
 	}
 
-	[Fact]
+	[Test]
 	public void Namespace_help_still_lists_all_commands()
 	{
 		var result = CliHostRunner.Run(
