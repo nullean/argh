@@ -49,9 +49,7 @@ public class RootDefaultCommandTests
 	[Test]
 	public void Root_help_mentions_root_command_section()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		text.Should().Contain("(default command)");
@@ -61,10 +59,7 @@ public class RootDefaultCommandTests
 	[Test]
 	public void Storage_help_mentions_namespace_root_section()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"storage",
-			"--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "storage", "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		text.Should().Contain("(default command)");

@@ -19,24 +19,22 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddLogging(c => c.AddConsole().SetMinimumLevel(LogLevel.Information));
 builder.Services.AddSingleton<HostedRootGlobalMiddleware>();
 
-builder.Services.AddArgh(
-	args,
-	app =>
+builder.Services.AddArgh(args, app =>
+{
+	app.UseMiddleware<HostedRootGlobalMiddleware>();
+	app.UseGlobalOptions<HostedRootGlobalCliOptions>();
+	app.MapRoot(HostedRootDefaults.App);
+	app.Map("hello", HostedRootHello.Run);
+	app.MapNamespace<HostedRootStorageCommands>(g =>
 	{
-		app.UseMiddleware<HostedRootGlobalMiddleware>();
-		app.UseGlobalOptions<HostedRootGlobalCliOptions>();
-		app.MapRoot(HostedRootDefaults.App);
-		app.Map("hello", HostedRootHello.Run);
-		app.MapNamespace<HostedRootStorageCommands>(g =>
-		{
-			g.UseNamespaceOptions<HostedRootStorageNamespaceOptions>();
-			g.MapNamespace<HostedRootStorageCommands.BlobCommands>("blob");
-		});
-		app.MapNamespace("connect", "description", g =>
-		{
-			g.Map("search", static () => Console.WriteLine("search"));
-		});
+		g.UseNamespaceOptions<HostedRootStorageNamespaceOptions>();
+		g.MapNamespace<HostedRootStorageCommands.BlobCommands>("blob");
 	});
+	app.MapNamespace("connect", "description", g =>
+	{
+		g.Map("search", static () => Console.WriteLine("search"));
+	});
+});
 
 using var host = builder.Build();
 await host.RunAsync();

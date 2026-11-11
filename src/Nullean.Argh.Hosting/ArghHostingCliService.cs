@@ -19,8 +19,7 @@ internal sealed class ArghHostingCliService(
 	IHostApplicationLifetime lifetime,
 	IServiceProvider services,
 	ILogger<ArghHostingCliService>? logger = null
-)
-	: IHostedService
+) : IHostedService
 {
 	private readonly Func<Task<int>> _runCliAsync = runCliAsync ?? throw new ArgumentNullException(nameof(runCliAsync));
 	private readonly IHostApplicationLifetime _lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
@@ -52,9 +51,7 @@ internal sealed class ArghHostingCliService(
 			await Console.Out.FlushAsync();
 			await Console.Error.FlushAsync();
 		}
-		catch
-		{
-		}
+		catch { }
 
 		Environment.Exit(exitCode);
 	}

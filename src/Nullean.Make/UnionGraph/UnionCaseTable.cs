@@ -28,7 +28,10 @@ public static class UnionCaseTable<TUnion>
 	}
 
 	internal static IReadOnlyList<UnionCase<TUnion>> Required =>
-		Cases ?? throw new MakeException(
-			$"No case table was generated for {typeof(TUnion).Name}. The Nullean.Make source generator registers it " +
-			$"for every 'new MakeApp<{typeof(TUnion).Name}>(...)' in the project; make sure analyzers are enabled.", 1);
+		Cases ??
+			throw new MakeException(
+				$"No case table was generated for {typeof(TUnion).Name}. The Nullean.Make source generator registers it " +
+					$"for every 'new MakeApp<{typeof(TUnion).Name}>(...)' in the project; make sure analyzers are enabled.",
+				1
+			);
 }

@@ -25,6 +25,5 @@ internal static class Commands
 {
 	/// <summary>Echo verbose flag and tag from global options.</summary>
 	/// <param name="g">Injected global options.</param>
-	public static void Echo(ExternalNsGlobalOptions g) =>
-		System.Console.Out.WriteLine($"verbose={g.Verbose} tag={g.Tag}");
+	public static void Echo(ExternalNsGlobalOptions g) => System.Console.Out.WriteLine($"verbose={g.Verbose} tag={g.Tag}");
 }

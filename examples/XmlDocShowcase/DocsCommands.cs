@@ -24,7 +24,8 @@ internal static class DocsCommands
 	/// <param name="to">Display name or team to address (maps to <c>--to</c>).</param>
 	public static Task<int> Welcome(XmlDocShowcaseGlobalOptions globals, string to)
 	{
-		if (globals.Verbose) Console.Error.WriteLine($"[verbose] Welcome handler, to={to}");
+		if (globals.Verbose)
+			Console.Error.WriteLine($"[verbose] Welcome handler, to={to}");
 		Console.WriteLine($"Hello, {to}");
 		return Task.FromResult(0);
 	}
@@ -32,7 +33,8 @@ internal static class DocsCommands
 	/// <summary>Lightweight connectivity check (two string flags).</summary>
 	public static Task<int> Ping(XmlDocShowcaseGlobalOptions globals, string environment, string region)
 	{
-		if (globals.Verbose) Console.Error.WriteLine($"[verbose] Ping handler, env={environment} region={region}");
+		if (globals.Verbose)
+			Console.Error.WriteLine($"[verbose] Ping handler, env={environment} region={region}");
 		Console.WriteLine($"{nameof(Ping)}, {environment}, {region}");
 		return Task.FromResult(0);
 	}

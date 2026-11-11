@@ -21,8 +21,7 @@ public sealed partial class CliParserGenerator
 		// Fast path: structured documentation trivia (DocumentationMode=Parse or Diagnose)
 		foreach (var trivia in triviaList)
 		{
-			if (!trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) &&
-			    !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
+			if (!trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) && !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
 				continue;
 			var stripped = DocTriviaStripPattern.Replace(trivia.ToFullString(), "").Trim();
 			if (stripped.Length > 0)
@@ -79,21 +78,21 @@ public sealed partial class CliParserGenerator
 			switch (sr.GetSyntax())
 			{
 				case PropertyDeclarationSyntax p:
-				{
-					var result = ExtractDocumentationFromTriviaList(p.GetLeadingTrivia());
-					if (result.Length > 0)
-						return result;
-					break;
-				}
+					{
+						var result = ExtractDocumentationFromTriviaList(p.GetLeadingTrivia());
+						if (result.Length > 0)
+							return result;
+						break;
+					}
 				// Positional record (and class primary-constructor) parameters: the public API is a property
 				// whose declaring syntax is the parameter, not a property declaration.
 				case ParameterSyntax par:
-				{
-					var result = ExtractDocumentationFromTriviaList(par.GetLeadingTrivia());
-					if (result.Length > 0)
-						return result;
-					break;
-				}
+					{
+						var result = ExtractDocumentationFromTriviaList(par.GetLeadingTrivia());
+						if (result.Length > 0)
+							return result;
+						break;
+					}
 			}
 		}
 
@@ -121,19 +120,19 @@ public sealed partial class CliParserGenerator
 			switch (sr.GetSyntax())
 			{
 				case FieldDeclarationSyntax fd:
-				{
-					var result = ExtractDocumentationFromTriviaList(fd.GetLeadingTrivia());
-					if (result.Length > 0)
-						return result;
-					break;
-				}
+					{
+						var result = ExtractDocumentationFromTriviaList(fd.GetLeadingTrivia());
+						if (result.Length > 0)
+							return result;
+						break;
+					}
 				case VariableDeclaratorSyntax vd when vd.Parent is VariableDeclarationSyntax { Parent: FieldDeclarationSyntax fd }:
-				{
-					var result = ExtractDocumentationFromTriviaList(fd.GetLeadingTrivia());
-					if (result.Length > 0)
-						return result;
-					break;
-				}
+					{
+						var result = ExtractDocumentationFromTriviaList(fd.GetLeadingTrivia());
+						if (result.Length > 0)
+							return result;
+						break;
+					}
 			}
 		}
 
@@ -215,10 +214,7 @@ public sealed partial class CliParserGenerator
 		return "";
 	}
 
-	private static MethodDocumentation MergeMethodDocumentationFromTrivia(
-		IMethodSymbol method,
-		MethodDocumentation docs,
-		CSharpParseOptions parseOptions)
+	private static MethodDocumentation MergeMethodDocumentationFromTrivia(IMethodSymbol method, MethodDocumentation docs, CSharpParseOptions parseOptions)
 	{
 		// GetDocumentationCommentXml() is empty when GenerateDocumentationFile is not set.
 		// In that case parse the full doc comment directly from syntax trivia so all fields
@@ -241,7 +237,8 @@ public sealed partial class CliParserGenerator
 		string? innerXml,
 		CommandModel forCommand,
 		ImmutableArray<CommandModel> allCommands,
-		string entryAssemblyName)
+		string entryAssemblyName
+	)
 	{
 		if (string.IsNullOrWhiteSpace(innerXml))
 			return innerXml;
@@ -278,8 +275,7 @@ public sealed partial class CliParserGenerator
 			if (e.Name.LocalName == "paramref")
 			{
 				var nameAttr = e.Attribute("name")?.Value;
-				if (!string.IsNullOrEmpty(nameAttr) &&
-				    flagBySymbol.TryGetValue(nameAttr!, out var pm))
+				if (!string.IsNullOrEmpty(nameAttr) && flagBySymbol.TryGetValue(nameAttr!, out var pm))
 					e.ReplaceWith(new XElement("c", "--" + pm.CliLongName));
 				continue;
 			}
@@ -319,9 +315,7 @@ public sealed partial class CliParserGenerator
 
 	private static string BuildCommandUsageSynopsisTail(CommandModel cmd, string entryAssemblyName)
 	{
-		var routeUsage = cmd.RoutePrefix.IsDefaultOrEmpty
-			? ""
-			: string.Join(" ", cmd.RoutePrefix) + " ";
+		var routeUsage = cmd.RoutePrefix.IsDefaultOrEmpty ? "" : string.Join(" ", cmd.RoutePrefix) + " ";
 		return $"{entryAssemblyName} {routeUsage}{cmd.CommandName} {cmd.UsageHints}".TrimEnd();
 	}
 
@@ -374,28 +368,25 @@ public sealed partial class CliParserGenerator
 		public static MethodDocumentation ParseMethod(string? xml, CSharpParseOptions parseOptions)
 		{
 			if (string.IsNullOrWhiteSpace(xml))
-				return new MethodDocumentation("", "", "", "", "", ImmutableDictionary<string, string>.Empty,
-					ImmutableDictionary<string, string>.Empty);
+				return new MethodDocumentation("", "", "", "", "", ImmutableDictionary<string, string>.Empty, ImmutableDictionary<string, string>.Empty);
 
 			try
 			{
 				var doc = XDocument.Parse("<root>" + xml + "</root>", LoadOptions.PreserveWhitespace);
 				var root = doc.Root;
 				if (root is null)
-					return new MethodDocumentation("", "", "", "", "", ImmutableDictionary<string, string>.Empty,
-						ImmutableDictionary<string, string>.Empty);
+					return new MethodDocumentation("", "", "", "", "", ImmutableDictionary<string, string>.Empty, ImmutableDictionary<string, string>.Empty);
 
 				var summary = WhitespaceCollapsePattern.Replace(FlattenBlock(root.Element("summary")).Replace("\r\n", "\n"), " ").Trim();
 				var remarks = FlattenBlock(root.Element("remarks")).Replace("\r\n", "\n").Trim();
 				var summaryInner = GetElementInnerXml(root.Element("summary"));
 				var remarksInner = GetElementInnerXml(root.Element("remarks"));
-				var examples = string.Join("\n\n", root.Elements("example")
-					.Select(e => FlattenBlock(e).Replace("\r\n", "\n").Trim())
-					.Where(s => !string.IsNullOrWhiteSpace(s)));
-				var paramMap =
-					ImmutableDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
-				var sepMap =
-					ImmutableDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
+				var examples = string.Join(
+					"\n\n",
+					root.Elements("example").Select(e => FlattenBlock(e).Replace("\r\n", "\n").Trim()).Where(s => !string.IsNullOrWhiteSpace(s))
+				);
+				var paramMap = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
+				var sepMap = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
 				foreach (var pe in root.Elements("param"))
 				{
 					var name = pe.Attribute("name")?.Value;
@@ -413,8 +404,7 @@ public sealed partial class CliParserGenerator
 			}
 			catch
 			{
-				return new MethodDocumentation("", "", "", "", "", ImmutableDictionary<string, string>.Empty,
-					ImmutableDictionary<string, string>.Empty);
+				return new MethodDocumentation("", "", "", "", "", ImmutableDictionary<string, string>.Empty, ImmutableDictionary<string, string>.Empty);
 			}
 		}
 
@@ -512,10 +502,9 @@ public sealed partial class CliParserGenerator
 					try
 					{
 						var doc = XDocument.Load(xmlPath, LoadOptions.PreserveWhitespace);
-						var member = doc.Root?
-							.Element("members")?
-							.Elements("member")
-							.FirstOrDefault(m => string.Equals(m.Attribute("name")?.Value, docId, StringComparison.Ordinal));
+						var member = doc.Root?.Element("members")?.Elements("member").FirstOrDefault(
+							m => string.Equals(m.Attribute("name")?.Value, docId, StringComparison.Ordinal)
+						);
 						if (member is not null)
 							return string.Concat(member.Nodes().Select(n => n.ToString()));
 					}
@@ -533,6 +522,7 @@ public sealed partial class CliParserGenerator
 		private static IEnumerable<string> GetXmlDocumentationCandidates(string referencePath, string assemblyName, string? artifactsPath = null)
 		{
 			var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
 			static string NormalizePathSeparators(string p) => p.Replace('\\', '/');
 
 			var direct = global::System.IO.Path.ChangeExtension(referencePath, ".xml");
@@ -546,8 +536,7 @@ public sealed partial class CliParserGenerator
 				if (yielded.Add(byAssemblyName))
 					yield return byAssemblyName;
 				var leaf = global::System.IO.Path.GetFileName(referenceDir);
-				if (string.Equals(leaf, "ref", StringComparison.OrdinalIgnoreCase) ||
-				    string.Equals(leaf, "refint", StringComparison.OrdinalIgnoreCase))
+				if (string.Equals(leaf, "ref", StringComparison.OrdinalIgnoreCase) || string.Equals(leaf, "refint", StringComparison.OrdinalIgnoreCase))
 				{
 					var parent = global::System.IO.Path.GetDirectoryName(referenceDir!);
 					if (!string.IsNullOrWhiteSpace(parent))
@@ -577,16 +566,18 @@ public sealed partial class CliParserGenerator
 			if (!string.IsNullOrWhiteSpace(artifactsPath))
 			{
 				var normalizedArtifacts = NormalizePathSeparators(artifactsPath!.TrimEnd('/', '\\'));
-				if (normalized.Length > normalizedArtifacts.Length &&
-				    normalized[normalizedArtifacts.Length] == '/' &&
-				    normalized.StartsWith(normalizedArtifacts, StringComparison.OrdinalIgnoreCase))
+				if (
+					normalized.Length > normalizedArtifacts.Length && normalized[normalizedArtifacts.Length] == '/' && normalized.StartsWith(
+						normalizedArtifacts,
+						StringComparison.OrdinalIgnoreCase
+					)
+				)
 				{
 					var relPath = normalized.Substring(normalizedArtifacts.Length + 1);
 					if (relPath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase))
 						relPath = "bin/" + relPath.Substring(4);
 					relPath = ReplaceOrdinalIgnoreCase(ReplaceOrdinalIgnoreCase(relPath, "/refint/", "/"), "/ref/", "/");
-					var platformPath = (normalizedArtifacts + "/" + relPath)
-						.Replace('/', global::System.IO.Path.DirectorySeparatorChar);
+					var platformPath = (normalizedArtifacts + "/" + relPath).Replace('/', global::System.IO.Path.DirectorySeparatorChar);
 					var artifactXml = global::System.IO.Path.ChangeExtension(platformPath, ".xml");
 					if (yielded.Add(artifactXml))
 						yield return artifactXml;
@@ -597,7 +588,8 @@ public sealed partial class CliParserGenerator
 		private static string ReplaceOrdinalIgnoreCase(string input, string oldValue, string newValue)
 		{
 			var idx = input.IndexOf(oldValue, StringComparison.OrdinalIgnoreCase);
-			if (idx < 0) return input;
+			if (idx < 0)
+				return input;
 			return input.Substring(0, idx) + newValue + input.Substring(idx + oldValue.Length);
 		}
 
@@ -723,19 +715,19 @@ public sealed partial class CliParserGenerator
 						sb.Append(e.Value.Trim());
 						break;
 					case XElement e when e.Name.LocalName == "paramref":
-					{
-						var pn = e.Attribute("name")?.Value;
-						if (!string.IsNullOrEmpty(pn))
-							sb.Append(pn);
-						break;
-					}
+						{
+							var pn = e.Attribute("name")?.Value;
+							if (!string.IsNullOrEmpty(pn))
+								sb.Append(pn);
+							break;
+						}
 					case XElement e when e.Name.LocalName == "typeparamref":
-					{
-						var tn = e.Attribute("name")?.Value;
-						if (!string.IsNullOrEmpty(tn))
-							sb.Append(tn);
-						break;
-					}
+						{
+							var tn = e.Attribute("name")?.Value;
+							if (!string.IsNullOrEmpty(tn))
+								sb.Append(tn);
+							break;
+						}
 					case XElement e when e.Name.LocalName == "see":
 						AppendSeeForListing(e, sb);
 						break;
@@ -788,5 +780,4 @@ public sealed partial class CliParserGenerator
 			return name;
 		}
 	}
-
 }

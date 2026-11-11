@@ -67,15 +67,12 @@ public sealed partial class CliParserGenerator
 		foreach (var name in order)
 		{
 			var (prop, cases) = byName[name];
-			var caseList = cases.Count == 1
-				? cases[0]
-				: string.Join(", ", cases.Take(cases.Count - 1)) + " or " + cases[cases.Count - 1];
+			var caseList = cases.Count == 1 ? cases[0] : string.Join(", ", cases.Take(cases.Count - 1)) + " or " + cases[cases.Count - 1];
 			rows.Add(UnionCasePropHelpRow(prop.CliName, prop, $"Applies when <{union.CliLongName}> is {caseList}."));
 		}
 	}
 
-	private static bool UnionBoolDefaultsTrue(UnionCasePropInfo prop) =>
-		prop.Special == BoolSpecialKind.Bool && prop.DefaultValueLiteral == "true";
+	private static bool UnionBoolDefaultsTrue(UnionCasePropInfo prop) => prop.Special == BoolSpecialKind.Bool && prop.DefaultValueLiteral == "true";
 
 	/// <summary>The default as help shows it: no <c>f</c>/<c>m</c> literal suffix.</summary>
 	private static string? UnionCasePropHelpDefault(UnionCasePropInfo prop) =>
@@ -104,10 +101,10 @@ public sealed partial class CliParserGenerator
 			ShortOpt: null,
 			Aliases: ImmutableArray<string>.Empty,
 			EnumMemberCliNames: prop.EnumMemberCliNames,
-			IsUnionCaseProp: true);
+			IsUnionCaseProp: true
+		);
 
-	private static string UnionCaseChoices(ParameterModel p) =>
-		"<" + string.Join("|", p.UnionCases.Select(static c => c.CliName)) + ">";
+	private static string UnionCaseChoices(ParameterModel p) => "<" + string.Join("|", p.UnionCases.Select(static c => c.CliName)) + ">";
 
 	// ── Union case property types ────────────────────────────────────────────
 
@@ -182,6 +179,7 @@ public sealed partial class CliParserGenerator
 				continue;
 
 			var scoped = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
 			void addScope(ImmutableArray<ParameterModel> members, string scope)
 			{
 				if (members.IsDefaultOrEmpty)
@@ -258,6 +256,7 @@ public sealed partial class CliParserGenerator
 
 		// Names claimed by the command's other flags, keyed to the owning parameter's symbol name.
 		var claimed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
 		void claim(string name, string owner)
 		{
 			if (!string.IsNullOrEmpty(name) && !claimed.ContainsKey(name))

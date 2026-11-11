@@ -1,6 +1,6 @@
-using Nullean.Make.Discovery;
-using Nullean.Argh.Matching;
 using System.Reflection;
+using Nullean.Argh.Matching;
+using Nullean.Make.Discovery;
 
 namespace Nullean.Make.Parsing;
 
@@ -36,7 +36,7 @@ internal static class ArgvParser
 		{
 			if (!routeDone && !token.StartsWith("-"))
 			{
-				var candidate = string.Join("/", [..routeTokens, token.ToLowerInvariant()]);
+				var candidate = string.Join("/", [.. routeTokens, token.ToLowerInvariant()]);
 				if (graph.ByRoute.ContainsKey(candidate))
 				{
 					routeTokens.Add(token.ToLowerInvariant());
@@ -99,9 +99,24 @@ internal static class ArgvParser
 		{
 			var arg = args[i];
 
-			if (arg is "-h" or "--help") { result.ShowHelp = true; i++; continue; }
-			if (arg is "--version") { result.ShowVersion = true; i++; continue; }
-			if (arg is "-s" or "--single-target") { result.SingleTarget = true; i++; continue; }
+			if (arg is "-h" or "--help")
+			{
+				result.ShowHelp = true;
+				i++;
+				continue;
+			}
+			if (arg is "--version")
+			{
+				result.ShowVersion = true;
+				i++;
+				continue;
+			}
+			if (arg is "-s" or "--single-target")
+			{
+				result.SingleTarget = true;
+				i++;
+				continue;
+			}
 
 			// Global options
 			var matched = false;
@@ -140,17 +155,23 @@ internal static class ArgvParser
 
 	private static void SetProperty(PropertyInfo? prop, MakeBuild build, string raw, string flagName)
 	{
-		if (prop is null) return;
+		if (prop is null)
+			return;
 		var targetType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
 		object value;
 		try
 		{
 			var inv = System.Globalization.CultureInfo.InvariantCulture;
-			if (targetType == typeof(bool)) value = bool.Parse(raw);
-			else if (targetType == typeof(int)) value = int.Parse(raw, inv);
-			else if (targetType == typeof(string)) value = raw;
-			else if (targetType.IsEnum) value = Enum.Parse(targetType, raw, ignoreCase: true);
-			else value = Convert.ChangeType(raw, targetType, inv);
+			if (targetType == typeof(bool))
+				value = bool.Parse(raw);
+			else if (targetType == typeof(int))
+				value = int.Parse(raw, inv);
+			else if (targetType == typeof(string))
+				value = raw;
+			else if (targetType.IsEnum)
+				value = Enum.Parse(targetType, raw, ignoreCase: true);
+			else
+				value = Convert.ChangeType(raw, targetType, inv);
 		}
 		catch (Exception ex) when (ex is FormatException or OverflowException or ArgumentException or InvalidCastException)
 		{

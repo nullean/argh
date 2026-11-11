@@ -15,12 +15,10 @@ internal static class DocDescriptions
 	private static readonly ConcurrentDictionary<Assembly, IReadOnlyDictionary<string, string>> Cache = new();
 
 	/// <summary>The summary for a type, such as a C# union case record (<c>T:Clean</c>).</summary>
-	public static string? ForType(Type type) =>
-		type.FullName is { } name ? Summary(type.Assembly, "T:" + name.Replace('+', '.')) : null;
+	public static string? ForType(Type type) => type.FullName is { } name ? Summary(type.Assembly, "T:" + name.Replace('+', '.')) : null;
 
 	/// <summary>The summary for a documentation id such as <c>T:My.Build.Target.Clean</c> (an F# union case).</summary>
-	public static string? Summary(Assembly assembly, string docId) =>
-		Cache.GetOrAdd(assembly, Load).TryGetValue(docId, out var summary) ? summary : null;
+	public static string? Summary(Assembly assembly, string docId) => Cache.GetOrAdd(assembly, Load).TryGetValue(docId, out var summary) ? summary : null;
 
 	private static IReadOnlyDictionary<string, string> Load(Assembly assembly)
 	{

@@ -32,13 +32,16 @@ public class UnionCaseTableTests
 		var log = new List<string>();
 		// Target-typed new: the generator finds this creation through its type, not its syntax.
 		MakeApp<Infra> app = new("infra");
-		app.Bind(i => i.Value switch
-		{
-			Deploy d => app.Target(() => log.Add($"deploy:{d.Environment}:{d.Replicas}")),
-			Smoke => app.Target([new Deploy("staging")], () => log.Add("smoke")),
-			Ops { Value: Purge } => app.Target(() => log.Add("purge")),
-			_ => throw new InvalidOperationException($"unmapped case {i.Value}")
-		});
+		app.Bind(
+			i =>
+				i.Value switch
+				{
+					Deploy d => app.Target(() => log.Add($"deploy:{d.Environment}:{d.Replicas}")),
+					Smoke => app.Target([new Deploy("staging")], () => log.Add("smoke")),
+					Ops { Value: Purge } => app.Target(() => log.Add("purge")),
+					_ => throw new InvalidOperationException($"unmapped case {i.Value}")
+				}
+		);
 
 		var stdout = new StringWriter();
 		var stderr = new StringWriter();
@@ -95,12 +98,19 @@ public class UnionCaseTableTests
 	public async Task Union_without_a_generated_case_table_explains_why()
 	{
 		var app = Create<Unregistered>();
-		app.Bind(_ => app.Target(() => { }));
+		app.Bind(_ => app.Target(() =>
+		{ }));
 		var stderr = new StringWriter();
 		var oldErr = Console.Error;
 		Console.SetError(stderr);
-		try { (await app.RunAsync(["orphan"])).Should().Be(1); }
-		finally { Console.SetError(oldErr); }
+		try
+		{
+			(await app.RunAsync(["orphan"])).Should().Be(1);
+		}
+		finally
+		{
+			Console.SetError(oldErr);
+		}
 		stderr.ToString().Should().Contain("No case table was generated for Unregistered");
 	}
 }

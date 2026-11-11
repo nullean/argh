@@ -7,8 +7,7 @@ internal sealed class HostedGlobalMiddleware : ICommandMiddleware
 {
 	private readonly ILogger<HostedGlobalMiddleware> _logger;
 
-	public HostedGlobalMiddleware(ILogger<HostedGlobalMiddleware> logger) =>
-		_logger = logger;
+	public HostedGlobalMiddleware(ILogger<HostedGlobalMiddleware> logger) => _logger = logger;
 
 	public async ValueTask InvokeAsync(CommandContext context, CommandMiddlewareDelegate next)
 	{

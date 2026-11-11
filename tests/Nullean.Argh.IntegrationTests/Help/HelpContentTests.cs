@@ -5,16 +5,12 @@ namespace Nullean.Argh.IntegrationTests.Help;
 
 public class HelpContentTests
 {
-	private static string TrimLines(string s) =>
-		string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
+	private static string TrimLines(string s) => string.Join("\n", s.Split('\n').Select(l => l.TrimEnd()));
 
 	[Test]
 	public void HelloHelp_with_NO_COLOR_omits_ansi()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"hello",
-			"--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "hello", "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		text.Should().NotContain("\x1b");
@@ -44,10 +40,7 @@ public class HelpContentTests
 	[Test]
 	public void DocLambda_help_matches_expected_text()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"doc-lambda",
-			"--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "doc-lambda", "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		var expected = ($"""
@@ -74,10 +67,7 @@ public class HelpContentTests
 	[Test]
 	public void BraceDoc_help_shows_braces_from_xml_doc_without_breaking_build()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"brace-doc",
-			"--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "brace-doc", "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		text.Should().Contain("Supports {version} and {owner} placeholders.");

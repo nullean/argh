@@ -8,11 +8,7 @@ public sealed class MakeContext
 	private static readonly AsyncLocal<MakeContext?> _current = new();
 
 	/// <summary>The context for the currently-executing target. Non-null only inside an <c>.Executes(...)</c> callback.</summary>
-	public static MakeContext? Current
-	{
-		get => _current.Value;
-		internal set => _current.Value = value;
-	}
+	public static MakeContext? Current { get => _current.Value; internal set => _current.Value = value; }
 
 	private readonly Dictionary<string, string> _rawValues;
 	private readonly bool _singleTarget;
@@ -30,6 +26,5 @@ public sealed class MakeContext
 	public string[] TargetArgs { get; internal set; } = [];
 
 	/// <summary>Reads the raw string value for a global option. Returns <see langword="null"/> when not supplied.</summary>
-	public string? GetRaw(string longName) =>
-		_rawValues.TryGetValue(longName.TrimStart('-'), out var v) ? v : null;
+	public string? GetRaw(string longName) => _rawValues.TryGetValue(longName.TrimStart('-'), out var v) ? v : null;
 }

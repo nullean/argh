@@ -5,8 +5,7 @@ namespace Nullean.Argh.IntegrationTests.Help;
 
 public class AsParametersHelpDocumentationTests
 {
-	private static readonly IReadOnlyDictionary<string, string> NoColor =
-		new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" };
+	private static readonly IReadOnlyDictionary<string, string> NoColor = new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" };
 
 	[Test]
 	public void AsParameters_init_property_summaries_appear_in_command_help()

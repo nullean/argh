@@ -11,13 +11,11 @@ public class UnionSchemaAndCompletionTests
 		var result = CliHostRunner.Run("__schema");
 		result.ExitCode.Should().Be(0);
 		using var doc = JsonDocument.Parse(CliHostRunner.StdoutText(result));
-		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray()
-			.Single(c => c.GetProperty("name").GetString() == command);
+		var cmd = doc.RootElement.GetProperty("commands").EnumerateArray().Single(c => c.GetProperty("name").GetString() == command);
 		return cmd.GetProperty("parameters").EnumerateArray().Select(e => e.Clone()).ToArray();
 	}
 
-	private static JsonElement Param(JsonElement[] ps, string name) =>
-		ps.Single(p => p.GetProperty("name").GetString() == name);
+	private static JsonElement Param(JsonElement[] ps, string name) => ps.Single(p => p.GetProperty("name").GetString() == name);
 
 	[Test]
 	public void Schema_lists_the_selector_as_an_enum_of_case_names()

@@ -18,4 +18,6 @@ namespace Nullean.Make;
 /// </code>
 /// </example>
 /// </summary>
-public abstract class Namespace { }
+public abstract class Namespace
+{
+}

@@ -17,7 +17,7 @@
     <File Path="README.md" />
     <Project Path="build/scripts/scripts.fsproj" />
 
-	  <File Path="build.cs" />
+    <File Path="build.cs" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Nullean.Argh.Interfaces/Nullean.Argh.Interfaces.csproj" />

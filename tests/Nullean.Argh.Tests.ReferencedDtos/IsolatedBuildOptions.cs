@@ -1,7 +1,11 @@
 namespace Nullean.Argh.Tests.ReferencedDtos;
 
 /// <summary>Source kind for cross-assembly nullable-enum regression coverage.</summary>
-public enum IsolatedSource { File, Remote }
+public enum IsolatedSource
+{
+	File,
+	Remote
+}
 
 public sealed record IsolatedBuildOptions
 {

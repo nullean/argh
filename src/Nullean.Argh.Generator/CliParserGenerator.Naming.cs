@@ -19,8 +19,7 @@ public sealed partial class CliParserGenerator
 	private static string Escape(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
 
 	/// <summary>Doubles <c>{</c> and <c>}</c> so text can be embedded in generated C# <c>$"…"</c> without forming interpolation holes.</summary>
-	private static string EscapeInterpolationBraces(string s) =>
-		s.Replace("{", "{{").Replace("}", "}}");
+	private static string EscapeInterpolationBraces(string s) => s.Replace("{", "{{").Replace("}", "}}");
 
 	private static string EscapeForHelpInterpolation(string s) => EscapeInterpolationBraces(Escape(s));
 
@@ -136,11 +135,9 @@ public sealed partial class CliParserGenerator
 			return new ParamDoc(shortOpt, aliases.ToImmutable(), desc, explicitLongName);
 		}
 
-		private static bool LooksLikeShortFlag(string seg) =>
-			seg.Length == 2 && seg[0] == '-' && seg[1] != '-' && (char.IsLetterOrDigit(seg[1]));
+		private static bool LooksLikeShortFlag(string seg) => seg.Length == 2 && seg[0] == '-' && seg[1] != '-' && (char.IsLetterOrDigit(seg[1]));
 
-		private static bool LooksLikeLongFlag(string seg) =>
-			seg.Length > 2 && seg.StartsWith("--", StringComparison.Ordinal);
+		private static bool LooksLikeLongFlag(string seg) => seg.Length > 2 && seg.StartsWith("--", StringComparison.Ordinal);
 	}
 
 	private static class HelpLayout
@@ -192,7 +189,7 @@ public sealed partial class CliParserGenerator
 				case CliScalarKind.Collection:
 					return "<values>";
 				case CliScalarKind.Enum:
-				return "<enum>";
+					return "<enum>";
 				case CliScalarKind.Union:
 					return "<case>";
 				case CliScalarKind.FileInfo:
@@ -246,8 +243,7 @@ public sealed partial class CliParserGenerator
 		private static bool HasClrSemanticStringBinding(ParameterModel p) =>
 			p.ScalarKind == CliScalarKind.Primitive && IsClrStringParameterTypeName(p.TypeName);
 
-		private static bool IsClrStringParameterTypeName(string? typeName) =>
-			typeName is not null && (typeName == "string" || typeName == "string?");
+		private static bool IsClrStringParameterTypeName(string? typeName) => typeName is not null && (typeName == "string" || typeName == "string?");
 	}
 
 	private readonly record struct MethodDocumentation(
@@ -257,6 +253,6 @@ public sealed partial class CliParserGenerator
 		string SummaryInnerXml,
 		string RemarksInnerXml,
 		ImmutableDictionary<string, string> ParamDocsRaw,
-		ImmutableDictionary<string, string> ParamSeparators);
-
+		ImmutableDictionary<string, string> ParamSeparators
+	);
 }

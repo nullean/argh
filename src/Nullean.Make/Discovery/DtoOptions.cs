@@ -25,7 +25,8 @@ internal static class DtoOptions
 	public static IReadOnlyList<DtoOption> Describe(Type dtoType)
 	{
 		var ctor = dtoType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
-		return ctor.GetParameters()
+		return ctor
+			.GetParameters()
 			.Select(p =>
 			{
 				var isRest = Has(dtoType, p, a => a.GetType().Name == "RestAttribute");
@@ -35,7 +36,8 @@ internal static class DtoOptions
 					!isRest && Has(dtoType, p, a => a is ArgumentAttribute),
 					isRest,
 					p.HasDefaultValue,
-					p.HasDefaultValue ? p.DefaultValue : null);
+					p.HasDefaultValue ? p.DefaultValue : null
+				);
 			})
 			.ToList();
 	}
@@ -47,7 +49,8 @@ internal static class DtoOptions
 	/// </summary>
 	private static bool Has(Type dtoType, ParameterInfo p, Func<Attribute, bool> match)
 	{
-		if (p.GetCustomAttributes().Any(match)) return true;
+		if (p.GetCustomAttributes().Any(match))
+			return true;
 		var prop = dtoType.GetProperties().FirstOrDefault(x => string.Equals(x.Name, p.Name, StringComparison.OrdinalIgnoreCase));
 		return prop is not null && prop.GetCustomAttributes().Any(match);
 	}
@@ -62,13 +65,20 @@ internal static class DtoOptions
 			return FriendlyTypeName(t.GetGenericArguments()[0]) + "...";
 		var u = Nullable.GetUnderlyingType(t) ?? t;
 		// C# keyword names, as Argh help prints them: "int", not "int32".
-		if (u == typeof(int)) return "int";
-		if (u == typeof(long)) return "long";
-		if (u == typeof(bool)) return "bool";
-		if (u == typeof(float)) return "float";
-		if (u == typeof(double)) return "double";
-		if (u == typeof(decimal)) return "decimal";
-		if (u == typeof(string)) return "string";
+		if (u == typeof(int))
+			return "int";
+		if (u == typeof(long))
+			return "long";
+		if (u == typeof(bool))
+			return "bool";
+		if (u == typeof(float))
+			return "float";
+		if (u == typeof(double))
+			return "double";
+		if (u == typeof(decimal))
+			return "decimal";
+		if (u == typeof(string))
+			return "string";
 		return u.Name.ToLowerInvariant();
 	}
 
@@ -78,7 +88,8 @@ internal static class DtoOptions
 		for (var i = 0; i < name.Length; i++)
 		{
 			var c = name[i];
-			if (char.IsUpper(c) && i > 0) sb.Append('-');
+			if (char.IsUpper(c) && i > 0)
+				sb.Append('-');
 			sb.Append(char.ToLowerInvariant(c));
 		}
 		return sb.ToString();

@@ -55,8 +55,7 @@ public sealed partial class CliParserGenerator
 		public ImmutableArray<EnvVarDocEntry> EnvironmentVars = ImmutableArray<EnvVarDocEntry>.Empty;
 		public ImmutableArray<ConfigFileDocEntry> ConfigFiles = ImmutableArray<ConfigFileDocEntry>.Empty;
 		/// <summary>Pre-computed injection chains per command (keyed by <see cref="CommandModel.RunMethodName"/>). Set once in <c>TryBuildAppEmitModel</c> after <c>AllCommands</c> is populated.</summary>
-		public ImmutableDictionary<string, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)>> InjectionChains
-			= ImmutableDictionary<string, ImmutableArray<(string, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>, ImmutableArray<string>?)>>.Empty;
+		public ImmutableDictionary<string, ImmutableArray<(string TypeFq, string TypeMetadataName, ImmutableArray<string> AllBaseTypeMetadataNames, string StaticFieldName, string LocalVarName, ImmutableArray<ParameterModel> FlatMembers, ImmutableArray<string>? BestCtorParamOrder)>> InjectionChains = ImmutableDictionary<string, ImmutableArray<(string, string, ImmutableArray<string>, string, string, ImmutableArray<ParameterModel>, ImmutableArray<string>?)>>.Empty;
 	}
 
 	private sealed record ArglessNamespaceCodegenEntry(string TypeFq, string Segment);
@@ -72,7 +71,8 @@ public sealed partial class CliParserGenerator
 		/// <summary>Parameter names of the best public non-empty constructor whose parameters all match member names; null if none or property-init should be used.</summary>
 		ImmutableArray<string>? BestCtorParamOrder,
 		bool IsPublic,
-		bool IsGeneric);
+		bool IsGeneric
+	);
 
 	/// <summary>Per-parameter data extracted at analysis time, stored in <see cref="CommandModel"/>.</summary>
 	private sealed record HandlerParam(
@@ -88,39 +88,26 @@ public sealed partial class CliParserGenerator
 		bool AsParamIsPublic = true,
 		bool AsParamIsGeneric = false,
 		/// <summary>Pre-computed best ctor param order for [AsParameters] DTO construction (symbol-free).</summary>
-		ImmutableArray<string>? AsParamBestCtorParamOrder = null);
+		ImmutableArray<string>? AsParamBestCtorParamOrder = null
+	);
 
-	private readonly record struct AsParametersMeta(
-		string OwnerParamName,
-		int MemberOrder,
-		string TypeFq,
-		bool UseInit,
-		string ClrName);
+	private readonly record struct AsParametersMeta(string OwnerParamName, int MemberOrder, string TypeFq, bool UseInit, string ClrName);
 
 	/// <summary>
 	/// Value-type location snapshot used in pipeline records instead of <see cref="Location"/> (a reference type
 	/// that embeds a SyntaxTree reference and breaks incremental caching on every file edit).
 	/// Reconstructed to a real <see cref="Location"/> only when reporting a diagnostic.
 	/// </summary>
-	private readonly record struct SourceSpanInfo(
-		string FilePath,
-		int Start,
-		int Length,
-		int Line,
-		int Character)
+	private readonly record struct SourceSpanInfo(string FilePath, int Start, int Length, int Line, int Character)
 	{
 		public static readonly SourceSpanInfo None = new("", 0, 0, 0, 0);
 
 		public static SourceSpanInfo From(Location loc)
 		{
-			if (!loc.IsInSource) return None;
+			if (!loc.IsInSource)
+				return None;
 			var lp = loc.GetLineSpan();
-			return new SourceSpanInfo(
-				lp.Path,
-				loc.SourceSpan.Start,
-				loc.SourceSpan.Length,
-				lp.StartLinePosition.Line,
-				lp.StartLinePosition.Character);
+			return new SourceSpanInfo(lp.Path, loc.SourceSpan.Start, loc.SourceSpan.Length, lp.StartLinePosition.Line, lp.StartLinePosition.Character);
 		}
 
 		public Location ToLocation() =>
@@ -129,20 +116,15 @@ public sealed partial class CliParserGenerator
 				: Location.Create(
 					FilePath,
 					new TextSpan(Start, Length),
-					new LinePositionSpan(
-						new LinePosition(Line, Character),
-						new LinePosition(Line, Character + Length)));
+					new LinePositionSpan(new LinePosition(Line, Character), new LinePosition(Line, Character + Length))
+				);
 	}
 
 	/// <summary>
 	/// Value-type diagnostic snapshot used in AnalyzedInvocation records instead of <see cref="Diagnostic"/>
 	/// (a reference type that breaks incremental caching). Reconstructed in TryBuildAppEmitModel.
 	/// </summary>
-	private readonly record struct PendingDiagnostic(
-		string DescriptorId,
-		SourceSpanInfo Span,
-		string Arg0 = "",
-		string Arg1 = "");
+	private readonly record struct PendingDiagnostic(string DescriptorId, SourceSpanInfo Span, string Arg0 = "", string Arg1 = "");
 
 	// ─── AnalyzedInvocation discriminated union ────────────────────────────────
 	// Symbol-free records representing each pre-analysed ArghApp builder invocation.
@@ -155,36 +137,30 @@ public sealed partial class CliParserGenerator
 	private abstract record AnalyzedInvocation(string FilePath, int SpanStart);
 
 	/// <summary>A <c>GlobalOptions&lt;T&gt;()</c> invocation — only valid at root scope.</summary>
-	private sealed record AIUseGlobalOptions(string FilePath, int SpanStart, OptionsTypeModel Model)
-		: AnalyzedInvocation(FilePath, SpanStart);
+	private sealed record AIUseGlobalOptions(string FilePath, int SpanStart, OptionsTypeModel Model) : AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>CommandNamespaceOptions&lt;T&gt;()</c> invocation — only valid inside a namespace.</summary>
-	private sealed record AIUseNamespaceOptions(string FilePath, int SpanStart, OptionsTypeModel Model)
-		: AnalyzedInvocation(FilePath, SpanStart);
+	private sealed record AIUseNamespaceOptions(string FilePath, int SpanStart, OptionsTypeModel Model) : AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>UseMiddleware&lt;T&gt;()</c> invocation — only valid at root scope.</summary>
-	private sealed record AIUseMiddleware(string FilePath, int SpanStart, GlobalMiddlewareRegistration Registration)
-		: AnalyzedInvocation(FilePath, SpanStart);
+	private sealed record AIUseMiddleware(string FilePath, int SpanStart, GlobalMiddlewareRegistration Registration) : AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>UseCliDescription(string)</c> invocation — only meaningful at root scope.</summary>
-	private sealed record AIUseCliDescription(string FilePath, int SpanStart, string Description)
-		: AnalyzedInvocation(FilePath, SpanStart);
+	private sealed record AIUseCliDescription(string FilePath, int SpanStart, string Description) : AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>UseSchemaVersion(string)</c> invocation — overrides the <c>version</c> field in the <c>__schema</c> document.</summary>
-	private sealed record AIUseSchemaVersion(string FilePath, int SpanStart, string Version)
-		: AnalyzedInvocation(FilePath, SpanStart);
+	private sealed record AIUseSchemaVersion(string FilePath, int SpanStart, string Version) : AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>UseEnvironmentPrefix(string)</c> invocation — sets an env var prefix for all flags.</summary>
-	private sealed record AIUseEnvironmentPrefix(string FilePath, int SpanStart, string Prefix)
-		: AnalyzedInvocation(FilePath, SpanStart);
+	private sealed record AIUseEnvironmentPrefix(string FilePath, int SpanStart, string Prefix) : AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>DocumentEnvironmentVariables(...)</c> invocation — only meaningful at root scope.</summary>
 	private sealed record AIDocumentEnvironmentVariables(
 		string FilePath,
 		int SpanStart,
 		ImmutableArray<EnvVarDocEntry> Variables,
-		ImmutableArray<ConfigFileDocEntry> ConfigFiles)
-		: AnalyzedInvocation(FilePath, SpanStart);
+		ImmutableArray<ConfigFileDocEntry> ConfigFiles
+	) : AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>Symbol-free representation of a <see cref="CliEnvVar"/> passed to <c>DocumentEnvironmentVariables</c>.</summary>
 	private sealed record EnvVarDocEntry(string Name, string? Description, bool Required, string? DefaultValue);
@@ -213,24 +189,23 @@ public sealed partial class CliParserGenerator
 		/// AGH0032 filesystem attribute misuse) — empty for the <c>Map(name, handler)</c> overload, which reports
 		/// directly via its own <see cref="DiagnosticAccumulator"/> plumbing.
 		/// </summary>
-		ImmutableArray<PendingDiagnostic> EmbeddedDiagnostics = default)
-		: AnalyzedInvocation(FilePath, SpanStart)
+		ImmutableArray<PendingDiagnostic> EmbeddedDiagnostics = default
+	) : AnalyzedInvocation(FilePath, SpanStart)
 	{
 		public ImmutableArray<PendingDiagnostic> EmbeddedDiagnosticsOrEmpty =>
 			EmbeddedDiagnostics.IsDefault ? ImmutableArray<PendingDiagnostic>.Empty : EmbeddedDiagnostics;
 	}
 
 	/// <summary>An <c>AddRootCommand(handler)</c> or <c>AddNamespaceRootCommand(handler)</c> invocation.</summary>
-	private sealed record AIMapRootCommand(string FilePath, int SpanStart, CommandModel Cmd, bool IsNamespaceRoot)
-		: AnalyzedInvocation(FilePath, SpanStart);
+	private sealed record AIMapRootCommand(string FilePath, int SpanStart, CommandModel Cmd, bool IsNamespaceRoot) : AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>A <c>MapAndRootAlias&lt;T&gt;()</c> invocation — registers all T methods as named commands and marks one as the root alias.</summary>
 	private sealed record AIMapAndRootAlias(
 		string FilePath,
 		int SpanStart,
 		RegistryNodeSnapshot TypeSnapshot,
-		ImmutableArray<PendingDiagnostic> EmbeddedDiagnostics)
-		: AnalyzedInvocation(FilePath, SpanStart);
+		ImmutableArray<PendingDiagnostic> EmbeddedDiagnostics
+	) : AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>
 	/// An <c>AddNamespace(…)</c> invocation.
@@ -263,8 +238,8 @@ public sealed partial class CliParserGenerator
 		/// </summary>
 		RegistryNodeSnapshot? EntryTypeSnapshot,
 		bool NsIsHiddenFromHelp = false,
-		bool NsIsHiddenFromSchema = false)
-		: AnalyzedInvocation(FilePath, SpanStart);
+		bool NsIsHiddenFromSchema = false
+	) : AnalyzedInvocation(FilePath, SpanStart);
 
 	/// <summary>Symbol-free snapshot of a RegistryNode subtree produced during analysis.</summary>
 	private sealed record RegistryNodeSnapshot(
@@ -274,7 +249,8 @@ public sealed partial class CliParserGenerator
 		string SummaryInnerXml,
 		string RemarksInnerXml,
 		/// <summary>Alias target set by <c>MapAndRootAlias&lt;T&gt;</c> — a reference to a command already in <see cref="Commands"/>.</summary>
-		CommandModel? AliasCommand = null);
+		CommandModel? AliasCommand = null
+	);
 
 	/// <summary>Symbol-free snapshot of a child namespace (nested type) produced during analysis.</summary>
 	private sealed record ChildNamespaceSnapshot(
@@ -282,7 +258,8 @@ public sealed partial class CliParserGenerator
 		RegistryNodeSnapshot Node,
 		string SummaryOneLiner,
 		bool IsHidden = false,
-		bool IsHiddenInSchema = false);
+		bool IsHiddenInSchema = false
+	);
 
 	// ─────────────────────────────────────────────────────────────────────────────
 
@@ -334,7 +311,8 @@ public sealed partial class CliParserGenerator
 		/// <summary>Kebab-case CLI name, e.g. <c>"json"</c>.</summary>
 		string CliName,
 		/// <summary>Properties of the case record that become namespaced flags (e.g. <c>--json-pretty</c>).</summary>
-		ImmutableArray<UnionCasePropInfo> Properties);
+		ImmutableArray<UnionCasePropInfo> Properties
+	);
 
 	/// <summary>A property of a union case record that becomes a CLI flag when in flag mode.</summary>
 	private sealed record UnionCasePropInfo(
@@ -351,6 +329,6 @@ public sealed partial class CliParserGenerator
 		ImmutableArray<string> EnumMemberNames = default,
 		ImmutableArray<string> EnumMemberCliNames = default,
 		/// <summary>Display name of the property's type when union case flags cannot bind it (AGH0037); null when supported.</summary>
-		string? UnsupportedTypeDisplay = null);
-
+		string? UnsupportedTypeDisplay = null
+	);
 }

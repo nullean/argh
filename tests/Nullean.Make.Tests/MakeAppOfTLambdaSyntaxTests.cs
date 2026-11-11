@@ -37,24 +37,31 @@ public class MakeAppLambdaSyntaxTests
 		if (configure is not null)
 			configure(app, log);
 		else
-			app.Bind(t => t.Value switch
-			{
-				Wipe => app.Target(() => log.Add("wipe")),
-				Compile => app.Target([new Wipe()], () => log.Add("compile")),
-				Check check => app.Target([new Compile()], () =>
-				{
-					if (check.Filter is { } f) log.Add($"check:{f}");
-					else log.Add("check:all");
-				}),
-				Pack => app.Target([new Check()], async () =>
-				{
-					await Task.Yield();
-					log.Add("pack");
-				}).Description("Pack the packages"),
-				Undocumented => app.Target(() => log.Add("undocumented")),
-				Ship => app.Command([new Check()], [new Pack()], () => log.Add("ship")),
-				_ => throw new InvalidOperationException()
-			});
+			app.Bind(
+				t =>
+					t.Value switch
+					{
+						Wipe => app.Target(() => log.Add("wipe")),
+						Compile => app.Target([new Wipe()], () => log.Add("compile")),
+						Check check =>
+							app.Target([new Compile()], () =>
+							{
+								if (check.Filter is { } f)
+									log.Add($"check:{f}");
+								else
+									log.Add("check:all");
+							}),
+						Pack =>
+							app.Target([new Check()], async () =>
+							{
+								await Task.Yield();
+								log.Add("pack");
+							}).Description("Pack the packages"),
+						Undocumented => app.Target(() => log.Add("undocumented")),
+						Ship => app.Command([new Check()], [new Pack()], () => log.Add("ship")),
+						_ => throw new InvalidOperationException()
+					}
+			);
 
 		var stdout = new StringWriter();
 		var stderr = new StringWriter();
@@ -125,11 +132,24 @@ public class MakeAppLambdaSyntaxTests
 	[Test]
 	public async Task Exec_runs_a_command_line()
 	{
-		var run = await RunAsync((app, log) => app.Bind(t => t.Value switch
-		{
-			Wipe => app.Target(() => { Exec("dotnet --version"); log.Add("ran"); }),
-			_ => app.Target(() => { })
-		}), "wipe");
+		var run = await RunAsync(
+			(app, log) => app.Bind(
+				t =>
+					t.Value switch
+					{
+						Wipe =>
+							app.Target(() =>
+							{
+								Exec("dotnet --version");
+								log.Add("ran");
+							}),
+						_ =>
+							app.Target(() =>
+							{ })
+					}
+			),
+			"wipe"
+		);
 		run.ExitCode.Should().Be(0, run.Stderr);
 		run.Log.Should().Equal("ran");
 	}
@@ -137,11 +157,24 @@ public class MakeAppLambdaSyntaxTests
 	[Test]
 	public async Task Exec_failure_fails_the_target()
 	{
-		var run = await RunAsync((app, log) => app.Bind(t => t.Value switch
-		{
-			Wipe => app.Target(() => { Exec("dotnet", "definitely-not-a-dotnet-command"); log.Add("after"); }),
-			_ => app.Target(() => { })
-		}), "wipe");
+		var run = await RunAsync(
+			(app, log) => app.Bind(
+				t =>
+					t.Value switch
+					{
+						Wipe =>
+							app.Target(() =>
+							{
+								Exec("dotnet", "definitely-not-a-dotnet-command");
+								log.Add("after");
+							}),
+						_ =>
+							app.Target(() =>
+							{ })
+					}
+			),
+			"wipe"
+		);
 		run.ExitCode.Should().Be(1);
 		run.Stderr.Should().Contain("[make] Target 'wipe' failed");
 		run.Log.Should().BeEmpty();
@@ -158,14 +191,11 @@ public class ShellSplitTests
 	[Arguments("tool \"\" last", new[] { "tool", "", "last" })]
 	[Arguments("a--b=\"c d\"", new[] { "a--b=c d" })]
 	[Arguments("", new string[0])]
-	public void Split_follows_quotes_and_escapes(string commandLine, string[] expected) =>
-		Shell.Split(commandLine).Should().Equal(expected);
+	public void Split_follows_quotes_and_escapes(string commandLine, string[] expected) => Shell.Split(commandLine).Should().Equal(expected);
 
 	[Test]
-	public void Unclosed_quote_is_an_error() =>
-		FluentActions.Invoking(() => Shell.Split("echo \"oops")).Should().Throw<ArgumentException>();
+	public void Unclosed_quote_is_an_error() => FluentActions.Invoking(() => Shell.Split("echo \"oops")).Should().Throw<ArgumentException>();
 
 	[Test]
-	public void Empty_command_line_cannot_run() =>
-		FluentActions.Invoking(() => Exec("   ")).Should().Throw<ArgumentException>();
+	public void Empty_command_line_cannot_run() => FluentActions.Invoking(() => Exec("   ")).Should().Throw<ArgumentException>();
 }

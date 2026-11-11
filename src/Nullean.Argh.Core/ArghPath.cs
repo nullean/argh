@@ -18,8 +18,7 @@ public static class ArghPath
 
 		var trimmedPath = path.Trim();
 
-		if (trimmedPath.StartsWith("~/", StringComparison.Ordinal) ||
-		    trimmedPath.StartsWith("~\\", StringComparison.Ordinal))
+		if (trimmedPath.StartsWith("~/", StringComparison.Ordinal) || trimmedPath.StartsWith("~\\", StringComparison.Ordinal))
 		{
 			var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 			homeDirectory = homeDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);

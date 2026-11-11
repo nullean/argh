@@ -78,21 +78,29 @@ public sealed partial class ArghApp
 	}
 
 	/// <inheritdoc />
-	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghBuilder> configure) where T : class
+	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		string name,
+		Action<IArghBuilder> configure
+	) where T : class
 	{
 		_ = MapNamespace<T>(name, configure);
 		return this;
 	}
 
 	/// <inheritdoc />
-	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string name, Action<IArghNamespaceBuilder> configure) where T : class
+	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		string name,
+		Action<IArghNamespaceBuilder> configure
+	) where T : class
 	{
 		_ = MapNamespace<T>(name, configure);
 		return this;
 	}
 
 	/// <inheritdoc />
-	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(Action<IArghNamespaceBuilder> configure) where T : class
+	IArghBuilder IArghBuilder.MapNamespace<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(
+		Action<IArghNamespaceBuilder> configure
+	) where T : class
 	{
 		_ = MapNamespace<T>(configure);
 		return this;

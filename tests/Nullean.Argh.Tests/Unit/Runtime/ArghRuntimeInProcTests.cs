@@ -313,7 +313,10 @@ public class ArghRuntimeInProcTests
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("tag-set:1,2,3");
 		}
-		finally { Console.SetOut(prev); }
+		finally
+		{
+			Console.SetOut(prev);
+		}
 	}
 
 	[Test]
@@ -328,7 +331,10 @@ public class ArghRuntimeInProcTests
 			code.Should().Be(2);
 			sw.ToString().Should().Contain("duplicate");
 		}
-		finally { Console.SetError(prev); }
+		finally
+		{
+			Console.SetError(prev);
+		}
 	}
 
 	[Test]
@@ -343,7 +349,10 @@ public class ArghRuntimeInProcTests
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("color-set:Red,Blue");
 		}
-		finally { Console.SetOut(prev); }
+		finally
+		{
+			Console.SetOut(prev);
+		}
 	}
 
 	[Test]
@@ -358,7 +367,10 @@ public class ArghRuntimeInProcTests
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("opt-tag-set:null");
 		}
-		finally { Console.SetOut(prev); }
+		finally
+		{
+			Console.SetOut(prev);
+		}
 	}
 
 	[Test]
@@ -373,7 +385,10 @@ public class ArghRuntimeInProcTests
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("opt-tag-set:5,10");
 		}
-		finally { Console.SetOut(prev); }
+		finally
+		{
+			Console.SetOut(prev);
+		}
 	}
 
 	[Test]
@@ -388,7 +403,10 @@ public class ArghRuntimeInProcTests
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("as-params-tag-set:3,7");
 		}
-		finally { Console.SetOut(prev); }
+		finally
+		{
+			Console.SetOut(prev);
+		}
 	}
 
 	[Test]
@@ -403,7 +421,10 @@ public class ArghRuntimeInProcTests
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("marker:root-default:prefetch");
 		}
-		finally { Console.SetOut(prev); }
+		finally
+		{
+			Console.SetOut(prev);
+		}
 	}
 
 	[Test]
@@ -418,7 +439,10 @@ public class ArghRuntimeInProcTests
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("marker:alias-followed-build");
 		}
-		finally { Console.SetOut(prev); }
+		finally
+		{
+			Console.SetOut(prev);
+		}
 	}
 
 	[Test]
@@ -433,7 +457,10 @@ public class ArghRuntimeInProcTests
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("marker:alias-followed-diff");
 		}
-		finally { Console.SetOut(prev); }
+		finally
+		{
+			Console.SetOut(prev);
+		}
 	}
 
 	[Test]
@@ -448,7 +475,10 @@ public class ArghRuntimeInProcTests
 			code.Should().Be(0);
 			sw.ToString().Trim().Should().Be("marker:alias-followed-serve");
 		}
-		finally { Console.SetOut(prev); }
+		finally
+		{
+			Console.SetOut(prev);
+		}
 	}
 
 	[Test]

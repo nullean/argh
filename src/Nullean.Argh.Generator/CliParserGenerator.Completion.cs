@@ -26,7 +26,6 @@ public sealed partial class CliParserGenerator
 		EmitCompletionHierarchical(sb, app);
 	}
 
-
 	private static void EmitCompletionHierarchical(StringBuilder sb, AppEmitModel app)
 	{
 		var globalMembers = app.GlobalOptionsModel is { FlattenedMembers.Length: > 0 }
@@ -238,7 +237,8 @@ public sealed partial class CliParserGenerator
 		{
 			var k = CommandNamespacePathKey(AppendSegment(ImmutableArray<string>.Empty, ch.Segment));
 			sb.AppendLine(
-				$"\t\t\t\t\tif (string.Equals(tok, \"{Escape(ch.Segment)}\", StringComparison.OrdinalIgnoreCase)) {{ current = \"{Escape(k)}\"; return true; }}");
+				$"\t\t\t\t\tif (string.Equals(tok, \"{Escape(ch.Segment)}\", StringComparison.OrdinalIgnoreCase)) {{ current = \"{Escape(k)}\"; return true; }}"
+			);
 		}
 
 		sb.AppendLine("\t\t\t\t\treturn false;");
@@ -253,7 +253,8 @@ public sealed partial class CliParserGenerator
 				var childPath = AppendSegment(path, ch.Segment);
 				var k = CommandNamespacePathKey(childPath);
 				sb.AppendLine(
-					$"\t\t\t\t\tif (string.Equals(tok, \"{Escape(ch.Segment)}\", StringComparison.OrdinalIgnoreCase)) {{ current = \"{Escape(k)}\"; return true; }}");
+					$"\t\t\t\t\tif (string.Equals(tok, \"{Escape(ch.Segment)}\", StringComparison.OrdinalIgnoreCase)) {{ current = \"{Escape(k)}\"; return true; }}"
+				);
 			}
 
 			sb.AppendLine("\t\t\t\t\treturn false;");
@@ -277,7 +278,8 @@ public sealed partial class CliParserGenerator
 		foreach (var cmd in app.AllCommands.Where(c => !c.IsRootDefault && c.RoutePrefix.IsDefaultOrEmpty))
 		{
 			sb.AppendLine(
-				$"\t\t\t\t\tif (string.Equals(tok, \"{Escape(cmd.CommandName)}\", StringComparison.OrdinalIgnoreCase)) {{ runMethodName = \"{Escape(cmd.RunMethodName)}\"; return true; }}");
+				$"\t\t\t\t\tif (string.Equals(tok, \"{Escape(cmd.CommandName)}\", StringComparison.OrdinalIgnoreCase)) {{ runMethodName = \"{Escape(cmd.RunMethodName)}\"; return true; }}"
+			);
 		}
 
 		sb.AppendLine("\t\t\t\t\treturn false;");
@@ -290,7 +292,8 @@ public sealed partial class CliParserGenerator
 			foreach (var cmd in node.Commands)
 			{
 				sb.AppendLine(
-					$"\t\t\t\t\tif (string.Equals(tok, \"{Escape(cmd.CommandName)}\", StringComparison.OrdinalIgnoreCase)) {{ runMethodName = \"{Escape(cmd.RunMethodName)}\"; return true; }}");
+					$"\t\t\t\t\tif (string.Equals(tok, \"{Escape(cmd.CommandName)}\", StringComparison.OrdinalIgnoreCase)) {{ runMethodName = \"{Escape(cmd.RunMethodName)}\"; return true; }}"
+				);
 			}
 
 			sb.AppendLine("\t\t\t\t\treturn false;");
@@ -491,9 +494,7 @@ public sealed partial class CliParserGenerator
 			yield return "--no-" + p.CliLongName;
 	}
 
-	private static List<string> MergeCompletionFlags(
-		ImmutableArray<ParameterModel> global,
-		ImmutableArray<ParameterModel> ns)
+	private static List<string> MergeCompletionFlags(ImmutableArray<ParameterModel> global, ImmutableArray<ParameterModel> ns)
 	{
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		var list = new List<string>();

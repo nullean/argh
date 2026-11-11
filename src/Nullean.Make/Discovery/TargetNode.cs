@@ -2,7 +2,11 @@ using System.Reflection;
 
 namespace Nullean.Make.Discovery;
 
-internal enum TargetKind { Target, Command }
+internal enum TargetKind
+{
+	Target,
+	Command
+}
 
 internal sealed class TargetNode
 {

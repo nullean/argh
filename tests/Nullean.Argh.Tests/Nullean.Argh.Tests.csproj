@@ -35,7 +35,6 @@
     <Copy SourceFiles="@(_CliHostFiles)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(_CliHostFiles)' != ''" />
   </Target>
 
-
   <ItemGroup>
     <PackageReference Include="TUnit" />
     <PackageReference Include="AwesomeAssertions" />

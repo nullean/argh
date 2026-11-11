@@ -5,4 +5,6 @@ namespace Nullean.Make;
 /// Annotate <see cref="bool"/> properties with <see cref="FlagAttribute"/> and other properties with <see cref="GlobalOptionAttribute"/> to declare global CLI options.
 /// Declare public instance properties of types inheriting <see cref="Namespace"/> to register namespaced target groups.
 /// </summary>
-public abstract class MakeBuild { }
+public abstract class MakeBuild
+{
+}

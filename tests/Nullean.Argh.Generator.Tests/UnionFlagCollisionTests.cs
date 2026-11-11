@@ -1,6 +1,6 @@
-using AwesomeAssertions;
 using System.Collections.Immutable;
 using System.Text;
+using AwesomeAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
@@ -14,7 +14,8 @@ namespace Nullean.Argh.Generator.Tests;
 /// </summary>
 public class UnionFlagCollisionTests
 {
-	private static string Source(string cases, string unionCtors, string handler) => $$"""
+	private static string Source(string cases, string unionCtors, string handler) =>
+		$$"""
 		using Nullean.Argh;
 		using Nullean.Argh.Builder;
 
@@ -47,8 +48,12 @@ public class UnionFlagCollisionTests
 		references.Add(MetadataReference.CreateFromFile(typeof(Nullean.Argh.Builder.IArghBuilder).Assembly.Location));
 
 		var tree = CSharpSyntaxTree.ParseText(SourceText.From(source, Encoding.UTF8), path: "App.cs");
-		var compilation = CSharpCompilation.Create("App", new[] { tree }, references,
-			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+		var compilation = CSharpCompilation.Create(
+			"App",
+			new[] { tree },
+			references,
+			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable)
+		);
 		var sourceErrors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
 		(sourceErrors.Count == 0).Should().BeTrue(string.Join(Environment.NewLine, sourceErrors));
 
@@ -57,10 +62,10 @@ public class UnionFlagCollisionTests
 		return diagnostics;
 	}
 
-	private static IEnumerable<Diagnostic> Agh0036(ImmutableArray<Diagnostic> diagnostics) =>
-		diagnostics.Where(d => d.Id == "AGH0036");
+	private static IEnumerable<Diagnostic> Agh0036(ImmutableArray<Diagnostic> diagnostics) => diagnostics.Where(d => d.Id == "AGH0036");
 
-	private const string JsonTableCtors = """
+	private const string JsonTableCtors =
+		"""
 		public Format(Json value) => Value = value;
 		public Format(Table value) => Value = value;
 		""";
@@ -68,10 +73,13 @@ public class UnionFlagCollisionTests
 	[Test]
 	public void Flag_mode_case_flag_colliding_with_another_flag_is_reported()
 	{
-		var diagnostics = RunGenerator(Source(
-			"public record class Json(bool Pretty = false); public record class Table(bool Pretty = false);",
-			JsonTableCtors,
-			"public static void Convert(Format format, bool jsonPretty = false) { }"));
+		var diagnostics = RunGenerator(
+			Source(
+				"public record class Json(bool Pretty = false); public record class Table(bool Pretty = false);",
+				JsonTableCtors,
+				"public static void Convert(Format format, bool jsonPretty = false) { }"
+			)
+		);
 
 		var d = Agh0036(diagnostics).Should().ContainSingle().Which;
 		d.Severity.Should().Be(DiagnosticSeverity.Error);
@@ -82,13 +90,16 @@ public class UnionFlagCollisionTests
 	public void Flag_mode_case_flag_colliding_with_another_case_flag_is_reported()
 	{
 		// Json.PrettyPrint and JsonPretty.Print both map to --json-pretty-print.
-		var diagnostics = RunGenerator(Source(
-			"public record class Json(bool PrettyPrint = false); public record class JsonPretty(bool Print = false);",
-			"""
+		var diagnostics = RunGenerator(
+			Source(
+				"public record class Json(bool PrettyPrint = false); public record class JsonPretty(bool Print = false);",
+				"""
 			public Format(Json value) => Value = value;
 			public Format(JsonPretty value) => Value = value;
 			""",
-			"public static void Convert(Format format) { }"));
+				"public static void Convert(Format format) { }"
+			)
+		);
 
 		var d = Agh0036(diagnostics).Should().ContainSingle().Which;
 		d.GetMessage().Should().Contain("--json-pretty-print");
@@ -97,10 +108,13 @@ public class UnionFlagCollisionTests
 	[Test]
 	public void Argument_mode_shared_prop_with_different_types_is_reported()
 	{
-		var diagnostics = RunGenerator(Source(
-			"public record class Json(int Pretty = 0); public record class Table(bool Pretty = false);",
-			JsonTableCtors,
-			"public static void Convert([Argument] Format format) { }"));
+		var diagnostics = RunGenerator(
+			Source(
+				"public record class Json(int Pretty = 0); public record class Table(bool Pretty = false);",
+				JsonTableCtors,
+				"public static void Convert([Argument] Format format) { }"
+			)
+		);
 
 		var d = Agh0036(diagnostics).Should().ContainSingle().Which;
 		d.GetMessage().Should().Contain("--pretty");
@@ -109,13 +123,16 @@ public class UnionFlagCollisionTests
 	[Test]
 	public void Duplicate_case_cli_names_are_reported()
 	{
-		var diagnostics = RunGenerator(Source(
-			"public record class Json; public static class V2 { public record class Json; }",
-			"""
+		var diagnostics = RunGenerator(
+			Source(
+				"public record class Json; public static class V2 { public record class Json; }",
+				"""
 			public Format(Json value) => Value = value;
 			public Format(V2.Json value) => Value = value;
 			""",
-			"public static void Convert(Format format) { }"));
+				"public static void Convert(Format format) { }"
+			)
+		);
 
 		var d = Agh0036(diagnostics).Should().ContainSingle().Which;
 		d.GetMessage().Should().Contain("case 'json'");
@@ -124,10 +141,13 @@ public class UnionFlagCollisionTests
 	[Test]
 	public void Argument_mode_shared_prop_with_the_same_type_is_allowed()
 	{
-		var diagnostics = RunGenerator(Source(
-			"public record class Json(bool Pretty = false, int Indent = 2); public record class Table(bool Pretty = false);",
-			JsonTableCtors,
-			"public static void Convert([Argument] Format format) { }"));
+		var diagnostics = RunGenerator(
+			Source(
+				"public record class Json(bool Pretty = false, int Indent = 2); public record class Table(bool Pretty = false);",
+				JsonTableCtors,
+				"public static void Convert([Argument] Format format) { }"
+			)
+		);
 
 		Agh0036(diagnostics).Should().BeEmpty();
 	}
@@ -135,10 +155,13 @@ public class UnionFlagCollisionTests
 	[Test]
 	public void Flag_mode_prefixed_case_flags_do_not_collide()
 	{
-		var diagnostics = RunGenerator(Source(
-			"public record class Json(bool Pretty = false); public record class Table(bool Pretty = false);",
-			JsonTableCtors,
-			"public static void Convert(Format format, bool verbose = false) { }"));
+		var diagnostics = RunGenerator(
+			Source(
+				"public record class Json(bool Pretty = false); public record class Table(bool Pretty = false);",
+				JsonTableCtors,
+				"public static void Convert(Format format, bool verbose = false) { }"
+			)
+		);
 
 		Agh0036(diagnostics).Should().BeEmpty();
 	}
@@ -150,10 +173,13 @@ public class UnionFlagCollisionTests
 	[Arguments("string[]? Tags = null", "'Json.Tags' (string[]?)")]
 	public void Unsupported_case_property_type_is_reported(string ctorParam, string expected)
 	{
-		var diagnostics = RunGenerator(Source(
-			$"public record class Json({ctorParam}); public record class Table(bool Pretty = false);",
-			JsonTableCtors,
-			"public static void Convert(Format format) { }"));
+		var diagnostics = RunGenerator(
+			Source(
+				$"public record class Json({ctorParam}); public record class Table(bool Pretty = false);",
+				JsonTableCtors,
+				"public static void Convert(Format format) { }"
+			)
+		);
 
 		var d = diagnostics.Should().ContainSingle(x => x.Id == "AGH0037").Which;
 		d.Severity.Should().Be(DiagnosticSeverity.Error);
@@ -163,15 +189,19 @@ public class UnionFlagCollisionTests
 	[Test]
 	public void Supported_case_property_types_are_not_reported()
 	{
-		var diagnostics = RunGenerator(Source(
-			"public enum Level { Low, High = 3 } public record class Json(string Name = \"x\", int A = 1, long B = 2, float C = 1.5f, double D = 2.5, decimal E = 3.5m, Level L = Level.High, bool P = true); public record class Table(bool Pretty = false);",
-			JsonTableCtors,
-			"public static void Convert(Format format) { }"));
+		var diagnostics = RunGenerator(
+			Source(
+				"public enum Level { Low, High = 3 } public record class Json(string Name = \"x\", int A = 1, long B = 2, float C = 1.5f, double D = 2.5, decimal E = 3.5m, Level L = Level.High, bool P = true); public record class Table(bool Pretty = false);",
+				JsonTableCtors,
+				"public static void Convert(Format format) { }"
+			)
+		);
 
 		diagnostics.Should().NotContain(x => x.Id == "AGH0037");
 	}
 
-	private static string GlobalOptionsSource(string globalProps) => $$"""
+	private static string GlobalOptionsSource(string globalProps) =>
+		$$"""
 		using Nullean.Argh;
 		using Nullean.Argh.Builder;
 

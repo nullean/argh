@@ -113,8 +113,16 @@ internal static class CliRegistrationModule
 		// Expression-bodied configure lambdas: nested MapNamespace must stay under each parent (AGH0022); same nested segment under two parents is OK.
 		app.Map("cross-assembly-echo", CrossAssemblyHandlers.Echo);
 		app.Map("ext-ns-as-params-echo", CrossAssemblyHandlers.ExternalNsEcho);
-		app.MapNamespace("billing", "Billing commands", g => g.MapNamespace("tools", "Shared tools segment", h => h.Map("status", BillingToolsHandlers.Status)));
-		app.MapNamespace("support", "Support commands", g => g.MapNamespace("tools", "Shared tools segment", h => h.Map("status", SupportToolsHandlers.Status)));
+		app.MapNamespace(
+			"billing",
+			"Billing commands",
+			g => g.MapNamespace("tools", "Shared tools segment", h => h.Map("status", BillingToolsHandlers.Status))
+		);
+		app.MapNamespace(
+			"support",
+			"Support commands",
+			g => g.MapNamespace("tools", "Shared tools segment", h => h.Map("status", SupportToolsHandlers.Status))
+		);
 		// MapAndRootAlias: multi-command class; Build is [DefaultCommand] and also the root alias for this namespace.
 		app.MapNamespace("alias-scope", "Root-alias integration test namespace.", g => g.MapAndRootAlias<RootAliasTestCommands>());
 		app.MapNamespace("alias-followed", "Root alias followed by additional mapped command classes.", g =>
@@ -132,8 +140,7 @@ internal static class CliRegistrationModule
 	/// <param name="g">Injected global CLI options.</param>
 	/// <param name="line">-l,--line, Text line to echo.</param>
 	/// <example>doc-lambda --line hi</example>
-	internal static void DocLambdaEcho(TestGlobalCliOptions g, string line) =>
-		Console.Out.WriteLine($"doc-lambda:{line}");
+	internal static void DocLambdaEcho(TestGlobalCliOptions g, string line) => Console.Out.WriteLine($"doc-lambda:{line}");
 
 	/// <summary>Provides the app-root integration-test default via <c>MapAndRootAlias</c> alongside a sentinel flag.</summary>
 	internal sealed class CliRootPrefetchAliasCommands
@@ -146,12 +153,10 @@ internal static class CliRegistrationModule
 		public static void Build(TestGlobalCliOptions g, bool? prefetchRegression = null) =>
 			Console.Out.WriteLine(prefetchRegression == true ? "marker:root-default:prefetch" : "marker:root-default");
 
-		public static void Other(TestGlobalCliOptions g) =>
-			Console.Out.WriteLine("marker:root-other");
+		public static void Other(TestGlobalCliOptions g) => Console.Out.WriteLine("marker:root-other");
 	}
 
 	/// <summary>Integration-test default when only the <c>storage</c> namespace is selected.</summary>
 	/// <remarks>Namespace default remarks for help layout tests.</remarks>
-	internal static void StorageNamespaceRoot(TestStorageCommandNamespaceOptions o) =>
-		Console.Out.WriteLine("marker:storage-ns-root");
+	internal static void StorageNamespaceRoot(TestStorageCommandNamespaceOptions o) => Console.Out.WriteLine("marker:storage-ns-root");
 }

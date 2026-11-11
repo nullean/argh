@@ -33,9 +33,7 @@ public class TryParseArghNegativeTests
 	[Test]
 	public void TryParseArgh_mixed_unknown_and_known_flags_extracts_correctly()
 	{
-		var ok = DeployCliArgs.TryParseArgh(
-			["assembler", "clone", "--app-env", "prod", "--app-port", "80", "--assume-cloned"],
-			out var d);
+		var ok = DeployCliArgs.TryParseArgh(["assembler", "clone", "--app-env", "prod", "--app-port", "80", "--assume-cloned"], out var d);
 		ok.Should().BeTrue();
 		d!.Env.Should().Be("prod");
 		d.Port.Should().Be(80);

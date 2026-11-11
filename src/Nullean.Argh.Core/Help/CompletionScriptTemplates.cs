@@ -29,12 +29,9 @@ public static class CompletionScriptTemplates
 	/// <returns>A format string with <c>{0}</c> for the executable name.</returns>
 	public static string GetBash() =>
 		"# Generated completion — replace {0} with your executable name.\n" +
-		"# Passes all words after the executable (COMP_WORDS[1]..) so nested subcommands complete correctly.\n" +
-		"_{0}_completion() {\n" +
-		"  COMPREPLY=()\n" +
-		"  mapfile -t COMPREPLY < <({0} __complete bash -- \"${COMP_WORDS[@]:1}\")\n" +
-		"}\n" +
-		"complete -o default -F _{0}_completion {0}\n";
+			"# Passes all words after the executable (COMP_WORDS[1]..) so nested subcommands complete correctly.\n" + "_{0}_completion() {\n" +
+			"  COMPREPLY=()\n" + "  mapfile -t COMPREPLY < <({0} __complete bash -- \"${COMP_WORDS[@]:1}\")\n" + "}\n" +
+			"complete -o default -F _{0}_completion {0}\n";
 
 	/// <summary>
 	/// Zsh completion script template. Replace <c>{0}</c> with the program name. The template assumes <c>{0} __complete zsh ...</c>.
@@ -42,14 +39,8 @@ public static class CompletionScriptTemplates
 	/// <returns>A format string with <c>{0}</c> for the executable name.</returns>
 	public static string GetZsh() =>
 		"# Generated completion — replace {0} with your executable name.\n" +
-		"# Passes argv after the command name (words[2]..) so nested subcommands complete correctly.\n" +
-		"#compdef {0}\n" +
-		"_{0}_completion() {\n" +
-		"  local -a reply\n" +
-		"  reply=($({0} __complete zsh -- \"${words[@]:2}\"))\n" +
-		"  compadd -a reply\n" +
-		"}\n" +
-		"compdef _{0}_completion {0}\n";
+			"# Passes argv after the command name (words[2]..) so nested subcommands complete correctly.\n" + "#compdef {0}\n" + "_{0}_completion() {\n" +
+			"  local -a reply\n" + "  reply=($({0} __complete zsh -- \"${words[@]:2}\"))\n" + "  compadd -a reply\n" + "}\n" + "compdef _{0}_completion {0}\n";
 
 	/// <summary>
 	/// Fish completion script template. Replace <c>{0}</c> with the program name. The template assumes <c>{0} __complete fish ...</c>.
@@ -57,6 +48,6 @@ public static class CompletionScriptTemplates
 	/// <returns>A format string with <c>{0}</c> for the executable name.</returns>
 	public static string GetFish() =>
 		"# Generated completion — replace {0} with your executable name.\n" +
-		"# Uses tokenized command line; drops the first token (program name). Requires fish 3.4+ for commandline -opc.\n" +
-		"complete -c {0} -f -a \"({0} __complete fish -- (commandline -opc)[2..-1])\"\n";
+			"# Uses tokenized command line; drops the first token (program name). Requires fish 3.4+ for commandline -opc.\n" +
+			"complete -c {0} -f -a \"({0} __complete fish -- (commandline -opc)[2..-1])\"\n";
 }

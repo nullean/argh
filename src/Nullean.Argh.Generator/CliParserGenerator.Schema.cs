@@ -17,9 +17,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine();
 	}
 
-
-	private static void EmitBuildCliSchemaDocumentHierarchical(StringBuilder sb, AppEmitModel app,
-		string entryAssemblyName, string entryAssemblyVersion)
+	private static void EmitBuildCliSchemaDocumentHierarchical(StringBuilder sb, AppEmitModel app, string entryAssemblyName, string entryAssemblyVersion)
 	{
 		sb.AppendLine("\t\tinternal static ArghCliSchemaDocument BuildCliSchemaDocument() =>");
 		sb.AppendLine("\t\t\tnew ArghCliSchemaDocument(");
@@ -65,8 +63,13 @@ public sealed partial class CliParserGenerator
 		sb.Append("}");
 	}
 
-	private static void EmitSchemaRootDefaultExpression(StringBuilder sb, CommandModel? rootCmd, string entryAssemblyName,
-		string indent, string? environmentPrefix = null)
+	private static void EmitSchemaRootDefaultExpression(
+		StringBuilder sb,
+		CommandModel? rootCmd,
+		string entryAssemblyName,
+		string indent,
+		string? environmentPrefix = null
+	)
 	{
 		if (rootCmd is not { IsRootDefault: true } rc)
 		{
@@ -91,8 +94,13 @@ public sealed partial class CliParserGenerator
 		sb.Append(")");
 	}
 
-	private static void EmitSchemaDefaultHandlerForNamespace(StringBuilder sb, CommandModel? rootCmd,
-		string entryAssemblyName, string indent, string? environmentPrefix = null)
+	private static void EmitSchemaDefaultHandlerForNamespace(
+		StringBuilder sb,
+		CommandModel? rootCmd,
+		string entryAssemblyName,
+		string indent,
+		string? environmentPrefix = null
+	)
 	{
 		if (rootCmd is not { IsRootDefault: true } rc)
 		{
@@ -117,12 +125,9 @@ public sealed partial class CliParserGenerator
 		sb.Append(")");
 	}
 
-
-	private static void EmitSchemaRootCommandsExpression(StringBuilder sb, AppEmitModel app, string entryAssemblyName,
-		string indent)
+	private static void EmitSchemaRootCommandsExpression(StringBuilder sb, AppEmitModel app, string entryAssemblyName, string indent)
 	{
-		var cmds = app.Root.Commands.Where(static c => !c.IsRootDefault).OrderBy(c => c.CommandName, StringComparer.Ordinal)
-			.ToList();
+		var cmds = app.Root.Commands.Where(static c => !c.IsRootDefault).OrderBy(c => c.CommandName, StringComparer.Ordinal).ToList();
 		if (cmds.Count == 0)
 		{
 			sb.Append(indent);
@@ -181,11 +186,16 @@ public sealed partial class CliParserGenerator
 			sb.AppendLine(",");
 			sb.Append($"{indent}\tIntent: new CliIntentSchema(");
 			var intentParts = new System.Collections.Generic.List<string>();
-			if (intent.Destructive is bool d) intentParts.Add($"Destructive: {(d ? "true" : "false")}");
-			if (intent.Idempotent is bool i) intentParts.Add($"Idempotent: {(i ? "true" : "false")}");
-			if (intent.Scope is string sc) intentParts.Add($"Scope: \"{Escape(sc)}\"");
-			if (intent.RequiresConfirmation is bool rc) intentParts.Add($"RequiresConfirmation: {(rc ? "true" : "false")}");
-			if (intent.RequiresAuth is bool ra) intentParts.Add($"RequiresAuth: {(ra ? "true" : "false")}");
+			if (intent.Destructive is bool d)
+				intentParts.Add($"Destructive: {(d ? "true" : "false")}");
+			if (intent.Idempotent is bool i)
+				intentParts.Add($"Idempotent: {(i ? "true" : "false")}");
+			if (intent.Scope is string sc)
+				intentParts.Add($"Scope: \"{Escape(sc)}\"");
+			if (intent.RequiresConfirmation is bool rc)
+				intentParts.Add($"RequiresConfirmation: {(rc ? "true" : "false")}");
+			if (intent.RequiresAuth is bool ra)
+				intentParts.Add($"RequiresAuth: {(ra ? "true" : "false")}");
 			sb.Append(string.Join(", ", intentParts));
 			sb.Append(")");
 		}
@@ -218,8 +228,13 @@ public sealed partial class CliParserGenerator
 		sb.Append("}");
 	}
 
-	private static void EmitSchemaNamespacesExpression(StringBuilder sb,
-		List<RegistryNode.NamedCommandNamespaceChild> children, string entryAssemblyName, string indent, string? environmentPrefix = null)
+	private static void EmitSchemaNamespacesExpression(
+		StringBuilder sb,
+		List<RegistryNode.NamedCommandNamespaceChild> children,
+		string entryAssemblyName,
+		string indent,
+		string? environmentPrefix = null
+	)
 	{
 		if (children.Count == 0)
 		{
@@ -240,8 +255,13 @@ public sealed partial class CliParserGenerator
 		sb.Append("}");
 	}
 
-	private static void EmitCliNamespaceSchemaBody(StringBuilder sb, RegistryNode.NamedCommandNamespaceChild ch,
-		string entryAssemblyName, string indent, string? environmentPrefix = null)
+	private static void EmitCliNamespaceSchemaBody(
+		StringBuilder sb,
+		RegistryNode.NamedCommandNamespaceChild ch,
+		string entryAssemblyName,
+		string indent,
+		string? environmentPrefix = null
+	)
 	{
 		var node = ch.Node;
 		var notes = FlattenTypeRemarksInnerXml(node.RemarksInnerXml);
@@ -296,11 +316,15 @@ public sealed partial class CliParserGenerator
 		sb.Append("}");
 	}
 
-	private static void EmitSchemaNamespaceCommandsExpression(StringBuilder sb, RegistryNode node, string entryAssemblyName,
-		string indent, string? environmentPrefix = null)
+	private static void EmitSchemaNamespaceCommandsExpression(
+		StringBuilder sb,
+		RegistryNode node,
+		string entryAssemblyName,
+		string indent,
+		string? environmentPrefix = null
+	)
 	{
-		var cmds = node.Commands.Where(static c => !c.IsRootDefault).OrderBy(c => c.CommandName, StringComparer.Ordinal)
-			.ToList();
+		var cmds = node.Commands.Where(static c => !c.IsRootDefault).OrderBy(c => c.CommandName, StringComparer.Ordinal).ToList();
 		if (cmds.Count == 0)
 		{
 			sb.Append(indent);
@@ -320,8 +344,12 @@ public sealed partial class CliParserGenerator
 		sb.Append("}");
 	}
 
-	private static void EmitSchemaParametersForCommand(StringBuilder sb, ImmutableArray<ParameterModel> parameters,
-		string indent, string? environmentPrefix = null)
+	private static void EmitSchemaParametersForCommand(
+		StringBuilder sb,
+		ImmutableArray<ParameterModel> parameters,
+		string indent,
+		string? environmentPrefix = null
+	)
 	{
 		var list = parameters.Where(static p => p.Kind != ParameterKind.Injected).ToList();
 		if (list.Count == 0)
@@ -368,10 +396,7 @@ public sealed partial class CliParserGenerator
 		}
 
 		var raw = examplesRendered!;
-		var parts = raw.Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.None)
-			.Select(s => s.Trim())
-			.Where(s => s.Length > 0)
-			.ToList();
+		var parts = raw.Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.None).Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
 		if (parts.Count == 0)
 		{
 			sb.Append(indent);
@@ -391,7 +416,8 @@ public sealed partial class CliParserGenerator
 	{
 		var hasVars = !app.EnvironmentVars.IsDefaultOrEmpty;
 		var hasCfgs = !app.ConfigFiles.IsDefaultOrEmpty;
-		if (!hasVars && !hasCfgs) return;
+		if (!hasVars && !hasCfgs)
+			return;
 
 		sb.AppendLine(",");
 		sb.AppendLine(indent + "Environment: new CliEnvironmentSchema(");
@@ -407,7 +433,8 @@ public sealed partial class CliParserGenerator
 				sb.AppendLine($"{indent}\t\tnew CliEnvVarSchema(\"{Escape(v.Name)}\"{desc}{req}{defVal}),");
 			}
 			sb.Append(indent + "\t}");
-			if (hasCfgs) sb.AppendLine(",");
+			if (hasCfgs)
+				sb.AppendLine(",");
 		}
 		if (hasCfgs)
 		{
@@ -427,10 +454,7 @@ public sealed partial class CliParserGenerator
 
 	private static string EmitCliParameterSchemaNewExpression(ParameterModel p, string? environmentPrefix = null)
 	{
-		var role = p.IsConfirmationSkip ? "confirmationSkip"
-			: p.IsDryRun ? "dryRun"
-			: p.Kind == ParameterKind.Positional ? "positional"
-			: "flag";
+		var role = p.IsConfirmationSkip ? "confirmationSkip" : p.IsDryRun ? "dryRun" : p.Kind == ParameterKind.Positional ? "positional" : "flag";
 		var shortName = p.ShortOpt is char c ? $"\"{Escape(c.ToString())}\"" : "null";
 		// A union selector takes one of its case names, like an enum.
 		var type = p.ScalarKind == CliScalarKind.Union ? "enum" : MapToJsonSchemaType(p.ScalarKind, p.TypeName);
@@ -473,7 +497,8 @@ public sealed partial class CliParserGenerator
 		{
 			var elemType = MapToJsonSchemaType(p.ElementScalarKind, p.ElementTypeName);
 			// elementType only accepts string/integer/number/boolean per the meta-schema; enum members serialize as strings
-			if (elemType == "enum") elemType = "string";
+			if (elemType == "enum")
+				elemType = "string";
 			sb.Append($", ElementType: \"{elemType}\"");
 		}
 
@@ -524,9 +549,8 @@ public sealed partial class CliParserGenerator
 		{
 			"String" or "string" or "Char" or "char" => "string",
 			"Boolean" or "bool" => "boolean",
-			"Int16" or "Int32" or "Int64" or "UInt16" or "UInt32" or "UInt64"
-				or "Byte" or "SByte" or "short" or "int" or "long"
-				or "ushort" or "uint" or "ulong" or "byte" or "sbyte" => "integer",
+			"Int16" or "Int32" or "Int64" or "UInt16" or "UInt32" or "UInt64" or "Byte" or "SByte" or "short" or "int" or "long" or "ushort" or "uint" or "ulong" or "byte" or "sbyte" =>
+				"integer",
 			"Single" or "Double" or "Decimal" or "float" or "double" or "decimal" => "number",
 			_ => "string"
 		};
@@ -562,10 +586,14 @@ public sealed partial class CliParserGenerator
 						parts.Add($"new CliConstraintSchema(\"regex\", Pattern: \"{Escape(re.Pattern)}\")");
 						break;
 					case AllowedValuesConstraint av:
-						parts.Add($"new CliConstraintSchema(\"allowed\", Values: new string[] {{ {string.Join(", ", av.Values.Select(val => $"\"{Escape(val)}\""))} }})");
+						parts.Add(
+							$"new CliConstraintSchema(\"allowed\", Values: new string[] {{ {string.Join(", ", av.Values.Select(val => $"\"{Escape(val)}\""))} }})"
+						);
 						break;
 					case DeniedValuesConstraint dv:
-						parts.Add($"new CliConstraintSchema(\"denied\", Values: new string[] {{ {string.Join(", ", dv.Values.Select(val => $"\"{Escape(val)}\""))} }})");
+						parts.Add(
+							$"new CliConstraintSchema(\"denied\", Values: new string[] {{ {string.Join(", ", dv.Values.Select(val => $"\"{Escape(val)}\""))} }})"
+						);
 						break;
 					case EmailConstraint:
 						parts.Add("new CliConstraintSchema(\"email\")");
@@ -574,10 +602,14 @@ public sealed partial class CliParserGenerator
 						parts.Add("new CliConstraintSchema(\"url\")");
 						break;
 					case UriSchemeConstraint us:
-						parts.Add($"new CliConstraintSchema(\"uriScheme\", Values: new string[] {{ {string.Join(", ", us.Schemes.Select(s => $"\"{Escape(s)}\""))} }})");
+						parts.Add(
+							$"new CliConstraintSchema(\"uriScheme\", Values: new string[] {{ {string.Join(", ", us.Schemes.Select(s => $"\"{Escape(s)}\""))} }})"
+						);
 						break;
 					case FileExtensionsConstraint fe:
-						parts.Add($"new CliConstraintSchema(\"fileExtensions\", Values: new string[] {{ {string.Join(", ", fe.Extensions.Select(ext => $"\"{Escape(ext)}\""))} }})");
+						parts.Add(
+							$"new CliConstraintSchema(\"fileExtensions\", Values: new string[] {{ {string.Join(", ", fe.Extensions.Select(ext => $"\"{Escape(ext)}\""))} }})"
+						);
 						break;
 					case ExistingPathConstraint:
 						parts.Add("new CliConstraintSchema(\"existing\")");
@@ -586,7 +618,7 @@ public sealed partial class CliParserGenerator
 						parts.Add("new CliConstraintSchema(\"nonExisting\")");
 						break;
 
-case RejectSymbolicLinksConstraint:
+					case RejectSymbolicLinksConstraint:
 						parts.Add("new CliConstraintSchema(\"rejectSymbolicLinks\")");
 						break;
 				}
@@ -600,5 +632,4 @@ case RejectSymbolicLinksConstraint:
 
 		return $"new CliConstraintSchema[] {{ {string.Join(", ", parts)} }}";
 	}
-
 }

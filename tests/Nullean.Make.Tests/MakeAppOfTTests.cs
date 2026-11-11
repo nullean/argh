@@ -4,15 +4,21 @@ using Nullean.Argh;
 namespace Nullean.Make.Tests;
 
 public record class Clean;
+
 public record class Compile;
+
 public record class Test(string Filter = "", int Retries = 0);
+
 public record class Pack;
+
 public record class Release;
 
 public record class Migrate;
+
 public record class Seed;
 
 public union Db(Migrate, Seed);
+
 public union Build(Clean, Compile, Test, Pack, Release, Db);
 
 /// <summary>
@@ -36,19 +42,20 @@ public class MakeAppTests
 		var retries = app.Option<int>("--max-retries", "Retry budget", defaultValue: 1);
 		var dryRun = app.Flag("--dry-run", "-n", "Print, do not run");
 
-		app.Bind(b => b.Value switch
-		{
-			Clean => app.Target().Description("Delete artifacts").Executes(() => log.Add("clean")),
-			Compile => app.Target().DependsOn<Clean>()
-				.Executes(() => log.Add($"compile:{config.Value}:dry={dryRun.Value}:retries={retries.Value}")),
-			Test t => app.Target().DependsOn(new Compile())
-				.Executes(() => log.Add($"test:{t.Filter}:{t.Retries}")),
-			Pack => app.Target().DependsOn<Test>().Executes(() => log.Add("pack")),
-			Release => app.Command().Composes(new Pack(), new Db(new Migrate())).Executes(() => log.Add("release")),
-			Db { Value: Migrate } => app.Target().Executes(() => log.Add("db-migrate")),
-			Db { Value: Seed } => app.Target().DependsOn<Migrate>().Executes(() => log.Add("db-seed")),
-			_ => throw new InvalidOperationException($"unmapped case {b.Value}")
-		});
+		app.Bind(
+			b =>
+				b.Value switch
+				{
+					Clean => app.Target().Description("Delete artifacts").Executes(() => log.Add("clean")),
+					Compile => app.Target().DependsOn<Clean>().Executes(() => log.Add($"compile:{config.Value}:dry={dryRun.Value}:retries={retries.Value}")),
+					Test t => app.Target().DependsOn(new Compile()).Executes(() => log.Add($"test:{t.Filter}:{t.Retries}")),
+					Pack => app.Target().DependsOn<Test>().Executes(() => log.Add("pack")),
+					Release => app.Command().Composes(new Pack(), new Db(new Migrate())).Executes(() => log.Add("release")),
+					Db { Value: Migrate } => app.Target().Executes(() => log.Add("db-migrate")),
+					Db { Value: Seed } => app.Target().DependsOn<Migrate>().Executes(() => log.Add("db-seed")),
+					_ => throw new InvalidOperationException($"unmapped case {b.Value}")
+				}
+		);
 
 		var stdout = new StringWriter();
 		var stderr = new StringWriter();
@@ -197,11 +204,14 @@ public class MakeAppTests
 	{
 		var ran = false;
 		var app = new MakeApp<Build>("build");
-		app.Bind(b => b.Value switch
-		{
-			Clean => app.Target().DependsOn<string>().Executes(() => ran = true),
-			_ => app.Target()
-		});
+		app.Bind(
+			b =>
+				b.Value switch
+				{
+					Clean => app.Target().DependsOn<string>().Executes(() => ran = true),
+					_ => app.Target()
+				}
+		);
 		var stderr = new StringWriter();
 		var oldErr = Console.Error;
 		Console.SetError(stderr);

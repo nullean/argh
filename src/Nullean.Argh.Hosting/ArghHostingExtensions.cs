@@ -49,11 +49,13 @@ public static class ArghHostingExtensions
 			services.AddLogging(logging => logging.AddFilter(null, builder.IntrinsicLogLevelMinimumValue));
 
 		services.AddSingleton(sp => new ArghHostingContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
-		services.AddSingleton<IHostedService>(sp => new ArghHostingCliService(
-			() => ArghRuntime.RunAsync(args),
-			sp.GetRequiredService<IHostApplicationLifetime>(),
-			sp,
-			sp.GetService<ILogger<ArghHostingCliService>>())
+		services.AddSingleton<IHostedService>(
+			sp => new ArghHostingCliService(
+				() => ArghRuntime.RunAsync(args),
+				sp.GetRequiredService<IHostApplicationLifetime>(),
+				sp,
+				sp.GetService<ILogger<ArghHostingCliService>>()
+			)
 		);
 
 		return services;
@@ -105,11 +107,8 @@ public static class ArghHostingExtensions
 			services.AddLogging(logging => logging.AddFilter(null, builder.IntrinsicLogLevelMinimumValue));
 
 		services.AddSingleton(sp => new ArghHostingContext(args, sp.GetRequiredService<IHostApplicationLifetime>()));
-		services.AddSingleton<IHostedService>(sp => new ArghHostingCliService(
-			runCliAsync,
-			sp.GetRequiredService<IHostApplicationLifetime>(),
-			sp,
-			sp.GetService<ILogger<ArghHostingCliService>>())
+		services.AddSingleton<IHostedService>(
+			sp => new ArghHostingCliService(runCliAsync, sp.GetRequiredService<IHostApplicationLifetime>(), sp, sp.GetService<ILogger<ArghHostingCliService>>())
 		);
 
 		return services;

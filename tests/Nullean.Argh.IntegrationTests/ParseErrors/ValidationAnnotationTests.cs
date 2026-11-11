@@ -5,8 +5,7 @@ namespace Nullean.Argh.IntegrationTests.ParseErrors;
 
 public class ValidationAnnotationTests
 {
-	private static readonly Dictionary<string, string> NoColor =
-		new(StringComparer.Ordinal) { ["NO_COLOR"] = "1" };
+	private static readonly Dictionary<string, string> NoColor = new(StringComparer.Ordinal) { ["NO_COLOR"] = "1" };
 
 	// ── [Range] ──────────────────────────────────────────────────────────────
 
@@ -23,8 +22,7 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-range", "--port", "99999");
 		r.ExitCode.Should().Be(2);
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-			.Should().Contain("Error: --port: value must be between 1 and 65535.");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --port: value must be between 1 and 65535.");
 	}
 
 	[Test]
@@ -32,16 +30,14 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-range", "--port", "0");
 		r.ExitCode.Should().Be(2);
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-			.Should().Contain("Error: --port: value must be between 1 and 65535.");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --port: value must be between 1 and 65535.");
 	}
 
 	[Test]
 	public void Range_error_includes_run_hint()
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-range", "--port", "0");
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-			.Should().Contain("--help' for usage.");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("--help' for usage.");
 	}
 
 	[Test]
@@ -68,8 +64,7 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-length", "--name", "x");
 		r.ExitCode.Should().Be(2);
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-			.Should().Contain("Error: --name: value must be between 2 and 100 characters.");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --name: value must be between 2 and 100 characters.");
 	}
 
 	[Test]
@@ -95,8 +90,7 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-regex", "--slug", "Hello World!");
 		r.ExitCode.Should().Be(2);
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-			.Should().Contain("Error: --slug: value does not match required pattern");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --slug: value does not match required pattern");
 	}
 
 	[Test]
@@ -122,8 +116,7 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-allowed", "--env", "production");
 		r.ExitCode.Should().Be(2);
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-			.Should().Contain("Error: --env: value must be one of: dev, staging, prod.");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --env: value must be one of: dev, staging, prod.");
 	}
 
 	[Test]
@@ -149,8 +142,7 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-email", "--address", "notanemail");
 		r.ExitCode.Should().Be(2);
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-			.Should().Contain("Error: --address: value is not a valid email address.");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --address: value is not a valid email address.");
 	}
 
 	[Test]
@@ -187,8 +179,7 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-uri-scheme", "--endpoint", "http://example.com");
 		r.ExitCode.Should().Be(2);
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-			.Should().Contain("Error: --endpoint: URI scheme must be one of: https.");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --endpoint: URI scheme must be one of: https.");
 	}
 
 	[Test]
@@ -196,8 +187,7 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-uri-scheme", "--endpoint", "not-an-url");
 		r.ExitCode.Should().Be(2);
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-			.Should().Contain("Error: --endpoint: URI scheme must be one of: https.");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --endpoint: URI scheme must be one of: https.");
 	}
 
 	[Test]
@@ -242,8 +232,7 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-non-nullable-range", "--page-per", "-1");
 		r.ExitCode.Should().Be(2);
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-			.Should().Contain("Error: --page-per: value must be between 0 and");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --page-per: value must be between 0 and");
 	}
 
 	// ── [AsParameters] + [Range] ─────────────────────────────────────────────
@@ -261,10 +250,8 @@ public class ValidationAnnotationTests
 	{
 		var r = CliHostRunner.Run(NoColor, "validate-dto", "--count", "150");
 		r.ExitCode.Should().Be(2);
-		ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-			.Should().Contain("Error: --count: value must be between 1 and 100.");
+		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --count: value must be between 1 and 100.");
 	}
-
 
 	// ── filesystem path validations (FileInfo / DirectoryInfo) ─────────────
 
@@ -280,7 +267,10 @@ public class ValidationAnnotationTests
 		}
 		finally
 		{
-			try { File.Delete(tmp); }
+			try
+			{
+				File.Delete(tmp);
+			}
 			catch { /* ignore */ }
 		}
 	}
@@ -302,7 +292,7 @@ public class ValidationAnnotationTests
 		File.Exists(path).Should().BeFalse();
 		try
 		{
-			var r =CliHostRunner.Run(NoColor, "validate-non-existing-file", "--path", path);
+			var r = CliHostRunner.Run(NoColor, "validate-non-existing-file", "--path", path);
 			r.ExitCode.Should().Be(0);
 			ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain($"path:{Path.GetFullPath(path)}");
 		}
@@ -319,12 +309,18 @@ public class ValidationAnnotationTests
 		var tmp = Path.GetTempFileName();
 		try
 		{
-			var r =CliHostRunner.Run(NoColor, "validate-non-existing-file", "--path", tmp);
+			var r = CliHostRunner.Run(NoColor, "validate-non-existing-file", "--path", tmp);
 			r.ExitCode.Should().Be(2);
-			ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-				.Should().Contain("path already exists or is occupied by a directory.");
+			ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("path already exists or is occupied by a directory.");
 		}
-		finally { try { File.Delete(tmp); } catch { } }
+		finally
+		{
+			try
+			{
+				File.Delete(tmp);
+			}
+			catch { }
+		}
 	}
 
 	[Test]
@@ -334,11 +330,18 @@ public class ValidationAnnotationTests
 		Directory.CreateDirectory(dir);
 		try
 		{
-			var r =CliHostRunner.Run(NoColor, "validate-existing-directory", "--dir", dir);
+			var r = CliHostRunner.Run(NoColor, "validate-existing-directory", "--dir", dir);
 			r.ExitCode.Should().Be(0);
 			ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain($"dir:{Path.GetFullPath(dir)}");
 		}
-		finally { try { Directory.Delete(dir); } catch { } }
+		finally
+		{
+			try
+			{
+				Directory.Delete(dir);
+			}
+			catch { }
+		}
 	}
 
 	[Test]
@@ -346,7 +349,7 @@ public class ValidationAnnotationTests
 	{
 		var path = Path.Combine(Path.GetTempPath(), "argh-missing-dir-" + Guid.NewGuid());
 		Directory.Exists(path).Should().BeFalse();
-		var r =CliHostRunner.Run(NoColor, "validate-existing-directory", "--dir", path);
+		var r = CliHostRunner.Run(NoColor, "validate-existing-directory", "--dir", path);
 		r.ExitCode.Should().Be(2);
 		ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("Error: --dir: directory does not exist.");
 	}
@@ -389,7 +392,14 @@ public class ValidationAnnotationTests
 			r.ExitCode.Should().Be(0);
 			ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain($"file:{Path.GetFullPath(abs)}");
 		}
-		finally { try { File.Delete(abs); } catch { } }
+		finally
+		{
+			try
+			{
+				File.Delete(abs);
+			}
+			catch { }
+		}
 	}
 
 	[Test]
@@ -398,11 +408,18 @@ public class ValidationAnnotationTests
 		var tmp = Path.GetTempFileName();
 		try
 		{
-			var r =CliHostRunner.Run(NoColor, "validate-no-symlink-file", "--file", tmp);
+			var r = CliHostRunner.Run(NoColor, "validate-no-symlink-file", "--file", tmp);
 			r.ExitCode.Should().Be(0);
 			ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("file:");
 		}
-		finally { try { File.Delete(tmp); } catch { } }
+		finally
+		{
+			try
+			{
+				File.Delete(tmp);
+			}
+			catch { }
+		}
 	}
 
 	[Test]
@@ -425,18 +442,24 @@ public class ValidationAnnotationTests
 				return;
 			}
 
-			var r =CliHostRunner.Run(NoColor, "validate-no-symlink-file", "--file", link);
+			var r = CliHostRunner.Run(NoColor, "validate-no-symlink-file", "--file", link);
 			r.ExitCode.Should().Be(2);
-			ConsoleOutput.Normalize(CliHostRunner.StderrText(r))
-				.Should().Contain("must not be a symbolic link or reparse point.");
+			ConsoleOutput.Normalize(CliHostRunner.StderrText(r)).Should().Contain("must not be a symbolic link or reparse point.");
 		}
-		finally { try { Directory.Delete(dir, recursive: true); } catch { } }
+		finally
+		{
+			try
+			{
+				Directory.Delete(dir, recursive: true);
+			}
+			catch { }
+		}
 	}
 
 	[Test]
 	public void ExistingFile_help_lists_existence_annotation()
 	{
-		var r =CliHostRunner.Run(NoColor, "validate-existing-file", "--help");
+		var r = CliHostRunner.Run(NoColor, "validate-existing-file", "--help");
 		r.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(r));
 		text.Should().Contain("[existing]");
@@ -457,8 +480,16 @@ public class ValidationAnnotationTests
 		}
 		finally
 		{
-			try { File.Delete(a); } catch { }
-			try { File.Delete(b); } catch { }
+			try
+			{
+				File.Delete(a);
+			}
+			catch { }
+			try
+			{
+				File.Delete(b);
+			}
+			catch { }
 		}
 	}
 
@@ -488,7 +519,14 @@ public class ValidationAnnotationTests
 			stderr.Should().Contain(missingDir);
 			stderr.Should().NotContain($"{okDir}: directory does not exist");
 		}
-		finally { try { Directory.Delete(okDir); } catch { } }
+		finally
+		{
+			try
+			{
+				Directory.Delete(okDir);
+			}
+			catch { }
+		}
 	}
 
 	[Test]
@@ -521,7 +559,14 @@ public class ValidationAnnotationTests
 			stderr.Should().Contain($"{missing}: file does not exist.");
 			stderr.Should().Contain($"{missing}: extension must be one of: txt.");
 		}
-		finally { try { File.Delete(okFile); } catch { } }
+		finally
+		{
+			try
+			{
+				File.Delete(okFile);
+			}
+			catch { }
+		}
 	}
 
 	[Test]
@@ -549,8 +594,16 @@ public class ValidationAnnotationTests
 		}
 		finally
 		{
-			try { File.Delete(a); } catch { }
-			try { File.Delete(b); } catch { }
+			try
+			{
+				File.Delete(a);
+			}
+			catch { }
+			try
+			{
+				File.Delete(b);
+			}
+			catch { }
 		}
 	}
 
@@ -568,7 +621,14 @@ public class ValidationAnnotationTests
 			stderr.Should().Contain($"{wrongExt}: extension must be one of: zip.");
 			stderr.Should().Contain($"{missing}: file does not exist.");
 		}
-		finally { try { File.Delete(wrongExt); } catch { } }
+		finally
+		{
+			try
+			{
+				File.Delete(wrongExt);
+			}
+			catch { }
+		}
 	}
 
 	// ── Variadic positionals ──────────────────────────────────────────────────
@@ -677,5 +737,4 @@ public class ValidationAnnotationTests
 		r.ExitCode.Should().Be(0);
 		ConsoleOutput.Normalize(CliHostRunner.StdoutText(r)).Should().Contain("tags:foo");
 	}
-
 }

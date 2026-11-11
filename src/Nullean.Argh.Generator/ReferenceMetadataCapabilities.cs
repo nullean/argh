@@ -8,9 +8,7 @@ namespace Nullean.Argh;
 /// </summary>
 internal static class ReferenceMetadataCapabilities
 {
-	internal readonly record struct Capabilities(
-		bool HasMicrosoftExtensionsDependencyInjection, bool HasMicrosoftExtensionsHosting
-	);
+	internal readonly record struct Capabilities(bool HasMicrosoftExtensionsDependencyInjection, bool HasMicrosoftExtensionsHosting);
 
 	internal static Capabilities Compute(ImmutableArray<MetadataReference> references)
 	{

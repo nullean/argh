@@ -41,9 +41,7 @@ public class RootAliasCommandTests
 	[Test]
 	public void Namespace_help_shows_alias_section_not_full_option_list()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"alias-scope", "--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "alias-scope", "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		text.Should().Contain("(default: build)");
@@ -57,9 +55,7 @@ public class RootAliasCommandTests
 	[Test]
 	public void Namespace_help_still_lists_all_commands()
 	{
-		var result = CliHostRunner.Run(
-			new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" },
-			"alias-scope", "--help");
+		var result = CliHostRunner.Run(new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, "alias-scope", "--help");
 		result.ExitCode.Should().Be(0);
 		var text = ConsoleOutput.Normalize(CliHostRunner.StdoutText(result));
 		text.Should().Contain("build");

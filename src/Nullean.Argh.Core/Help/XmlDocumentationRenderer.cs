@@ -133,42 +133,42 @@ public static class XmlDocumentationRenderer
 					sb.Append(CliHelpFormatting.DocUnderlineSpan(CollectPlain(e), inRemarks));
 					break;
 				case XElement e when e.Name.LocalName == "paramref":
-				{
-					var name = e.Attribute("name")?.Value;
-					if (name != null && !string.IsNullOrEmpty(name))
-						sb.Append(CliHelpFormatting.DocParamRef(name, inRemarks));
-					break;
-				}
+					{
+						var name = e.Attribute("name")?.Value;
+						if (name != null && !string.IsNullOrEmpty(name))
+							sb.Append(CliHelpFormatting.DocParamRef(name, inRemarks));
+						break;
+					}
 				case XElement e when e.Name.LocalName == "typeparamref":
-				{
-					var name = e.Attribute("name")?.Value;
-					if (name != null && !string.IsNullOrEmpty(name))
-						sb.Append(CliHelpFormatting.DocParamRef(name, inRemarks));
-					break;
-				}
+					{
+						var name = e.Attribute("name")?.Value;
+						if (name != null && !string.IsNullOrEmpty(name))
+							sb.Append(CliHelpFormatting.DocParamRef(name, inRemarks));
+						break;
+					}
 				case XElement { Name.LocalName: "see" } e:
 					AppendSeeElement(e, sb, inRemarks);
 					break;
 				case XElement { Name.LocalName: "a" } e:
-				{
-					var href = e.Attribute("href")?.Value;
-					var vis = e.Value.Trim();
-					if (string.IsNullOrEmpty(vis))
-						vis = href ?? "";
-					sb.Append(CliHelpFormatting.Osc8Hyperlink(href ?? "", vis, inRemarks));
-					break;
-				}
-				case XElement e when e.Name.LocalName == "exception":
-				{
-					var cref = e.Attribute("cref")?.Value;
-					if (cref != null && !string.IsNullOrEmpty(cref))
 					{
-						sb.Append(CliHelpFormatting.DocRefCref(CrefShortName(cref), inRemarks));
-						sb.Append(' ');
+						var href = e.Attribute("href")?.Value;
+						var vis = e.Value.Trim();
+						if (string.IsNullOrEmpty(vis))
+							vis = href ?? "";
+						sb.Append(CliHelpFormatting.Osc8Hyperlink(href ?? "", vis, inRemarks));
+						break;
 					}
-					FlattenNodes(e.Nodes(), sb, inRemarks);
-					break;
-				}
+				case XElement e when e.Name.LocalName == "exception":
+					{
+						var cref = e.Attribute("cref")?.Value;
+						if (cref != null && !string.IsNullOrEmpty(cref))
+						{
+							sb.Append(CliHelpFormatting.DocRefCref(CrefShortName(cref), inRemarks));
+							sb.Append(' ');
+						}
+						FlattenNodes(e.Nodes(), sb, inRemarks);
+						break;
+					}
 				case XElement e when e.Name.LocalName == "list":
 					if (sb.Length > 0)
 						sb.AppendLine();

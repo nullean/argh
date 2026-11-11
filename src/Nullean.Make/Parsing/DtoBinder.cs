@@ -70,8 +70,7 @@ internal static class DtoBinder
 				if (param.ParameterType == typeof(bool) || param.ParameterType == typeof(bool?))
 				{
 					// --flag or --no-flag; next token might also be true/false
-					if (!negated && argIndex + 1 < args.Length &&
-						bool.TryParse(args[argIndex + 1], out var boolVal))
+					if (!negated && argIndex + 1 < args.Length && bool.TryParse(args[argIndex + 1], out var boolVal))
 					{
 						boundValues[paramIndex] = boolVal;
 						argIndex += 2;
@@ -116,19 +115,32 @@ internal static class DtoBinder
 
 		try
 		{
-			if (target == typeof(string)) return raw;
-			if (target == typeof(int)) return int.Parse(raw);
-			if (target == typeof(long)) return long.Parse(raw);
-			if (target == typeof(double)) return double.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
-			if (target == typeof(bool)) return bool.Parse(raw);
-			if (target == typeof(FileInfo)) return new FileInfo(raw);
-			if (target == typeof(DirectoryInfo)) return new DirectoryInfo(raw);
-			if (target == typeof(Uri)) return new Uri(raw);
-			if (target == typeof(TimeSpan)) return TimeSpan.Parse(raw);
-			if (target.IsEnum) return Enum.Parse(target, raw, ignoreCase: true);
+			if (target == typeof(string))
+				return raw;
+			if (target == typeof(int))
+				return int.Parse(raw);
+			if (target == typeof(long))
+				return long.Parse(raw);
+			if (target == typeof(double))
+				return double.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
+			if (target == typeof(bool))
+				return bool.Parse(raw);
+			if (target == typeof(FileInfo))
+				return new FileInfo(raw);
+			if (target == typeof(DirectoryInfo))
+				return new DirectoryInfo(raw);
+			if (target == typeof(Uri))
+				return new Uri(raw);
+			if (target == typeof(TimeSpan))
+				return TimeSpan.Parse(raw);
+			if (target.IsEnum)
+				return Enum.Parse(target, raw, ignoreCase: true);
 			throw new MakeException($"Unsupported parameter type '{type.Name}' for '{paramName}'.", 2);
 		}
-		catch (MakeException) { throw; }
+		catch (MakeException)
+		{
+			throw;
+		}
 		catch (Exception ex)
 		{
 			throw new MakeException($"Cannot parse '{raw}' as {target.Name} for '--{paramName}': {ex.Message}", 2);
@@ -148,4 +160,3 @@ internal static class DtoBinder
 		return sb.ToString();
 	}
 }
-

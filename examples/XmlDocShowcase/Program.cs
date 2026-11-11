@@ -9,6 +9,9 @@ var app = new ArghApp();
 app.UseGlobalOptions<XmlDocShowcaseGlobalOptions>();
 app.Map("welcome", DocsCommands.Welcome);
 app.Map("ping", DocsCommands.Ping);
-app.MapNamespace<XmlDocSamples>("docs", g => { g.UseNamespaceOptions<XmlDocNamespaceOptions>(); });
+app.MapNamespace<XmlDocSamples>("docs", g =>
+{
+	g.UseNamespaceOptions<XmlDocNamespaceOptions>();
+});
 
 return await app.RunAsync(args);

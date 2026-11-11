@@ -16,7 +16,9 @@ public class GlobalOptionHelpBuild : MakeBuild
 	[GlobalOption("--ratio", Description = "Sampling ratio")]
 	public double? Ratio { get; set; }
 
-	public Target<GlobalOptionHelpTestOptions> Test => _ => _.Executes(_ => { });
+	public Target<GlobalOptionHelpTestOptions> Test =>
+		_ => _.Executes(_ =>
+		{ });
 }
 
 [NotInParallel]

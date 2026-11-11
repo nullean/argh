@@ -3,7 +3,11 @@ using Nullean.Argh;
 
 namespace Nullean.Make.Tests;
 
-public enum ParseTestLevel { Low, High }
+public enum ParseTestLevel
+{
+	Low,
+	High
+}
 
 public class GlobalOptionParseBuild : MakeBuild
 {

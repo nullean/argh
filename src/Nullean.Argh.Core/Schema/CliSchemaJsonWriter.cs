@@ -266,8 +266,7 @@ internal sealed class CliSchemaJsonWriter
 		EndContainer(']');
 	}
 
-	private void WriteObject<T>(string name, T? value, Action<T> writeMembers)
-		where T : class
+	private void WriteObject<T>(string name, T? value, Action<T> writeMembers) where T : class
 	{
 		if (value is null)
 			return;
@@ -307,13 +306,27 @@ internal sealed class CliSchemaJsonWriter
 		{
 			switch (c)
 			{
-				case '"': _sb.Append("\\\""); break;
-				case '\\': _sb.Append("\\\\"); break;
-				case '\b': _sb.Append("\\b"); break;
-				case '\f': _sb.Append("\\f"); break;
-				case '\n': _sb.Append("\\n"); break;
-				case '\r': _sb.Append("\\r"); break;
-				case '\t': _sb.Append("\\t"); break;
+				case '"':
+					_sb.Append("\\\"");
+					break;
+				case '\\':
+					_sb.Append("\\\\");
+					break;
+				case '\b':
+					_sb.Append("\\b");
+					break;
+				case '\f':
+					_sb.Append("\\f");
+					break;
+				case '\n':
+					_sb.Append("\\n");
+					break;
+				case '\r':
+					_sb.Append("\\r");
+					break;
+				case '\t':
+					_sb.Append("\\t");
+					break;
 				default:
 					if (c < 0x20)
 						_sb.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));

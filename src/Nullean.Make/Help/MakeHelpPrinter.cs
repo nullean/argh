@@ -1,6 +1,6 @@
+using Nullean.Argh.Help;
 using Nullean.Make.Discovery;
 using Nullean.Make.Parsing;
-using Nullean.Argh.Help;
 
 namespace Nullean.Make.Help;
 
@@ -34,9 +34,7 @@ internal static class MakeHelpPrinter
 			var colWidth = commands.Max(t => t.Name.Length) + 2;
 			foreach (var c in commands)
 			{
-				var desc = !string.IsNullOrEmpty(c.Description)
-					? c.Description
-					: CommandSummary(c);
+				var desc = !string.IsNullOrEmpty(c.Description) ? c.Description : CommandSummary(c);
 				CliHelpFormatting.WriteHelpListNameAndDescription(true, c.Name, desc, colWidth);
 			}
 			Console.WriteLine();
@@ -49,9 +47,7 @@ internal static class MakeHelpPrinter
 			foreach (var t in targets)
 			{
 				var deps = t.RequiresResolved.Concat(t.ComposesResolved).ToList();
-				var depSuffix = deps.Count > 0
-					? $"  (depends on: {string.Join(", ", deps.Select(d => string.Join(" ", d.Route)))})"
-					: "";
+				var depSuffix = deps.Count > 0 ? $"  (depends on: {string.Join(", ", deps.Select(d => string.Join(" ", d.Route)))})" : "";
 				CliHelpFormatting.WriteHelpListNameAndDescription(false, t.Name, t.Description + depSuffix, colWidth);
 			}
 			Console.WriteLine();
@@ -76,9 +72,9 @@ internal static class MakeHelpPrinter
 	public static bool PrintNamespace(string routeKey, BuildGraph graph, string scriptName)
 	{
 		var prefix = routeKey.Split('/');
-		var members = graph.Targets
-			.Where(t => !t.Hidden && t.Route.Length > prefix.Length
-				&& t.Route.Take(prefix.Length).SequenceEqual(prefix, StringComparer.OrdinalIgnoreCase))
+		var members = graph
+			.Targets
+			.Where(t => !t.Hidden && t.Route.Length > prefix.Length && t.Route.Take(prefix.Length).SequenceEqual(prefix, StringComparer.OrdinalIgnoreCase))
 			.ToList();
 		if (members.Count == 0)
 			return false;
@@ -93,6 +89,7 @@ internal static class MakeHelpPrinter
 		Console.WriteLine();
 
 		string rel(TargetNode t) => string.Join(" ", t.Route.Skip(prefix.Length));
+
 		var commands = members.Where(t => t.Kind == TargetKind.Command).ToList();
 		var targets = members.Where(t => t.Kind == TargetKind.Target).ToList();
 
@@ -115,9 +112,7 @@ internal static class MakeHelpPrinter
 			foreach (var t in targets)
 			{
 				var deps = t.RequiresResolved.Concat(t.ComposesResolved).ToList();
-				var depSuffix = deps.Count > 0
-					? $"  (depends on: {string.Join(", ", deps.Select(d => string.Join(" ", d.Route)))})"
-					: "";
+				var depSuffix = deps.Count > 0 ? $"  (depends on: {string.Join(", ", deps.Select(d => string.Join(" ", d.Route)))})" : "";
 				CliHelpFormatting.WriteHelpListNameAndDescription(false, rel(t), t.Description + depSuffix, colWidth);
 			}
 			Console.WriteLine();
@@ -190,11 +185,14 @@ internal static class MakeHelpPrinter
 
 	private static string CommandSummary(TargetNode node)
 	{
-		var req  = node.RequiresResolved.Select(d => string.Join(" ", d.Route)).ToList();
+		var req = node.RequiresResolved.Select(d => string.Join(" ", d.Route)).ToList();
 		var comp = node.ComposesResolved.Select(d => string.Join(" ", d.Route)).ToList();
-		if (req.Count == 0 && comp.Count == 0) return "";
-		if (req.Count == 0) return string.Join(", ", comp);
-		if (comp.Count == 0) return string.Join(", ", req);
+		if (req.Count == 0 && comp.Count == 0)
+			return "";
+		if (req.Count == 0)
+			return string.Join(", ", comp);
+		if (comp.Count == 0)
+			return string.Join(", ", req);
 		return $"{string.Join(", ", req)} → {string.Join(", ", comp)}";
 	}
 

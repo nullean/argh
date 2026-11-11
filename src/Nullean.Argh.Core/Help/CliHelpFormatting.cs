@@ -10,9 +10,7 @@ namespace Nullean.Argh.Help;
 public static class CliHelpFormatting
 {
 	/// <summary>Returns true when ANSI escape sequences may be written.</summary>
-	public static bool UseAnsiColors =>
-		string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"))
-		&& !Console.IsOutputRedirected;
+	public static bool UseAnsiColors => string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR")) && !Console.IsOutputRedirected;
 
 	/// <summary>Bold section titles (e.g. Usage, Arguments).</summary>
 	public static string Section(string text) => Wrap(text, "\x1b[1m");
@@ -123,8 +121,7 @@ public static class CliHelpFormatting
 	}
 
 	/// <summary>Width used when wrapping list summaries; falls back to 80 when output is redirected.</summary>
-	public static int HelpTerminalWidth =>
-		Console.IsOutputRedirected ? 80 : System.Math.Max(40, Console.WindowWidth);
+	public static int HelpTerminalWidth => Console.IsOutputRedirected ? 80 : System.Math.Max(40, Console.WindowWidth);
 
 	/// <summary>
 	/// Root / namespace overview: one row per name with optional summary. Namespace names use <see cref="Accent"/>; command names use <see cref="Placeholder"/> (yellow) to match the default-handler label. Summary uses <see cref="DocSummaryLine"/>; long text wraps with the same indent as the first summary column.
@@ -233,6 +230,5 @@ public static class CliHelpFormatting
 			yield return line.ToString();
 	}
 
-	private static string Wrap(string text, string open) =>
-		string.IsNullOrEmpty(text) || !UseAnsiColors ? text : open + text + "\x1b[0m";
+	private static string Wrap(string text, string open) => string.IsNullOrEmpty(text) || !UseAnsiColors ? text : open + text + "\x1b[0m";
 }

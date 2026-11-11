@@ -1,5 +1,5 @@
-using Nullean.Make.Discovery;
 using Nullean.Argh.Help;
+using Nullean.Make.Discovery;
 
 namespace Nullean.Make.Execution;
 

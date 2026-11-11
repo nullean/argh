@@ -35,7 +35,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 
 	public MakeApp(string name, string? description = null)
 	{
-		_graph.AppName        = name;
+		_graph.AppName = name;
 		_graph.AppDescription = description;
 	}
 
@@ -44,8 +44,13 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 	/// <summary>Registers a boolean flag. Read the returned ref's <c>Value</c> inside target bodies.</summary>
 	public UnionOptionRef<bool> Flag(string longName, string? shortName = null, string? description = null)
 	{
-		var r = new UnionOptionRef<bool>(longName, shortName, description, false,
-			s => string.Equals(s, "true", StringComparison.OrdinalIgnoreCase) || s == "1");
+		var r = new UnionOptionRef<bool>(
+			longName,
+			shortName,
+			description,
+			false,
+			s => string.Equals(s, "true", StringComparison.OrdinalIgnoreCase) || s == "1"
+		);
 		_options.Add(new UnionOptionDecl(longName, shortName, description, IsFlag: true, Set: r.Set));
 		_graph.GlobalOptions.Add(new GlobalOptionNode { Long = longName, Short = shortName, Description = description, IsFlag = true });
 		return r;
@@ -54,8 +59,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 	/// <summary>Registers a typed option. Read the returned ref's <c>Value</c> inside target bodies.</summary>
 	public UnionOptionRef<T> Option<T>(string longName, string? description = null, T defaultValue = default!)
 	{
-		var r = new UnionOptionRef<T>(longName, null, description, defaultValue,
-			raw => (T)ParseRaw(typeof(T), raw, longName));
+		var r = new UnionOptionRef<T>(longName, null, description, defaultValue, raw => (T)ParseRaw(typeof(T), raw, longName));
 		_options.Add(new UnionOptionDecl(longName, null, description, IsFlag: false, Set: r.Set));
 		_graph.GlobalOptions.Add(new GlobalOptionNode { Long = longName, Description = description, IsFlag = false, ValueType = typeof(T) });
 		return r;
@@ -64,7 +68,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 	// ── Target / Command factories (used inside Bind) ─────────────────────────
 
 	/// <summary>Creates a target builder for use inside <see cref="Bind"/>.</summary>
-	public IUnionTargetBuilder<TUnion> Target()  => new UnionTargetBuilderImpl<TUnion>(TargetKind.Target);
+	public IUnionTargetBuilder<TUnion> Target() => new UnionTargetBuilderImpl<TUnion>(TargetKind.Target);
 
 	/// <summary>Creates a command builder for use inside <see cref="Bind"/>. Commands compose other targets.</summary>
 	public IUnionTargetBuilder<TUnion> Command() => new UnionTargetBuilderImpl<TUnion>(TargetKind.Command);
@@ -113,7 +117,11 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 	/// </summary>
 	public async Task<int> RunAsync(string[] args)
 	{
-		if (_bind is null) { Console.Error.WriteLine("[make] Bind() was not called."); return 1; }
+		if (_bind is null)
+		{
+			Console.Error.WriteLine("[make] Bind() was not called.");
+			return 1;
+		}
 
 		try
 		{
@@ -121,20 +129,40 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 			ResolveRouteDeps();
 			GraphValidator.Validate(_graph);
 		}
-		catch (MakeException ex) { Console.Error.WriteLine(ex.Message); return ex.ExitCode; }
+		catch (MakeException ex)
+		{
+			Console.Error.WriteLine(ex.Message);
+			return ex.ExitCode;
+		}
 
 		if (Wrappers.MakeIntrinsics.TryRun(args, _graph) is { } intrinsicExit)
 			return intrinsicExit;
 
 		var scriptName = _graph.AppName;
 
-		if (args.Length == 0) { MakeHelpPrinter.PrintRoot(_graph, scriptName); return 0; }
+		if (args.Length == 0)
+		{
+			MakeHelpPrinter.PrintRoot(_graph, scriptName);
+			return 0;
+		}
 
-		string[] remaining; bool singleTarget, showHelp, showVersion;
-		try { (remaining, singleTarget, showHelp, showVersion) = ExtractGlobals(args); }
-		catch (MakeException ex) { Console.Error.WriteLine(ex.Message); return ex.ExitCode; }
+		string[] remaining;
+		bool singleTarget, showHelp, showVersion;
+		try
+		{
+			(remaining, singleTarget, showHelp, showVersion) = ExtractGlobals(args);
+		}
+		catch (MakeException ex)
+		{
+			Console.Error.WriteLine(ex.Message);
+			return ex.ExitCode;
+		}
 
-		if (showVersion) { Console.WriteLine("0.0.0"); return 0; }
+		if (showVersion)
+		{
+			Console.WriteLine("0.0.0");
+			return 0;
+		}
 
 		var (routeKey, targetArgs) = ResolveRoute(remaining);
 
@@ -142,8 +170,10 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 		{
 			if (_graph.ByRoute.TryGetValue(routeKey, out var helpNode))
 			{
-				if (helpNode.Kind == TargetKind.Command) MakeHelpPrinter.PrintCommand(helpNode, _graph, scriptName);
-				else                                      MakeHelpPrinter.PrintTarget(helpNode, _graph, scriptName);
+				if (helpNode.Kind == TargetKind.Command)
+					MakeHelpPrinter.PrintCommand(helpNode, _graph, scriptName);
+				else
+					MakeHelpPrinter.PrintTarget(helpNode, _graph, scriptName);
 			}
 			else if (string.IsNullOrEmpty(routeKey) || !MakeHelpPrinter.PrintNamespace(routeKey, _graph, scriptName))
 				MakeHelpPrinter.PrintRoot(_graph, scriptName);
@@ -153,7 +183,11 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 		if (string.IsNullOrEmpty(routeKey))
 		{
 			var unknown = remaining.FirstOrDefault(t => !t.StartsWith("-"));
-			if (unknown is not null) { Console.Error.WriteLine($"Unknown target '{unknown}'."); return 2; }
+			if (unknown is not null)
+			{
+				Console.Error.WriteLine($"Unknown target '{unknown}'.");
+				return 2;
+			}
 			MakeHelpPrinter.PrintRoot(_graph, scriptName);
 			return 0;
 		}
@@ -167,12 +201,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 		// Wire up execution lambdas for every node (root gets real args, deps get empty args)
 		WireExecutionBodies(targetNode, targetArgs);
 
-		var parsed = new ParsedArgs
-		{
-			Target       = targetNode,
-			TargetArgs   = targetArgs,
-			SingleTarget = singleTarget,
-		};
+		var parsed = new ParsedArgs { Target = targetNode, TargetArgs = targetArgs, SingleTarget = singleTarget, };
 
 		return await DepGraphExecutor.ExecuteAsync(targetNode, parsed, _graph);
 	}
@@ -189,9 +218,9 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 
 			var node = new TargetNode
 			{
-				Route       = path.Route,
-				Kind        = builder.Kind,
-				DtoType     = path.CaseType,
+				Route = path.Route,
+				Kind = builder.Kind,
+				DtoType = path.CaseType,
 				Description = builder.DescriptionValue ?? Docs.DocDescriptions.ForType(path.CaseType),
 			};
 			node.Hidden = builder.IsHidden;
@@ -222,8 +251,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 		if (map.TryGetValue(caseTypeName, out var r) && _graph.ByRoute.TryGetValue(r, out var target))
 			return target;
 		var name = caseTypeName.Length == 0 ? "an empty union value" : $"'{caseTypeName}'";
-		throw new MakeException(
-			$"Target '{string.Join("/", from.Route)}' depends on {name}, which is not a case of {typeof(TUnion).Name}.", 1);
+		throw new MakeException($"Target '{string.Join("/", from.Route)}' depends on {name}, which is not a case of {typeof(TUnion).Name}.", 1);
 	}
 
 	/// <summary>
@@ -235,14 +263,15 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 	{
 		foreach (var node in _graph.Targets)
 		{
-			var n    = node;
+			var n = node;
 			var args = ReferenceEquals(n, root) ? targetArgs : Array.Empty<string>();
 			n.AsyncBody = async () =>
 			{
-				if (_bind is null || n.DtoType is null) return;
+				if (_bind is null || n.DtoType is null)
+					return;
 				var caseInstance = Parsing.DtoBinder.Bind(n.DtoType, args);
-				var realUnion    = _caseByNode[n].Wrap(caseInstance);
-				var builder2     = (UnionTargetBuilderImpl<TUnion>)_bind!(realUnion);
+				var realUnion = _caseByNode[n].Wrap(caseInstance);
+				var builder2 = (UnionTargetBuilderImpl<TUnion>)_bind!(realUnion);
 				await builder2.ExecuteAsync();
 			};
 		}
@@ -253,52 +282,86 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 	private (string[] remaining, bool single, bool help, bool version) ExtractGlobals(string[] argv)
 	{
 		var remaining = new List<string>();
-		var single = false; var help = false; var version = false;
+		var single = false;
+		var help = false;
+		var version = false;
 		var i = 0;
 		while (i < argv.Length)
 		{
 			var arg = argv[i];
-			if (arg is "-h" or "--help")           { help    = true; i++; continue; }
-			if (arg == "--version")                { version = true; i++; continue; }
-			if (arg is "-s" or "--single-target")  { single  = true; i++; continue; }
+			if (arg is "-h" or "--help")
+			{
+				help = true;
+				i++;
+				continue;
+			}
+			if (arg == "--version")
+			{
+				version = true;
+				i++;
+				continue;
+			}
+			if (arg is "-s" or "--single-target")
+			{
+				single = true;
+				i++;
+				continue;
+			}
 
 			var matched = false;
 			foreach (var opt in _options)
 			{
-				var longN  = opt.Long.TrimStart('-');
+				var longN = opt.Long.TrimStart('-');
 				var shortN = opt.Short?.TrimStart('-');
-				var argN   = arg.TrimStart('-');
-				if (argN != longN && argN != shortN) continue;
-				if (opt.IsFlag) { opt.Set("true"); i++; }
+				var argN = arg.TrimStart('-');
+				if (argN != longN && argN != shortN)
+					continue;
+				if (opt.IsFlag)
+				{
+					opt.Set("true");
+					i++;
+				}
 				else
 				{
 					i++;
-					if (i >= argv.Length) throw new MakeException($"Missing value for '{opt.Long}'.", 2);
+					if (i >= argv.Length)
+						throw new MakeException($"Missing value for '{opt.Long}'.", 2);
 					opt.Set(argv[i++]);
 				}
 				matched = true;
 				break;
 			}
-			if (!matched) { remaining.Add(arg); i++; }
+			if (!matched)
+			{
+				remaining.Add(arg);
+				i++;
+			}
 		}
 		return (remaining.ToArray(), single, help, version);
 	}
 
 	private (string routeKey, string[] targetArgs) ResolveRoute(string[] remaining)
 	{
-		var tokens = new List<string>(); var rest = new List<string>(); var done = false;
+		var tokens = new List<string>();
+		var rest = new List<string>();
+		var done = false;
 		foreach (var token in remaining)
 		{
 			if (!done && !token.StartsWith("-"))
 			{
-				var candidate = string.Join("/", [..tokens, token.ToLowerInvariant()]);
+				var candidate = string.Join("/", [.. tokens, token.ToLowerInvariant()]);
 				if (_graph.ByRoute.ContainsKey(candidate))
 					tokens.Add(token.ToLowerInvariant());
 				else if (_graph.ByRoute.Keys.Any(k => k.StartsWith(candidate + "/", StringComparison.OrdinalIgnoreCase)))
 					tokens.Add(token.ToLowerInvariant());
-				else { done = true; rest.Add(token); }
+				else
+				{
+					done = true;
+					rest.Add(token);
+				}
 			}
-			else rest.Add(token);
+			else
+				rest.Add(token);
 		}
 		return (string.Join("/", tokens), rest.ToArray());
 	}
@@ -308,14 +371,23 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 		var target = Nullable.GetUnderlyingType(t) ?? t;
 		try
 		{
-			if (target == typeof(string))  return raw;
-			if (target == typeof(int))     return int.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
-			if (target == typeof(long))    return long.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
-			if (target == typeof(double))  return double.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
-			if (target == typeof(bool))    return bool.Parse(raw);
-			if (target.IsEnum)             return Enum.Parse(target, raw, ignoreCase: true);
+			if (target == typeof(string))
+				return raw;
+			if (target == typeof(int))
+				return int.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
+			if (target == typeof(long))
+				return long.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
+			if (target == typeof(double))
+				return double.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
+			if (target == typeof(bool))
+				return bool.Parse(raw);
+			if (target.IsEnum)
+				return Enum.Parse(target, raw, ignoreCase: true);
 			return raw;
 		}
-		catch { throw new MakeException($"Cannot parse '{raw}' for '{flagName}'.", 2); }
+		catch
+		{
+			throw new MakeException($"Cannot parse '{raw}' for '{flagName}'.", 2);
+		}
 	}
 }
