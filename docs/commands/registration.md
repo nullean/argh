@@ -31,6 +31,12 @@ app.MapRoot(Handlers.DefaultAction);
 
 At the app level this handles bare `myapp` invocations. Inside a `MapNamespace` callback, it handles `myapp <namespace>` without a subcommand.
 
+A token that names no command or namespace also goes to the default handler (`MapRoot`, or the target of `MapAndRootAlias`)
+when it is a flag, or when the handler takes an `[Argument]`: with `Validate([Argument] string path, …)` as the root alias,
+`myapp app.nupkg` runs the same as `myapp validate app.nupkg`. Commands and namespaces are matched first, so a value that
+equals a command name runs that command. A handler without an `[Argument]` keeps the `unknown command` error and its
+suggestions.
+
 When using `MapRoot`, the XML doc on the handler method becomes the app-level overview in `--help`:
 
 ```csharp
