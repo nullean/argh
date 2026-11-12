@@ -15,8 +15,12 @@ internal static class DepGraphExecutor
 		RunPlan plan;
 		try
 		{
-			var value = source.BindArguments(root, parsed.TargetArgs);
-			plan = RunPlan.Build([new DepRef(root, value)], source, new PlanOptions(parsed.SingleTarget, EvaluateConditions: parsed.Graph is not null));
+			// `build lint test --filter Unit pack` names three targets; each binds its own arguments.
+			var targets = Invocation.Split(root, parsed.TargetArgs, graph);
+			parsed.TargetArgs = targets[0].Args;
+			var roots = targets.Select(t => new DepRef(t.Node, source.BindArguments(t.Node, t.Args))).ToList();
+			var skip = Invocation.ResolveSkips(parsed.Skip, graph);
+			plan = RunPlan.Build(roots, source, new PlanOptions(parsed.SingleTarget, EvaluateConditions: parsed.Graph is not null, Skip: skip));
 		}
 		catch (MakeException ex)
 		{
@@ -39,6 +43,7 @@ internal static class DepGraphExecutor
 		try
 		{
 			var plan = PlanRenderer.WholeGraph(graph, source, new PlanOptions(SingleTarget: false, EvaluateConditions: true));
+			// --skip is ignored here: the whole graph shows every target.
 			PlanRenderer.Write(plan, format, Console.Out);
 			return 0;
 		}

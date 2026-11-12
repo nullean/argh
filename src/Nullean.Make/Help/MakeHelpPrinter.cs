@@ -22,7 +22,7 @@ internal static class MakeHelpPrinter
 		var nsNames = nsTargets.Select(t => t.Route[0]).Distinct().OrderBy(x => x).ToList();
 
 		Console.WriteLine($"  {CliHelpFormatting.Section("Usage:")}");
-		Console.WriteLine($"    {scriptName} <command|target> [options]");
+		Console.WriteLine($"    {scriptName} <command|target> [options] [<target> [options]...]");
 		if (nsNames.Count > 0)
 			Console.WriteLine($"    {scriptName} <namespace> <target> [options]");
 		if (graph.Default is { } defaultTarget)
@@ -276,6 +276,7 @@ internal static class MakeHelpPrinter
 			$"    {CliHelpFormatting.Placeholder($"{Short("k")}--keep-going"),-30}  After a failure, finish the targets that do not depend on it"
 		);
 		Console.WriteLine($"    {CliHelpFormatting.Placeholder("    --output <mode>"),-30}  Output of targets running side by side: prefixed or grouped");
+		Console.WriteLine($"    {CliHelpFormatting.Placeholder("    --skip <target>"),-30}  Leave a target out of the plan, with what only it needed");
 
 		foreach (var opt in graph.GlobalOptions)
 		{

@@ -24,6 +24,9 @@ internal sealed class ParsedArgs
 
 	/// <summary><c>--output</c>: how the output of targets that run side by side reaches the console.</summary>
 	public Execution.OutputMode? Output { get; set; }
+
+	/// <summary><c>--skip</c>: targets the plan leaves out, with the dependencies only they needed.</summary>
+	public List<string> Skip { get; } = new();
 	public string? HelpTarget { get; set; }
 }
 

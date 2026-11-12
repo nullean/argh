@@ -8,7 +8,11 @@
 ./build.cs test --filter Unit
 ./build.cs release -s        # skip the gates, run only the composed targets
 ./build.cs release --graph   # draw the plan and run nothing
+./build.cs lint test pack    # several targets, in order, shared dependencies once
+./build.cs release --skip docs
 ```
+
+[**Choosing what runs**](running.md) - Several targets on one command line, `-s` and `--skip`.
 
 [**Running targets side by side**](parallel.md) - Parallel stages, `-j`, `--keep-going`, and the output of targets
 that run at once.

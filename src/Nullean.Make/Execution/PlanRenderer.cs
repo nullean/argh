@@ -197,6 +197,7 @@ internal static class PlanRenderer
 	{
 		SkipReason.SingleTarget => Dim("  skipped: -s"),
 		SkipReason.Condition => Dim("  skipped: its condition is false"),
+		SkipReason.Excluded => Dim("  skipped: --skip"),
 		_ => ""
 	};
 
@@ -312,6 +313,9 @@ internal static class PlanRenderer
 				break;
 			case SkipReason.Condition:
 				json.WriteString("skipped", "condition");
+				break;
+			case SkipReason.Excluded:
+				json.WriteString("skipped", "excluded");
 				break;
 			default:
 				json.WriteNull("skipped");
