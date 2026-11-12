@@ -7,7 +7,10 @@
 ./build.cs --help
 ./build.cs test --filter Unit
 ./build.cs release -s        # skip the gates, run only the composed targets
+./build.cs release --graph   # draw the plan and run nothing
 ```
+
+[**Drawing the plan**](graph.md) - `--graph` draws what a run would do, skipped targets included, and runs nothing.
 
 [**Wrappers**](wrappers.md) - Generate one task per target for [mise](mise.md), [make](makefile.md) and
 [just](just.md), and let mise hooks keep them up to date.

@@ -5,7 +5,10 @@ namespace Nullean.Make.Execution;
 
 internal static class DepGraphExecutor
 {
-	/// <summary>Binds the named target's arguments, plans the run and executes it.</summary>
+	/// <summary>
+	/// Binds the named target's arguments, plans the run and executes it. With <c>--graph</c>, draws the plan instead
+	/// and runs nothing.
+	/// </summary>
 	public static async Task<int> ExecuteAsync(TargetNode root, ParsedArgs parsed, BuildGraph graph)
 	{
 		var source = graph.Source ?? throw new InvalidOperationException("The graph has no target source.");
@@ -13,14 +16,37 @@ internal static class DepGraphExecutor
 		try
 		{
 			var value = source.BindArguments(root, parsed.TargetArgs);
-			plan = RunPlan.Build([new DepRef(root, value)], source, new PlanOptions(parsed.SingleTarget));
+			plan = RunPlan.Build([new DepRef(root, value)], source, new PlanOptions(parsed.SingleTarget, EvaluateConditions: parsed.Graph is not null));
 		}
 		catch (MakeException ex)
 		{
 			Console.Error.WriteLine(ex.Message);
 			return ex.ExitCode;
 		}
+
+		if (parsed.Graph is { } format)
+		{
+			PlanRenderer.Write(plan, format, Console.Out);
+			return 0;
+		}
 		return await ExecuteAsync(plan, parsed);
+	}
+
+	/// <summary><c>--graph</c> without a target: draws every target nothing else depends on.</summary>
+	public static int DrawWholeGraph(BuildGraph graph, GraphFormat format)
+	{
+		var source = graph.Source ?? throw new InvalidOperationException("The graph has no target source.");
+		try
+		{
+			var plan = PlanRenderer.WholeGraph(graph, source, new PlanOptions(SingleTarget: false, EvaluateConditions: true));
+			PlanRenderer.Write(plan, format, Console.Out);
+			return 0;
+		}
+		catch (MakeException ex)
+		{
+			Console.Error.WriteLine(ex.Message);
+			return ex.ExitCode;
+		}
 	}
 
 	public static async Task<int> ExecuteAsync(RunPlan plan, ParsedArgs parsed)

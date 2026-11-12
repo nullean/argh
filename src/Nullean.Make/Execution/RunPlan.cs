@@ -45,13 +45,19 @@ internal sealed record PlannedStage(StageKind Kind, bool Parallel, IReadOnlyList
 internal sealed record PlannedItem(TargetInstance? Instance, string Name, SkipReason? Skipped);
 
 /// <summary>Options that change which instances the plan contains.</summary>
-internal sealed record PlanOptions(bool SingleTarget, bool EvaluateConditions = false);
+/// <param name="SingleTarget">Skip the named targets' gates, as <c>-s</c> does.</param>
+/// <param name="EvaluateConditions">Evaluate each condition while planning, so a drawn plan shows what it skips.</param>
+/// <param name="ChainRoots">Run the named targets in order, each after the one before it.</param>
+internal sealed record PlanOptions(bool SingleTarget, bool EvaluateConditions = false, bool ChainRoots = true);
 
 /// <summary>The instances a run contains, in an order that respects every prerequisite.</summary>
 internal sealed class RunPlan
 {
 	public required IReadOnlyList<TargetInstance> Roots { get; init; }
 	public required IReadOnlyList<TargetInstance> Instances { get; init; }
+
+	/// <summary>True when the roots run one after another; false for a drawing of unrelated roots.</summary>
+	public bool Chained { get; init; } = true;
 
 	/// <summary>
 	/// Expands the named targets into instances. Each reference resolves to its node and value; a reference without a
@@ -65,12 +71,12 @@ internal sealed class RunPlan
 		TargetInstance? previous = null;
 		foreach (var root in roots)
 		{
-			var instance = builder.Visit(root, isRoot: true, previous is null ? [] : [previous]);
+			var instance = builder.Visit(root, isRoot: true, previous is null || !options.ChainRoots ? [] : [previous]);
 			instance.IsRoot = true;
 			rootInstances.Add(instance);
 			previous = instance;
 		}
-		return new RunPlan { Roots = rootInstances, Instances = builder.Ordered };
+		return new RunPlan { Roots = rootInstances, Instances = builder.Ordered, Chained = options.ChainRoots };
 	}
 
 	private sealed class Builder(ITargetSource source, PlanOptions options)

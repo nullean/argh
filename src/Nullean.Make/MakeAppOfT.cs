@@ -149,9 +149,10 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 
 		string[] remaining;
 		bool singleTarget, showHelp, showVersion;
+		GraphFormat? graphFormat;
 		try
 		{
-			(remaining, singleTarget, showHelp, showVersion) = ExtractGlobals(args);
+			(remaining, singleTarget, showHelp, showVersion, graphFormat) = ExtractGlobals(args);
 		}
 		catch (MakeException ex)
 		{
@@ -189,6 +190,8 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 				Console.Error.WriteLine($"Unknown target '{unknown}'.");
 				return 2;
 			}
+			if (graphFormat is { } format)
+				return DepGraphExecutor.DrawWholeGraph(_graph, format);
 			MakeHelpPrinter.PrintRoot(_graph, scriptName);
 			return 0;
 		}
@@ -199,7 +202,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 			return 2;
 		}
 
-		var parsed = new ParsedArgs { Target = targetNode, TargetArgs = targetArgs, SingleTarget = singleTarget, };
+		var parsed = new ParsedArgs { Target = targetNode, TargetArgs = targetArgs, SingleTarget = singleTarget, Graph = graphFormat };
 
 		return await DepGraphExecutor.ExecuteAsync(targetNode, parsed, _graph);
 	}
@@ -253,12 +256,13 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 
 	// ── Argv helpers ──────────────────────────────────────────────────────────
 
-	private (string[] remaining, bool single, bool help, bool version) ExtractGlobals(string[] argv)
+	private (string[] remaining, bool single, bool help, bool version, GraphFormat? graph) ExtractGlobals(string[] argv)
 	{
 		var remaining = new List<string>();
 		var single = false;
 		var help = false;
 		var version = false;
+		GraphFormat? graph = null;
 		var i = 0;
 		while (i < argv.Length)
 		{
@@ -279,6 +283,11 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 			{
 				single = true;
 				i++;
+				continue;
+			}
+			if (GraphOption.TryRead(argv, ref i) is { } format)
+			{
+				graph = format;
 				continue;
 			}
 
@@ -311,7 +320,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 				i++;
 			}
 		}
-		return (remaining.ToArray(), single, help, version);
+		return (remaining.ToArray(), single, help, version, graph);
 	}
 
 	private (string routeKey, string[] targetArgs) ResolveRoute(string[] remaining)

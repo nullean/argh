@@ -1,5 +1,6 @@
 using Nullean.Argh.Help;
 using Nullean.Make.Discovery;
+using Nullean.Make.Execution;
 using Nullean.Make.Parsing;
 
 namespace Nullean.Make.Help;
@@ -147,6 +148,7 @@ internal static class MakeHelpPrinter
 			foreach (var dep in allDeps)
 				Console.WriteLine($"    {string.Join(" ", dep.Route)}");
 			Console.WriteLine();
+			PrintRunOrder(node, graph, scriptName);
 		}
 
 		PrintGlobalOptions(graph, scriptName);
@@ -180,7 +182,31 @@ internal static class MakeHelpPrinter
 			Console.WriteLine();
 		}
 
+		PrintRunOrder(node, graph, scriptName);
 		PrintGlobalOptions(graph, scriptName);
+	}
+
+	/// <summary>
+	/// <c>Runs:</c> the bodies a bare invocation of the target runs, in order, and where to see the whole plan. Prints
+	/// nothing when the target has no dependencies to order, or the plan cannot be built.
+	/// </summary>
+	private static void PrintRunOrder(TargetNode node, BuildGraph graph, string scriptName)
+	{
+		if (graph.Source is not { } source || node.RequiresResolved.Count + node.ComposesResolved.Count == 0)
+			return;
+		RunPlan plan;
+		try
+		{
+			plan = RunPlan.Build([new DepRef(node, null)], source, new PlanOptions(SingleTarget: false));
+		}
+		catch (MakeException)
+		{
+			return;
+		}
+		Console.WriteLine($"  {CliHelpFormatting.Section("Runs:")}");
+		Console.WriteLine($"    {PlanRenderer.RunOrder(plan)}");
+		Console.WriteLine($"    {CliHelpFormatting.DocRemarksLine($"{scriptName} {string.Join(" ", node.Route)} --graph draws the plan")}");
+		Console.WriteLine();
 	}
 
 	private static string CommandSummary(TargetNode node)
@@ -218,6 +244,7 @@ internal static class MakeHelpPrinter
 		Console.WriteLine($"  {CliHelpFormatting.Section("Global options:")}");
 		Console.WriteLine($"    {CliHelpFormatting.Placeholder("-s, --single-target"),-30}  Skip prerequisite deps; run only the body / Composes");
 		Console.WriteLine($"    {CliHelpFormatting.Placeholder("-h, --help"),-30}  Show this help");
+		Console.WriteLine($"    {CliHelpFormatting.Placeholder("    --graph [<format>]"),-30}  Draw what would run and run nothing: tree, mermaid or json");
 
 		foreach (var opt in graph.GlobalOptions)
 		{

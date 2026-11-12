@@ -75,6 +75,8 @@ public static class MakeApp
 
 		if (parsed.Target is null)
 		{
+			if (parsed.Graph is { } format)
+				return DepGraphExecutor.DrawWholeGraph(graph, format);
 			MakeHelpPrinter.PrintRoot(graph, scriptName);
 			return 0;
 		}

@@ -41,10 +41,13 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
         let mutable singleTarget = false
         let mutable showHelp     = false
         let mutable showVersion  = false
+        let mutable graph : GraphFormat option = None
         let mutable i = 0
         while i < argv.Length do
             let arg = argv.[i]
-            if   arg = "-h"  || arg = "--help"          then showHelp     <- true; i <- i + 1
+            let graphFormat = GraphOption.TryRead(argv, &i)
+            if graphFormat.HasValue then graph <- Some graphFormat.Value
+            elif arg = "-h"  || arg = "--help"          then showHelp     <- true; i <- i + 1
             elif arg = "--version"                       then showVersion  <- true; i <- i + 1
             elif arg = "-s"  || arg = "--single-target" then singleTarget <- true; i <- i + 1
             else
@@ -72,7 +75,7 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
                         opt.Set argv.[i]
                         i <- i + 1
                 | None -> remaining.Add(arg); i <- i + 1
-        remaining.ToArray(), singleTarget, showHelp, showVersion
+        remaining.ToArray(), singleTarget, showHelp, showVersion, graph
 
     let resolveRoute (remaining: string[]) (byRoute: Collections.Generic.Dictionary<string, TargetNode>) =
         let routeTokens = Collections.Generic.List<string>()
@@ -161,7 +164,7 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
             | Error (code, msg) ->
                 eprintfn "%s" msg
                 return code
-            | Ok (remaining, singleTarget, showHelp, showVersion) ->
+            | Ok (remaining, singleTarget, showHelp, showVersion, graphFormat) ->
 
             if showVersion then
                 printfn "%s" (entryVersion ())
@@ -196,6 +199,8 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
                 | Some t ->
                     eprintfn "Unknown target '%s'." t
                     return 2
+                | None when graphFormat.IsSome ->
+                    return DepGraphExecutor.DrawWholeGraph(graph, graphFormat.Value)
                 | None ->
                     MakeHelpPrinter.PrintRoot(graph, appName)
                     return 0
@@ -214,6 +219,7 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
                     ParsedArgs(
                         Target       = node,
                         TargetArgs   = targetArgs,
-                        SingleTarget = singleTarget)
+                        SingleTarget = singleTarget,
+                        Graph        = Option.toNullable graphFormat)
                 return! DepGraphExecutor.ExecuteAsync(node, parsed, graph)
         }

@@ -114,6 +114,19 @@ A target's description is the summary of its case type's XML doc comment, such a
 
 A case that is itself a union becomes a namespace: `union Db(Migrate, Seed)` inside `union Target(..., Db)` gives `db migrate` and `db seed`, and `db --help` lists them. Case type names must be unique across the whole union, including nested unions.
 
+## Drawing the plan
+
+`--graph` draws what a run would do and runs nothing. It binds the target's arguments, applies `-s` and evaluates
+conditions, so a skipped target shows as skipped:
+
+```
+build release -s --graph
+build release --graph mermaid      # or json
+```
+
+A target's `--help` lists the order its dependencies run in under `Runs:`. See
+[Drawing the plan](https://argh.nullean.net/make/graph).
+
 ## mise, make and just
 
 `__wrappers sync` writes one include file per wrapper from the targets, so `mise run test`, `make test` and

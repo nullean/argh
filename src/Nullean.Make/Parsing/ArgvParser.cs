@@ -12,6 +12,9 @@ internal sealed class ParsedArgs
 	public bool SingleTarget { get; set; }
 	public bool ShowHelp { get; set; }
 	public bool ShowVersion { get; set; }
+
+	/// <summary>Set by <c>--graph</c>: draw the plan in this format and run nothing.</summary>
+	public Execution.GraphFormat? Graph { get; set; }
 	public string? HelpTarget { get; set; }
 }
 
@@ -115,6 +118,11 @@ internal static class ArgvParser
 			{
 				result.SingleTarget = true;
 				i++;
+				continue;
+			}
+			if (Execution.GraphOption.TryRead(args, ref i) is { } graphFormat)
+			{
+				result.Graph = graphFormat;
 				continue;
 			}
 
