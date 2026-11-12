@@ -131,7 +131,8 @@ they are written:
 ```
 
 `-j` / `--jobs` caps how many targets run at once, and `-k` / `--keep-going` lets the targets that do not depend on a
-failure finish. `printfn` output of targets running side by side carries their names; `sh` commands keep the console.
+failure finish. Output of targets running side by side, `sh` commands included, carries their names, and a failure
+stops the `sh` commands still running.
 See [Running targets side by side](https://argh.nullean.net/make/parallel).
 
 `executes (...)` adds a body that runs after every composed target. Like a target block, it is deferred. Use `shell { }` inside it to run commands:

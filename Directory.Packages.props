@@ -7,8 +7,8 @@
     <PackageVersion Include="MinVer" Version="6.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />
-    <PackageVersion Include="Proc" Version="0.17.0" />
-    <PackageVersion Include="Proc.Fs" Version="0.17.0" />
+    <PackageVersion Include="Proc" Version="0.21.0" />
+    <PackageVersion Include="Proc.Fs" Version="0.21.0" />
     <PackageVersion Include="FSharp.Core" Version="11.0.100" />
     <!-- tests -->
     <PackageVersion Include="TUnit" Version="1.83.0" />

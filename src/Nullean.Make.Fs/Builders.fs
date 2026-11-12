@@ -35,7 +35,16 @@ type TargetBuilder<'TCase>(dependsOn: 'TCase list, hidden: bool) =
     member _.TryWith(body: ShellStep<'T>, handler: exn -> ShellStep<'T>) = shell.TryWith(body, handler)
     member _.TryFinally(body: ShellStep<'T>, compensation: unit -> unit) = shell.TryFinally(body, compensation)
     member _.Using(resource: 'R :> IDisposable, body: 'R -> ShellStep<'T>) = shell.Using(resource, body)
-    member _.Run(step: ShellStep<unit>) : Definition<'TCase> = FsTarget("", dependsOn, (fun _ -> shell.Run step), hidden)
+    member _.Run(step: ShellStep<unit>) : Definition<'TCase> =
+        FsTarget("", dependsOn, (fun _ -> shell.Run(step, TargetBuilder<'TCase>.Token())), hidden)
+
+    /// While targets run side by side, the run's token: a failure elsewhere stops the block, and its commands print
+    /// through Console.Out, where each line gets the target's name. Otherwise none, so commands keep the console.
+    static member internal Token() =
+        match Nullean.Make.MakeContext.Current with
+        | null -> Threading.CancellationToken.None
+        | ctx when isNull ctx.Sink -> Threading.CancellationToken.None
+        | ctx -> ctx.CancellationToken
 
 /// What a <c>command { }</c> block collects: its requires, its composed stages in order and an optional body.
 [<NoComparison; NoEquality>]
