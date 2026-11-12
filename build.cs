@@ -112,10 +112,10 @@ class Make : MakeBuild
 					new[]
 					{
 						"assembly-differ",
+						"diff",
 						$"previous-nuget|{pkg}|{ver}|{MainTfm}",
 						$"directory|{AssembliesDir(pkg)}",
 						"-a",
-						"true",
 						"--target",
 						pkg,
 						"-f",
