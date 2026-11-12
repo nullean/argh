@@ -417,7 +417,11 @@ public sealed partial class CliParserGenerator
 
 				if (existing.Kind == ParameterKind.Positional)
 				{
-					map[ps.Name] = existing with { Description = raw.Trim() };
+					// An argument has no flag names, but its doc may still open with the `-x, --long,` synopsis the flags use
+					// (copied from a flag, or kept from when it was one). Drop it from the description, as [AsParameters]
+					// argument members already do; keep the text whole when nothing would be left.
+					var argDoc = ParamDocParser.Parse(raw);
+					map[ps.Name] = existing with { Description = argDoc.Description.Length > 0 ? argDoc.Description : raw.Trim() };
 					continue;
 				}
 
