@@ -55,7 +55,7 @@ one does not start. The run still exits with the first failure's exit code.
 
 A target body stops when it is cancelled only if it watches for it:
 
-- `Shell.Exec` watches for it, and stops the process it started.
+- `Shell.Exec` in C#, and `sh` in an F# `target { }` block, watch for it and stop the process they started.
 - An async body can take the token: `app.Target(async ct => await Task.Delay(1000, ct))`, or read
   `MakeContext.Current.CancellationToken`.
 
@@ -85,11 +85,8 @@ A command run with `Shell.Exec` streams its output through the target's lines. I
 terminal, so a tool that colours only for a terminal prints without colour. A run with one job, or without a parallel
 stage, leaves every command on the console as before.
 
-:::{note}
-In F#, `sh` commands inside a `target { }` block run on the console, not through the target's lines, and a failure
-elsewhere does not stop them. `printfn` and other `Console` output is prefixed. A parallel F# target finishes the
-command it is running when the run stops, and then starts no more.
-:::
+In F#, the `sh` commands of a `target { }` block running side by side do the same: their lines carry the target's
+name, and a failure elsewhere stops them. The `shell { }` inside a command's `executes (...)` runs on the console.
 
 ## Build options with the same name
 

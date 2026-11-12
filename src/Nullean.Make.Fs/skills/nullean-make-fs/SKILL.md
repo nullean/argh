@@ -74,8 +74,8 @@ let main argv =
 - A dependency can name a payload, `Test { Filter = Some "Unit" }`: the target runs with it. Equal payloads run once,
   different payloads once each. Only the named target binds the command line.
 - `concurrently [A; B]` in a `command { }` block is a stage that runs side by side (F# reserves `parallel`); stages
-  run in the order written. `-j N` caps targets at once and `-k` keeps going after a failure. `printfn` output is
-  prefixed with the target's name; `sh` output keeps the console and is not cancelled.
+  run in the order written. `-j N` caps targets at once and `-k` keeps going after a failure. Output, `sh` included, is
+  prefixed with the target's name, and a failure elsewhere stops a running `sh`.
 - Pipe a definition through `onlyWhen (fun () -> ...)`, `after [Lint]`, `cleanup [StopDb]`, `needsEnv ["KEY"]`,
   `needsTool ["docker"]` and `describe "..."`.
 - `build release --graph` (or `--graph mermaid|json`) draws the plan, skipped targets included, and runs nothing.

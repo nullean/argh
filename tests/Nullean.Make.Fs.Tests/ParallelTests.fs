@@ -6,6 +6,7 @@ open System.Threading
 open System.Collections.Concurrent
 open TUnit.Core
 open Nullean.Make.Fs
+open Proc.Fs
 
 type Side =
     | Left
@@ -59,3 +60,56 @@ type ParallelTests() =
     member _.``Graph draws the parallel stage``() =
         let _, _, stdout = run ["both"; "--graph"]
         Assert.Contains("parallel", stdout)
+
+type Shelled =
+    | Version
+    | Sleeper
+    | Breaker
+    | Quiet
+    | Pair
+    | Doomed
+
+/// A command that runs for half a minute, on every OS the tests run on.
+let private longCommand () =
+    if OperatingSystem.IsWindows() then "ping", [ "-n"; "30"; "127.0.0.1" ] else "sleep", [ "30" ]
+
+let private runShelled (args: string list) =
+    let log = ConcurrentQueue<string>()
+    let app = MakeApp<Shelled>("build", None)
+    let binary, longArgs = longCommand ()
+    app.Bind <| function
+        | Version -> target [] { sh $"dotnet --version" }
+        | Sleeper -> target [] {
+                         sh $"{binary} {longArgs}"
+                         log.Enqueue "sleeper:done" }
+        | Breaker -> target [] { failBuild "broken on purpose" }
+        | Quiet   -> target [] { printfn "quiet" }
+        | Pair    -> command { concurrently [Version; Quiet] }
+        | Doomed  -> command { concurrently [Sleeper; Breaker] }
+    let stdout = new StringWriter()
+    let oldOut, oldErr = Console.Out, Console.Error
+    Console.SetOut stdout
+    Console.SetError(new StringWriter())
+    let watch = Diagnostics.Stopwatch.StartNew()
+    try
+        let exit = app.RunAsync(List.toArray args).GetAwaiter().GetResult()
+        exit, List.ofSeq log, string stdout, watch.Elapsed
+    finally
+        Console.SetOut oldOut
+        Console.SetError oldErr
+
+[<NotInParallel>]
+type ParallelShellTests() =
+
+    [<Test>]
+    member _.``sh output of a target running side by side carries its name``() =
+        let _, _, stdout, _ = runShelled ["pair"; "-j"; "2"]
+        let lines = stdout.Split('\n') |> Array.map (fun l -> l.Trim())
+        Assert.Equal(true, lines |> Array.exists (fun l -> l.StartsWith "[version] " && Char.IsDigit l.["[version] ".Length]))
+
+    [<Test>]
+    member _.``a failure elsewhere stops a running sh command``() =
+        let exit, log, _, elapsed = runShelled ["doomed"; "-j"; "2"]
+        Assert.Equal(1, exit)
+        Assert.Equal<string list>([], log)
+        Assert.Equal(true, elapsed < TimeSpan.FromSeconds 20.)

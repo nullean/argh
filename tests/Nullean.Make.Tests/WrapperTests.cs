@@ -36,6 +36,16 @@ public class WrapperBuild : MakeBuild
 }
 
 /// <summary><c>schema-update</c> and <c>schema update</c> are distinct targets but the same just recipe name.</summary>
+public class KeepBuild : MakeBuild
+{
+	[Flag("--keep", "-k", Description = "Keep the output")]
+	public bool Keep { get; init; }
+
+	public Target Clean =>
+		_ => _.Executes(() =>
+		{ });
+}
+
 public class ClashingWrapperBuild : MakeBuild
 {
 	public Target SchemaUpdate =>
@@ -94,6 +104,15 @@ public sealed class WrapperTests : IDisposable
 		""";
 
 	[Test]
+	public async Task A_build_option_with_the_same_short_name_keeps_it_in_the_mise_include()
+	{
+		var (exit, _, stderr) = await RunAsync<KeepBuild>("sync", "--run", "dotnet run build.cs --", "--only", "mise");
+		exit.Should().Be(0, stderr);
+		var text = FileText("mise-tasks.toml");
+		text.Should().Contain("flag \"--keep-going\" help=").And.Contain("flag \"-k --keep\"");
+	}
+
+	[Test]
 	public async Task Sync_writes_the_mise_include()
 	{
 		var (exit, _, stderr) = await RunAsync("sync", "--run", Run);
@@ -111,6 +130,11 @@ public sealed class WrapperTests : IDisposable
 			run = "dotnet run build.cs -- clean"
 			usage = '''
 			flag "-s --single-target" help="Skip prerequisite deps; run only the body / Composes"
+			flag "--graph" help="Draw what would run and run nothing: tree, mermaid or json"
+			flag "-j --jobs <jobs>" help="How many targets may run at once (default: one per processor)"
+			flag "-k --keep-going" help="After a failure, finish the targets that do not depend on it"
+			flag "--output <output>" help="Output of targets running side by side: prefixed or grouped"
+			flag "--skip <skip>" help="Leave a target out of the plan, with what only it needed"
 			flag "-c --clean-checkout" help="Skip the clean-checkout guard"
 			'''
 
@@ -123,6 +147,11 @@ public sealed class WrapperTests : IDisposable
 			flag "--no-restore" help="bool (default: False)"
 			arg "[project]" help="string (default: null)"
 			flag "-s --single-target" help="Skip prerequisite deps; run only the body / Composes"
+			flag "--graph" help="Draw what would run and run nothing: tree, mermaid or json"
+			flag "-j --jobs <jobs>" help="How many targets may run at once (default: one per processor)"
+			flag "-k --keep-going" help="After a failure, finish the targets that do not depend on it"
+			flag "--output <output>" help="Output of targets running side by side: prefixed or grouped"
+			flag "--skip <skip>" help="Leave a target out of the plan, with what only it needed"
 			flag "-c --clean-checkout" help="Skip the clean-checkout guard"
 			'''
 
@@ -132,6 +161,11 @@ public sealed class WrapperTests : IDisposable
 			run = "dotnet run build.cs -- schema update"
 			usage = '''
 			flag "-s --single-target" help="Skip prerequisite deps; run only the body / Composes"
+			flag "--graph" help="Draw what would run and run nothing: tree, mermaid or json"
+			flag "-j --jobs <jobs>" help="How many targets may run at once (default: one per processor)"
+			flag "-k --keep-going" help="After a failure, finish the targets that do not depend on it"
+			flag "--output <output>" help="Output of targets running side by side: prefixed or grouped"
+			flag "--skip <skip>" help="Leave a target out of the plan, with what only it needed"
 			flag "-c --clean-checkout" help="Skip the clean-checkout guard"
 			'''
 
