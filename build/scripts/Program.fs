@@ -68,9 +68,7 @@ let main argv =
               if Paths.Output.Exists then Paths.Output.Delete true
               for project in projectsToClean () do
                   sh $"dotnet clean {project} -c Release -v q" }
-        | Build -> command {
-              composes [Clean]
-              executes (shell { sh $"dotnet build -c Release" }) }
+        | Build -> command { composes [Clean] } |> executes { sh $"dotnet build -c Release" }
         // global.json selects Microsoft.Testing.Platform, so this runs the TUnit test executables directly; on GitHub
         // Actions TUnit writes its own summary of the run to GITHUB_STEP_SUMMARY
         | Test -> target [Build] { sh $"dotnet test -c Release" }

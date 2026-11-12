@@ -68,7 +68,7 @@ let main argv =
   `let! ok = succeeds $"..."` capture; `use! _ = inDir "src"` and `use! _ = withEnv [...]` scope the commands after
   them.
 - `command { requires [...]; composes [...] }`: `requires` are gates skipped by `-s`; `composes` always run.
-  `executes (shell { ... })` adds a body that runs last.
+  `command { ... } |> executes { sh $"..." }` adds a body that runs last; the block is the same as a target's.
 - A record payload is the target's flags (`Test of TestOptions` takes `--filter`). A DU payload is a namespace
   (`Pkg of PkgTarget` gives `pkg generate`).
 - A dependency can name a payload, `Test { Filter = Some "Unit" }`: the target runs with it. Equal payloads run once,
@@ -77,7 +77,8 @@ let main argv =
   run in the order written. `-j N` caps targets at once and `-k` keeps going after a failure. Output, `sh` included, is
   prefixed with the target's name, and a failure elsewhere stops a running `sh`.
 - Pipe a definition through `onlyWhen (fun () -> ...)`, `after [Lint]`, `cleanup [StopDb]`, `needsEnv ["KEY"]`,
-  `needsTool ["docker"]` and `describe "..."`.
+  `needsTool ["docker"]` and `describe "..."`, or write them as the first lines of a `target { }` block.
+  `command { }` takes `describe "..."` as an operation.
 - `build release --graph` (or `--graph mermaid|json`) draws the plan, skipped targets included, and runs nothing.
   `build lint test pack` runs several targets; `--skip docs` leaves one out.
 - Global options: `app.Flag("--verbose", short = "-v", desc = "...")`, `app.Option<'T>(...)`, read with `.Value`
@@ -89,8 +90,8 @@ let main argv =
 ## Gotchas
 
 - Descriptions are the `///` comments on the cases, read from the XML documentation file: the project needs
-  `<GenerateDocumentationFile>true</GenerateDocumentationFile>`. A `.fsx` script has none; pipe the target through
-  `describe "..."` there.
+  `<GenerateDocumentationFile>true</GenerateDocumentationFile>`. A `.fsx` script has none; write `describe "..."` at
+  the top of the block there.
 - `sh $"..."` splits only the literal text; each `{value}` stays one argument. Do not build a command string with
   `sprintf` and pass it in as one value: it becomes a single argument. Use an `if`, or a list spliced as `{args}`.
 - Code in the `match` arm outside the block runs when the graph is read, for every case. Put the work inside

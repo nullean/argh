@@ -135,21 +135,30 @@ failure finish. Output of targets running side by side, `sh` commands included, 
 stops the `sh` commands still running.
 See [Running targets side by side](https://argh.nullean.net/make/parallel).
 
-`executes (...)` adds a body that runs after every composed target. Like a target block, it is deferred. Use `shell { }` inside it to run commands:
+Pipe a command into `executes { }` for a body that runs after every composed target. The block is the same as a
+target's: `sh`, `let!` captures and plain F#, and nothing in it runs until the command does:
 
 ```fsharp
 | Publish -> command {
       requires [Release]
-      composes [CreateGithubRelease]
-      executes (
-          shell {
-              let! sha = text $"git rev-parse --short HEAD"
-              printfn $"published {sha}" }) }
+      composes [CreateGithubRelease] }
+  |> executes {
+      let! sha = text $"git rev-parse --short HEAD"
+      printfn $"published {sha}" }
 ```
 
 ## Conditions, ordering and cleanup
 
-Pipe a target or command through these:
+Pipe a target or command through these, or write them as lines at the top of a `target { }` block:
+
+```fsharp
+| Publish -> target [] {
+      describe "Push the packages"
+      needsEnv ["NUGET_API_KEY"]
+      sh $"dotnet nuget push build/output/*.nupkg" }
+```
+
+A `command { }` block takes `describe "..."` the same way. Piped:
 
 ```fsharp
 | StartDb -> target [] { sh $"docker compose up -d db" } |> cleanup [StopDb]   // at the end, even after a failure
@@ -165,7 +174,7 @@ See [Conditions, ordering and cleanup](https://argh.nullean.net/make/modifiers).
 
 ## Descriptions from doc comments
 
-A target's description is the `///` doc comment on its DU case. The comment is read from the XML documentation file, so the build project needs `<GenerateDocumentationFile>true</GenerateDocumentationFile>`. A `.fsx` script produces no documentation file. In a script, pipe the target through `describe "..."`, or the target shows its name.
+A target's description is the `///` doc comment on its DU case. The comment is read from the XML documentation file, so the build project needs `<GenerateDocumentationFile>true</GenerateDocumentationFile>`. A `.fsx` script produces no documentation file. In a script, write `describe "..."` at the top of the block or pipe the target through it, or the target shows its name.
 
 ## Namespaces via nested DUs
 
@@ -253,7 +262,7 @@ covers the options, the task names (`pkg:generate`, `pkg/generate`, `pkg-generat
 ```fsharp
 Make.target  (deps: 'T list) (desc: string) (body: FsContext -> unit)
 Make.command (requires: 'T list) (composes: 'T list)
-Make.composer (requires: 'T list) (composes: 'T list) (body: FsContext -> unit)   // like command { executes (...) }
+Make.composer (requires: 'T list) (composes: 'T list) (body: FsContext -> unit)   // like command { } |> executes { }
 failBuild "message"                                                               // abort with exit code 1
 ```
 

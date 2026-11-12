@@ -86,7 +86,7 @@ terminal, so a tool that colours only for a terminal prints without colour. A ru
 stage, leaves every command on the console as before.
 
 In F#, the `sh` commands of a `target { }` block running side by side do the same: their lines carry the target's
-name, and a failure elsewhere stops them. The `shell { }` inside a command's `executes (...)` runs on the console.
+name, and a failure elsewhere stops them. So do the commands of a command's `executes { }` block.
 
 ## Build options with the same name
 

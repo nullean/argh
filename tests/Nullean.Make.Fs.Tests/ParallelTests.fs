@@ -68,6 +68,10 @@ type Shelled =
     | Quiet
     | Pair
     | Doomed
+    | SlowCommand
+    | DoomedCommand
+    | VersionCommand
+    | CommandPair
 
 /// A command that runs for half a minute, on every OS the tests run on.
 let private longCommand () =
@@ -86,6 +90,12 @@ let private runShelled (args: string list) =
         | Quiet   -> target [] { printfn "quiet" }
         | Pair    -> command { concurrently [Version; Quiet] }
         | Doomed  -> command { concurrently [Sleeper; Breaker] }
+        | SlowCommand -> command { composes [] } |> executes {
+                             sh $"{binary} {longArgs}"
+                             log.Enqueue "slow-command:done" }
+        | DoomedCommand -> command { concurrently [SlowCommand; Breaker] }
+        | VersionCommand -> command { composes [] } |> executes { sh $"dotnet --version" }
+        | CommandPair -> command { concurrently [VersionCommand; Quiet] }
     let stdout = new StringWriter()
     let oldOut, oldErr = Console.Out, Console.Error
     Console.SetOut stdout
@@ -113,3 +123,16 @@ type ParallelShellTests() =
         Assert.Equal(1, exit)
         Assert.Equal<string list>([], log)
         Assert.Equal(true, elapsed < TimeSpan.FromSeconds 20.)
+
+    [<Test>]
+    member _.``a failure elsewhere stops the sh commands of an executes block``() =
+        let exit, log, _, elapsed = runShelled ["doomed-command"; "-j"; "2"]
+        Assert.Equal(1, exit)
+        Assert.Equal<string list>([], log)
+        Assert.Equal(true, elapsed < TimeSpan.FromSeconds 20.)
+
+    [<Test>]
+    member _.``sh output of an executes block running side by side carries its name``() =
+        let _, _, stdout, _ = runShelled ["command-pair"; "-j"; "2"]
+        let lines = stdout.Split('\n') |> Array.map (fun l -> l.Trim())
+        Assert.Equal(true, lines |> Array.exists (fun l -> l.StartsWith "[version-command] " && Char.IsDigit l.["[version-command] ".Length]))

@@ -66,15 +66,15 @@ let private runSteps (args: string list) =
                               if helpOutput.ConsoleOut |> Seq.exists (fun l -> l.Line.Contains "build") then
                                   log.Add "target-saw-build" }
         | CaptureInCommand -> command {
-                              requires [Clean]
-                              composes [Pkg Generate]
-                              executes (
+                                  requires [Clean]
+                                  composes [Pkg Generate] }
+                              |> executes {
                                   let helpOutput = exec {
                                       binary "dotnet"
                                       arguments "--help"
                                       output
                                   }
-                                  log.Add $"command-exit:{helpOutput.ExitCode}") }
+                                  log.Add $"command-exit:{helpOutput.ExitCode}" }
     let stdout, stderr = new StringWriter(), new StringWriter()
     let oldOut, oldErr = Console.Out, Console.Error
     Console.SetOut stdout
