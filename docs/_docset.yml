@@ -49,6 +49,7 @@ toc:
   - folder: make
     children:
       - file: index.md
+      - file: graph.md
       - file: wrappers.md
       - file: mise.md
       - file: makefile.md

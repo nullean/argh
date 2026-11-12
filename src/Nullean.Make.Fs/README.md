@@ -178,6 +178,19 @@ let token   = app.Option<string option>("--token", desc = "API token", defaultVa
 
 Read them in target blocks through `.Value`. Help shows each option's type, such as `--config <string>`, and `--token <string?>` for an option type. Both `--token abc` and `--token=abc` work. A value that does not parse, or a missing value, exits `2` before any target runs. Enum options bind by name, ignoring case.
 
+## Drawing the plan
+
+`--graph` draws what a run would do and runs nothing. It binds the target's arguments, applies `-s` and evaluates
+conditions, so a skipped target shows as skipped:
+
+```
+build release -s --graph
+build release --graph mermaid      # or json
+```
+
+A target's `--help` lists the order its dependencies run in under `Runs:`. See
+[Drawing the plan](https://argh.nullean.net/make/graph).
+
 ## mise, make and just
 
 `__wrappers sync` writes a mise task include, a Makefile include and a justfile import with one task per target, so
