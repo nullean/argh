@@ -93,7 +93,7 @@ let main argv =
               for id, _ in packageIds () do
                   let report = Path.Combine(output, $"breaking-changes-{id}.md")
                   // quoted: an unquoted | would pipe
-                  sh $"dotnet assembly-differ 'previous-nuget|{id}|{version}|{Paths.MainTFM}' 'directory|{assembliesDir id}' -a true --target {id} -f github-comment --output {report}" }
+                  sh $"dotnet assembly-differ diff 'previous-nuget|{id}|{version}|{Paths.MainTFM}' 'directory|{assembliesDir id}' -a --target {id} -f github-comment --output {report}" }
         | Updateschema -> target [] {
               sh $"dotnet build -c Release tools/Nullean.Argh.SchemaExport"
               Directory.CreateDirectory "schema" |> ignore
