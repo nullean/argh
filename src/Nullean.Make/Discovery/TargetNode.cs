@@ -21,11 +21,11 @@ internal sealed class TargetNode
 	public Func<bool>? OnlyWhen { get; set; }
 	public TargetKind Kind { get; set; }
 
-	/// <summary>DependsOn / Requires methods — skippable under -s.</summary>
-	public List<MethodInfo> Requires { get; } = new();
+	/// <summary>DependsOn / Requires references — skippable under -s.</summary>
+	public List<TargetRef> Requires { get; } = new();
 
-	/// <summary>Composes methods — always run.</summary>
-	public List<MethodInfo> Composes { get; } = new();
+	/// <summary>Composes references — always run.</summary>
+	public List<TargetRef> Composes { get; } = new();
 
 	/// <summary>Sync body; null when async or not set.</summary>
 	public Action? SyncBody { get; set; }

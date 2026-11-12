@@ -128,6 +128,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 			BuildGraph(UnionCaseTable<TUnion>.Required);
 			ResolveRouteDeps();
 			GraphValidator.Validate(_graph);
+			_graph.Source = new UnionTargetSource<TUnion>(_bind, _caseByNode, ResolveCase);
 		}
 		catch (MakeException ex)
 		{
@@ -160,7 +161,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 
 		if (showVersion)
 		{
-			Console.WriteLine("0.0.0");
+			Console.WriteLine(MakeVersion.OfEntryAssembly());
 			return 0;
 		}
 
@@ -198,9 +199,6 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 			return 2;
 		}
 
-		// Wire up execution lambdas for every node (root gets real args, deps get empty args)
-		WireExecutionBodies(targetNode, targetArgs);
-
 		var parsed = new ParsedArgs { Target = targetNode, TargetArgs = targetArgs, SingleTarget = singleTarget, };
 
 		return await DepGraphExecutor.ExecuteAsync(targetNode, parsed, _graph);
@@ -224,8 +222,8 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 				Description = builder.DescriptionValue ?? Docs.DocDescriptions.ForType(path.CaseType),
 			};
 			node.Hidden = builder.IsHidden;
-			node.RouteRequires.AddRange(builder.DepTypeNames);
-			node.RouteComposes.AddRange(builder.CompTypeNames);
+			node.RouteRequires.AddRange(builder.Deps.Select(d => d.TypeName));
+			node.RouteComposes.AddRange(builder.Comps.Select(d => d.TypeName));
 
 			_graph.Targets.Add(node);
 			_caseByNode[node] = path;
@@ -236,45 +234,21 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 
 	private void ResolveRouteDeps()
 	{
-		var map = _typeNameToRoute!;
 		foreach (var node in _graph.Targets)
 		{
 			foreach (var depName in node.RouteRequires)
-				node.RequiresResolved.Add(ResolveCase(node, depName, map));
+				node.RequiresResolved.Add(ResolveCase(node, depName));
 			foreach (var compName in node.RouteComposes)
-				node.ComposesResolved.Add(ResolveCase(node, compName, map));
+				node.ComposesResolved.Add(ResolveCase(node, compName));
 		}
 	}
 
-	private TargetNode ResolveCase(TargetNode from, string caseTypeName, Dictionary<string, string> map)
+	private TargetNode ResolveCase(TargetNode from, string caseTypeName)
 	{
-		if (map.TryGetValue(caseTypeName, out var r) && _graph.ByRoute.TryGetValue(r, out var target))
+		if (_typeNameToRoute!.TryGetValue(caseTypeName, out var r) && _graph.ByRoute.TryGetValue(r, out var target))
 			return target;
 		var name = caseTypeName.Length == 0 ? "an empty union value" : $"'{caseTypeName}'";
 		throw new MakeException($"Target '{string.Join("/", from.Route)}' depends on {name}, which is not a case of {typeof(TUnion).Name}.", 1);
-	}
-
-	/// <summary>
-	/// Sets <c>AsyncBody</c> on every node in the dependency plan.
-	/// The root gets real <paramref name="targetArgs"/>; dep nodes get empty args (their
-	/// case DTOs are constructed with defaults, so their Executes closures see default values).
-	/// </summary>
-	private void WireExecutionBodies(TargetNode root, string[] targetArgs)
-	{
-		foreach (var node in _graph.Targets)
-		{
-			var n = node;
-			var args = ReferenceEquals(n, root) ? targetArgs : Array.Empty<string>();
-			n.AsyncBody = async () =>
-			{
-				if (_bind is null || n.DtoType is null)
-					return;
-				var caseInstance = Parsing.DtoBinder.Bind(n.DtoType, args);
-				var realUnion = _caseByNode[n].Wrap(caseInstance);
-				var builder2 = (UnionTargetBuilderImpl<TUnion>)_bind!(realUnion);
-				await builder2.ExecuteAsync();
-			};
-		}
 	}
 
 	// ── Argv helpers ──────────────────────────────────────────────────────────

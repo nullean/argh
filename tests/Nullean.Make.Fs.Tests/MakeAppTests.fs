@@ -55,7 +55,7 @@ let private standard (app: MakeApp<Target>) (log: ResizeArray<string>) =
         | Pkg Generate                 -> Make.target [] "" <| fun _ -> log.Add "pkg-generate"
         | Pkg PkgTarget.Validate       -> Make.target [] "" <| fun _ -> log.Add "pkg-validate"
         | Release -> Make.command [Test { Filter = None; Retries = None }] [Pkg Generate; Pkg PkgTarget.Validate]
-        // A dependency with a non-default payload must still resolve to the Test target.
+        // A dependency with a non-default payload resolves to the Test target and runs it with that payload.
         | Focused -> Make.command [Test { Filter = Some "Unit"; Retries = Some 2 }] []
 
 let private okExit (r: Run) =
@@ -102,10 +102,10 @@ type MakeAppTests() =
         Assert.Equal<string list>(["clean"; "build:Release:1:Low:dry=False"; "test:None:None"; "pkg-generate"; "pkg-validate"], r.Log)
 
     [<Test>]
-    member _.``Dependency with a non default payload resolves``() =
+    member _.``Dependency with a non default payload runs with that payload``() =
         let r = runApp standard ["focused"]
         okExit r
-        Assert.Contains("test:None:None", r.Log)
+        Assert.Contains("test:Some \"Unit\":Some 2", r.Log)
 
     [<Test>]
     member _.``Namespace help lists the namespace targets``() =

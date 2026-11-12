@@ -5,28 +5,49 @@ namespace Nullean.Make.Execution;
 
 internal static class DepGraphExecutor
 {
+	/// <summary>Binds the named target's arguments, plans the run and executes it.</summary>
 	public static async Task<int> ExecuteAsync(TargetNode root, ParsedArgs parsed, BuildGraph graph)
 	{
-		var plan = BuildPlan(root, parsed.SingleTarget);
+		var source = graph.Source ?? throw new InvalidOperationException("The graph has no target source.");
+		RunPlan plan;
+		try
+		{
+			var value = source.BindArguments(root, parsed.TargetArgs);
+			plan = RunPlan.Build([new DepRef(root, value)], source, new PlanOptions(parsed.SingleTarget));
+		}
+		catch (MakeException ex)
+		{
+			Console.Error.WriteLine(ex.Message);
+			return ex.ExitCode;
+		}
+		return await ExecuteAsync(plan, parsed);
+	}
+
+	public static async Task<int> ExecuteAsync(RunPlan plan, ParsedArgs parsed)
+	{
 		var context = new MakeContext(parsed.GlobalValues, parsed.SingleTarget) { TargetArgs = parsed.TargetArgs };
 
-		foreach (var step in plan)
+		foreach (var step in plan.Instances)
 		{
+			// A named command that only sequences other targets has nothing of its own to run.
+			if (step.IsRoot && step.Spec.Body is null)
+				continue;
+
 			var start = DateTime.UtcNow;
 			ExecutionLog.Starting(step);
 			MakeContext.Current = context;
 			try
 			{
-				await InvokeStep(step, parsed.TargetArgs);
+				await InvokeStep(step);
 			}
 			catch (MakeException ex)
 			{
-				Console.Error.WriteLine($"[make] Target '{string.Join("/", step.Route)}' failed: {ex.Message}");
+				Console.Error.WriteLine($"[make] Target '{string.Join("/", step.Node.Route)}' failed: {ex.Message}");
 				return ex.ExitCode;
 			}
 			catch (Exception ex)
 			{
-				Console.Error.WriteLine($"[make] Target '{string.Join("/", step.Route)}' failed: {ex.Message}");
+				Console.Error.WriteLine($"[make] Target '{string.Join("/", step.Node.Route)}' failed: {ex.Message}");
 				return 1;
 			}
 			finally
@@ -39,73 +60,15 @@ internal static class DepGraphExecutor
 		return 0;
 	}
 
-	private static async Task InvokeStep(TargetNode step, string[] targetArgs)
+	private static async Task InvokeStep(TargetInstance step)
 	{
-		if (step.OnlyWhen is not null && !step.OnlyWhen())
+		if (step.Spec.OnlyWhen is not null && !step.Spec.OnlyWhen())
 		{
 			ExecutionLog.Skipped(step);
 			return;
 		}
 
-		if (step.DtoType is not null && step.TypedBody is not null)
-		{
-			var dto = DtoBinder.Bind(step.DtoType, targetArgs);
-			// Invoke Action<T> or Func<T, Task>
-			var bodyType = step.TypedBody.GetType();
-			if (bodyType.IsGenericType)
-			{
-				var genDef = bodyType.GetGenericTypeDefinition();
-				if (genDef == typeof(Func<,>) && bodyType.GetGenericArguments()[1] == typeof(Task))
-				{
-					var task = (Task)step.TypedBody.DynamicInvoke(dto)!;
-					await task;
-					return;
-				}
-			}
-			step.TypedBody.DynamicInvoke(dto);
-			return;
-		}
-
-		if (step.AsyncBody is not null)
-		{
-			await step.AsyncBody();
-			return;
-		}
-
-		step.SyncBody?.Invoke();
-	}
-
-	private static List<TargetNode> BuildPlan(TargetNode root, bool singleTarget)
-	{
-		var plan = new List<TargetNode>();
-		var visited = new HashSet<TargetNode>();
-
-		void AddNode(TargetNode node, bool isRoot)
-		{
-			if (!visited.Add(node))
-				return;
-
-			// Requires: skippable under -s (unless this is the root node itself)
-			if (!singleTarget || !isRoot)
-			{
-				foreach (var dep in node.RequiresResolved)
-					AddNode(dep, false);
-			}
-
-			// Composes: always run
-			foreach (var dep in node.ComposesResolved)
-				AddNode(dep, false);
-
-			plan.Add(node);
-		}
-
-		AddNode(root, true);
-
-		// Remove root if it has no body and is a pure command (only composes/requires)
-		// Keep it if it has a body
-		if (root.SyncBody is null && root.AsyncBody is null && root.TypedBody is null && plan[^1] == root)
-			plan.RemoveAt(plan.Count - 1);
-
-		return plan;
+		if (step.Spec.Body is not null)
+			await step.Spec.Body(CancellationToken.None);
 	}
 }

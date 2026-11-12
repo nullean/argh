@@ -80,7 +80,8 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 		foreach (var c in cases)
 			sb.AppendLine($"\t\t\t\t\t{c},");
 		sb.AppendLine("\t\t\t\t},");
-		sb.AppendLine("\t\t\t\tstatic u => Leaf(u.Value));");
+		sb.AppendLine("\t\t\t\tstatic u => Leaf(u.Value),");
+		sb.AppendLine("\t\t\t\tstatic u => LeafValue(u.Value));");
 		sb.AppendLine();
 		sb.AppendLine("\t\tprivate static global::System.Type? Leaf(object? value) => value switch");
 		sb.AppendLine("\t\t{");
@@ -88,6 +89,13 @@ public sealed class UnionCaseGenerator : IIncrementalGenerator
 		foreach (var nested in nestedUnions)
 			sb.AppendLine($"\t\t\t{nested.ToDisplayString(Fqn)} inner => Leaf(inner.Value),");
 		sb.AppendLine("\t\t\t_ => value.GetType()");
+		sb.AppendLine("\t\t};");
+		sb.AppendLine();
+		sb.AppendLine("\t\tprivate static object? LeafValue(object? value) => value switch");
+		sb.AppendLine("\t\t{");
+		foreach (var nested in nestedUnions)
+			sb.AppendLine($"\t\t\t{nested.ToDisplayString(Fqn)} inner => LeafValue(inner.Value),");
+		sb.AppendLine("\t\t\t_ => value");
 		sb.AppendLine("\t\t};");
 		sb.AppendLine("\t}");
 		sb.AppendLine("}");
