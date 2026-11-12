@@ -45,6 +45,12 @@ public static void Archive([Argument][MinLength(1)][MaxLength(20)] string[] file
 // --help: <files...>   [variadic] [count: 1–20]
 ```
 
+## Documentation
+
+The `<param>` text is the argument's description in `--help` and the schema. An argument has no flag names, so a leading
+`-x, --name,` synopsis in that text (the form flags use) is left out of the description rather than shown, and does not
+make the argument accept `--name`.
+
 ## Ordering rules
 
 :::{important}

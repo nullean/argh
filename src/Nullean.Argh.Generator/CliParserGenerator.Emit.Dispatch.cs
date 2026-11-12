@@ -894,18 +894,27 @@ public sealed partial class CliParserGenerator
 			});
 		}
 
-		var flagFallbackMethod = node.RootCommand?.RunMethodName ?? node.RootAlias?.RunMethodName;
-		if (flagFallbackMethod is not null)
+		// A token that names no command or namespace goes to the scope's default handler when that handler can take it:
+		// a flag always, a bare token only when the handler declares a positional. Without a positional the token can only
+		// be a mistyped command, so it falls through to the fuzzy "unknown command" error.
+		var fallbackCommand = node.RootCommand ?? node.RootAlias;
+		if (fallbackCommand is not null && fallbackCommand.Parameters.Any(static p => p.Kind == ParameterKind.Positional))
+			sb.AppendLine($"\t\t\treturn await {fallbackCommand.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
+		else
 		{
-			sb.AppendLine("\t\t\tif (tok.Length > 0 && tok[0] == '-')");
+			if (fallbackCommand is not null)
+			{
+				sb.AppendLine("\t\t\tif (tok.Length > 0 && tok[0] == '-')");
+				sb.AppendLine("\t\t\t{");
+				sb.AppendLine($"\t\t\t\treturn await {fallbackCommand.RunMethodName}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
+				sb.AppendLine("\t\t\t}");
+			}
+
 			sb.AppendLine("\t\t\t{");
-			sb.AppendLine($"\t\t\t\treturn await {flagFallbackMethod}(TailFrom(args, idx[0]), ct).ConfigureAwait(false);");
+			EmitFuzzyDispatchDefault(sb, node, path, entryAssemblyName);
 			sb.AppendLine("\t\t\t}");
 		}
 
-		sb.AppendLine("\t\t\t{");
-		EmitFuzzyDispatchDefault(sb, node, path, entryAssemblyName);
-		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t}");
 		sb.AppendLine();
 		foreach (var ch in node.Children)
