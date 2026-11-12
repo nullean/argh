@@ -34,6 +34,7 @@ internal sealed class WrapperModel
 
 		// The switches every Make script reads. A build option with the same short name keeps it, as on the command line.
 		string? Short(string name) => graph.GlobalOptions.Any(o => o.Short?.TrimStart('-') == name.TrimStart('-')) ? null : name;
+
 		var options = new List<WrapperOption>
 		{
 			new("--single-target", "-s", "Skip prerequisite deps; run only the body / Composes", true, "bool"),

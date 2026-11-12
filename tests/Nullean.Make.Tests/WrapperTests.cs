@@ -41,7 +41,9 @@ public class KeepBuild : MakeBuild
 	[Flag("--keep", "-k", Description = "Keep the output")]
 	public bool Keep { get; init; }
 
-	public Target Clean => _ => _.Executes(() => { });
+	public Target Clean =>
+		_ => _.Executes(() =>
+		{ });
 }
 
 public class ClashingWrapperBuild : MakeBuild
