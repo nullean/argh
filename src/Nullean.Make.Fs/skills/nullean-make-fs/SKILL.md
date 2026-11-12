@@ -71,6 +71,15 @@ let main argv =
   `executes (shell { ... })` adds a body that runs last.
 - A record payload is the target's flags (`Test of TestOptions` takes `--filter`). A DU payload is a namespace
   (`Pkg of PkgTarget` gives `pkg generate`).
+- A dependency can name a payload, `Test { Filter = Some "Unit" }`: the target runs with it. Equal payloads run once,
+  different payloads once each. Only the named target binds the command line.
+- `concurrently [A; B]` in a `command { }` block is a stage that runs side by side (F# reserves `parallel`); stages
+  run in the order written. `-j N` caps targets at once and `-k` keeps going after a failure. `printfn` output is
+  prefixed with the target's name; `sh` output keeps the console and is not cancelled.
+- Pipe a definition through `onlyWhen (fun () -> ...)`, `after [Lint]`, `cleanup [StopDb]`, `needsEnv ["KEY"]`,
+  `needsTool ["docker"]` and `describe "..."`.
+- `build release --graph` (or `--graph mermaid|json`) draws the plan, skipped targets included, and runs nothing.
+  `build lint test pack` runs several targets; `--skip docs` leaves one out.
 - Global options: `app.Flag("--verbose", short = "-v", desc = "...")`, `app.Option<'T>(...)`, read with `.Value`
   inside a block.
 - `<run> __wrappers sync --run "dotnet run --project build --"` writes mise, make and just includes with one task per
@@ -80,8 +89,8 @@ let main argv =
 ## Gotchas
 
 - Descriptions are the `///` comments on the cases, read from the XML documentation file: the project needs
-  `<GenerateDocumentationFile>true</GenerateDocumentationFile>`. A `.fsx` script has none; use
-  `Make.target deps "description" body` there.
+  `<GenerateDocumentationFile>true</GenerateDocumentationFile>`. A `.fsx` script has none; pipe the target through
+  `describe "..."` there.
 - `sh $"..."` splits only the literal text; each `{value}` stays one argument. Do not build a command string with
   `sprintf` and pass it in as one value: it becomes a single argument. Use an `if`, or a list spliced as `{args}`.
 - Code in the `match` arm outside the block runs when the graph is read, for every case. Put the work inside

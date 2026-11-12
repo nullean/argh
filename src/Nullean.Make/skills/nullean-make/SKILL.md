@@ -62,6 +62,16 @@ union Target(Clean, Build, Test, Pkg, Release);
 - `app.Target(deps, body)`: dependencies run first, once each. `app.Command(requires, composes)` sequences other
   targets: `requires` are gates, `composes` the work, in order; an optional third argument runs last.
 - A case record's constructor parameters are that target's flags: `Test(string? Filter = null)` takes `--filter`.
+- A dependency can name a value, `app.Target([new Test("Unit")], ...)`: the target runs with it. Equal values run
+  once, different values once each. Only the named target binds the command line.
+- `app.Command().Requires(new Test()).Parallel(new PackNuget(), new Docs()).Composes(new Publish())` runs a stage
+  side by side; stages run in declared order. `-j N` caps targets at once, `-k` keeps going after a failure, and an
+  async body can take the cancellation token: `app.Target(async ct => ...)`.
+- On a target builder: `.OnlyWhen(() => ...)` skips the body, `.After(new Lint())` orders it after `lint` when both
+  run, `.Cleanup(new StopDb())` runs at the end even after a failure, `.NeedsEnv("KEY")` / `.NeedsTool("docker")` are
+  checked before anything starts.
+- `./build.cs release --graph` (or `--graph mermaid|json`) draws the plan, skipped targets included, and runs
+  nothing. `./build.cs lint test pack` runs several targets; `--skip docs` leaves one out.
 - A nested union is a namespace: `Pkg` gives `pkg generate` and `pkg validate`. Match it with
   `Pkg { Value: Generate }` and create it with `new Pkg(new Generate())`.
 - A non-zero exit code from `Exec` fails the target, and `RunAsync` returns `1`. A bad or missing option value
