@@ -4,22 +4,35 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="MinVer" Version="6.0.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />
+    <PackageVersion Include="MinVer" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
     <PackageVersion Include="Proc" Version="0.17.0" />
     <PackageVersion Include="Proc.Fs" Version="0.17.0" />
-    <PackageVersion Include="FSharp.Core" Version="11.0.100" />
-    <!-- tests -->
-    <PackageVersion Include="TUnit" Version="1.83.0" />
-    <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
-    <PackageVersion Include="System.Memory" Version="4.5.5" />
+    <PackageVersion Include="FSharp.Core" Version="11.0.101" />
+    <!-- netstandard2.0 only -->
+    <PackageVersion Include="System.Memory" Version="4.6.3" />
     <PackageVersion Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <!-- examples -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+    <!-- tests -->
+    <PackageVersion Include="TUnit" Version="1.83.8" />
+    <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
+  </ItemGroup>
+  <!--
+    Microsoft.Extensions.* 11 dropped net8.0 and net9.0 (it warns that they are unsupported), so Nullean.Argh.Hosting's
+    net8.0 and net9.0 builds stay on 10.0.x, the last line that supports them.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' != 'net8.0' And '$(TargetFramework)' != 'net9.0'">
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0' Or '$(TargetFramework)' == 'net9.0'">
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.15" />
   </ItemGroup>
 </Project>
