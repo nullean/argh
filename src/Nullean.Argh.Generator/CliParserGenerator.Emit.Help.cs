@@ -485,7 +485,9 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\t};");
 	}
 
-	private static void EmitDeferLeadingRootAliasHelpers(StringBuilder sb, ImmutableArray<ParameterModel> defer)
+	/// <param name="parsedHere">The members the prefetch itself parses (the globals): a short letter one of them owns is never
+	/// deferred, so a global keeps the letter when the root alias declares it too.</param>
+	private static void EmitDeferLeadingRootAliasHelpers(StringBuilder sb, ImmutableArray<ParameterModel> defer, ImmutableArray<ParameterModel> parsedHere)
 	{
 		if (defer.IsDefaultOrEmpty)
 		{
@@ -519,6 +521,12 @@ public sealed partial class CliParserGenerator
 
 			if (p.ShortOpt is char ch)
 				shortChars.Add(ch);
+		}
+
+		foreach (var p in parsedHere)
+		{
+			if (IsEmittedFlagLike(p.Kind) && p.ShortOpt is char owned)
+				shortChars.Remove(owned);
 		}
 
 		sb.AppendLine("\t\t\tbool ShouldDeferLeadingRootAliasCanon(string name) => name switch");

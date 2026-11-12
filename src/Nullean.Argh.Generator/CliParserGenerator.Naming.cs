@@ -110,6 +110,10 @@ public sealed partial class CliParserGenerator
 					break;
 				}
 
+				// A lone `-` holds the short option's place when there is none (`-, --path, …`).
+				if (seg == "-" && i + 1 < parts.Length)
+					continue;
+
 				if (LooksLikeShortFlag(seg))
 				{
 					if (shortOpt is null)
