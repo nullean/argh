@@ -1,7 +1,7 @@
 # Argh
 
 Source-generated, AOT-safe CLI framework for .NET (`Nullean.Argh`, `Nullean.Argh.Hosting`). The build target DSL built
-on it, formerly `Nullean.Make`, lives on as [runna](https://github.com/nullean/runna). The docs site (`docs/`, argh.nullean.net) is a docs-builder
+on it, formerly `Nullean.Make`, is [runna](https://github.com/nullean/runna). The docs site (`docs/`, argh.nullean.net) is a docs-builder
 site published by `.github/workflows/gh-pages.yml`.
 
 ## Commands
@@ -22,7 +22,7 @@ mise run release  # show the release draft; `mise run release publish` releases
 ```
 
 `mise tasks ls` lists them all. The tasks call the F# build in `build/scripts`, written with the published
-`Nullean.Make.Fs` package. Run a target directly with
+`Nullean.Runna.Fs` package. Run a target directly with
 `dotnet run --project build/scripts -- <target>`, and `-s` to skip what it requires. Packages and
 API reports go to `build/output`. `dotnet run --project build/scripts -- updateschema` regenerates
 `schema/argh-cli-schema.json`, which `mise run ci` fails on when it is out of date.
@@ -30,7 +30,7 @@ API reports go to `build/output`. `dotnet run --project build/scripts -- updates
 `nupkg-validator` stays last in `dotnet-tools.json`: SDK 11's `dotnet tool restore` fails on a clean machine when
 that RID-specific tool package comes before `assembly-differ`.
 
-`build.cs` is the same pipeline written with the published `Nullean.Make` package (C#).
+`build.cs` is the same pipeline written with the published `Nullean.Runna` package (C#).
 
 In `build/scripts`, commands are Proc.Fs: a target's body is `target [deps] { sh $"…" }`, captures are `text`/`lines`,
 and helpers that compute a value are `shell { }` blocks. No `ProcNet` calls, no `exec "dotnet" [list]` wrappers.

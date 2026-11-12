@@ -1,23 +1,23 @@
 #!/usr/bin/env -S dotnet run --
 #:package Proc@0.22.1
-#:package Nullean.Make@0.30.0
+#:package Nullean.Runna@0.1.0
 #:property ManagePackageVersionsCentrally=false
-// C# build pipeline for nullean/argh using Nullean.Make, which now lives on as runna: https://github.com/nullean/runna
+// C# build pipeline for nullean/argh using runna: https://runna.nullean.net
 
-using Nullean.Make;
+using Nullean.Runna;
 using ProcNet;
 
 // ReSharper disable ArrangeTypeMemberModifiers
 // ReSharper disable ArrangeTypeModifiers
 
-return await MakeApp.Execute<Make>(args);
+return await RunnaApp.Execute<ArghBuild>(args);
 
 // ── per-target DTOs ───────────────────────────────────────────────────────────
 record TestOptions(string? Filter = null);
 
 // ── build class ───────────────────────────────────────────────────────────────
 
-class Make : MakeBuild
+class ArghBuild : RunnaBuild
 {
 	const string MainTfm = "netstandard2.0";
 	const string SignKey = "96c599bbe3e70f5d";
@@ -72,7 +72,7 @@ class Make : MakeBuild
 			{
 				var dirty = Proc.Start("git", "status", "--porcelain").ConsoleOut.Any();
 				if (dirty)
-					throw new MakeException("The checkout folder has pending changes, aborting");
+					throw new RunnaException("The checkout folder has pending changes, aborting");
 				Console.WriteLine("The checkout folder does not have pending changes, proceeding");
 			});
 
@@ -144,7 +144,7 @@ class Make : MakeBuild
 				{
 					Proc.Exec(SchemaToolBin(), new[] { "--out", tempPath });
 					if (File.ReadAllText(tempPath).TrimEnd() != File.ReadAllText("schema/argh-cli-schema.json").TrimEnd())
-						throw new MakeException("schema/argh-cli-schema.json is out of date. Run: ./build.sh schema update");
+						throw new RunnaException("schema/argh-cli-schema.json is out of date. Run: ./build.sh schema update");
 				}
 				finally
 				{
@@ -183,7 +183,7 @@ class Make : MakeBuild
 
 	public Command Release { get; }
 
-	public Make()
+	public ArghBuild()
 	{
 		var pkg = new Pkg();
 

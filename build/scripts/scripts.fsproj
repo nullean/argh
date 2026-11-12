@@ -3,14 +3,14 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
     <IsPackable>false</IsPackable>
-    <!-- Nullean.Make.Fs reads the target descriptions from the /// comments in Program.fs -->
+    <!-- Nullean.Runna.Fs reads the target descriptions from the /// comments in Program.fs -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
     <!-- explicit: under central package management the SDK adds no FSharp.Core -->
     <PackageReference Include="FSharp.Core" />
-    <!-- argh builds itself with the published Nullean.Make.Fs (now runna, github.com/nullean/runna); Proc.Fs comes with it -->
-    <PackageReference Include="Nullean.Make.Fs" />
+    <!-- argh builds itself with runna (runna.nullean.net); Proc.Fs comes with it -->
+    <PackageReference Include="Nullean.Runna.Fs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Paths.fs" />
