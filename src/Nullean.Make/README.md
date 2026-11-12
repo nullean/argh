@@ -105,6 +105,21 @@ still running; `-k` / `--keep-going` lets the ones that do not depend on it fini
 side carries their names, or `--output grouped` writes each target's lines together. See
 [Running targets side by side](https://argh.nullean.net/make/parallel).
 
+## Conditions, ordering and cleanup
+
+A target builder takes more than dependencies:
+
+```csharp
+StartDb => app.Target(() => Exec("docker compose up -d db")).Cleanup(new StopDb()),  // runs at the end, even after a failure
+Package => app.Target(() => Exec("dotnet pack")).After(new Lint()),                   // after lint when both run; does not add it
+Publish => app.Target(() => Exec("dotnet nuget push"))
+    .OnlyWhen(() => !dryRun.Value)        // skip the body; the dependencies still run
+    .NeedsEnv("NUGET_API_KEY")            // checked before anything starts
+    .NeedsTool("docker"),
+```
+
+See [Conditions, ordering and cleanup](https://argh.nullean.net/make/modifiers).
+
 ## Running commands
 
 `using static Nullean.Make.Shell;` brings in `Exec`:

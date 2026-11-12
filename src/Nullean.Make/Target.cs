@@ -18,6 +18,24 @@ public interface ITargetBuilder
 	/// <summary>Declares targets that must succeed before this target's body runs. Skipped under <c>-s</c>.</summary>
 	ITargetBuilder DependsOn(params TargetRef[] refs);
 
+	/// <summary>
+	/// Runs after <paramref name="refs"/> when they are in the same run, without adding them to it. A target named
+	/// without <c>With</c> matches it with any value; with <c>With</c>, only that value.
+	/// </summary>
+	ITargetBuilder After(params TargetRef[] refs);
+
+	/// <summary>
+	/// Targets whose bodies run at the end of the run, newest first, once this target has started, even when the run
+	/// fails. A cleanup runs its body only, and once however many targets name it.
+	/// </summary>
+	ITargetBuilder Cleanup(params TargetRef[] refs);
+
+	/// <summary>Environment variables that must be set. The run checks them before anything starts, and lists every one missing.</summary>
+	ITargetBuilder NeedsEnv(params string[] variables);
+
+	/// <summary>Executables that must be on the <c>PATH</c>. The run checks them before anything starts, and lists every one missing.</summary>
+	ITargetBuilder NeedsTool(params string[] tools);
+
 	/// <summary>Executes the given action as this target's body.</summary>
 	ITargetBuilder Executes(Action body);
 

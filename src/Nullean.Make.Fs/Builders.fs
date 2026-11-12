@@ -101,3 +101,47 @@ module MakeBuilders =
 
     /// A command that sequences other targets. See CommandBuilder.
     let command = CommandBuilder()
+
+/// <summary>
+/// Pipe a <c>target</c> or <c>command</c> through these to add to it:
+/// <code>
+/// | Publish -> target [] { sh $"dotnet nuget push build/output/*.nupkg" }
+///              |> onlyWhen (fun () -> not dryRun.Value)
+///              |> needsEnv ["NUGET_API_KEY"]
+///              |> describe "Push the packages"
+/// </code>
+/// </summary>
+[<AutoOpen>]
+module MakeModifiers =
+    /// <summary>
+    /// Skips the body when <paramref name="condition"/> returns false. The dependencies still run. <c>--graph</c>
+    /// evaluates it to show what it skips; a run evaluates it again just before the target would start.
+    /// </summary>
+    let onlyWhen (condition: unit -> bool) (definition: Definition<'TCase>) =
+        definition |> Modifiers.add (fun m -> { m with OnlyWhen = Some condition })
+
+    /// <summary>
+    /// Runs after <paramref name="targets"/> when they are in the same run, without adding them to it. A case with its
+    /// default payload matches the target with any payload; with another payload, only that payload.
+    /// </summary>
+    let after (targets: 'TCase list) (definition: Definition<'TCase>) =
+        definition |> Modifiers.add (fun m -> { m with After = m.After @ targets })
+
+    /// <summary>
+    /// Targets whose bodies run at the end of the run, newest first, once this target has started, even when the run
+    /// fails. A cleanup runs its body only, and once however many targets name it.
+    /// </summary>
+    let cleanup (targets: 'TCase list) (definition: Definition<'TCase>) =
+        definition |> Modifiers.add (fun m -> { m with Cleanup = m.Cleanup @ targets })
+
+    /// Environment variables that must be set. The run checks them before anything starts, and lists every one missing.
+    let needsEnv (variables: string list) (definition: Definition<'TCase>) =
+        definition |> Modifiers.add (fun m -> { m with NeedsEnv = m.NeedsEnv @ variables })
+
+    /// Executables that must be on the PATH. The run checks them before anything starts, and lists every one missing.
+    let needsTool (tools: string list) (definition: Definition<'TCase>) =
+        definition |> Modifiers.add (fun m -> { m with NeedsTool = m.NeedsTool @ tools })
+
+    /// The description help shows, for a script without an XML documentation file such as an .fsx.
+    let describe (description: string) (definition: Definition<'TCase>) =
+        definition |> Modifiers.add (fun m -> { m with Description = Some description })

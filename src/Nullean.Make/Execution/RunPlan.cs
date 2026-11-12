@@ -59,6 +59,36 @@ internal sealed class RunPlan
 	/// <summary>True when the roots run one after another; false for a drawing of unrelated roots.</summary>
 	public bool Chained { get; init; } = true;
 
+	/// <summary>For each instance with cleanup targets, the instances that run at the end of the run once it started.</summary>
+	public IReadOnlyDictionary<TargetInstance, IReadOnlyList<TargetInstance>> Cleanups
+	{
+		get;
+		init;
+	} = new Dictionary<TargetInstance, IReadOnlyList<TargetInstance>>();
+
+	/// <summary>
+	/// What the run needs and does not have: an environment variable that is not set, or an executable not on the
+	/// <c>PATH</c>, for each instance whose body would run. A target whose condition is false needs nothing.
+	/// </summary>
+	public IReadOnlyList<(TargetInstance Instance, string Missing)> MissingPreconditions()
+	{
+		var missing = new List<(TargetInstance, string)>();
+		foreach (var instance in Instances.Concat(Cleanups.Values.SelectMany(c => c)).Distinct())
+		{
+			if (instance.Skipped is not null || instance.Spec.Body is null)
+				continue;
+			if (instance.Spec.NeedsEnv.Count + instance.Spec.NeedsTool.Count == 0)
+				continue;
+			if (instance.Spec.OnlyWhen is { } condition && !condition())
+				continue;
+			foreach (var variable in instance.Spec.NeedsEnv.Where(v => string.IsNullOrEmpty(Environment.GetEnvironmentVariable(v))))
+				missing.Add((instance, $"the environment variable {variable}"));
+			foreach (var tool in instance.Spec.NeedsTool.Where(t => !Preconditions.OnPath(t)))
+				missing.Add((instance, $"{tool} on the PATH"));
+		}
+		return missing;
+	}
+
 	/// <summary>
 	/// Expands the named targets into instances. Each reference resolves to its node and value; a reference without a
 	/// value stands for the node's default value. A sequential stage's item waits for the item before it, and every
@@ -76,7 +106,8 @@ internal sealed class RunPlan
 			rootInstances.Add(instance);
 			previous = instance;
 		}
-		return new RunPlan { Roots = rootInstances, Instances = builder.Ordered, Chained = options.ChainRoots };
+		var ordered = builder.ApplyAfter();
+		return new RunPlan { Roots = rootInstances, Instances = ordered, Chained = options.ChainRoots, Cleanups = builder.ResolveCleanups(ordered) };
 	}
 
 	private sealed class Builder(ITargetSource source, PlanOptions options)
@@ -86,6 +117,79 @@ internal sealed class RunPlan
 		private readonly List<TargetInstance> _stack = new();
 
 		public List<TargetInstance> Ordered { get; } = new();
+
+		/// <summary>
+		/// Adds what each instance runs after, among the instances in the run, and orders the plan again: the earliest
+		/// instance whose prerequisites have all been placed comes next.
+		/// </summary>
+		public List<TargetInstance> ApplyAfter()
+		{
+			var any = false;
+			foreach (var instance in Ordered)
+			{
+				foreach (var reference in instance.Spec.After)
+				{
+					// A reference without a value matches the target with any value.
+					var matches = Ordered.Where(
+						i => i.Node == reference.Node && (reference.Value is null || Equals(i.Value, reference.Value)) && i != instance
+					);
+					foreach (var match in matches)
+					{
+						instance.Prerequisites.Add(match);
+						any = true;
+					}
+				}
+			}
+			if (!any)
+				return Ordered;
+
+			var placed = new HashSet<TargetInstance>();
+			var result = new List<TargetInstance>();
+			var remaining = Ordered.ToList();
+			while (remaining.Count > 0)
+			{
+				var next = remaining.FirstOrDefault(i => i.Prerequisites.All(placed.Contains));
+				if (next is null)
+				{
+					var stuck = remaining.Select(i => i.Name);
+					throw new MakeException($"The order the targets ask for has a cycle; none of these can go first: {string.Join(", ", stuck)}", 1);
+				}
+				remaining.Remove(next);
+				placed.Add(next);
+				next.Order = result.Count;
+				result.Add(next);
+			}
+			return result;
+		}
+
+		/// <summary>The cleanup instances of each instance that declares some. A cleanup runs its body only, not its dependencies.</summary>
+		public Dictionary<TargetInstance, IReadOnlyList<TargetInstance>> ResolveCleanups(List<TargetInstance> ordered)
+		{
+			var cleanups = new Dictionary<TargetInstance, IReadOnlyList<TargetInstance>>();
+			var shared = new Dictionary<(TargetNode, object?), TargetInstance>();
+			foreach (var instance in ordered.Where(i => i.Spec.Cleanup.Count > 0))
+			{
+				var list = new List<TargetInstance>();
+				foreach (var reference in instance.Spec.Cleanup)
+				{
+					var value = Resolve(reference);
+					if (!shared.TryGetValue((reference.Node, value), out var cleanup))
+					{
+						cleanup = new TargetInstance
+						{
+							Node = reference.Node,
+							Value = value,
+							Spec = source.Describe(reference.Node, value),
+							Name = ValueDisplay.Name(reference.Node, source.FormatValue(reference.Node, value))
+						};
+						shared[(reference.Node, value)] = cleanup;
+					}
+					list.Add(cleanup);
+				}
+				cleanups[instance] = list;
+			}
+			return cleanups;
+		}
 
 		private object? Resolve(DepRef reference)
 		{
@@ -160,5 +264,29 @@ internal sealed class RunPlan
 			Ordered.Add(instance);
 			return instance;
 		}
+	}
+}
+
+/// <summary>Checks the things a target says it needs before the run starts.</summary>
+internal static class Preconditions
+{
+	/// <summary>Whether <paramref name="tool"/> is an executable on the <c>PATH</c>, with <c>PATHEXT</c> on Windows.</summary>
+	public static bool OnPath(string tool)
+	{
+		if (Path.IsPathRooted(tool))
+			return File.Exists(tool);
+		var extensions = OperatingSystem.IsWindows()
+			? (Environment.GetEnvironmentVariable("PATHEXT") ?? ".EXE;.CMD;.BAT").Split(';', StringSplitOptions.RemoveEmptyEntries).Prepend("")
+			: [""];
+		var path = Environment.GetEnvironmentVariable("PATH") ?? "";
+		foreach (var directory in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+		{
+			foreach (var extension in extensions)
+			{
+				if (File.Exists(Path.Combine(directory, tool + extension)))
+					return true;
+			}
+		}
+		return false;
 	}
 }

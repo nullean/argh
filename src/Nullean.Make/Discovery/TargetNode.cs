@@ -19,6 +19,18 @@ internal sealed class TargetNode
 	public string? Description { get; set; }
 	public bool Hidden { get; set; }
 	public Func<bool>? OnlyWhen { get; set; }
+
+	/// <summary>Targets this one runs after when they are in the same run.</summary>
+	public List<TargetRef> After { get; } = new();
+
+	/// <summary>Targets whose bodies run at the end of the run once this one started.</summary>
+	public List<TargetRef> Cleanup { get; } = new();
+
+	/// <summary>Environment variables that must be set before the run starts.</summary>
+	public List<string> NeedsEnv { get; } = new();
+
+	/// <summary>Executables that must be on the <c>PATH</c> before the run starts.</summary>
+	public List<string> NeedsTool { get; } = new();
 	public TargetKind Kind { get; set; }
 
 	/// <summary>DependsOn / Requires references — skippable under -s.</summary>

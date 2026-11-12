@@ -18,6 +18,18 @@ public interface ICommandBuilder : ITargetBuilder
 	/// <inheritdoc cref="ITargetBuilder.DependsOn"/>
 	new ICommandBuilder DependsOn(params TargetRef[] refs);
 
+	/// <inheritdoc cref="ITargetBuilder.After"/>
+	new ICommandBuilder After(params TargetRef[] refs);
+
+	/// <inheritdoc cref="ITargetBuilder.Cleanup"/>
+	new ICommandBuilder Cleanup(params TargetRef[] refs);
+
+	/// <inheritdoc cref="ITargetBuilder.NeedsEnv"/>
+	new ICommandBuilder NeedsEnv(params string[] variables);
+
+	/// <inheritdoc cref="ITargetBuilder.NeedsTool"/>
+	new ICommandBuilder NeedsTool(params string[] tools);
+
 	/// <inheritdoc cref="ITargetBuilder.Executes(Action)"/>
 	new ICommandBuilder Executes(Action body);
 

@@ -35,6 +35,30 @@ internal sealed class TargetBuilderImpl : ITargetBuilder, ICommandBuilder
 		return this;
 	}
 
+	public ITargetBuilder After(params TargetRef[] refs)
+	{
+		_node.After.AddRange(refs);
+		return this;
+	}
+
+	public ITargetBuilder Cleanup(params TargetRef[] refs)
+	{
+		_node.Cleanup.AddRange(refs);
+		return this;
+	}
+
+	public ITargetBuilder NeedsEnv(params string[] variables)
+	{
+		_node.NeedsEnv.AddRange(variables);
+		return this;
+	}
+
+	public ITargetBuilder NeedsTool(params string[] tools)
+	{
+		_node.NeedsTool.AddRange(tools);
+		return this;
+	}
+
 	public ITargetBuilder Executes(Action body)
 	{
 		_node.SyncBody = body;
@@ -72,6 +96,30 @@ internal sealed class TargetBuilderImpl : ITargetBuilder, ICommandBuilder
 	{
 		foreach (var r in refs)
 			_node.AddReference(Execution.StageKind.Requires, r);
+		return this;
+	}
+
+	ICommandBuilder ICommandBuilder.After(params TargetRef[] refs)
+	{
+		_node.After.AddRange(refs);
+		return this;
+	}
+
+	ICommandBuilder ICommandBuilder.Cleanup(params TargetRef[] refs)
+	{
+		_node.Cleanup.AddRange(refs);
+		return this;
+	}
+
+	ICommandBuilder ICommandBuilder.NeedsEnv(params string[] variables)
+	{
+		_node.NeedsEnv.AddRange(variables);
+		return this;
+	}
+
+	ICommandBuilder ICommandBuilder.NeedsTool(params string[] tools)
+	{
+		_node.NeedsTool.AddRange(tools);
 		return this;
 	}
 
@@ -144,6 +192,30 @@ internal sealed class TargetBuilderImplOfT<T> : ITargetBuilder<T>, ICommandBuild
 			_node.AddReference(Execution.StageKind.Requires, r);
 		return this;
 	}
+	public ITargetBuilder<T> After(params TargetRef[] refs)
+	{
+		_node.After.AddRange(refs);
+		return this;
+	}
+
+	public ITargetBuilder<T> Cleanup(params TargetRef[] refs)
+	{
+		_node.Cleanup.AddRange(refs);
+		return this;
+	}
+
+	public ITargetBuilder<T> NeedsEnv(params string[] variables)
+	{
+		_node.NeedsEnv.AddRange(variables);
+		return this;
+	}
+
+	public ITargetBuilder<T> NeedsTool(params string[] tools)
+	{
+		_node.NeedsTool.AddRange(tools);
+		return this;
+	}
+
 	public ITargetBuilder<T> Executes(Action<T> body)
 	{
 		_node.TypedBody = body;
@@ -161,6 +233,10 @@ internal sealed class TargetBuilderImplOfT<T> : ITargetBuilder<T>, ICommandBuild
 	ITargetBuilder ITargetBuilder.Hidden() => Hidden();
 	ITargetBuilder ITargetBuilder.OnlyWhen(Func<bool> c) => OnlyWhen(c);
 	ITargetBuilder ITargetBuilder.DependsOn(params TargetRef[] refs) => DependsOn(refs);
+	ITargetBuilder ITargetBuilder.After(params TargetRef[] refs) => After(refs);
+	ITargetBuilder ITargetBuilder.Cleanup(params TargetRef[] refs) => Cleanup(refs);
+	ITargetBuilder ITargetBuilder.NeedsEnv(params string[] variables) => NeedsEnv(variables);
+	ITargetBuilder ITargetBuilder.NeedsTool(params string[] tools) => NeedsTool(tools);
 	ITargetBuilder ITargetBuilder.Executes(Action body)
 	{
 		_node.SyncBody = body;

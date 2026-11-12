@@ -44,6 +44,35 @@ type Definition<'TCase> =
     /// stages: the composed targets in declared order; true marks a stage whose targets run side by side
     | FsCommand   of desc: string * requires: 'TCase list * stages: (bool * 'TCase list) list * body: (FsContext -> unit) option
     | FsNamespace of segment: string * desc: string option
+    /// A target or command with what onlyWhen, after, cleanup, needsEnv, needsTool and describe added to it
+    | FsWith      of inner: Definition<'TCase> * modifiers: Modifiers<'TCase>
+
+/// What the pipe functions add to a target or command.
+and [<NoComparison; NoEquality>] Modifiers<'TCase> =
+    internal
+        { OnlyWhen: (unit -> bool) option
+          After: 'TCase list
+          Cleanup: 'TCase list
+          NeedsEnv: string list
+          NeedsTool: string list
+          Description: string option }
+
+module internal Modifiers =
+    let empty<'TCase> : Modifiers<'TCase> =
+        { OnlyWhen = None; After = []; Cleanup = []; NeedsEnv = []; NeedsTool = []; Description = None }
+
+    /// Adds to a definition's modifiers, wrapping it the first time.
+    let add (f: Modifiers<'TCase> -> Modifiers<'TCase>) (definition: Definition<'TCase>) =
+        match definition with
+        | FsWith(inner, modifiers) -> FsWith(inner, f modifiers)
+        | FsNamespace _ -> invalidArg "definition" "A namespace has no body to modify."
+        | inner -> FsWith(inner, f empty)
+
+    /// The definition without its modifiers, and the modifiers.
+    let unwrap (definition: Definition<'TCase>) =
+        match definition with
+        | FsWith(inner, modifiers) -> inner, modifiers
+        | inner -> inner, empty
 
 /// Helpers for building Definition values inside app.Bind.
 module Make =

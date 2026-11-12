@@ -18,6 +18,18 @@ public interface ITargetBuilder<T> : ITargetBuilder
 	/// <inheritdoc cref="ITargetBuilder.DependsOn"/>
 	new ITargetBuilder<T> DependsOn(params TargetRef[] refs);
 
+	/// <inheritdoc cref="ITargetBuilder.After"/>
+	new ITargetBuilder<T> After(params TargetRef[] refs);
+
+	/// <inheritdoc cref="ITargetBuilder.Cleanup"/>
+	new ITargetBuilder<T> Cleanup(params TargetRef[] refs);
+
+	/// <inheritdoc cref="ITargetBuilder.NeedsEnv"/>
+	new ITargetBuilder<T> NeedsEnv(params string[] variables);
+
+	/// <inheritdoc cref="ITargetBuilder.NeedsTool"/>
+	new ITargetBuilder<T> NeedsTool(params string[] tools);
+
 	/// <summary>Executes the given action with a bound instance of <typeparamref name="T"/> parsed from CLI tokens.</summary>
 	ITargetBuilder<T> Executes(Action<T> body);
 

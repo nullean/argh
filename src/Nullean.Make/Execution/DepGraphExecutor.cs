@@ -58,6 +58,17 @@ internal static class DepGraphExecutor
 	public static async Task<int> ExecuteAsync(RunPlan plan, ParsedArgs parsed)
 	{
 		var context = new MakeContext(parsed.GlobalValues, parsed.SingleTarget) { TargetArgs = parsed.TargetArgs };
+
+		// Fail before anything runs, rather than at the target that needs what is missing.
+		var missing = plan.MissingPreconditions();
+		if (missing.Count > 0)
+		{
+			Console.Error.WriteLine("[make] The run cannot start. It needs:");
+			foreach (var (instance, what) in missing)
+				Console.Error.WriteLine($"  {what}, for {instance.Name}");
+			return 1;
+		}
+
 		// A plan without a parallel stage runs one target at a time, in its order, whatever --jobs says.
 		var concurrent = CanRunSideBySide(plan) && (parsed.Jobs ?? Environment.ProcessorCount) > 1;
 		var jobs = concurrent ? parsed.Jobs ?? Environment.ProcessorCount : 1;
@@ -80,6 +91,7 @@ internal static class DepGraphExecutor
 		var failures = new List<(TargetInstance Step, int ExitCode)>();
 		var started = DateTime.UtcNow;
 		var timings = new List<(TargetInstance Step, TimeSpan Elapsed)>();
+		var startOrder = new List<TargetInstance>();
 
 		try
 		{
@@ -106,6 +118,7 @@ internal static class DepGraphExecutor
 						continue;
 					}
 
+					startOrder.Add(next);
 					var sink = concurrent ? new TargetSink(next.Name, mode, stdout, stderr, gate) : null;
 					lock (gate)
 						ExecutionLog.Starting(next, stdout);
@@ -148,9 +161,40 @@ internal static class DepGraphExecutor
 			}
 		}
 
+		var cleanupExit = await RunCleanups(plan, startOrder, context);
+
 		if (concurrent)
 			ExecutionLog.Summary(timings, DateTime.UtcNow - started, failures.Select(f => f.Step).ToList(), stdout);
-		return failures.Count == 0 ? 0 : failures[0].ExitCode;
+		return failures.Count > 0 ? failures[0].ExitCode : cleanupExit;
+	}
+
+	/// <summary>
+	/// Runs the cleanup targets of every instance that started, newest first, each once, whether the run failed or not.
+	/// A cleanup runs its body only. Returns the exit code of the first cleanup that failed, or 0.
+	/// </summary>
+	private static async Task<int> RunCleanups(RunPlan plan, List<TargetInstance> startOrder, MakeContext context)
+	{
+		var exitCode = 0;
+		var ran = new HashSet<TargetInstance>();
+		for (var i = startOrder.Count - 1; i >= 0; i--)
+		{
+			if (!plan.Cleanups.TryGetValue(startOrder[i], out var cleanups))
+				continue;
+			foreach (var cleanup in cleanups.Where(ran.Add))
+			{
+				ExecutionLog.Starting(cleanup, Console.Out);
+				var (code, elapsed, message) = await RunStep(cleanup, context.ForTarget(CancellationToken.None, null), null);
+				if (code == 0)
+				{
+					ExecutionLog.Finished(cleanup, elapsed, Console.Out);
+					continue;
+				}
+				Console.Error.WriteLine($"[make] Cleanup '{string.Join("/", cleanup.Node.Route)}' failed: {message}");
+				if (exitCode == 0)
+					exitCode = code;
+			}
+		}
+		return exitCode;
 	}
 
 	/// <summary>Whether two targets of the plan can ever be ready at once: a parallel stage, or roots that do not chain.</summary>

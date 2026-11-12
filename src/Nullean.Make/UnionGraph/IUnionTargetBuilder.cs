@@ -57,6 +57,32 @@ public interface IUnionTargetBuilder<TUnion>
 	/// </summary>
 	IUnionTargetBuilder<TUnion> Parallel(params TUnion[] targets);
 
+	/// <summary>
+	/// Skips the body when <paramref name="condition"/> returns <see langword="false"/>. The dependencies still run.
+	/// <c>--graph</c> evaluates it to show what it skips; a run evaluates it again just before the target would start.
+	/// </summary>
+	IUnionTargetBuilder<TUnion> OnlyWhen(Func<bool> condition);
+
+	/// <summary>
+	/// Runs after <paramref name="targets"/> when they are in the same run, without adding them to it:
+	/// <c>.After(new Lint())</c> orders this target after <c>lint</c> only when something else runs <c>lint</c>.
+	/// A case with its default value matches the target with any value; with another value, only that value.
+	/// </summary>
+	IUnionTargetBuilder<TUnion> After(params TUnion[] targets);
+
+	/// <summary>
+	/// Targets whose bodies run at the end of the run, newest first, once this target has started, even when the run
+	/// fails: <c>StartDb =&gt; app.Target(...).Cleanup(new StopDb())</c>. A cleanup runs its body only, and once
+	/// however many targets name it.
+	/// </summary>
+	IUnionTargetBuilder<TUnion> Cleanup(params TUnion[] targets);
+
+	/// <summary>Environment variables that must be set. The run checks them before anything starts, and lists every one missing.</summary>
+	IUnionTargetBuilder<TUnion> NeedsEnv(params string[] variables);
+
+	/// <summary>Executables that must be on the <c>PATH</c>. The run checks them before anything starts, and lists every one missing.</summary>
+	IUnionTargetBuilder<TUnion> NeedsTool(params string[] tools);
+
 	/// <summary>Registers a synchronous execution body. Closed-over case values are the real CLI-parsed ones at execution time.</summary>
 	IUnionTargetBuilder<TUnion> Executes(Action body);
 

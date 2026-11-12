@@ -13,6 +13,10 @@ internal sealed class ClassTargetSource(BuildGraph graph) : ITargetSource
 	public InstanceSpec Describe(TargetNode node, object? value)
 	{
 		var spec = new InstanceSpec { OnlyWhen = node.OnlyWhen };
+		spec.After.AddRange(Resolve(node.After));
+		spec.Cleanup.AddRange(Resolve(node.Cleanup));
+		spec.NeedsEnv.AddRange(node.NeedsEnv);
+		spec.NeedsTool.AddRange(node.NeedsTool);
 		// Requires are gates: they run before the composed stages, whatever order they were declared in.
 		foreach (var (kind, parallel, items) in node.Stages.OrderBy(s => s.Kind))
 			spec.Add(kind, Resolve(items), parallel);
