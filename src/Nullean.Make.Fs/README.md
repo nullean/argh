@@ -142,7 +142,7 @@ A case whose payload is another DU becomes a CLI namespace: `Pkg of PkgTarget` g
 
 ## Per-target typed arguments
 
-A case with a record payload binds the record's fields from CLI flags at execution time: `Test of TestOptions` with `{ Filter: string option }` takes `--filter`. A dependency can name any value of the case: `Test { Filter = Some "Unit" }` resolves to the `test` target.
+A case with a record payload binds the record's fields from CLI flags: `Test of TestOptions` with `{ Filter: string option }` takes `--filter`. A dependency can name any value of the case: `Test { Filter = Some "Unit" }` runs the `test` target with that value. Two dependencies with equal values run the target once, and with different values once each. Only the target named on the command line binds the command line's flags.
 
 ### Positional arguments, forwarded arguments and `--name=value`
 

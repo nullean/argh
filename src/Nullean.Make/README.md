@@ -81,6 +81,10 @@ union Target(Clean, Build, Test, Pack, Release);
 
 A case record's primary-constructor parameters become the target's flags: `Test(string? Filter = null)` takes `--filter`.
 
+A dependency can name a value: `app.Target([new Test("Unit")], ...)` runs `test` with `Filter = "Unit"`. Two
+dependencies with equal values run the target once, and with different values once each. Only the target named on the
+command line binds the command line's flags.
+
 `Bind` runs twice per case: once when the app reads the graph, with each parameter at its default (`default` when it has none, such as `Deploy(string Environment)`), and once when the target runs, with the parsed flags. Keep side effects inside the target body.
 
 The package's source generator finds each `new MakeApp<TUnion>(...)` and records the union's cases at build time, so the app reads no union by reflection. A `MakeApp<T>` created only through a type parameter has no case table and exits `1` with an error.
@@ -164,7 +168,7 @@ and [just](https://argh.nullean.net/make/just).
 
 ## Class-based targets
 
-`MakeApp.Execute<TBuild>(args)` discovers targets from a `MakeBuild` class instead: `Target` properties, `[Flag]` and `[GlobalOption]` properties, and nested `Namespace` classes. [`build.cs`](https://github.com/nullean/argh/blob/main/build.cs) in this repository is a complete example.
+`MakeApp.Execute<TBuild>(args)` discovers targets from a `MakeBuild` class instead: `Target` properties, `[Flag]` and `[GlobalOption]` properties, and nested `Namespace` classes. A dependency on a `Target<T>` names its value with `With`: `.DependsOn(Test.With(new("Unit")))`. [`build.cs`](https://github.com/nullean/argh/blob/main/build.cs) in this repository is a complete example.
 
 For F#, see [`Nullean.Make.Fs`](https://www.nuget.org/packages/Nullean.Make.Fs).
 
