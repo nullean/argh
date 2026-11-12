@@ -160,8 +160,6 @@ LLM, generate docs, or diff it in CI.
 | [`Nullean.Argh.Hosting`](src/Nullean.Argh.Hosting/README.md) | `Microsoft.Extensions.Hosting` and DI integration | [![NuGet](https://img.shields.io/nuget/v/Nullean.Argh.Hosting?style=flat-square)](https://www.nuget.org/packages/Nullean.Argh.Hosting) |
 | [`Nullean.Argh.Core`](src/Nullean.Argh.Core/README.md) | shared runtime and embedded source generator (transitive) | [![NuGet](https://img.shields.io/nuget/v/Nullean.Argh.Core?style=flat-square)](https://www.nuget.org/packages/Nullean.Argh.Core) |
 | [`Nullean.Argh.Interfaces`](src/Nullean.Argh.Interfaces/README.md) | contracts and attributes (transitive, or for shared libraries) | [![NuGet](https://img.shields.io/nuget/v/Nullean.Argh.Interfaces?style=flat-square)](https://www.nuget.org/packages/Nullean.Argh.Interfaces) |
-| [`Nullean.Make`](src/Nullean.Make/README.md) | typed build targets for .NET, with Argh's help | [![NuGet](https://img.shields.io/nuget/v/Nullean.Make?style=flat-square)](https://www.nuget.org/packages/Nullean.Make) |
-| [`Nullean.Make.Fs`](src/Nullean.Make.Fs/README.md) | F# build targets as DU cases over Nullean.Make | [![NuGet](https://img.shields.io/nuget/v/Nullean.Make.Fs?style=flat-square)](https://www.nuget.org/packages/Nullean.Make.Fs) |
 
 Which package do I need? `Nullean.Argh` for dependency-free console apps, `Nullean.Argh.Hosting` for apps using
 `Microsoft.Extensions.Hosting` and DI. Everything else is pulled in transitively.
@@ -174,8 +172,8 @@ Which package do I need? `Nullean.Argh` for dependency-free console apps, `Nulle
   [`Hosted`](examples/Hosted/) (Microsoft.Extensions.Hosting),
   [`HostedRoot`](examples/HostedRoot/) (hosted with a root command),
   [`XmlDocShowcase`](examples/XmlDocShowcase/) (full XML doc tag inventory),
-  [`ArghAotSmoketest`](examples/ArghAotSmoketest/) (Native AOT validation),
-  [`MakeBuild`](examples/MakeBuild/) (a Nullean.Make build)
+  [`ArghAotSmoketest`](examples/ArghAotSmoketest/) (Native AOT validation)
+- Build targets on top of argh: [runna](https://github.com/nullean/runna)
 - [Releases](https://github.com/nullean/argh/releases)
 - [Contributing](https://github.com/nullean/.github/blob/main/CONTRIBUTING.md)
 

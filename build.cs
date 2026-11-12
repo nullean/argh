@@ -1,13 +1,8 @@
 #!/usr/bin/env -S dotnet run --
 #:package Proc@0.22.1
-#:project src/Nullean.Make
+#:package Nullean.Make@0.30.0
 #:property ManagePackageVersionsCentrally=false
-// C# build pipeline for nullean/argh using Nullean.Make.
-//
-// Once Nullean.Make is on NuGet, activate with:
-//   #:package Nullean.Make@<version>
-//   #:package Proc@0.22.1
-//
+// C# build pipeline for nullean/argh using Nullean.Make, which now lives on as runna: https://github.com/nullean/runna
 
 using Nullean.Make;
 using ProcNet;

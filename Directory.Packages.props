@@ -9,6 +9,8 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
     <PackageVersion Include="Proc" Version="0.22.1" />
     <PackageVersion Include="Proc.Fs" Version="0.22.1" />
+    <!-- the build (build/scripts) -->
+    <PackageVersion Include="Nullean.Make.Fs" Version="0.30.0" />
     <PackageVersion Include="FSharp.Core" Version="11.0.101" />
     <!-- netstandard2.0 only -->
     <PackageVersion Include="System.Memory" Version="4.6.3" />

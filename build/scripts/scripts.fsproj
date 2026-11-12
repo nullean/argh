@@ -9,8 +9,8 @@
   <ItemGroup>
     <!-- explicit: under central package management the SDK adds no FSharp.Core -->
     <PackageReference Include="FSharp.Core" />
-    <!-- argh builds itself with the Nullean.Make.Fs in this repository; Proc.Fs comes with it -->
-    <ProjectReference Include="..\..\src\Nullean.Make.Fs\Nullean.Make.Fs.fsproj" />
+    <!-- argh builds itself with the published Nullean.Make.Fs (now runna, github.com/nullean/runna); Proc.Fs comes with it -->
+    <PackageReference Include="Nullean.Make.Fs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Paths.fs" />
