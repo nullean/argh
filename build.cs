@@ -1,12 +1,12 @@
 #!/usr/bin/env -S dotnet run --
-#:package Proc@0.17.0
+#:package Proc@0.22.0
 #:project src/Nullean.Make
 #:property ManagePackageVersionsCentrally=false
 // C# build pipeline for nullean/argh using Nullean.Make.
 //
 // Once Nullean.Make is on NuGet, activate with:
 //   #:package Nullean.Make@<version>
-//   #:package Proc@0.13.0
+//   #:package Proc@0.22.0
 //
 
 using Nullean.Make;
