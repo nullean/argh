@@ -208,6 +208,15 @@ let token   = app.Option<string option>("--token", desc = "API token", defaultVa
 
 Read them in target blocks through `.Value`. Help shows each option's type, such as `--config <string>`, and `--token <string?>` for an option type. Both `--token abc` and `--token=abc` work. A value that does not parse, or a missing value, exits `2` before any target runs. Enum options bind by name, ignoring case.
 
+## Choosing what runs
+
+```
+build lint test --filter Unit pack    # several targets in order; each takes the arguments up to the next
+build release --skip docs              # leave a target out, with what only it needed
+```
+
+See [Choosing what runs](https://argh.nullean.net/make/running).
+
 ## Drawing the plan
 
 `--graph` draws what a run would do and runs nothing. It binds the target's arguments, applies `-s` and evaluates

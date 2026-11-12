@@ -9,7 +9,10 @@ internal enum SkipReason
 	SingleTarget,
 
 	/// <summary>Its condition returned <see langword="false"/>, so its body does not run.</summary>
-	Condition
+	Condition,
+
+	/// <summary><c>--skip</c> left it out of the plan.</summary>
+	Excluded
 }
 
 /// <summary>One target with one value in a run: it runs once, however many targets depend on it.</summary>
@@ -48,7 +51,8 @@ internal sealed record PlannedItem(TargetInstance? Instance, string Name, SkipRe
 /// <param name="SingleTarget">Skip the named targets' gates, as <c>-s</c> does.</param>
 /// <param name="EvaluateConditions">Evaluate each condition while planning, so a drawn plan shows what it skips.</param>
 /// <param name="ChainRoots">Run the named targets in order, each after the one before it.</param>
-internal sealed record PlanOptions(bool SingleTarget, bool EvaluateConditions = false, bool ChainRoots = true);
+/// <param name="Skip">Targets <c>--skip</c> leaves out, whatever their value, with the dependencies only they needed.</param>
+internal sealed record PlanOptions(bool SingleTarget, bool EvaluateConditions = false, bool ChainRoots = true, IReadOnlySet<TargetNode>? Skip = null);
 
 /// <summary>The instances a run contains, in an order that respects every prerequisite.</summary>
 internal sealed class RunPlan
@@ -101,6 +105,8 @@ internal sealed class RunPlan
 		TargetInstance? previous = null;
 		foreach (var root in roots)
 		{
+			if (options.Skip?.Contains(root.Node) == true)
+				throw new MakeException($"'--skip' names '{string.Join(" ", root.Node.Route)}', which the command line runs.", 2);
 			var instance = builder.Visit(root, isRoot: true, previous is null || !options.ChainRoots ? [] : [previous]);
 			instance.IsRoot = true;
 			rootInstances.Add(instance);
@@ -245,6 +251,11 @@ internal sealed class RunPlan
 				TargetInstance? previous = null;
 				foreach (var item in stage.Items)
 				{
+					if (options.Skip?.Contains(item.Node) == true)
+					{
+						items.Add(new PlannedItem(null, ValueDisplay.Name(item.Node, source.FormatValue(item.Node, Resolve(item))), SkipReason.Excluded));
+						continue;
+					}
 					IReadOnlyList<TargetInstance> wait = stage.Parallel || previous is null ? barrier : [.. barrier, previous];
 					var child = Visit(item, isRoot: false, wait);
 					items.Add(new PlannedItem(child, child.Name, null));

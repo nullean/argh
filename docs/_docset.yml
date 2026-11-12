@@ -49,6 +49,7 @@ toc:
   - folder: make
     children:
       - file: index.md
+      - file: running.md
       - file: graph.md
       - file: parallel.md
       - file: modifiers.md

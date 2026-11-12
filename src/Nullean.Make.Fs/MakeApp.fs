@@ -215,11 +215,17 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
             | false, _ ->
                 eprintfn "Unknown target '%s'." routeKey
                 return 2
-            | true, node when isNull node.DtoType && targetArgs.Length > 0 ->
-                let first = if targetArgs.[0] = "--" && targetArgs.Length > 1 then targetArgs.[1] else targetArgs.[0]
-                eprintfn "Unexpected argument '%s'. Target '%s' takes no arguments." first routeKey
-                return 2
             | true, node ->
+            // Each target named on the command line gets the tokens up to the next one; one without a record takes none.
+            let unexpected =
+                Invocation.Split(node, targetArgs, graph)
+                |> Seq.tryFind (fun struct (n, args) -> isNull n.DtoType && args.Length > 0)
+            match unexpected with
+            | Some (struct (n, args)) ->
+                let first = if args.[0] = "--" && args.Length > 1 then args.[1] else args.[0]
+                eprintfn "Unexpected argument '%s'. Target '%s' takes no arguments." first (String.concat "/" n.Route)
+                return 2
+            | None ->
                 switches.Target       <- node
                 switches.TargetArgs   <- targetArgs
                 switches.SingleTarget <- singleTarget

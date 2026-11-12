@@ -141,6 +141,15 @@ A target's description is the summary of its case type's XML doc comment, such a
 
 A case that is itself a union becomes a namespace: `union Db(Migrate, Seed)` inside `union Target(..., Db)` gives `db migrate` and `db seed`, and `db --help` lists them. Case type names must be unique across the whole union, including nested unions.
 
+## Choosing what runs
+
+```
+build lint test --filter Unit pack    # several targets in order; each takes the arguments up to the next
+build release --skip docs              # leave a target out, with what only it needed
+```
+
+See [Choosing what runs](https://argh.nullean.net/make/running).
+
 ## Drawing the plan
 
 `--graph` draws what a run would do and runs nothing. It binds the target's arguments, applies `-s` and evaluates

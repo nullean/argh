@@ -30,6 +30,9 @@ internal static class RunSwitches
 			case "-j" or "--jobs":
 				parsed.Jobs = ParseJobs(Value(args, ref i, name));
 				return true;
+			case "--skip":
+				parsed.Skip.AddRange(Value(args, ref i, name).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+				return true;
 			case "-k" or "--keep-going":
 				parsed.KeepGoing = true;
 				i++;
