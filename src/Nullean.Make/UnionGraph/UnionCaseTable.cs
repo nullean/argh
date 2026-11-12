@@ -19,12 +19,23 @@ public static class UnionCaseTable<TUnion>
 {
 	internal static IReadOnlyList<UnionCase<TUnion>>? Cases { get; private set; }
 	internal static Func<TUnion, Type?>? LeafType { get; private set; }
+	internal static Func<TUnion, object?>? LeafValue { get; private set; }
 
 	/// <summary>Called by generated code. <paramref name="leafType"/> returns the innermost case type of a union value.</summary>
 	public static void Register(UnionCase<TUnion>[] cases, Func<TUnion, Type?> leafType)
 	{
 		Cases = cases;
 		LeafType = leafType;
+	}
+
+	/// <summary>
+	/// Called by generated code. <paramref name="leafType"/> returns the innermost case type of a union value, and
+	/// <paramref name="leafValue"/> the innermost case value itself.
+	/// </summary>
+	public static void Register(UnionCase<TUnion>[] cases, Func<TUnion, Type?> leafType, Func<TUnion, object?> leafValue)
+	{
+		Register(cases, leafType);
+		LeafValue = leafValue;
 	}
 
 	internal static IReadOnlyList<UnionCase<TUnion>> Required =>

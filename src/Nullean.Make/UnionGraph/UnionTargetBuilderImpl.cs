@@ -8,6 +8,9 @@ namespace Nullean.Make.UnionGraph;
 /// <see cref="MakeApp{TUnion}"/> calls <c>app.Bind</c> twice: at graph-build time
 /// (reads Kind/Description/DepTypeNames) and at execution time (reads SyncBody/AsyncBody).
 /// </summary>
+/// <summary>A dependency on a union case: its case type name, and the case value, or <c>null</c> for the default one.</summary>
+internal readonly record struct CaseRef(string TypeName, object? Value);
+
 internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnion>
 {
 	private string? _description;
@@ -15,8 +18,8 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 	private Action? _syncBody;
 	private Func<Task>? _asyncBody;
 	private readonly TargetKind _kind;
-	private readonly List<string> _depTypeNames = new();
-	private readonly List<string> _compTypeNames = new();
+	private readonly List<CaseRef> _deps = new();
+	private readonly List<CaseRef> _comps = new();
 
 	internal UnionTargetBuilderImpl(TargetKind kind = TargetKind.Target) => _kind = kind;
 
@@ -46,50 +49,50 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 	public IUnionTargetBuilder<TUnion> DependsOn(params TUnion[] deps)
 	{
 		foreach (var dep in deps)
-			_depTypeNames.Add(GetLeafCaseName(dep));
+			_deps.Add(ToRef(dep));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> DependsOn<T1>()
 	{
-		_depTypeNames.Add(typeof(T1).Name);
+		_deps.Add(new CaseRef(typeof(T1).Name, null));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> DependsOn<T1, T2>()
 	{
-		_depTypeNames.Add(typeof(T1).Name);
-		_depTypeNames.Add(typeof(T2).Name);
+		_deps.Add(new CaseRef(typeof(T1).Name, null));
+		_deps.Add(new CaseRef(typeof(T2).Name, null));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> DependsOn<T1, T2, T3>()
 	{
-		_depTypeNames.Add(typeof(T1).Name);
-		_depTypeNames.Add(typeof(T2).Name);
-		_depTypeNames.Add(typeof(T3).Name);
+		_deps.Add(new CaseRef(typeof(T1).Name, null));
+		_deps.Add(new CaseRef(typeof(T2).Name, null));
+		_deps.Add(new CaseRef(typeof(T3).Name, null));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> DependsOn<T1, T2, T3, T4>()
 	{
-		_depTypeNames.Add(typeof(T1).Name);
-		_depTypeNames.Add(typeof(T2).Name);
-		_depTypeNames.Add(typeof(T3).Name);
-		_depTypeNames.Add(typeof(T4).Name);
+		_deps.Add(new CaseRef(typeof(T1).Name, null));
+		_deps.Add(new CaseRef(typeof(T2).Name, null));
+		_deps.Add(new CaseRef(typeof(T3).Name, null));
+		_deps.Add(new CaseRef(typeof(T4).Name, null));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> Composes(params TUnion[] targets)
 	{
 		foreach (var t in targets)
-			_compTypeNames.Add(GetLeafCaseName(t));
+			_comps.Add(ToRef(t));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> Composes<T1>()
 	{
-		_compTypeNames.Add(typeof(T1).Name);
+		_comps.Add(new CaseRef(typeof(T1).Name, null));
 		return this;
 	}
 
@@ -100,8 +103,8 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 	internal bool IsHidden => _hidden;
 	internal Action? SyncBody => _syncBody;
 	internal Func<Task>? AsyncBody => _asyncBody;
-	internal IReadOnlyList<string> DepTypeNames => _depTypeNames;
-	internal IReadOnlyList<string> CompTypeNames => _compTypeNames;
+	internal IReadOnlyList<CaseRef> Deps => _deps;
+	internal IReadOnlyList<CaseRef> Comps => _comps;
 
 	internal async Task ExecuteAsync()
 	{
@@ -111,7 +114,13 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 			_syncBody?.Invoke();
 	}
 
-	/// <summary>The innermost case type name of a union value, flat or nested, from the generated case table.</summary>
-	private static string GetLeafCaseName(TUnion dep) =>
-		(UnionCaseTable<TUnion>.LeafType ?? throw new MakeException($"No case table was generated for {typeof(TUnion).Name}.", 1))(dep)?.Name ?? "";
+	/// <summary>
+	/// The innermost case of a union value, flat or nested, from the generated case table: its type name, and the case
+	/// value the dependency runs with.
+	/// </summary>
+	private static CaseRef ToRef(TUnion dep)
+	{
+		var leafType = UnionCaseTable<TUnion>.LeafType ?? throw new MakeException($"No case table was generated for {typeof(TUnion).Name}.", 1);
+		return new CaseRef(leafType(dep)?.Name ?? "", UnionCaseTable<TUnion>.LeafValue?.Invoke(dep));
+	}
 }

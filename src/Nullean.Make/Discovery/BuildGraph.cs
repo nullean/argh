@@ -20,5 +20,8 @@ internal sealed class BuildGraph
 	public TargetNode? Default { get; set; }
 
 	public string AppName { get; set; } = "make";
+
+	/// <summary>Resolves each target's dependencies and body for a value. Set by the surface that built the graph.</summary>
+	public Execution.ITargetSource? Source { get; set; }
 	public string? AppDescription { get; set; }
 }

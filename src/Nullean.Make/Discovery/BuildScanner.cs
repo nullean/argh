@@ -19,6 +19,7 @@ internal static class BuildScanner
 		ScanTargets(build, typeof(TBuild), graph, Array.Empty<string>());
 		ScanNestedNamespaces(typeof(TBuild), graph);
 		ResolveDepGraph(graph);
+		graph.Source = new ClassTargetSource(graph);
 
 		return graph;
 	}
@@ -169,15 +170,15 @@ internal static class BuildScanner
 	{
 		foreach (var node in graph.Targets)
 		{
-			foreach (var method in node.Requires)
+			foreach (var reference in node.Requires)
 			{
-				if (graph.ByMethod.TryGetValue(method, out var dep))
+				if (graph.ByMethod.TryGetValue(reference.Method, out var dep))
 					node.RequiresResolved.Add(dep);
 			}
 
-			foreach (var method in node.Composes)
+			foreach (var reference in node.Composes)
 			{
-				if (graph.ByMethod.TryGetValue(method, out var dep))
+				if (graph.ByMethod.TryGetValue(reference.Method, out var dep))
 					node.ComposesResolved.Add(dep);
 			}
 		}

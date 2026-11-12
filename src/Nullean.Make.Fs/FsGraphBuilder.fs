@@ -5,6 +5,7 @@ open System
 open Microsoft.FSharp.Reflection
 open Nullean.Make
 open Nullean.Make.Discovery
+open Nullean.Make.Execution
 
 let private toKebabCase = BuildScanner.ToKebabCase
 
@@ -38,6 +39,51 @@ let private sharedCtx = FsContext()
 let private isStructuralNs (ci: UnionCaseInfo) =
     let fs = ci.GetFields()
     fs.Length = 1 && FSharpType.IsUnion(fs.[0].PropertyType)
+
+/// The payload record of a case value, or null when the case carries none. A namespace sub-case carries no payload.
+let private payloadOf (value: obj) : obj =
+    if isNull value then null
+    else
+        let ci, fields = FSharpValue.GetUnionFields(value, value.GetType())
+        if fields.Length = 1 && FSharpType.IsRecord(ci.GetFields().[0].PropertyType) then fields.[0] else null
+
+/// The targets of an F# MakeApp: a node's value is the DU case value. `bind` runs again for each value, so a dependency
+/// declared as `Test { Filter = Some "Unit" }` runs the body bind returns for that value.
+type private FsTargetSource<'TCase when 'TCase : comparison and 'TCase : not null>
+    (bind: 'TCase -> Definition<'TCase>,
+     nodeCases: Collections.Generic.Dictionary<TargetNode, 'TCase * UnionCaseInfo>,
+     resolve: TargetNode -> 'TCase -> TargetNode) =
+
+    let refs (node: TargetNode) (deps: 'TCase list) =
+        deps |> List.map (fun d -> DepRef(resolve node d, box d)) |> ResizeArray
+
+    interface Nullean.Make.Execution.ITargetSource with
+        member _.DefaultValue(node) = box (fst nodeCases.[node])
+
+        member _.BindArguments(node, args) =
+            let defaultValue, caseInfo = nodeCases.[node]
+            let fields = caseInfo.GetFields()
+            if fields.Length = 1 && FSharpType.IsRecord(fields.[0].PropertyType) then
+                FSharpValue.MakeUnion(caseInfo, [| FsDtoBinder.bind fields.[0].PropertyType args |])
+            else box defaultValue
+
+        member _.Describe(node, value) =
+            let spec = Nullean.Make.Execution.InstanceSpec()
+            let body (b: FsContext -> unit) =
+                Func<Threading.CancellationToken, Threading.Tasks.Task>(fun _ -> b sharedCtx; Threading.Tasks.Task.CompletedTask)
+            match bind (unbox<'TCase> value) with
+            | FsTarget(_, deps, b, _) ->
+                spec.Add(Nullean.Make.Execution.StageKind.Requires, refs node deps)
+                spec.Body <- body b
+            | FsCommand(_, requires, composes, b) ->
+                spec.Add(Nullean.Make.Execution.StageKind.Requires, refs node requires)
+                spec.Add(Nullean.Make.Execution.StageKind.Composes, refs node composes)
+                b |> Option.iter (fun b -> spec.Body <- body b)
+            | FsNamespace _ -> ()
+            spec
+
+        member _.FormatValue(node, value) =
+            Nullean.Make.Execution.ValueDisplay.Differences(payloadOf value, payloadOf (box (fst nodeCases.[node])))
 
 let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
     (appName: string)
@@ -93,6 +139,8 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
             ci.Name + "." + subCi.Name
         else ci.Name
     let caseToNode = Collections.Generic.Dictionary<string, TargetNode * 'TCase>()
+    // Each node's default value, and the case whose payload a value of it carries.
+    let nodeCases = Collections.Generic.Dictionary<TargetNode, 'TCase * UnionCaseInfo>(HashIdentity.Reference)
 
     // Register one TargetNode. caseInfoForBody drives the SyncBody closure shape.
     // For structural namespace sub-cases, caseInfoForBody is the sub-DU's UnionCaseInfo.
@@ -116,27 +164,6 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
             elif kind = TargetKind.Command then ""
             else toKebabCase (Array.last route)
         let fields  = caseInfoForBody.GetFields()
-
-        let plainBody () =
-            match def with
-            | FsTarget(_, _, b, _)       -> b sharedCtx
-            | FsCommand(_, _, _, Some b) -> b sharedCtx
-            | _ -> ()
-
-        // Re-binds CLI args at execution time and re-invokes bind for typed-payload cases.
-        let payloadBody () =
-            let payloadType = fields.[0].PropertyType
-            let targetArgs  =
-                let ctx = MakeContext.Current
-                if obj.ReferenceEquals(ctx, null) then [||] else ctx.TargetArgs
-            let payload   = FsDtoBinder.bind payloadType targetArgs
-            let boundCase : 'TCase = FSharpValue.MakeUnion(caseInfoForBody, [| payload |]) :?> 'TCase
-            match bind boundCase with
-            | FsTarget(_, _, b, _)       -> b sharedCtx
-            | FsCommand(_, _, _, Some b) -> b sharedCtx
-            | _ -> ()
-
-        let syncBody = Action(if fields.Length = 0 then plainBody else payloadBody)
         let dtoType  = if fields.Length = 1 && FSharpType.IsRecord(fields.[0].PropertyType)
                        then fields.[0].PropertyType else null
         let node =
@@ -146,12 +173,12 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
                 Kind            = kind,
                 Hidden          = (match def with FsTarget(_, _, _, true) -> true | _ -> false),
                 Description     = desc,
-                DtoType         = dtoType,
-                SyncBody        = syncBody)
+                DtoType         = dtoType)
 
         graph.Targets.Add(node)
         graph.ByRoute.[String.concat "/" route] <- node
         caseToNode.[caseKey key] <- (node, key)
+        nodeCases.[node] <- (key, caseInfoForBody)
 
     // Second pass: create TargetNode for each non-namespace case.
     for caseInfo in cases do
@@ -194,6 +221,8 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
         | FsCommand(_, requires, composes, _) ->
             for dep in requires do node.RequiresResolved.Add(resolve node dep)
             for dep in composes do node.ComposesResolved.Add(resolve node dep)
+
+    graph.Source <- FsTargetSource<'TCase>(bind, nodeCases, (fun node dep -> resolve node dep))
 
     match defaultCase with
     | None -> ()

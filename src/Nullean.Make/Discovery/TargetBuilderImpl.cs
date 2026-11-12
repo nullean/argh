@@ -31,7 +31,7 @@ internal sealed class TargetBuilderImpl : ITargetBuilder, ICommandBuilder
 	public ITargetBuilder DependsOn(params TargetRef[] refs)
 	{
 		foreach (var r in refs)
-			_node.Requires.Add(r.Method);
+			_node.Requires.Add(r);
 		return this;
 	}
 
@@ -71,7 +71,7 @@ internal sealed class TargetBuilderImpl : ITargetBuilder, ICommandBuilder
 	ICommandBuilder ICommandBuilder.DependsOn(params TargetRef[] refs)
 	{
 		foreach (var r in refs)
-			_node.Requires.Add(r.Method);
+			_node.Requires.Add(r);
 		return this;
 	}
 
@@ -89,14 +89,14 @@ internal sealed class TargetBuilderImpl : ITargetBuilder, ICommandBuilder
 	ICommandBuilder ICommandBuilder.Requires(params TargetRef[] refs)
 	{
 		foreach (var r in refs)
-			_node.Requires.Add(r.Method);
+			_node.Requires.Add(r);
 		return this;
 	}
 
 	ICommandBuilder ICommandBuilder.Composes(params TargetRef[] refs)
 	{
 		foreach (var r in refs)
-			_node.Composes.Add(r.Method);
+			_node.Composes.Add(r);
 		return this;
 	}
 }
@@ -135,7 +135,7 @@ internal sealed class TargetBuilderImplOfT<T> : ITargetBuilder<T>, ICommandBuild
 	public ITargetBuilder<T> DependsOn(params TargetRef[] refs)
 	{
 		foreach (var r in refs)
-			_node.Requires.Add(r.Method);
+			_node.Requires.Add(r);
 		return this;
 	}
 	public ITargetBuilder<T> Executes(Action<T> body)
@@ -170,13 +170,13 @@ internal sealed class TargetBuilderImplOfT<T> : ITargetBuilder<T>, ICommandBuild
 	ICommandBuilder<T> ICommandBuilder<T>.Requires(params TargetRef[] refs)
 	{
 		foreach (var r in refs)
-			_node.Requires.Add(r.Method);
+			_node.Requires.Add(r);
 		return this;
 	}
 	ICommandBuilder<T> ICommandBuilder<T>.Composes(params TargetRef[] refs)
 	{
 		foreach (var r in refs)
-			_node.Composes.Add(r.Method);
+			_node.Composes.Add(r);
 		return this;
 	}
 }

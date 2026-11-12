@@ -1,25 +1,13 @@
 using Nullean.Argh.Help;
-using Nullean.Make.Discovery;
 
 namespace Nullean.Make.Execution;
 
 internal static class ExecutionLog
 {
-	public static void Starting(TargetNode node)
-	{
-		var name = CliHelpFormatting.Accent(string.Join(" ", node.Route));
-		Console.WriteLine($"Starting  {name}");
-	}
+	public static void Starting(TargetInstance step) => Console.WriteLine($"Starting  {CliHelpFormatting.Accent(step.Name)}");
 
-	public static void Finished(TargetNode node, TimeSpan elapsed)
-	{
-		var name = CliHelpFormatting.Accent(string.Join(" ", node.Route));
-		Console.WriteLine($"Finished  {name} ({elapsed.TotalSeconds:F1}s)");
-	}
+	public static void Finished(TargetInstance step, TimeSpan elapsed) =>
+		Console.WriteLine($"Finished  {CliHelpFormatting.Accent(step.Name)} ({elapsed.TotalSeconds:F1}s)");
 
-	public static void Skipped(TargetNode node)
-	{
-		var name = CliHelpFormatting.Placeholder(string.Join(" ", node.Route));
-		Console.WriteLine($"Skipped   {name}");
-	}
+	public static void Skipped(TargetInstance step) => Console.WriteLine($"Skipped   {CliHelpFormatting.Placeholder(step.Name)}");
 }
