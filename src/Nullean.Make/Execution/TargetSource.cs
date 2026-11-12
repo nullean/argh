@@ -56,6 +56,18 @@ internal sealed class InstanceSpec
 	/// <summary>When it returns <see langword="false"/>, the body is skipped. Its dependencies still run.</summary>
 	public Func<bool>? OnlyWhen { get; set; }
 
+	/// <summary>Targets this one runs after when they are in the same run. They do not join the run because of it.</summary>
+	public List<DepRef> After { get; } = new();
+
+	/// <summary>Targets whose bodies run at the end of the run when this one started, even after a failure.</summary>
+	public List<DepRef> Cleanup { get; } = new();
+
+	/// <summary>Environment variables that must be set before the run starts.</summary>
+	public List<string> NeedsEnv { get; } = new();
+
+	/// <summary>Executables that must be on the <c>PATH</c> before the run starts.</summary>
+	public List<string> NeedsTool { get; } = new();
+
 	public void Add(StageKind kind, IReadOnlyList<DepRef> items, bool parallel = false)
 	{
 		if (items.Count > 0)

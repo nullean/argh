@@ -71,7 +71,15 @@ type private FsTargetSource<'TCase when 'TCase : comparison and 'TCase : not nul
             let spec = Nullean.Make.Execution.InstanceSpec()
             let body (b: FsContext -> unit) =
                 Func<Threading.CancellationToken, Threading.Tasks.Task>(fun _ -> b sharedCtx; Threading.Tasks.Task.CompletedTask)
-            match bind (unbox<'TCase> value) with
+            let definition, modifiers = Modifiers.unwrap (bind (unbox<'TCase> value))
+            spec.OnlyWhen <- modifiers.OnlyWhen |> Option.map (fun f -> Func<bool> f) |> Option.toObj
+            // A case named with its default payload in `after` matches the target with any payload.
+            let defaultOf (d: 'TCase) = let n = resolve node d in if box d = box (fst nodeCases.[n]) then null else box d
+            spec.After.AddRange(modifiers.After |> List.map (fun d -> DepRef(resolve node d, defaultOf d)))
+            spec.Cleanup.AddRange(refs node modifiers.Cleanup)
+            spec.NeedsEnv.AddRange(modifiers.NeedsEnv)
+            spec.NeedsTool.AddRange(modifiers.NeedsTool)
+            match definition with
             | FsTarget(_, deps, b, _) ->
                 spec.Add(Nullean.Make.Execution.StageKind.Requires, refs node deps)
                 spec.Body <- body b
@@ -79,7 +87,7 @@ type private FsTargetSource<'TCase when 'TCase : comparison and 'TCase : not nul
                 spec.Add(StageKind.Requires, refs node requires)
                 for sideBySide, targets in stages do spec.Add(StageKind.Composes, refs node targets, sideBySide)
                 b |> Option.iter (fun b -> spec.Body <- body b)
-            | FsNamespace _ -> ()
+            | FsNamespace _ | FsWith _ -> ()
             spec
 
         member _.FormatValue(node, value) =
@@ -92,6 +100,10 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
     (defaultCase: 'TCase option)
     (optionDecls: (string * string option * string option * bool * Type option) list)
     : BuildGraph =
+
+    // The source sees modifiers; everything here reads the target or command they wrap.
+    let bindWithModifiers = bind
+    let bind (v: 'TCase) = fst (Modifiers.unwrap (bindWithModifiers v))
 
     let graph = BuildGraph()
     graph.AppName <- appName
@@ -147,7 +159,10 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
     // NOTE: namespace sub-cases must be parameterless; payload sub-DUs are not supported.
     let registerNode (route: string[]) (def: Definition<'TCase>) (caseInfoForBody: UnionCaseInfo) (key: 'TCase) =
         let kind    = match def with | FsCommand _ -> TargetKind.Command | _ -> TargetKind.Target
-        let explicitDesc = match def with | FsTarget(d,_,_,_) | FsCommand(d,_,_,_) -> d | _ -> ""
+        let explicitDesc =
+            match (snd (Modifiers.unwrap (bindWithModifiers key))).Description with
+            | Some d -> d
+            | None -> match def with | FsTarget(d,_,_,_) | FsCommand(d,_,_,_) -> d | _ -> ""
         // No explicit description: use the case's /// doc comment (T:<Union>.<Case> in the XML doc file).
         let rawDesc =
             if not (String.IsNullOrEmpty explicitDesc) then explicitDesc
@@ -215,7 +230,7 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
             raise (MakeException($"Target '{route}' depends on '{caseKey dep}', which is not a target or command.", 1))
     for KeyValue(_, (node, tcase)) in caseToNode do
         match bind tcase with
-        | FsNamespace _ -> ()
+        | FsNamespace _ | FsWith _ -> ()
         | FsTarget(_, deps, _, _) ->
             for dep in deps do node.RequiresResolved.Add(resolve node dep)
         | FsCommand(_, requires, stages, _) ->
@@ -223,7 +238,7 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
             for dep in requires do node.RequiresResolved.Add(resolve node dep)
             for dep in composes do node.ComposesResolved.Add(resolve node dep)
 
-    graph.Source <- FsTargetSource<'TCase>(bind, nodeCases, (fun node dep -> resolve node dep))
+    graph.Source <- FsTargetSource<'TCase>(bindWithModifiers, nodeCases, (fun node dep -> resolve node dep))
 
     match defaultCase with
     | None -> ()

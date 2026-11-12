@@ -13,6 +13,9 @@
 [**Running targets side by side**](parallel.md) - Parallel stages, `-j`, `--keep-going`, and the output of targets
 that run at once.
 
+[**Conditions, ordering and cleanup**](modifiers.md) - `OnlyWhen`, `After`, `Cleanup`, and checks for environment
+variables and tools before the run starts.
+
 [**Drawing the plan**](graph.md) - `--graph` draws what a run would do, skipped targets included, and runs nothing.
 
 [**Wrappers**](wrappers.md) - Generate one task per target for [mise](mise.md), [make](makefile.md) and

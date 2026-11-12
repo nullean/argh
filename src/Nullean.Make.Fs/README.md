@@ -146,9 +146,25 @@ See [Running targets side by side](https://argh.nullean.net/make/parallel).
               printfn $"published {sha}" }) }
 ```
 
+## Conditions, ordering and cleanup
+
+Pipe a target or command through these:
+
+```fsharp
+| StartDb -> target [] { sh $"docker compose up -d db" } |> cleanup [StopDb]   // at the end, even after a failure
+| Package -> target [] { sh $"dotnet pack" } |> after [Lint]                    // after lint when both run
+| Publish -> target [] { sh $"dotnet nuget push" }
+             |> onlyWhen (fun () -> not dryRun.Value)   // skip the body; the dependencies still run
+             |> needsEnv ["NUGET_API_KEY"]               // checked before anything starts
+             |> needsTool ["docker"]
+             |> describe "Push the packages"             // for an .fsx script without an XML doc file
+```
+
+See [Conditions, ordering and cleanup](https://argh.nullean.net/make/modifiers).
+
 ## Descriptions from doc comments
 
-A target's description is the `///` doc comment on its DU case. The comment is read from the XML documentation file, so the build project needs `<GenerateDocumentationFile>true</GenerateDocumentationFile>`. A `.fsx` script produces no documentation file. In a script, pass a description with `Make.target` (below), or the target shows its name.
+A target's description is the `///` doc comment on its DU case. The comment is read from the XML documentation file, so the build project needs `<GenerateDocumentationFile>true</GenerateDocumentationFile>`. A `.fsx` script produces no documentation file. In a script, pipe the target through `describe "..."`, or the target shows its name.
 
 ## Namespaces via nested DUs
 

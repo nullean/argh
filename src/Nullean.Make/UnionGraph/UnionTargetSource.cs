@@ -27,6 +27,16 @@ internal sealed class UnionTargetSource<TUnion>(
 			spec.Add(kind, items.Select(d => new DepRef(resolve(node, d.TypeName), d.Value)).ToList(), parallel);
 		if (builder.SyncBody is not null || builder.AsyncBody is not null)
 			spec.Body = builder.ExecuteAsync;
+		spec.OnlyWhen = builder.Condition;
+		// A case named with its default value in After matches the target with any value.
+		foreach (var d in builder.AfterRefs)
+		{
+			var target = resolve(node, d.TypeName);
+			spec.After.Add(new DepRef(target, Equals(d.Value, DefaultValue(target)) ? null : d.Value));
+		}
+		spec.Cleanup.AddRange(builder.CleanupRefs.Select(d => new DepRef(resolve(node, d.TypeName), d.Value)));
+		spec.NeedsEnv.AddRange(builder.Env);
+		spec.NeedsTool.AddRange(builder.Tools);
 		return spec;
 	}
 

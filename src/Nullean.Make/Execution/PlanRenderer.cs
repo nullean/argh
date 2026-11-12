@@ -134,7 +134,13 @@ internal static class PlanRenderer
 		if (!plan.Chained && plan.Roots.Count > 1)
 			return;
 		var order = RunOrder(plan);
+		var cleanups = plan.Cleanups.Values.SelectMany(c => c).Distinct().Select(c => c.Name).ToList();
+		if (cleanups.Count > 0)
+			order += $", then cleanup: {string.Join(", ", cleanups)}";
 		output.WriteLine($"{CliHelpFormatting.Section("Runs:")} {(order.Length == 0 ? "nothing" : order)}");
+
+		foreach (var (instance, what) in plan.MissingPreconditions())
+			output.WriteLine($"{CliHelpFormatting.Section("Missing:")} {what}, for {instance.Name}");
 	}
 
 	private static Line Build(TargetInstance instance, HashSet<TargetInstance> expanded)
@@ -142,6 +148,11 @@ internal static class PlanRenderer
 		var text = instance.Name + Annotation(instance.Skipped);
 		if (!expanded.Add(instance))
 			return new Line(text + Dim("  (above)"), []);
+		if (instance.Spec.After.Count > 0)
+			text += Dim($"  after {string.Join(", ", instance.Spec.After.Select(a => string.Join(" ", a.Node.Route)))}");
+		var needs = instance.Spec.NeedsEnv.Concat(instance.Spec.NeedsTool).ToList();
+		if (needs.Count > 0)
+			text += Dim($"  needs {string.Join(", ", needs)}");
 
 		var children = new List<Line>();
 		foreach (var kind in new[] { StageKind.Requires, StageKind.Composes })
@@ -167,6 +178,8 @@ internal static class PlanRenderer
 			else
 				children.AddRange(lines);
 		}
+		if (instance.Spec.Cleanup.Count > 0)
+			children.Add(new Line(Dim("cleanup, at the end"), [.. instance.Spec.Cleanup.Select(c => new Line(string.Join(" ", c.Node.Route), []))]));
 		return new Line(text, children);
 	}
 

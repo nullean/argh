@@ -19,6 +19,11 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 	private Func<CancellationToken, Task>? _asyncBody;
 	private readonly TargetKind _kind;
 	private readonly List<(Execution.StageKind Kind, bool Parallel, List<CaseRef> Items)> _stages = new();
+	private readonly List<CaseRef> _after = new();
+	private readonly List<CaseRef> _cleanup = new();
+	private readonly List<string> _needsEnv = new();
+	private readonly List<string> _needsTool = new();
+	private Func<bool>? _onlyWhen;
 
 	internal UnionTargetBuilderImpl(TargetKind kind = TargetKind.Target) => _kind = kind;
 
@@ -52,6 +57,36 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 	}
 
 	public IUnionTargetBuilder<TUnion> Requires(params TUnion[] gates) => DependsOn(gates);
+
+	public IUnionTargetBuilder<TUnion> OnlyWhen(Func<bool> condition)
+	{
+		_onlyWhen = condition;
+		return this;
+	}
+
+	public IUnionTargetBuilder<TUnion> After(params TUnion[] targets)
+	{
+		_after.AddRange(targets.Select(ToRef));
+		return this;
+	}
+
+	public IUnionTargetBuilder<TUnion> Cleanup(params TUnion[] targets)
+	{
+		_cleanup.AddRange(targets.Select(ToRef));
+		return this;
+	}
+
+	public IUnionTargetBuilder<TUnion> NeedsEnv(params string[] variables)
+	{
+		_needsEnv.AddRange(variables);
+		return this;
+	}
+
+	public IUnionTargetBuilder<TUnion> NeedsTool(params string[] tools)
+	{
+		_needsTool.AddRange(tools);
+		return this;
+	}
 
 	public IUnionTargetBuilder<TUnion> Parallel(params TUnion[] targets)
 	{
@@ -128,6 +163,11 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 	internal IReadOnlyList<CaseRef> Deps => _stages.Where(s => s.Kind == Execution.StageKind.Requires).SelectMany(s => s.Items).ToList();
 	internal IReadOnlyList<CaseRef> Comps => _stages.Where(s => s.Kind == Execution.StageKind.Composes).SelectMany(s => s.Items).ToList();
 	internal IReadOnlyList<(Execution.StageKind Kind, bool Parallel, List<CaseRef> Items)> Stages => _stages;
+	internal IReadOnlyList<CaseRef> AfterRefs => _after;
+	internal IReadOnlyList<CaseRef> CleanupRefs => _cleanup;
+	internal IReadOnlyList<string> Env => _needsEnv;
+	internal IReadOnlyList<string> Tools => _needsTool;
+	internal Func<bool>? Condition => _onlyWhen;
 
 	internal async Task ExecuteAsync(CancellationToken token)
 	{
