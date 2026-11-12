@@ -15,15 +15,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nullean.Argh.Tests.CliHost\Nullean.Argh.Tests.CliHost.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Nullean.Argh.Tests.RootArgumentHost\Nullean.Argh.Tests.RootArgumentHost.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <Target Name="CopyCliHostToIntegrationTestOutput" AfterTargets="Build">
     <PropertyGroup>
       <_CliHostCfg>$([System.String]::Copy('$(Configuration)').ToLowerInvariant())</_CliHostCfg>
       <_CliHostDir>$([System.IO.Path]::Combine('$(ArtifactsPath)', 'bin', 'Nullean.Argh.Tests.CliHost', '$(_CliHostCfg)'))\</_CliHostDir>
+      <_RootArgumentHostDir>$([System.IO.Path]::Combine('$(ArtifactsPath)', 'bin', 'Nullean.Argh.Tests.RootArgumentHost', '$(_CliHostCfg)'))\</_RootArgumentHostDir>
     </PropertyGroup>
     <ItemGroup>
       <_CliHostFiles Include="$(_CliHostDir)*.*" Exclude="$(_CliHostDir)*.pdb" />
+      <_CliHostFiles Include="$(_RootArgumentHostDir)Nullean.Argh.Tests.RootArgumentHost.*" Exclude="$(_RootArgumentHostDir)*.pdb" />
     </ItemGroup>
     <Copy SourceFiles="@(_CliHostFiles)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(_CliHostFiles)' != ''" />
   </Target>
