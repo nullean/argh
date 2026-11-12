@@ -17,7 +17,8 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
-  <ItemGroup>
+  <!-- ValueTask is in the BCL from net8.0; only netstandard2.0 needs the facade -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="System.Threading.Tasks.Extensions" />
   </ItemGroup>
 
