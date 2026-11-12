@@ -17,9 +17,71 @@ open Proc.Fs
 /// including <c>exec { }</c>, <c>if</c>, <c>match</c> and loops. The first failing command fails the target.
 /// Created by <see cref="M:Nullean.Make.Fs.MakeBuilders.target"/>.
 /// </summary>
+module internal RunToken =
+    /// While targets run side by side, the run's token: a failure elsewhere stops the block, and its commands print
+    /// through Console.Out, where each line gets the target's name. Otherwise none, so commands keep the console.
+    let current () =
+        match Nullean.Make.MakeContext.Current with
+        | null -> Threading.CancellationToken.None
+        | ctx when isNull ctx.Sink -> Threading.CancellationToken.None
+        | ctx -> ctx.CancellationToken
+
+/// <summary>
+/// Modifier lines at the top of a <c>target { }</c> block, such as <c>describe "..."</c>, with the rest of the block.
+/// </summary>
+[<NoComparison; NoEquality>]
+type TargetBlock<'TCase, 'T> = internal { Modifiers: (Definition<'TCase> -> Definition<'TCase>) list; Step: ShellStep<'T> option }
+
 type TargetBuilder<'TCase>(dependsOn: 'TCase list, hidden: bool) =
     // Building the block yields a deferred ShellStep; only ShellBuilder.Run executes it, so Run is
     // the one member that differs: it wraps the step in the target's body instead of running it.
+    let shell = ShellBuilder(false)
+    let definition (step: ShellStep<unit> option) =
+        let body = match step with Some step -> (fun _ -> shell.Run(step, RunToken.current ())) | None -> ignore
+        FsTarget("", dependsOn, body, hidden)
+
+    /// A modifier on a line of its own, such as <c>describe "Say hello"</c> or <c>needsEnv ["KEY"]</c>.
+    member _.Yield(modifier: Definition<'TCase> -> Definition<'TCase>) : TargetBlock<'TCase, unit> =
+        { Modifiers = [ modifier ]; Step = None }
+    member _.Combine(first: TargetBlock<'TCase, unit>, second: ShellStep<'T>) : TargetBlock<'TCase, 'T> =
+        { Modifiers = first.Modifiers; Step = Some second }
+    member _.Combine(first: TargetBlock<'TCase, unit>, second: TargetBlock<'TCase, 'T>) : TargetBlock<'TCase, 'T> =
+        { Modifiers = first.Modifiers @ second.Modifiers; Step = second.Step }
+    // Modifier lines are values, not commands: evaluating them reads the block's metadata and runs nothing. The shell
+    // steps after them are still deferred by their own Delay.
+    member _.Delay(f: unit -> TargetBlock<'TCase, 'T>) = f ()
+    member _.Run(block: TargetBlock<'TCase, unit>) : Definition<'TCase> =
+        List.fold (fun d modifier -> modifier d) (definition block.Step) block.Modifiers
+
+    member _.Zero() = shell.Zero()
+    member _.Yield(command: Cmd) = shell.Yield command
+    member _.Yield(step: ShellStep<unit>) = shell.Yield step
+    member _.Bind(step: ShellStep<'T>, f: 'T -> ShellStep<'U>) = shell.Bind(step, f)
+    member _.Bind(command: Cmd, f: unit -> ShellStep<'U>) = shell.Bind(command, f)
+    member _.Bind(capture: Capture<'T>, f: 'T -> ShellStep<'U>) = shell.Bind(capture, f)
+    member _.Delay(f: unit -> ShellStep<'T>) = shell.Delay f
+    member _.Combine(first: ShellStep<unit>, second: ShellStep<'T>) = shell.Combine(first, second)
+    member _.For(items: seq<'T>, body: 'T -> ShellStep<unit>) = shell.For(items, body)
+    member _.For(capture: Capture<'T list>, body: 'T -> ShellStep<unit>) = shell.For(capture, body)
+    member _.While(guard: unit -> bool, body: ShellStep<unit>) = shell.While(guard, body)
+    member _.TryWith(body: ShellStep<'T>, handler: exn -> ShellStep<'T>) = shell.TryWith(body, handler)
+    member _.TryFinally(body: ShellStep<'T>, compensation: unit -> unit) = shell.TryFinally(body, compensation)
+    member _.Using(resource: 'R :> IDisposable, body: 'R -> ShellStep<'T>) = shell.Using(resource, body)
+    member _.Run(step: ShellStep<unit>) : Definition<'TCase> = definition (Some step)
+
+/// <summary>
+/// Gives a command a body: a block like <c>target { }</c>'s that runs after every composed target.
+/// <code>
+/// | Publish -> command {
+///                requires [Release]
+///                composes [CreateGithubRelease] }
+///            |> executes {
+///                   let! sha = text $"git rev-parse --short HEAD"
+///                   printfn $"published {sha}" }
+/// </code>
+/// Nothing in the block runs until the command does.
+/// </summary>
+type ExecutesBuilder() =
     let shell = ShellBuilder(false)
     member _.Zero() = shell.Zero()
     member _.Yield(command: Cmd) = shell.Yield command
@@ -35,37 +97,38 @@ type TargetBuilder<'TCase>(dependsOn: 'TCase list, hidden: bool) =
     member _.TryWith(body: ShellStep<'T>, handler: exn -> ShellStep<'T>) = shell.TryWith(body, handler)
     member _.TryFinally(body: ShellStep<'T>, compensation: unit -> unit) = shell.TryFinally(body, compensation)
     member _.Using(resource: 'R :> IDisposable, body: 'R -> ShellStep<'T>) = shell.Using(resource, body)
-    member _.Run(step: ShellStep<unit>) : Definition<'TCase> =
-        FsTarget("", dependsOn, (fun _ -> shell.Run(step, TargetBuilder<'TCase>.Token())), hidden)
+    member _.Run(step: ShellStep<unit>) : Definition<'TCase> -> Definition<'TCase> =
+        let body (_: FsContext) = shell.Run(step, RunToken.current ())
+        let rec attach definition =
+            match definition with
+            | FsCommand(desc, requires, stages, _) -> FsCommand(desc, requires, stages, Some body)
+            | FsWith(inner, modifiers) -> FsWith(attach inner, modifiers)
+            | _ -> invalidArg "definition" "executes { } gives a command its body; a target has its own block."
+        attach
 
-    /// While targets run side by side, the run's token: a failure elsewhere stops the block, and its commands print
-    /// through Console.Out, where each line gets the target's name. Otherwise none, so commands keep the console.
-    static member internal Token() =
-        match Nullean.Make.MakeContext.Current with
-        | null -> Threading.CancellationToken.None
-        | ctx when isNull ctx.Sink -> Threading.CancellationToken.None
-        | ctx -> ctx.CancellationToken
-
-/// What a <c>command { }</c> block collects: its requires, its composed stages in order and an optional body.
+/// What a <c>command { }</c> block collects: its requires and its composed stages in order.
 [<NoComparison; NoEquality>]
-type CommandSpec<'TCase> = internal { Requires: 'TCase list; Stages: (bool * 'TCase list) list; Body: (unit -> unit) option }
+type CommandSpec<'TCase> = internal { Requires: 'TCase list; Stages: (bool * 'TCase list) list; Description: string option }
 
 /// <summary>
-/// Builds a command from <c>requires</c> (gates, skipped under <c>-s</c>), <c>composes</c> (always run) and an
-/// optional <c>executes</c> body that runs last:
+/// Builds a command from <c>requires</c> (gates, skipped under <c>-s</c>), <c>composes</c> (always run) and
+/// <c>concurrently</c> stages. Pipe it into <c>executes { }</c> for a body that runs last:
 /// <code>
 /// | Release -> command {
+///       describe "Test, then pack and validate"
 ///       requires [PristineCheck; Test defaultTest]
 ///       concurrently [Pkg Generate; Docs Build]
-///       composes [Pkg PkgTarget.Validate]
-///       executes (
-///           shell {
-///               let! sha = text $"git rev-parse --short HEAD"
-///               printfn $"released {sha}" }) }
+///       composes [Pkg PkgTarget.Validate] }
+///   |> executes {
+///       let! sha = text $"git rev-parse --short HEAD"
+///       printfn $"released {sha}" }
 /// </code>
 /// </summary>
 type CommandBuilder() =
-    member _.Yield(()) : CommandSpec<'TCase> = { Requires = []; Stages = []; Body = None }
+    member _.Yield(()) : CommandSpec<'TCase> = { Requires = []; Stages = []; Description = None }
+    /// The description help shows, for a script without an XML documentation file such as an .fsx.
+    [<CustomOperation("describe")>]
+    member _.Describe(spec: CommandSpec<'TCase>, description: string) = { spec with Description = Some description }
     /// Targets that must succeed first. Skipped under -s.
     [<CustomOperation("requires")>]
     member _.Requires(spec: CommandSpec<'TCase>, targets: 'TCase list) = { spec with Requires = spec.Requires @ targets }
@@ -82,11 +145,11 @@ type CommandBuilder() =
     /// </summary>
     [<CustomOperation("concurrently")>]
     member _.Concurrently(spec: CommandSpec<'TCase>, targets: 'TCase list) = { spec with Stages = spec.Stages @ [true, targets] }
-    /// A body that runs after every composed target. Deferred: nothing in it runs until the command does.
-    [<CustomOperation("executes")>]
-    member _.Executes(spec: CommandSpec<'TCase>, [<ProjectionParameter>] body: unit -> unit) = { spec with Body = Some body }
     member _.Run(spec: CommandSpec<'TCase>) : Definition<'TCase> =
-        FsCommand("", spec.Requires, spec.Stages, spec.Body |> Option.map (fun body -> fun _ -> body ()))
+        let command = FsCommand("", spec.Requires, spec.Stages, None)
+        match spec.Description with
+        | Some d -> FsWith(command, { Modifiers.empty with Description = Some d })
+        | None -> command
 
 /// <summary>The <c>target</c> and <c>command</c> builders. Descriptions come from the DU case's <c>///</c> doc comment.</summary>
 [<AutoOpen>]
@@ -110,6 +173,9 @@ module MakeBuilders =
 
     /// A command that sequences other targets. See CommandBuilder.
     let command = CommandBuilder()
+
+    /// A command's body, piped in: <c>command { ... } |> executes { sh $"..." }</c>. See ExecutesBuilder.
+    let executes = ExecutesBuilder()
 
 /// <summary>
 /// Pipe a <c>target</c> or <c>command</c> through these to add to it:

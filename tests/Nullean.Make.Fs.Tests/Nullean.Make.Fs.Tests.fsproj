@@ -19,6 +19,7 @@
     <Compile Include="ParallelTests.fs" />
     <Compile Include="ModifierTests.fs" />
     <Compile Include="InvocationTests.fs" />
+    <Compile Include="BlockTests.fs" />
     <Compile Include="BuilderTests.fs" />
     <Compile Include="ShellTargetTests.fs" />
   </ItemGroup>

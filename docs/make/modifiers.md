@@ -22,6 +22,16 @@ Publish => app.Target(() => Exec("dotnet nuget push build/output/*.nupkg"))
              |> describe "Push the packages"
 ```
 
+In F# the same lines can open a `target { }` block instead of being piped:
+
+```fsharp
+| Publish -> target [] {
+      describe "Push the packages"
+      onlyWhen (fun () -> not dryRun.Value)
+      needsEnv ["NUGET_API_KEY"]
+      sh $"dotnet nuget push build/output/*.nupkg" }
+```
+
 The `MakeBuild` class has the same methods: `.OnlyWhen(...)`, `.After(Lint)`, `.Cleanup(StopDb)`, `.NeedsEnv(...)` and
 `.NeedsTool(...)`.
 
@@ -79,4 +89,5 @@ A target whose condition is false needs nothing. `--graph` lists what is missing
 ## Descriptions in F# scripts
 
 A target's description comes from the `///` comment on its case, read from the XML documentation file. An `.fsx`
-script has no such file. `|> describe "..."` sets the description in the script itself.
+script has no such file. `describe "..."`, as the first line of a `target { }` or `command { }` block or piped, sets
+the description in the script itself.
