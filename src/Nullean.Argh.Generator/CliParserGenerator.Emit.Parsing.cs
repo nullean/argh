@@ -50,7 +50,7 @@ public sealed partial class CliParserGenerator
 		EmitCanonFlagNameMethod(sb, syn);
 		EmitShortFlagMethods(sb, syn, multiFlagsAvailable: false);
 		EmitAllowedFlagPredicate(sb, members);
-		EmitDeferLeadingRootAliasHelpers(sb, defer);
+		EmitDeferLeadingRootAliasHelpers(sb, defer, members);
 
 		if (flagMembers.Count > 0)
 		{
@@ -187,6 +187,8 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\t\t}");
 		sb.AppendLine("\t\t\t\tif (a.Length >= 2 && a[0] == '-' && a[1] != '-')");
 		sb.AppendLine("\t\t\t\t{");
+		// Decide before TryApplyShortFlag, which reports an unknown short option itself: a root-alias flag is not unknown.
+		sb.AppendLine("\t\t\t\t\tif (ShouldDeferLeadingShortFlag(a[1])) break;");
 		sb.AppendLine("\t\t\t\t\tvar eqs = a.IndexOf('=');");
 		sb.AppendLine("\t\t\t\t\tif (eqs >= 0)");
 		sb.AppendLine("\t\t\t\t\t{");
@@ -197,10 +199,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
 		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tif (!TryApplyShortFlag(shortKey[0], a.Substring(eqs + 1)))");
-		sb.AppendLine("\t\t\t\t\t\t{");
-		sb.AppendLine("\t\t\t\t\t\t\tif (ShouldDeferLeadingShortFlag(shortKey[0])) break;");
 		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
-		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tidx[0]++;");
 		sb.AppendLine("\t\t\t\t\t\tcontinue;");
 		sb.AppendLine("\t\t\t\t\t}");
@@ -210,10 +209,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\t\t\t\tif (IsShortBoolChar(sc))");
 		sb.AppendLine("\t\t\t\t\t\t{");
 		sb.AppendLine("\t\t\t\t\t\t\tif (!TryApplyShortFlag(sc, \"true\"))");
-		sb.AppendLine("\t\t\t\t\t\t\t{");
-		sb.AppendLine("\t\t\t\t\t\t\t\tif (ShouldDeferLeadingShortFlag(sc)) break;");
 		sb.AppendLine("\t\t\t\t\t\t\t\treturn false;");
-		sb.AppendLine("\t\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\t\tidx[0]++;");
 		sb.AppendLine("\t\t\t\t\t\t\tcontinue;");
 		sb.AppendLine("\t\t\t\t\t\t}");
@@ -223,10 +219,7 @@ public sealed partial class CliParserGenerator
 		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
 		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tif (!TryApplyShortFlag(sc, args[idx[0] + 1]))");
-		sb.AppendLine("\t\t\t\t\t\t{");
-		sb.AppendLine("\t\t\t\t\t\t\tif (ShouldDeferLeadingShortFlag(sc)) break;");
 		sb.AppendLine("\t\t\t\t\t\t\treturn false;");
-		sb.AppendLine("\t\t\t\t\t\t}");
 		sb.AppendLine("\t\t\t\t\t\tidx[0] += 2;");
 		sb.AppendLine("\t\t\t\t\t\tcontinue;");
 		sb.AppendLine("\t\t\t\t\t}");

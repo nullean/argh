@@ -7,4 +7,7 @@ internal static class CliHostPaths
 
 	/// <summary>Assembly simple name embedded in generated help <c>Usage:</c> lines.</summary>
 	internal const string CliHostAssemblyName = "Nullean.Argh.Tests.CliHost";
+
+	/// <summary>The second host, whose app-root alias takes an <c>[Argument]</c> (issue #138).</summary>
+	internal const string RootArgumentHostDllFileName = "Nullean.Argh.Tests.RootArgumentHost.dll";
 }

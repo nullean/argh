@@ -14,11 +14,18 @@ internal static class CliHostRunner
 
 	/// <param name="environment">Extra or replacement variables merged on top of <see cref="Environment.GetEnvironmentVariables()"/>.</param>
 	/// <param name="cliArgs">Arguments after <c>dotnet exec</c> and the host DLL.</param>
-	internal static ProcessCaptureResult Run(IReadOnlyDictionary<string, string>? environment, params string[] cliArgs)
+	internal static ProcessCaptureResult Run(IReadOnlyDictionary<string, string>? environment, params string[] cliArgs) =>
+		RunHost(CliHostPaths.CliHostDllFileName, environment, cliArgs);
+
+	/// <summary>Runs <see cref="CliHostPaths.RootArgumentHostDllFileName"/>, whose app-root alias takes an <c>[Argument]</c>.</summary>
+	internal static ProcessCaptureResult RunRootArgumentHost(params string[] cliArgs) =>
+		RunHost(CliHostPaths.RootArgumentHostDllFileName, new Dictionary<string, string>(StringComparer.Ordinal) { ["NO_COLOR"] = "1" }, cliArgs);
+
+	private static ProcessCaptureResult RunHost(string dllFileName, IReadOnlyDictionary<string, string>? environment, string[] cliArgs)
 	{
-		var dll = Path.Combine(AppContext.BaseDirectory, CliHostPaths.CliHostDllFileName);
+		var dll = Path.Combine(AppContext.BaseDirectory, dllFileName);
 		if (!File.Exists(dll))
-			throw new InvalidOperationException($"CliHost not found next to tests: {dll}. Build Nullean.Argh.Tests.CliHost first.");
+			throw new InvalidOperationException($"Test host not found next to tests: {dll}. Build {Path.GetFileNameWithoutExtension(dllFileName)} first.");
 
 		var allArgs = new string[2 + cliArgs.Length];
 		allArgs[0] = "exec";
