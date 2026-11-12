@@ -8,6 +8,9 @@ public interface ICommandBuilder<T> : ITargetBuilder<T>
 
 	/// <inheritdoc cref="ICommandBuilder.Composes"/>
 	ICommandBuilder<T> Composes(params TargetRef[] refs);
+
+	/// <inheritdoc cref="ICommandBuilder.Parallel"/>
+	ICommandBuilder<T> Parallel(params TargetRef[] refs);
 }
 
 /// <summary>

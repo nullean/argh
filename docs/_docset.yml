@@ -50,6 +50,7 @@ toc:
     children:
       - file: index.md
       - file: graph.md
+      - file: parallel.md
       - file: wrappers.md
       - file: mise.md
       - file: makefile.md

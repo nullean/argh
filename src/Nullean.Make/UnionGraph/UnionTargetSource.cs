@@ -22,10 +22,11 @@ internal sealed class UnionTargetSource<TUnion>(
 	{
 		var builder = (UnionTargetBuilderImpl<TUnion>)bind(value is null ? cases[node].CreateDefault() : cases[node].Wrap(value));
 		var spec = new InstanceSpec();
-		spec.Add(StageKind.Requires, builder.Deps.Select(d => new DepRef(resolve(node, d.TypeName), d.Value)).ToList());
-		spec.Add(StageKind.Composes, builder.Comps.Select(d => new DepRef(resolve(node, d.TypeName), d.Value)).ToList());
+		// Requires are gates: they run before the composed stages, whatever order they were declared in.
+		foreach (var (kind, parallel, items) in builder.Stages.OrderBy(s => s.Kind))
+			spec.Add(kind, items.Select(d => new DepRef(resolve(node, d.TypeName), d.Value)).ToList(), parallel);
 		if (builder.SyncBody is not null || builder.AsyncBody is not null)
-			spec.Body = _ => builder.ExecuteAsync();
+			spec.Body = builder.ExecuteAsync;
 		return spec;
 	}
 

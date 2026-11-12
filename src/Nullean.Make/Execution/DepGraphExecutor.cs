@@ -49,44 +49,156 @@ internal static class DepGraphExecutor
 		}
 	}
 
+	/// <summary>
+	/// Runs the plan. An instance starts once everything it waits for has finished, and at most <c>--jobs</c> run at
+	/// once, the earliest in the plan first. With one job, or a plan without parallel stages, that is the plan's order.
+	/// The first failure cancels the targets still running and starts no more, unless <c>--keep-going</c> lets the
+	/// targets that do not depend on it finish.
+	/// </summary>
 	public static async Task<int> ExecuteAsync(RunPlan plan, ParsedArgs parsed)
 	{
 		var context = new MakeContext(parsed.GlobalValues, parsed.SingleTarget) { TargetArgs = parsed.TargetArgs };
+		// A plan without a parallel stage runs one target at a time, in its order, whatever --jobs says.
+		var concurrent = CanRunSideBySide(plan) && (parsed.Jobs ?? Environment.ProcessorCount) > 1;
+		var jobs = concurrent ? parsed.Jobs ?? Environment.ProcessorCount : 1;
 
-		foreach (var step in plan.Instances)
+		using var cancellation = new CancellationTokenSource();
+		var stdout = Console.Out;
+		var stderr = Console.Error;
+		var gate = new object();
+		var mode = parsed.Output ?? OutputMode.Prefixed;
+		if (concurrent)
 		{
-			// A named command that only sequences other targets has nothing of its own to run.
-			if (step.IsRoot && step.Spec.Body is null)
-				continue;
+			Console.SetOut(new OutputRouter(stdout, error: false));
+			Console.SetError(new OutputRouter(stderr, error: true));
+		}
 
+		var done = new HashSet<TargetInstance>();
+		var blocked = new HashSet<TargetInstance>();
+		var running = new Dictionary<Task<(int ExitCode, TimeSpan Elapsed, string? Message)>, TargetInstance>();
+		var pending = plan.Instances.ToList();
+		var failures = new List<(TargetInstance Step, int ExitCode)>();
+		var started = DateTime.UtcNow;
+		var timings = new List<(TargetInstance Step, TimeSpan Elapsed)>();
+
+		try
+		{
+			while (pending.Count > 0 || running.Count > 0)
+			{
+				var stopping = failures.Count > 0 && !parsed.KeepGoing;
+				while (!stopping && running.Count < jobs)
+				{
+					// A target that waits for one that failed, or for one that could not run, cannot run either.
+					foreach (var waiting in pending.Where(p => p.Prerequisites.Any(blocked.Contains)).ToList())
+					{
+						blocked.Add(waiting);
+						pending.Remove(waiting);
+					}
+					var next = pending.FirstOrDefault(p => p.Prerequisites.All(done.Contains));
+					if (next is null)
+						break;
+					pending.Remove(next);
+
+					// A named command that only sequences other targets has nothing of its own to run.
+					if (next.IsRoot && next.Spec.Body is null)
+					{
+						done.Add(next);
+						continue;
+					}
+
+					var sink = concurrent ? new TargetSink(next.Name, mode, stdout, stderr, gate) : null;
+					lock (gate)
+						ExecutionLog.Starting(next, stdout);
+					running[RunStep(next, context.ForTarget(cancellation.Token, sink), sink)] = next;
+				}
+
+				if (running.Count == 0)
+					break;
+
+				var finished = await Task.WhenAny(running.Keys);
+				var step = running[finished];
+				running.Remove(finished);
+				var (exitCode, elapsed, message) = await finished;
+				if (exitCode == 0)
+				{
+					done.Add(step);
+					timings.Add((step, elapsed));
+					lock (gate)
+						ExecutionLog.Finished(step, elapsed, stdout);
+					continue;
+				}
+
+				blocked.Add(step);
+				if (exitCode < 0)
+					continue; // cancelled because another target failed
+
+				failures.Add((step, exitCode));
+				lock (gate)
+					stderr.WriteLine($"[make] Target '{string.Join("/", step.Node.Route)}' failed: {message}");
+				if (!parsed.KeepGoing)
+					await cancellation.CancelAsync();
+			}
+		}
+		finally
+		{
+			if (concurrent)
+			{
+				Console.SetOut(stdout);
+				Console.SetError(stderr);
+			}
+		}
+
+		if (concurrent)
+			ExecutionLog.Summary(timings, DateTime.UtcNow - started, failures.Select(f => f.Step).ToList(), stdout);
+		return failures.Count == 0 ? 0 : failures[0].ExitCode;
+	}
+
+	/// <summary>Whether two targets of the plan can ever be ready at once: a parallel stage, or roots that do not chain.</summary>
+	private static bool CanRunSideBySide(RunPlan plan) =>
+		plan.Instances.Any(i => i.Stages.Any(s => s.Parallel && s.Items.Count(item => item.Instance is not null) > 1)) || !plan.Chained && plan.Roots.Count > 1;
+
+	/// <summary>
+	/// Runs one instance on its own task. Returns 0, the exit code of a failure, or -1 when the run's cancellation
+	/// stopped it.
+	/// </summary>
+	private static Task<(int ExitCode, TimeSpan Elapsed, string? Message)> RunStep(TargetInstance step, MakeContext context, TargetSink? sink) =>
+		Task.Run(async () =>
+		{
 			var start = DateTime.UtcNow;
-			ExecutionLog.Starting(step);
 			MakeContext.Current = context;
+			OutputRouter.Current = sink;
 			try
 			{
-				await InvokeStep(step);
+				await InvokeStep(step, context.CancellationToken);
+				return (0, DateTime.UtcNow - start, (string?)null);
+			}
+			catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+			{
+				return (-1, DateTime.UtcNow - start, null);
 			}
 			catch (MakeException ex)
 			{
-				Console.Error.WriteLine($"[make] Target '{string.Join("/", step.Node.Route)}' failed: {ex.Message}");
-				return ex.ExitCode;
+				return (ex.ExitCode, DateTime.UtcNow - start, ex.Message);
+			}
+			catch (Exception ex) when (context.CancellationToken.IsCancellationRequested)
+			{
+				// A body stopped by the cancellation fails with whatever its command threw; that is not a failure of its own.
+				_ = ex;
+				return (-1, DateTime.UtcNow - start, null);
 			}
 			catch (Exception ex)
 			{
-				Console.Error.WriteLine($"[make] Target '{string.Join("/", step.Node.Route)}' failed: {ex.Message}");
-				return 1;
+				return (1, DateTime.UtcNow - start, ex.Message);
 			}
 			finally
 			{
+				sink?.Complete();
+				OutputRouter.Current = null;
 				MakeContext.Current = null;
 			}
-			ExecutionLog.Finished(step, DateTime.UtcNow - start);
-		}
+		});
 
-		return 0;
-	}
-
-	private static async Task InvokeStep(TargetInstance step)
+	private static async Task InvokeStep(TargetInstance step, CancellationToken token)
 	{
 		if (step.Spec.OnlyWhen is not null && !step.Spec.OnlyWhen())
 		{
@@ -95,6 +207,6 @@ internal static class DepGraphExecutor
 		}
 
 		if (step.Spec.Body is not null)
-			await step.Spec.Body(CancellationToken.None);
+			await step.Spec.Body(token);
 	}
 }

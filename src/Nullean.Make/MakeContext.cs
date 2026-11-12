@@ -1,4 +1,5 @@
 using System.Threading;
+using Nullean.Make.Execution;
 
 namespace Nullean.Make;
 
@@ -25,6 +26,19 @@ public sealed class MakeContext
 	/// <summary>The raw CLI tokens that followed the route (available to F# payload-case SyncBody closures).</summary>
 	public string[] TargetArgs { get; internal set; } = [];
 
+	/// <summary>
+	/// Cancelled when another target of the run fails and the run stops. A body that runs for long should pass it on;
+	/// <see cref="Shell.Exec(string)"/> already does.
+	/// </summary>
+	public CancellationToken CancellationToken { get; private init; }
+
+	/// <summary>Where the target's output goes while targets run side by side, or <c>null</c> when it has the console.</summary>
+	internal TargetSink? Sink { get; private init; }
+
 	/// <summary>Reads the raw string value for a global option. Returns <see langword="null"/> when not supplied.</summary>
 	public string? GetRaw(string longName) => _rawValues.TryGetValue(longName.TrimStart('-'), out var v) ? v : null;
+
+	/// <summary>The context one target runs in.</summary>
+	internal MakeContext ForTarget(CancellationToken token, TargetSink? sink) =>
+		new(_rawValues, _singleTarget) { TargetArgs = TargetArgs, CancellationToken = token, Sink = sink };
 }

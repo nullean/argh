@@ -13,8 +13,9 @@ internal sealed class ClassTargetSource(BuildGraph graph) : ITargetSource
 	public InstanceSpec Describe(TargetNode node, object? value)
 	{
 		var spec = new InstanceSpec { OnlyWhen = node.OnlyWhen };
-		spec.Add(StageKind.Requires, Resolve(node.Requires));
-		spec.Add(StageKind.Composes, Resolve(node.Composes));
+		// Requires are gates: they run before the composed stages, whatever order they were declared in.
+		foreach (var (kind, parallel, items) in node.Stages.OrderBy(s => s.Kind))
+			spec.Add(kind, Resolve(items), parallel);
 
 		if (node.TypedBody is { } typed && node.DtoType is not null)
 			spec.Body = _ => InvokeTyped(typed, value);

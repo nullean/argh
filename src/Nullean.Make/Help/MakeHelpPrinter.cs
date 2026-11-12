@@ -177,8 +177,13 @@ internal static class MakeHelpPrinter
 		if (node.ComposesResolved.Count > 0)
 		{
 			Console.WriteLine($"  {CliHelpFormatting.Section("Composes")} (always runs):");
-			foreach (var dep in node.ComposesResolved)
-				Console.WriteLine($"    {num++,2}. {CliHelpFormatting.Placeholder(string.Join(" ", dep.Route))}");
+			foreach (var (sideBySide, items) in ComposedStages(node, graph))
+			{
+				// The targets of a parallel stage share a number: they start together.
+				var number = num++;
+				foreach (var dep in items)
+					Console.WriteLine($"    {number,2}. {CliHelpFormatting.Placeholder(string.Join(" ", dep.Route))}{(sideBySide ? "  (parallel)" : "")}");
+			}
 			Console.WriteLine();
 		}
 
@@ -207,6 +212,22 @@ internal static class MakeHelpPrinter
 		Console.WriteLine($"    {PlanRenderer.RunOrder(plan)}");
 		Console.WriteLine($"    {CliHelpFormatting.DocRemarksLine($"{scriptName} {string.Join(" ", node.Route)} --graph draws the plan")}");
 		Console.WriteLine();
+	}
+
+	/// <summary>The composed targets by stage, from the graph's source; one sequential stage when it has none.</summary>
+	private static List<(bool Parallel, List<TargetNode> Items)> ComposedStages(TargetNode node, BuildGraph graph)
+	{
+		if (graph.Source is not { } source)
+			return [(false, node.ComposesResolved)];
+		var spec = source.Describe(node, source.DefaultValue(node));
+		var stages = spec.Stages.Where(s => s.Kind == StageKind.Composes).ToList();
+		if (!stages.Any(s => s.Parallel))
+			return [.. stages.SelectMany(s => s.Items).Select(i => (false, new List<TargetNode> { i.Node }))];
+		return [
+			.. stages.SelectMany(
+				s => s.Parallel ? [(true, s.Items.Select(i => i.Node).ToList())] : s.Items.Select(i => (false, new List<TargetNode> { i.Node }))
+			)
+		];
 	}
 
 	private static string CommandSummary(TargetNode node)
@@ -245,6 +266,16 @@ internal static class MakeHelpPrinter
 		Console.WriteLine($"    {CliHelpFormatting.Placeholder("-s, --single-target"),-30}  Skip prerequisite deps; run only the body / Composes");
 		Console.WriteLine($"    {CliHelpFormatting.Placeholder("-h, --help"),-30}  Show this help");
 		Console.WriteLine($"    {CliHelpFormatting.Placeholder("    --graph [<format>]"),-30}  Draw what would run and run nothing: tree, mermaid or json");
+		// A build option with the same short name wins, so help shows only the long name then.
+		string Short(string name) => graph.GlobalOptions.Any(o => o.Short?.TrimStart('-') == name) ? "    " : $"-{name}, ";
+
+		Console.WriteLine(
+			$"    {CliHelpFormatting.Placeholder($"{Short("j")}--jobs <int>"),-30}  How many targets may run at once (default: one per processor)"
+		);
+		Console.WriteLine(
+			$"    {CliHelpFormatting.Placeholder($"{Short("k")}--keep-going"),-30}  After a failure, finish the targets that do not depend on it"
+		);
+		Console.WriteLine($"    {CliHelpFormatting.Placeholder("    --output <mode>"),-30}  Output of targets running side by side: prefixed or grouped");
 
 		foreach (var opt in graph.GlobalOptions)
 		{

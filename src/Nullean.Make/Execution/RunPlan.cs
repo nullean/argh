@@ -123,7 +123,9 @@ internal sealed class RunPlan
 			instance.Prerequisites.AddRange(waitFor);
 
 			_stack.Add(instance);
-			IReadOnlyList<TargetInstance> barrier = [];
+			// An instance's own dependencies wait for what it waits for: in `composes [a; b]`, b's dependencies start
+			// after a, not alongside it.
+			IReadOnlyList<TargetInstance> barrier = waitFor;
 			foreach (var stage in spec.Stages)
 			{
 				var items = new List<PlannedItem>();

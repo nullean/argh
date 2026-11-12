@@ -10,6 +10,9 @@
 ./build.cs release --graph   # draw the plan and run nothing
 ```
 
+[**Running targets side by side**](parallel.md) - Parallel stages, `-j`, `--keep-going`, and the output of targets
+that run at once.
+
 [**Drawing the plan**](graph.md) - `--graph` draws what a run would do, skipped targets included, and runs nothing.
 
 [**Wrappers**](wrappers.md) - Generate one task per target for [mise](mise.md), [make](makefile.md) and

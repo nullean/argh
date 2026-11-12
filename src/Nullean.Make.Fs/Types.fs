@@ -41,7 +41,8 @@ type FsContext internal () =
 type Definition<'TCase> =
     internal
     | FsTarget    of desc: string * deps: 'TCase list * body: (FsContext -> unit) * hidden: bool
-    | FsCommand   of desc: string * requires: 'TCase list * composes: 'TCase list * body: (FsContext -> unit) option
+    /// stages: the composed targets in declared order; true marks a stage whose targets run side by side
+    | FsCommand   of desc: string * requires: 'TCase list * stages: (bool * 'TCase list) list * body: (FsContext -> unit) option
     | FsNamespace of segment: string * desc: string option
 
 /// Helpers for building Definition values inside app.Bind.
@@ -63,8 +64,8 @@ module Make =
     /// `requires` entries are skipped under -s; `composes` entries always run.
     /// Description is auto-generated from the requires/composes graph in help output.
     let command (requires: 'TCase list) (composes: 'TCase list) : Definition<'TCase> =
-        FsCommand("", requires, composes, None)
+        FsCommand("", requires, [false, composes], None)
 
     /// Like `command` but with a trailing body that runs after all `composes` entries.
     let composer (requires: 'TCase list) (composes: 'TCase list) (body: FsContext -> 'r) : Definition<'TCase> =
-        FsCommand("", requires, composes, Some (fun ctx -> body ctx |> ignore))
+        FsCommand("", requires, [false, composes], Some (fun ctx -> body ctx |> ignore))
