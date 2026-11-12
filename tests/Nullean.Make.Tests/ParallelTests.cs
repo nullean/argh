@@ -292,20 +292,24 @@ public class OrderTests
 	{
 		var log = new System.Collections.Concurrent.ConcurrentQueue<string>();
 		var app = new MakeApp<Ordered>("build");
-		app.Bind(o => o.Value switch
-		{
-			First => app.Target(async () =>
-			{
-				log.Enqueue("first:start");
-				await Task.Delay(200);
-				log.Enqueue("first:end");
-			}),
-			SecondsDependency => app.Target(() => log.Enqueue("seconds-dependency")),
-			Second => app.Target([new SecondsDependency()], () => log.Enqueue("second")),
-			InOrder => app.Command([], [new First(), new Second()]),
-			Fanned => app.Command().Composes(new First()).Parallel(new Second(), new SecondsDependency()),
-			_ => throw new InvalidOperationException()
-		});
+		app.Bind(
+			o =>
+				o.Value switch
+				{
+					First =>
+						app.Target(async () =>
+						{
+							log.Enqueue("first:start");
+							await Task.Delay(200);
+							log.Enqueue("first:end");
+						}),
+					SecondsDependency => app.Target(() => log.Enqueue("seconds-dependency")),
+					Second => app.Target([new SecondsDependency()], () => log.Enqueue("second")),
+					InOrder => app.Command([], [new First(), new Second()]),
+					Fanned => app.Command().Composes(new First()).Parallel(new Second(), new SecondsDependency()),
+					_ => throw new InvalidOperationException()
+				}
+		);
 		var (oldOut, oldErr) = (Console.Out, Console.Error);
 		Console.SetOut(new StringWriter());
 		Console.SetError(new StringWriter());
