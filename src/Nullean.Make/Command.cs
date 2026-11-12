@@ -29,6 +29,13 @@ public interface ICommandBuilder : ITargetBuilder
 
 	/// <summary>Declares the targets that constitute the core work of this command. Always runs.</summary>
 	ICommandBuilder Composes(params TargetRef[] refs);
+
+	/// <summary>
+	/// Composes targets that run side by side, as one stage: each starts once the stages before it have finished, and
+	/// the stages after it wait for all of them. Stages run in the order they are declared. <c>-j</c> caps how many
+	/// targets run at once.
+	/// </summary>
+	ICommandBuilder Parallel(params TargetRef[] refs);
 }
 
 /// <summary>

@@ -36,17 +36,20 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
     let mutable _bindFn : ('TCase -> Definition<'TCase>) option = None
     let mutable _default : 'TCase option = None
 
-    let extractGlobals (argv: string[]) =
+    let declared (name: string) =
+        _options |> Seq.exists (fun o ->
+            o.Long = name || "--" + o.Long.TrimStart('-') = name
+            || (o.Short |> Option.exists (fun s -> s = name || "-" + s.TrimStart('-') = name)))
+
+    let extractGlobals (argv: string[]) (switches: ParsedArgs) =
         let remaining    = Collections.Generic.List<string>()
         let mutable singleTarget = false
         let mutable showHelp     = false
         let mutable showVersion  = false
-        let mutable graph : GraphFormat option = None
         let mutable i = 0
         while i < argv.Length do
             let arg = argv.[i]
-            let graphFormat = GraphOption.TryRead(argv, &i)
-            if graphFormat.HasValue then graph <- Some graphFormat.Value
+            if RunSwitches.TryRead(argv, &i, switches, Func<string, bool> declared) then ()
             elif arg = "-h"  || arg = "--help"          then showHelp     <- true; i <- i + 1
             elif arg = "--version"                       then showVersion  <- true; i <- i + 1
             elif arg = "-s"  || arg = "--single-target" then singleTarget <- true; i <- i + 1
@@ -75,7 +78,7 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
                         opt.Set argv.[i]
                         i <- i + 1
                 | None -> remaining.Add(arg); i <- i + 1
-        remaining.ToArray(), singleTarget, showHelp, showVersion, graph
+        remaining.ToArray(), singleTarget, showHelp, showVersion
 
     let resolveRoute (remaining: string[]) (byRoute: Collections.Generic.Dictionary<string, TargetNode>) =
         let routeTokens = Collections.Generic.List<string>()
@@ -160,11 +163,13 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
             let argv, forwarded =
                 if sep >= 0 then argv.[.. sep - 1], argv.[sep + 1 ..] else argv, [||]
 
-            match tryExec (fun () -> extractGlobals argv) with
+            let switches = ParsedArgs()
+            match tryExec (fun () -> extractGlobals argv switches) with
             | Error (code, msg) ->
                 eprintfn "%s" msg
                 return code
-            | Ok (remaining, singleTarget, showHelp, showVersion, graphFormat) ->
+            | Ok (remaining, singleTarget, showHelp, showVersion) ->
+            let graphFormat = Option.ofNullable switches.Graph
 
             if showVersion then
                 printfn "%s" (entryVersion ())
@@ -215,11 +220,8 @@ type MakeApp<'TCase when 'TCase : comparison and 'TCase : not null>
                 eprintfn "Unexpected argument '%s'. Target '%s' takes no arguments." first routeKey
                 return 2
             | true, node ->
-                let parsed =
-                    ParsedArgs(
-                        Target       = node,
-                        TargetArgs   = targetArgs,
-                        SingleTarget = singleTarget,
-                        Graph        = Option.toNullable graphFormat)
-                return! DepGraphExecutor.ExecuteAsync(node, parsed, graph)
+                switches.Target       <- node
+                switches.TargetArgs   <- targetArgs
+                switches.SingleTarget <- singleTarget
+                return! DepGraphExecutor.ExecuteAsync(node, switches, graph)
         }

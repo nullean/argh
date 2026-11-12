@@ -93,6 +93,18 @@ The package's source generator finds each `new MakeApp<TUnion>(...)` and records
 
 `app.Command(requires, composes)` sequences other targets. `requires` are gates, such as tests, and `-s` skips them. `composes` always run, in order. An optional third argument is a body that runs last.
 
+`app.Command()` builds the same in stages. `.Parallel(...)` adds a stage whose targets run side by side; the stages
+run in the order they are declared:
+
+```csharp
+Release => app.Command().Requires(new Test()).Parallel(new PackNuget(), new DocsBuild()).Composes(new Publish()),
+```
+
+`-j` / `--jobs` caps how many targets run at once (default: one per processor). The first failure cancels the targets
+still running; `-k` / `--keep-going` lets the ones that do not depend on it finish. Output of targets running side by
+side carries their names, or `--output grouped` writes each target's lines together. See
+[Running targets side by side](https://argh.nullean.net/make/parallel).
+
 ## Running commands
 
 `using static Nullean.Make.Shell;` brings in `Exec`:

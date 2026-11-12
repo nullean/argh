@@ -16,6 +16,7 @@
     <Compile Include="MakeAppTests.fs" />
     <Compile Include="DependencyValueTests.fs" />
     <Compile Include="GraphTests.fs" />
+    <Compile Include="ParallelTests.fs" />
     <Compile Include="BuilderTests.fs" />
     <Compile Include="ShellTargetTests.fs" />
   </ItemGroup>

@@ -27,6 +27,26 @@ internal sealed class TargetNode
 	/// <summary>Composes references — always run.</summary>
 	public List<TargetRef> Composes { get; } = new();
 
+	/// <summary>The same references as <see cref="Requires"/> and <see cref="Composes"/>, in declared stages.</summary>
+	public List<(Execution.StageKind Kind, bool Parallel, List<TargetRef> Items)> Stages { get; } = new();
+
+	/// <summary>Records a reference in its list and in the stages: the last stage when it is of the same kind and sequential.</summary>
+	public void AddReference(Execution.StageKind kind, TargetRef reference, bool parallelStage = false)
+	{
+		(kind == Execution.StageKind.Requires ? Requires : Composes).Add(reference);
+		if (!parallelStage && Stages.Count > 0 && Stages[^1].Kind == kind && !Stages[^1].Parallel)
+			Stages[^1].Items.Add(reference);
+		else
+			Stages.Add((kind, parallelStage, [reference]));
+	}
+
+	/// <summary>Starts a parallel stage of composed references.</summary>
+	public void AddParallel(TargetRef[] references)
+	{
+		Composes.AddRange(references);
+		Stages.Add((Execution.StageKind.Composes, true, [.. references]));
+	}
+
 	/// <summary>Sync body; null when async or not set.</summary>
 	public Action? SyncBody { get; set; }
 

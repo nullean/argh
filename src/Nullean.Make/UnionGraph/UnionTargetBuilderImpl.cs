@@ -16,10 +16,9 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 	private string? _description;
 	private bool _hidden;
 	private Action? _syncBody;
-	private Func<Task>? _asyncBody;
+	private Func<CancellationToken, Task>? _asyncBody;
 	private readonly TargetKind _kind;
-	private readonly List<CaseRef> _deps = new();
-	private readonly List<CaseRef> _comps = new();
+	private readonly List<(Execution.StageKind Kind, bool Parallel, List<CaseRef> Items)> _stages = new();
 
 	internal UnionTargetBuilderImpl(TargetKind kind = TargetKind.Target) => _kind = kind;
 
@@ -42,57 +41,80 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 	}
 	public IUnionTargetBuilder<TUnion> Executes(Func<Task> body)
 	{
+		_asyncBody = _ => body();
+		return this;
+	}
+
+	public IUnionTargetBuilder<TUnion> Executes(Func<CancellationToken, Task> body)
+	{
 		_asyncBody = body;
 		return this;
+	}
+
+	public IUnionTargetBuilder<TUnion> Requires(params TUnion[] gates) => DependsOn(gates);
+
+	public IUnionTargetBuilder<TUnion> Parallel(params TUnion[] targets)
+	{
+		_stages.Add((Execution.StageKind.Composes, true, targets.Select(ToRef).ToList()));
+		return this;
+	}
+
+	/// <summary>Adds to the last stage when it is of the same kind and sequential, else starts a stage.</summary>
+	private void Append(Execution.StageKind kind, CaseRef reference)
+	{
+		if (_stages.Count > 0 && _stages[^1].Kind == kind && !_stages[^1].Parallel)
+			_stages[^1].Items.Add(reference);
+		else
+			_stages.Add((kind, false, [reference]));
 	}
 
 	public IUnionTargetBuilder<TUnion> DependsOn(params TUnion[] deps)
 	{
 		foreach (var dep in deps)
-			_deps.Add(ToRef(dep));
+			Append(Execution.StageKind.Requires, ToRef(dep));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> DependsOn<T1>()
 	{
-		_deps.Add(new CaseRef(typeof(T1).Name, null));
+		Append(Execution.StageKind.Requires, new CaseRef(typeof(T1).Name, null));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> DependsOn<T1, T2>()
 	{
-		_deps.Add(new CaseRef(typeof(T1).Name, null));
-		_deps.Add(new CaseRef(typeof(T2).Name, null));
+		Append(Execution.StageKind.Requires, new CaseRef(typeof(T1).Name, null));
+		Append(Execution.StageKind.Requires, new CaseRef(typeof(T2).Name, null));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> DependsOn<T1, T2, T3>()
 	{
-		_deps.Add(new CaseRef(typeof(T1).Name, null));
-		_deps.Add(new CaseRef(typeof(T2).Name, null));
-		_deps.Add(new CaseRef(typeof(T3).Name, null));
+		Append(Execution.StageKind.Requires, new CaseRef(typeof(T1).Name, null));
+		Append(Execution.StageKind.Requires, new CaseRef(typeof(T2).Name, null));
+		Append(Execution.StageKind.Requires, new CaseRef(typeof(T3).Name, null));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> DependsOn<T1, T2, T3, T4>()
 	{
-		_deps.Add(new CaseRef(typeof(T1).Name, null));
-		_deps.Add(new CaseRef(typeof(T2).Name, null));
-		_deps.Add(new CaseRef(typeof(T3).Name, null));
-		_deps.Add(new CaseRef(typeof(T4).Name, null));
+		Append(Execution.StageKind.Requires, new CaseRef(typeof(T1).Name, null));
+		Append(Execution.StageKind.Requires, new CaseRef(typeof(T2).Name, null));
+		Append(Execution.StageKind.Requires, new CaseRef(typeof(T3).Name, null));
+		Append(Execution.StageKind.Requires, new CaseRef(typeof(T4).Name, null));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> Composes(params TUnion[] targets)
 	{
 		foreach (var t in targets)
-			_comps.Add(ToRef(t));
+			Append(Execution.StageKind.Composes, ToRef(t));
 		return this;
 	}
 
 	public IUnionTargetBuilder<TUnion> Composes<T1>()
 	{
-		_comps.Add(new CaseRef(typeof(T1).Name, null));
+		Append(Execution.StageKind.Composes, new CaseRef(typeof(T1).Name, null));
 		return this;
 	}
 
@@ -102,14 +124,15 @@ internal sealed class UnionTargetBuilderImpl<TUnion> : IUnionTargetBuilder<TUnio
 	internal string? DescriptionValue => _description;
 	internal bool IsHidden => _hidden;
 	internal Action? SyncBody => _syncBody;
-	internal Func<Task>? AsyncBody => _asyncBody;
-	internal IReadOnlyList<CaseRef> Deps => _deps;
-	internal IReadOnlyList<CaseRef> Comps => _comps;
+	internal Func<CancellationToken, Task>? AsyncBody => _asyncBody;
+	internal IReadOnlyList<CaseRef> Deps => _stages.Where(s => s.Kind == Execution.StageKind.Requires).SelectMany(s => s.Items).ToList();
+	internal IReadOnlyList<CaseRef> Comps => _stages.Where(s => s.Kind == Execution.StageKind.Composes).SelectMany(s => s.Items).ToList();
+	internal IReadOnlyList<(Execution.StageKind Kind, bool Parallel, List<CaseRef> Items)> Stages => _stages;
 
-	internal async Task ExecuteAsync()
+	internal async Task ExecuteAsync(CancellationToken token)
 	{
 		if (_asyncBody is not null)
-			await _asyncBody();
+			await _asyncBody(token);
 		else
 			_syncBody?.Invoke();
 	}

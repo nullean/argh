@@ -79,6 +79,9 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 	/// <inheritdoc cref="Target(Action)"/>
 	public IUnionTargetBuilder<TUnion> Target(Func<Task> body) => Target().Executes(body);
 
+	/// <summary>A target whose body receives the run's cancellation token, cancelled when another target fails.</summary>
+	public IUnionTargetBuilder<TUnion> Target(Func<CancellationToken, Task> body) => Target().Executes(body);
+
 	/// <summary>A target that runs <paramref name="body"/> after <paramref name="dependsOn"/> (skipped under <c>-s</c>).</summary>
 	public IUnionTargetBuilder<TUnion> Target(TUnion[] dependsOn, Action body) => Target().DependsOn(dependsOn).Executes(body);
 
@@ -149,10 +152,10 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 
 		string[] remaining;
 		bool singleTarget, showHelp, showVersion;
-		GraphFormat? graphFormat;
+		var switches = new ParsedArgs();
 		try
 		{
-			(remaining, singleTarget, showHelp, showVersion, graphFormat) = ExtractGlobals(args);
+			(remaining, singleTarget, showHelp, showVersion) = ExtractGlobals(args, switches);
 		}
 		catch (MakeException ex)
 		{
@@ -190,7 +193,7 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 				Console.Error.WriteLine($"Unknown target '{unknown}'.");
 				return 2;
 			}
-			if (graphFormat is { } format)
+			if (switches.Graph is { } format)
 				return DepGraphExecutor.DrawWholeGraph(_graph, format);
 			MakeHelpPrinter.PrintRoot(_graph, scriptName);
 			return 0;
@@ -202,7 +205,10 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 			return 2;
 		}
 
-		var parsed = new ParsedArgs { Target = targetNode, TargetArgs = targetArgs, SingleTarget = singleTarget, Graph = graphFormat };
+		switches.Target = targetNode;
+		switches.TargetArgs = targetArgs;
+		switches.SingleTarget = singleTarget;
+		var parsed = switches;
 
 		return await DepGraphExecutor.ExecuteAsync(targetNode, parsed, _graph);
 	}
@@ -256,13 +262,12 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 
 	// ── Argv helpers ──────────────────────────────────────────────────────────
 
-	private (string[] remaining, bool single, bool help, bool version, GraphFormat? graph) ExtractGlobals(string[] argv)
+	private (string[] remaining, bool single, bool help, bool version) ExtractGlobals(string[] argv, ParsedArgs switches)
 	{
 		var remaining = new List<string>();
 		var single = false;
 		var help = false;
 		var version = false;
-		GraphFormat? graph = null;
 		var i = 0;
 		while (i < argv.Length)
 		{
@@ -285,11 +290,8 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 				i++;
 				continue;
 			}
-			if (GraphOption.TryRead(argv, ref i) is { } format)
-			{
-				graph = format;
+			if (RunSwitches.TryRead(argv, ref i, switches, IsDeclared))
 				continue;
-			}
 
 			var matched = false;
 			foreach (var opt in _options)
@@ -320,8 +322,11 @@ public sealed class MakeApp<TUnion> where TUnion : struct
 				i++;
 			}
 		}
-		return (remaining.ToArray(), single, help, version, graph);
+		return (remaining.ToArray(), single, help, version);
 	}
+
+	private bool IsDeclared(string name) =>
+		_options.Any(o => o.Long == name || o.Short == name || "--" + o.Long.TrimStart('-') == name || "-" + o.Short?.TrimStart('-') == name);
 
 	private (string routeKey, string[] targetArgs) ResolveRoute(string[] remaining)
 	{

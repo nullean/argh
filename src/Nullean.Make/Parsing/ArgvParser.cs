@@ -15,6 +15,15 @@ internal sealed class ParsedArgs
 
 	/// <summary>Set by <c>--graph</c>: draw the plan in this format and run nothing.</summary>
 	public Execution.GraphFormat? Graph { get; set; }
+
+	/// <summary><c>-j</c> / <c>--jobs</c>: how many targets may run at once. <c>null</c> means one per processor.</summary>
+	public int? Jobs { get; set; }
+
+	/// <summary><c>-k</c> / <c>--keep-going</c>: after a failure, let the targets that do not depend on it finish.</summary>
+	public bool KeepGoing { get; set; }
+
+	/// <summary><c>--output</c>: how the output of targets that run side by side reaches the console.</summary>
+	public Execution.OutputMode? Output { get; set; }
 	public string? HelpTarget { get; set; }
 }
 
@@ -120,11 +129,8 @@ internal static class ArgvParser
 				i++;
 				continue;
 			}
-			if (Execution.GraphOption.TryRead(args, ref i) is { } graphFormat)
-			{
-				result.Graph = graphFormat;
+			if (Execution.RunSwitches.TryRead(args, ref i, result, n => IsDeclared(graph, n)))
 				continue;
-			}
 
 			// Global options
 			var matched = false;
@@ -160,6 +166,9 @@ internal static class ArgvParser
 		}
 		return remaining;
 	}
+
+	private static bool IsDeclared(BuildGraph graph, string name) =>
+		graph.GlobalOptions.Any(o => o.Long == name || o.Short == name || "--" + o.Long.TrimStart('-') == name || "-" + o.Short?.TrimStart('-') == name);
 
 	private static void SetProperty(PropertyInfo? prop, MakeBuild build, string raw, string flagName)
 	{

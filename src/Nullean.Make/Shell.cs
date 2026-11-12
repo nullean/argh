@@ -22,11 +22,36 @@ public static class Shell
 		var parts = Split(commandLine);
 		if (parts.Count == 0)
 			throw new ArgumentException("The command line is empty.", nameof(commandLine));
-		Proc.Exec(parts[0], parts.Skip(1).ToArray());
+		Exec(parts[0], parts.Skip(1).ToArray());
 	}
 
 	/// <summary>Runs <paramref name="binary"/> with each argument passed as is, with no splitting or quoting.</summary>
-	public static void Exec(string binary, params string[] arguments) => Proc.Exec(binary, arguments);
+	/// <remarks>
+	/// On its own the command shares the console. While targets run side by side, its output goes through the target's
+	/// prefixed or grouped output instead, and a failing target elsewhere in the run stops it.
+	/// </remarks>
+	public static void Exec(string binary, params string[] arguments)
+	{
+		var context = MakeContext.Current;
+		if (context?.Sink is not { } sink)
+		{
+			Proc.Exec(binary, arguments);
+			return;
+		}
+
+		context.CancellationToken.ThrowIfCancellationRequested();
+		var result = Proc.StartRedirected(new StartArguments(binary, arguments), new SinkLineHandler(sink), context.CancellationToken);
+		context.CancellationToken.ThrowIfCancellationRequested();
+		if (result.ExitCode != 0)
+			throw new ProcExecException($"Process exited with '{result.ExitCode}' \"{binary} {string.Join(" ", arguments)}\"") { ExitCode = result.ExitCode };
+	}
+
+	private sealed class SinkLineHandler(Execution.TargetSink sink) : ProcNet.Std.IConsoleLineHandler
+	{
+		public void Handle(ProcNet.Std.LineOut lineOut) => sink.Line(lineOut.Line, lineOut.Error);
+
+		public void Handle(Exception e) => sink.Line(e.Message, true);
+	}
 
 	/// <summary>Splits a command line the way <see cref="Exec(string)"/> does.</summary>
 	public static IReadOnlyList<string> Split(string commandLine)

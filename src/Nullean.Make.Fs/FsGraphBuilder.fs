@@ -75,9 +75,9 @@ type private FsTargetSource<'TCase when 'TCase : comparison and 'TCase : not nul
             | FsTarget(_, deps, b, _) ->
                 spec.Add(Nullean.Make.Execution.StageKind.Requires, refs node deps)
                 spec.Body <- body b
-            | FsCommand(_, requires, composes, b) ->
-                spec.Add(Nullean.Make.Execution.StageKind.Requires, refs node requires)
-                spec.Add(Nullean.Make.Execution.StageKind.Composes, refs node composes)
+            | FsCommand(_, requires, stages, b) ->
+                spec.Add(StageKind.Requires, refs node requires)
+                for sideBySide, targets in stages do spec.Add(StageKind.Composes, refs node targets, sideBySide)
                 b |> Option.iter (fun b -> spec.Body <- body b)
             | FsNamespace _ -> ()
             spec
@@ -218,7 +218,8 @@ let buildGraph<'TCase when 'TCase : comparison and 'TCase : not null>
         | FsNamespace _ -> ()
         | FsTarget(_, deps, _, _) ->
             for dep in deps do node.RequiresResolved.Add(resolve node dep)
-        | FsCommand(_, requires, composes, _) ->
+        | FsCommand(_, requires, stages, _) ->
+            let composes = stages |> List.collect snd
             for dep in requires do node.RequiresResolved.Add(resolve node dep)
             for dep in composes do node.ComposesResolved.Add(resolve node dep)
 

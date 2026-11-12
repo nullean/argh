@@ -37,9 +37,9 @@ type TargetBuilder<'TCase>(dependsOn: 'TCase list, hidden: bool) =
     member _.Using(resource: 'R :> IDisposable, body: 'R -> ShellStep<'T>) = shell.Using(resource, body)
     member _.Run(step: ShellStep<unit>) : Definition<'TCase> = FsTarget("", dependsOn, (fun _ -> shell.Run step), hidden)
 
-/// What a <c>command { }</c> block collects: its requires, its composes and an optional body.
+/// What a <c>command { }</c> block collects: its requires, its composed stages in order and an optional body.
 [<NoComparison; NoEquality>]
-type CommandSpec<'TCase> = internal { Requires: 'TCase list; Composes: 'TCase list; Body: (unit -> unit) option }
+type CommandSpec<'TCase> = internal { Requires: 'TCase list; Stages: (bool * 'TCase list) list; Body: (unit -> unit) option }
 
 /// <summary>
 /// Builds a command from <c>requires</c> (gates, skipped under <c>-s</c>), <c>composes</c> (always run) and an
@@ -47,7 +47,8 @@ type CommandSpec<'TCase> = internal { Requires: 'TCase list; Composes: 'TCase li
 /// <code>
 /// | Release -> command {
 ///       requires [PristineCheck; Test defaultTest]
-///       composes [Pkg Generate; Pkg PkgTarget.Validate]
+///       concurrently [Pkg Generate; Docs Build]
+///       composes [Pkg PkgTarget.Validate]
 ///       executes (
 ///           shell {
 ///               let! sha = text $"git rev-parse --short HEAD"
@@ -55,18 +56,28 @@ type CommandSpec<'TCase> = internal { Requires: 'TCase list; Composes: 'TCase li
 /// </code>
 /// </summary>
 type CommandBuilder() =
-    member _.Yield(()) : CommandSpec<'TCase> = { Requires = []; Composes = []; Body = None }
+    member _.Yield(()) : CommandSpec<'TCase> = { Requires = []; Stages = []; Body = None }
     /// Targets that must succeed first. Skipped under -s.
     [<CustomOperation("requires")>]
     member _.Requires(spec: CommandSpec<'TCase>, targets: 'TCase list) = { spec with Requires = spec.Requires @ targets }
     /// Targets the command always runs, in order.
     [<CustomOperation("composes")>]
-    member _.Composes(spec: CommandSpec<'TCase>, targets: 'TCase list) = { spec with Composes = spec.Composes @ targets }
+    member _.Composes(spec: CommandSpec<'TCase>, targets: 'TCase list) =
+        match List.rev spec.Stages with
+        | (false, last) :: earlier -> { spec with Stages = List.rev ((false, last @ targets) :: earlier) }
+        | _ -> { spec with Stages = spec.Stages @ [false, targets] }
+    /// <summary>
+    /// Targets that run side by side, as one stage: each starts once the stages before it have finished, and the
+    /// stages after it wait for all of them. Stages run in the order they are written. <c>-j</c> caps how many run at once.
+    /// The name is <c>concurrently</c> because F# reserves <c>parallel</c>.
+    /// </summary>
+    [<CustomOperation("concurrently")>]
+    member _.Concurrently(spec: CommandSpec<'TCase>, targets: 'TCase list) = { spec with Stages = spec.Stages @ [true, targets] }
     /// A body that runs after every composed target. Deferred: nothing in it runs until the command does.
     [<CustomOperation("executes")>]
     member _.Executes(spec: CommandSpec<'TCase>, [<ProjectionParameter>] body: unit -> unit) = { spec with Body = Some body }
     member _.Run(spec: CommandSpec<'TCase>) : Definition<'TCase> =
-        FsCommand("", spec.Requires, spec.Composes, spec.Body |> Option.map (fun body -> fun _ -> body ()))
+        FsCommand("", spec.Requires, spec.Stages, spec.Body |> Option.map (fun body -> fun _ -> body ()))
 
 /// <summary>The <c>target</c> and <c>command</c> builders. Descriptions come from the DU case's <c>///</c> doc comment.</summary>
 [<AutoOpen>]

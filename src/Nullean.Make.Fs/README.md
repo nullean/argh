@@ -120,6 +120,20 @@ The first command that fails fails the target, and `RunAsync` returns `1`.
       composes [Pkg Generate; Pkg Validate] }            // the work, always runs
 ```
 
+`concurrently [...]` adds a stage whose targets run side by side (F# reserves `parallel`). Stages run in the order
+they are written:
+
+```fsharp
+| Release -> command {
+      requires [Test { Filter = None }]
+      concurrently [Pkg Generate; Docs Build]
+      composes [Publish] }
+```
+
+`-j` / `--jobs` caps how many targets run at once, and `-k` / `--keep-going` lets the targets that do not depend on a
+failure finish. `printfn` output of targets running side by side carries their names; `sh` commands keep the console.
+See [Running targets side by side](https://argh.nullean.net/make/parallel).
+
 `executes (...)` adds a body that runs after every composed target. Like a target block, it is deferred. Use `shell { }` inside it to run commands:
 
 ```fsharp
