@@ -32,6 +32,11 @@ run = "dotnet run build.cs -- pkg generate"
 usage = '''
 flag "--configuration <configuration>" help="string (default: Release)"
 flag "-s --single-target" help="Skip prerequisite deps; run only the body / Composes"
+flag "--graph" help="Draw what would run and run nothing: tree, mermaid or json"
+flag "-j --jobs <jobs>" help="How many targets may run at once (default: one per processor)"
+flag "-k --keep-going" help="After a failure, finish the targets that do not depend on it"
+flag "--output <output>" help="Output of targets running side by side: prefixed or grouped"
+flag "--skip <skip>" help="Leave a target out of the plan, with what only it needed"
 '''
 ```
 

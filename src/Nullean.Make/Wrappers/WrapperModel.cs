@@ -32,7 +32,17 @@ internal sealed class WrapperModel
 			.Select(t => new WrapperTarget(t.Route, OneLine(t.Description), t.DtoType is null ? Array.Empty<DtoOption>() : DtoOptions.Describe(t.DtoType)))
 			.ToList();
 
-		var options = new List<WrapperOption> { new("--single-target", "-s", "Skip prerequisite deps; run only the body / Composes", true, "bool"), };
+		// The switches every Make script reads. A build option with the same short name keeps it, as on the command line.
+		string? Short(string name) => graph.GlobalOptions.Any(o => o.Short?.TrimStart('-') == name.TrimStart('-')) ? null : name;
+		var options = new List<WrapperOption>
+		{
+			new("--single-target", "-s", "Skip prerequisite deps; run only the body / Composes", true, "bool"),
+			new("--graph", null, "Draw what would run and run nothing: tree, mermaid or json", true, "bool"),
+			new("--jobs", Short("-j"), "How many targets may run at once (default: one per processor)", false, "int"),
+			new("--keep-going", Short("-k"), "After a failure, finish the targets that do not depend on it", true, "bool"),
+			new("--output", null, "Output of targets running side by side: prefixed or grouped", false, "string"),
+			new("--skip", null, "Leave a target out of the plan, with what only it needed", false, "string"),
+		};
 		foreach (var o in graph.GlobalOptions)
 		{
 			var valueType = o.Property?.PropertyType ?? o.ValueType;
