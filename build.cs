@@ -1,6 +1,6 @@
 #!/usr/bin/env -S dotnet run --
 #:package Proc@0.22.1
-#:package Nullean.Runna@0.1.0
+#:package Runna@0.2.0
 #:property ManagePackageVersionsCentrally=false
 // C# build pipeline for nullean/argh using runna: https://runna.nullean.net
 
