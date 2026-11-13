@@ -1,4 +1,4 @@
-#!/usr/bin/env -S dotnet run --
+#!/usr/bin/env -S dotnet --
 #:package Proc@0.22.1
 #:package Runna@0.2.0
 #:property ManagePackageVersionsCentrally=false
