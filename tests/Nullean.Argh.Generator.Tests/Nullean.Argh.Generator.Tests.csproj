@@ -18,6 +18,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Nullean.Argh.Generator\Nullean.Argh.Generator.csproj" />
     <ProjectReference Include="..\..\src\Nullean.Argh.Interfaces\Nullean.Argh.Interfaces.csproj" />
+    <!-- the runtime the generated code calls, so a test can compile it -->
+    <ProjectReference Include="..\..\src\Nullean.Argh.Core\Nullean.Argh.Core.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
 
