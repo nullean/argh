@@ -1282,6 +1282,18 @@ public sealed partial class CliParserGenerator
 			if (v is null)
 				return p.Type.IsReferenceType ? "null" : "default";
 
+			// C# converts only the literal 0 to an enum implicitly, so an enum default names its member, or casts
+			if (EnumTypeOf(p.Type) is { } enumType)
+			{
+				var enumFq = enumType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				foreach (var member in enumType.GetMembers())
+				{
+					if (member is IFieldSymbol { HasConstantValue: true } field && Equals(field.ConstantValue, v))
+						return enumFq + "." + field.Name;
+				}
+				return $"({enumFq})({SymbolDisplay.FormatPrimitive(v, quoteStrings: false, useHexadecimalNumbers: false)})";
+			}
+
 			return v switch
 			{
 				string s => SymbolDisplay.FormatPrimitive(s, quoteStrings: true, useHexadecimalNumbers: false),
@@ -1291,6 +1303,16 @@ public sealed partial class CliParserGenerator
 				_ => "default"
 			};
 		}
+
+		private static INamedTypeSymbol? EnumTypeOf(ITypeSymbol type) => type switch
+		{
+			INamedTypeSymbol { TypeKind: TypeKind.Enum } e => e,
+			INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } n when n.TypeArguments[0] is INamedTypeSymbol
+			{
+				TypeKind: TypeKind.Enum
+			} e => e,
+			_ => null,
+		};
 
 		private static string SafeLocalName(string name)
 		{
