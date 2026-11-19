@@ -219,13 +219,14 @@ public sealed partial class CliParserGenerator
 		// GetDocumentationCommentXml() is empty when GenerateDocumentationFile is not set.
 		// In that case parse the full doc comment directly from syntax trivia so all fields
 		// (summary, remarks, params, examples) are recovered without requiring that MSBuild property.
-		if (string.IsNullOrWhiteSpace(docs.SummaryOneLiner))
+		if (string.IsNullOrWhiteSpace(docs.SummaryOneLiner) && docs.ParamDocsRaw.IsEmpty)
 		{
 			var full = TryExtractFullDocumentationFromTrivia(method);
 			if (full.Length > 0)
 			{
 				var fromTrivia = Documentation.ParseMethod(full, parseOptions);
-				if (!string.IsNullOrWhiteSpace(fromTrivia.SummaryOneLiner))
+				// A doc comment with <param> tags but no <summary> still carries the parameter aliases and descriptions.
+				if (!string.IsNullOrWhiteSpace(fromTrivia.SummaryOneLiner) || !fromTrivia.ParamDocsRaw.IsEmpty)
 					return fromTrivia;
 			}
 		}
