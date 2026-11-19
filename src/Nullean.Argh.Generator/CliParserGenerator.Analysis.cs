@@ -58,7 +58,7 @@ public sealed partial class CliParserGenerator
 			case "UseMiddleware":
 				// Inline delegate — diagnostic will be reported by TryBuildAppEmitModel (option 2 from plan).
 				return new AIUseMiddleware(filePath, spanStart, new GlobalMiddlewareRegistration("", false));
-			case "Map" when method.IsGenericMethod && method.TypeArguments.Length > 0:
+			case "Map" or "MapTransient" or "MapScoped" or "MapSingleton" when method.IsGenericMethod && method.TypeArguments.Length > 0:
 				{
 					if (method.TypeArguments[0] is not INamedTypeSymbol named || named.TypeKind == TypeKind.Error)
 						return null;
