@@ -51,6 +51,10 @@ public sealed partial class CliParserGenerator : IIncrementalGenerator
 			case "UseNamespaceOptions":
 			case "UseMiddleware":
 				return true;
+			case "MapTransient":
+			case "MapScoped":
+			case "MapSingleton":
+				return ma.Name is GenericNameSyntax gnl && gnl.TypeArgumentList.Arguments.Count > 0;
 			case "Map":
 				if (ma.Name is GenericNameSyntax gn && gn.TypeArgumentList.Arguments.Count > 0)
 					return true;
