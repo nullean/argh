@@ -17,6 +17,9 @@ updates:
     cooldown:
       default-days: 7
     labels: [dependencies]
+    ignore:
+      # Stays on the floating @v1 tag.
+      - dependency-name: elastic/docs-builder
     groups:
       actions:
         patterns: ["*"]
