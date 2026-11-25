@@ -50,8 +50,7 @@ public sealed class DeployCommands(IClock clock)
 
 ## Gotchas
 
-- Use `b.Map<T>(ServiceLifetime.Scoped)`, not `MapScoped<T>()`. `MapScoped`, `MapTransient` and `MapSingleton`
-  compile, but the source generator only reads `Map<T>`, so their commands never exist (`unknown command`).
+- `MapScoped<T>()`, `MapTransient<T>()` and `MapSingleton<T>()` are shorthand for `Map<T>(ServiceLifetime.X)`.
 - The process exits through `Environment.Exit` with the command's exit code once the command finishes. Code after
   `RunAsync()` does not run, and `StopAsync` is not called on hosted services.
 - Call `AddArgh` before other `AddHostedService` registrations. Hosted services registered earlier start on every
