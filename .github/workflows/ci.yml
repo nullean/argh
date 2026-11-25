@@ -116,7 +116,7 @@ jobs:
           persist-credentials: false
 
       - name: Build documentation
-        uses: elastic/docs-builder@c0667fd20b3e74a2a81fcae5e358583d3da9f18b # v1.80.0
+        uses: elastic/docs-builder@c0667fd20b3e74a2a81fcae5e358583d3da9f18b # 1.80.0
         env:
           FEATURE_NAVIGATION_PREVIEW: true
 
