@@ -18,11 +18,10 @@ concurrency:
 
 jobs:
   # `mise run ci`: test, check the schema is up to date, pack, validate, diff the public API. macOS runners are scarce:
-  # pull requests run on Linux, main adds macOS. A release runs no tests of its own; its main-green gate requires
-  # main's full run, macOS included, to have passed on the released commit.
+  # pull requests run on Linux, main adds macOS. A release runs no tests of its own.
   build:
     if: github.event_name != 'release'
-    uses: nullean/.github/.github/workflows/dotnet-ci.yml@e21d5f59405aa7078e51825cd4c407191e28562f # v1.6.1
+    uses: nullean/.github/.github/workflows/dotnet-ci.yml@0fb15f4b8fa934bf33af71b9127816f94ab7380a # v1.6.2
     permissions:
       contents: read
     with:
@@ -34,11 +33,11 @@ jobs:
       packages-path: build/output
 
   zizmor:
-    uses: nullean/.github/.github/workflows/zizmor.yml@e21d5f59405aa7078e51825cd4c407191e28562f # v1.6.1
+    uses: nullean/.github/.github/workflows/zizmor.yml@0fb15f4b8fa934bf33af71b9127816f94ab7380a # v1.6.2
     permissions:
       contents: read
 
-  # macOS only on pushes to main, like build; not on a release, which the main-green gate covers
+  # macOS only on pushes to main, like build; not on a release
   aot-validate:
     if: github.event_name != 'release'
     runs-on: ${{ matrix.runner }}
@@ -146,15 +145,13 @@ jobs:
             echo "Retrying"; sleep 1
           done
 
-  # publishing the release-drafter draft releases: the shared workflow first waits for main's ci.yml run on the tagged
-  # commit and stops unless it passed (its main-green job; the test jobs above do not run on a release), then packs at
-  # the tag's version...
+  # publishing the release-drafter draft releases: the shared workflow packs at the tag's version (the test jobs above
+  # do not run on a release)...
   release:
     if: github.event_name == 'release'
     needs: zizmor
-    uses: nullean/.github/.github/workflows/release.yml@e21d5f59405aa7078e51825cd4c407191e28562f # v1.6.1
+    uses: nullean/.github/.github/workflows/release.yml@0fb15f4b8fa934bf33af71b9127816f94ab7380a # v1.6.2
     permissions:
-      actions: read # the main-green gate reads main's runs
       contents: write
     with:
       packages-path: build/output
@@ -174,7 +171,7 @@ jobs:
         with:
           name: release-packages
           path: packages
-      - uses: nullean/.github/actions/nuget-publish@e21d5f59405aa7078e51825cd4c407191e28562f # v1.6.1
+      - uses: nullean/.github/actions/nuget-publish@0fb15f4b8fa934bf33af71b9127816f94ab7380a # v1.6.2
         with:
           user: ${{ secrets.NUGET_USER }}
           packages-path: packages
